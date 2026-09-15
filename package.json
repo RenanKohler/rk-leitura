@@ -9,12 +9,13 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate",
+    "db:generate": "drizzle-kit generate && node scripts/sync-netlify-migrations.mjs",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
     "db:setup": "npm run db:migrate && npm run db:seed",
-    "secret": "node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\""
+    "secret": "node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\"",
+    "db:sync-netlify": "node scripts/sync-netlify-migrations.mjs"
   },
   "dependencies": {
     "@netlify/database": "^2.0.1",
@@ -30,6 +31,7 @@
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.15.13",
     "@tailwindcss/postcss": "4.1.17",
     "@types/node": "22.19.15",
     "@types/pg": "8.18.0",

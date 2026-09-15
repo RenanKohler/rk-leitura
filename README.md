@@ -76,12 +76,22 @@ host nao e local, respeitando o `sslmode` da connection string.
 
 ### Netlify (configuracao atual)
 
-O projeto `rk-leitura` ja existe no time da Netlify, com a extensao Neon
-instalada e `JWT_SECRET` definido. Ligue o repositorio do GitHub ao projeto em
-**Project configuration > Build & deploy > Continuous deployment** para que cada
-push na `main` gere um deploy.
+O projeto `rk-leitura` esta no ar em <https://rk-leitura.netlify.app>, com o
+Netlify DB provisionado, as migrations aplicadas e `JWT_SECRET` definido.
 
-O `netlify.toml` cuida do resto: aplica as migrations e compila.
+Para que cada push na `main` gere um deploy, ligue o repositorio do GitHub ao
+projeto em **Project configuration > Build & deploy > Continuous deployment**.
+Enquanto isso nao for feito, os deploys sao manuais.
+
+Duas coisas que valem atencao:
+
+- **Variaveis de ambiente novas so valem no proximo deploy.** Defini-las nao
+  afeta o deploy que ja esta publicado.
+- **Deploy manual por upload envia o diretorio inteiro, inclusive arquivos
+  ignorados pelo git.** Um `.env.local` presente vai junto e sobrescreve a
+  conexao do Netlify DB com a do seu Postgres local. Se `GET /api/health`
+  responder `pointsToLocalhost: true`, foi isso. O deploy ligado ao GitHub nao
+  tem esse problema, porque parte do que esta versionado.
 
 ### Vercel
 
@@ -131,9 +141,10 @@ existe mais. Nao ha nada a configurar no lugar.
 | `npm run dev` | Servidor de desenvolvimento. |
 | `npm run build` / `npm start` | Build e execucao em producao. |
 | `npm run lint` / `npm run typecheck` | ESLint e TypeScript. |
-| `npm run db:generate` | Gera migration a partir do schema. |
+| `npm run db:generate` | Gera migration a partir do schema e sincroniza a copia da Netlify. |
 | `npm run db:migrate` | Aplica as migrations pendentes. |
 | `npm run db:push` | Sincroniza o schema sem migration (so em desenvolvimento). |
+| `npm run db:sync-netlify` | Regenera `netlify/database/migrations/` a partir de `drizzle/`. |
 | `npm run db:seed` | Dados de demonstracao. |
 | `npm run secret` | Gera um `JWT_SECRET`. |
 
@@ -152,7 +163,9 @@ src/
   hooks/            useResource, useWakeLock
   lib/              auth, sessao, parser, leitura, rate limit, busca protegida
   middleware.ts     protecao de rotas no servidor
-drizzle/            migrations SQL versionadas
+drizzle/            migrations SQL versionadas (fonte unica)
+netlify/database/   copia gerada das migrations, aplicada pela Netlify no deploy
+scripts/            geracao da copia acima
 ```
 
 ### Decisoes que valem registro
@@ -165,6 +178,12 @@ drizzle/            migrations SQL versionadas
   com uma linha por palavra.
 - **Importacao de URL.** Toda busca passa por `lib/safe-fetch.ts`, que resolve o
   DNS e recusa enderecos de rede interna, revalidando cada redirecionamento.
+- **Migrations.** `drizzle/` e a unica fonte. Fora da Netlify, `npm run
+  db:migrate` aplica. Na Netlify, a plataforma aplica o SQL de
+  `netlify/database/migrations/` logo antes de publicar — momento em que o
+  banco ja foi provisionado, o que o comando de build nao garante.
+- **Diagnostico.** `GET /api/health` responde se o banco esta acessivel e
+  quais variaveis estao presentes, sem expor nenhum valor.
 - **Interface.** Mobile-first, com barra inferior ao alcance do polegar, areas
   de toque de no minimo 44px, respeito as areas seguras do Android/iOS e temas
   claro e escuro.
