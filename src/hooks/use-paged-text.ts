@@ -18,13 +18,16 @@ const MAX_WORDS_PER_PAGE = 800;
  * exatamente o que aparece na tela.
  */
 export function usePagedText(words: string[]) {
-  const frameRef = useRef<HTMLDivElement>(null);
+  // Ref de callback em vez de objeto: o modo Paginas so monta depois que as
+  // preferencias chegam do servidor, entao ao abrir o leitor direto pela URL o
+  // efeito rodava com a referencia ainda vazia e nunca voltava a rodar - nenhuma
+  // pagina era medida. Guardar o no em estado faz o efeito reagir a montagem.
+  const [frame, setFrame] = useState<HTMLDivElement | null>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<number[]>([0]);
   const [ready, setReady] = useState(false);
 
   const measure = useCallback(() => {
-    const frame = frameRef.current;
     const ruler = rulerRef.current;
     if (!frame || !ruler) return;
 
@@ -39,10 +42,9 @@ export function usePagedText(words: string[]) {
 
     setPages(computePageStarts(ruler, words, height));
     setReady(true);
-  }, [words]);
+  }, [frame, words]);
 
   useEffect(() => {
-    const frame = frameRef.current;
     if (!frame) return;
 
     // O ResizeObserver dispara na montagem e a cada mudanca de tamanho
@@ -61,9 +63,9 @@ export function usePagedText(words: string[]) {
       cancelled = true;
       observer.disconnect();
     };
-  }, [measure]);
+  }, [frame, measure]);
 
-  return { frameRef, rulerRef, pages, ready };
+  return { frameRef: setFrame, rulerRef, pages, ready };
 }
 
 function computePageStarts(ruler: HTMLElement, words: string[], height: number): number[] {

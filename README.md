@@ -180,6 +180,14 @@ scripts/            geracao da copia acima
   fixacao destacada; *Rolagem* mantem o texto corrido com o trecho atual em
   evidencia; *Paginas* apresenta uma tela cheia por vez, sem rolagem, com toque
   nas laterais ou arrasto para virar.
+- **Continuacao do conto.** Ao chegar no fim de um texto importado, "proxima
+  pagina" busca a proxima parte na propria origem: a URL da importacao com
+  `?page=` incrementado. A base e sempre a URL importada, que conta como pagina
+  1, nunca a da ultima busca - assim o parametro nao se acumula a cada chamada.
+  Nenhum desfecho esperado vira erro: "nao ha mais paginas", "a origem nao
+  respondeu" e "veio a mesma pagina de novo" voltam com 200 e um `status`
+  proprio, e a tela apenas informa. A mesma protecao anti-SSRF da importacao
+  vale aqui, e paginas repetidas sao detectadas para nao duplicar o texto.
 - **Paginacao do texto.** Medida por uma regua oculta com a mesma largura e
   tipografia da area de leitura, via busca binaria. Cada pagina comeca no inicio
   de uma linha, entao o que foi medido e exatamente o que aparece. Recalcula ao

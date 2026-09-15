@@ -18,9 +18,13 @@ const MAX_BYTES = 3 * 1024 * 1024;
 const TIMEOUT_MS = 15_000;
 
 export class SafeFetchError extends Error {
-  constructor(message: string) {
+  /** Status HTTP, quando a falha veio de uma resposta do servidor remoto. */
+  readonly status?: number;
+
+  constructor(message: string, status?: number) {
     super(message);
     this.name = "SafeFetchError";
+    this.status = status;
   }
 }
 
@@ -231,7 +235,7 @@ export async function fetchPublicHtml(rawUrl: string): Promise<{ html: string; f
     }
 
     if (!response.ok) {
-      throw new SafeFetchError(`A pagina respondeu com status ${response.status}.`);
+      throw new SafeFetchError(`A pagina respondeu com status ${response.status}.`, response.status);
     }
 
     const contentType = response.headers.get("content-type") ?? "";

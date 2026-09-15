@@ -14,6 +14,17 @@ export interface TextSummary {
 
 export interface TextDetail extends TextSummary {
   content: string;
+  /** Ultima pagina ja trazida da origem; a importacao inicial e a 1. */
+  sourcePage: number;
+}
+
+/** Resposta de POST /api/texts/[id]/continuar. */
+export interface ContinuationResult {
+  status: "appended" | "end" | "unavailable" | "no-source" | "limit" | "full";
+  page?: number;
+  addedWords?: number;
+  message?: string;
+  text?: TextDetail;
 }
 
 export interface SessionSummary {

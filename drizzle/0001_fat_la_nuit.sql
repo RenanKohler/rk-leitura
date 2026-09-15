@@ -1,0 +1,1 @@
+ALTER TABLE "texts" ADD COLUMN "source_page" integer DEFAULT 1 NOT NULL;

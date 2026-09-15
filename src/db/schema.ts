@@ -42,6 +42,9 @@ export const texts = pgTable(
     wordCount: integer("word_count").notNull().default(0),
     // Posicao salva para retomar a leitura de onde parou.
     progressIndex: integer("progress_index").notNull().default(0),
+    // Ultima pagina ja trazida da origem. A importacao inicial e a pagina 1;
+    // a continuacao busca sourceUrl com ?page=sourcePage+1.
+    sourcePage: integer("source_page").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

@@ -6,7 +6,7 @@ import { useResource } from "@/hooks/use-resource";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import { pageOfWord, usePagedText } from "@/hooks/use-paged-text";
 import { useSettings, useToast } from "@/components/providers";
-import { Button, Card, Segmented, Sheet, Skeleton, Slider } from "@/components/ui";
+import { Button, Card, Segmented, Sheet, Skeleton, Slider, Spinner } from "@/components/ui";
 import {
   BackIcon,
   CheckIcon,
@@ -31,7 +31,8 @@ import {
   tokenize,
   type ReadingMode,
 } from "@/lib/reading";
-import type { TextDetail } from "@/lib/types";
+import { apiSend } from "@/lib/client";
+import type { ContinuationResult, TextDetail } from "@/lib/types";
 
 export const MODE_HINTS: Record<ReadingMode, string> = {
   rsvp: "Uma palavra por vez no centro da tela, com a letra de fixacao destacada.",
@@ -72,12 +73,17 @@ export default function ReaderPage({ params }: { params: Promise<{ id: string }>
     );
   }
 
-  return <Reader text={resource.data.text} />;
+  return <Reader key={resource.data.text.id} text={resource.data.text} />;
 }
 
-function Reader({ text }: { text: TextDetail }) {
+function Reader({ text: initialText }: { text: TextDetail }) {
   const { settings, save } = useSettings();
   const notify = useToast();
+
+  // Em estado porque a busca da proxima parte faz o texto crescer durante a
+  // leitura, sem recarregar a tela.
+  const [text, setText] = useState(initialText);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const words = useMemo(() => tokenize(text.content), [text.content]);
   const total = words.length;
@@ -217,11 +223,11 @@ function Reader({ text }: { text: TextDetail }) {
 
   // Espelho do estado atual para os handlers que rodam fora do ciclo de
   // render (visibilitychange, teclado, unmount).
-  const stateRef = useRef({ index, playing });
+  const stateRef = useRef({ index, playing, total, textId: text.id });
 
   useEffect(() => {
-    stateRef.current = { index, playing };
-  }, [index, playing]);
+    stateRef.current = { index, playing, total, textId: text.id };
+  }, [index, playing, total, text.id]);
 
   // Fechar a aba no meio da leitura nao pode perder a posicao nem a sessao.
   useEffect(() => {
@@ -262,23 +268,70 @@ function Reader({ text }: { text: TextDetail }) {
     [total]
   );
 
+  /**
+   * Busca a continuacao do conto na origem: a URL importada com ?page= da
+   * proxima parte. A rota devolve 200 tambem quando nao ha mais paginas ou a
+   * origem falha, entao aqui so resta tratar queda de rede - a leitura nunca
+   * quebra por causa desta chamada.
+   */
+  const continueFromSource = useCallback(async (): Promise<boolean> => {
+    if (loadingMore) return false;
+    setLoadingMore(true);
+
+    try {
+      const result = await apiSend<ContinuationResult>(
+        `/api/texts/${stateRef.current.textId}/continuar`,
+        "POST"
+      );
+
+      if (result.status === "appended" && result.text) {
+        const resumeAt = stateRef.current.total;
+        setText(result.text);
+        setFinished(false);
+        setIndex(resumeAt);
+        notify(
+          `Parte ${result.page} carregada: mais ${formatNumber(result.addedWords ?? 0)} palavras.`,
+          "success"
+        );
+        return true;
+      }
+
+      notify(
+        result.message ?? "Nao ha mais partes neste texto.",
+        result.status === "unavailable" ? "error" : "info"
+      );
+      return false;
+    } catch {
+      notify("Sem conexao para buscar a proxima parte.", "error");
+      return false;
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, notify]);
+
   /** Vira a pagina no modo Paginas; nos outros, anda uma tela de texto. */
   const turnPage = useCallback(
     (direction: 1 | -1) => {
+      if (mode !== "page") {
+        setFinished(false);
+        setIndex((current) => clamp(current + direction * SCREENFUL_WORDS, 0, Math.max(0, total - 1)));
+        return;
+      }
+
+      const page = pageOfWord(pages, stateRef.current.index);
+      const target = pages[page + direction];
+
+      if (target === undefined) {
+        // Fim do que ja foi importado: tenta trazer a proxima parte da origem.
+        if (direction === 1) void continueFromSource();
+        else setIndex(0);
+        return;
+      }
+
       setFinished(false);
-      setIndex((current) => {
-        if (mode === "page") {
-          const page = pageOfWord(pages, current);
-          const target = pages[page + direction];
-          if (target === undefined) {
-            return direction === 1 ? Math.max(0, total - 1) : 0;
-          }
-          return target;
-        }
-        return clamp(current + direction * SCREENFUL_WORDS, 0, Math.max(0, total - 1));
-      });
+      setIndex(target);
     },
-    [mode, pages, total]
+    [mode, pages, total, continueFromSource]
   );
 
   const restart = useCallback(() => {
@@ -372,6 +425,9 @@ function Reader({ text }: { text: TextDetail }) {
             durationMs={summary?.durationMs ?? 0}
             wordsRead={summary?.wordsRead ?? total}
             onRestart={restart}
+            canContinue={Boolean(text.sourceUrl)}
+            loadingMore={loadingMore}
+            onContinue={continueFromSource}
           />
         ) : mode === "rsvp" ? (
           <RsvpStage chunk={chunk} onToggle={togglePlay} playing={playing} />
@@ -383,6 +439,7 @@ function Reader({ text }: { text: TextDetail }) {
             pageStart={pageStart}
             pageEnd={pageEnd}
             ready={pagesReady}
+            loadingMore={loadingMore}
             onTurn={turnPage}
           />
         ) : (
@@ -607,14 +664,16 @@ function PageStage({
   pageStart,
   pageEnd,
   ready,
+  loadingMore,
   onTurn,
 }: {
-  frameRef: React.RefObject<HTMLDivElement | null>;
+  frameRef: React.Ref<HTMLDivElement>;
   rulerRef: React.RefObject<HTMLDivElement | null>;
   words: string[];
   pageStart: number;
   pageEnd: number;
   ready: boolean;
+  loadingMore: boolean;
   onTurn: (direction: 1 | -1) => void;
 }) {
   const touchStartX = useRef<number | null>(null);
@@ -657,6 +716,13 @@ function PageStage({
           className="pointer-events-none invisible absolute inset-x-0 top-0 text-lg leading-[1.85] sm:text-xl"
         />
       </div>
+
+      {loadingMore ? (
+        <p className="absolute inset-x-0 bottom-1 flex items-center justify-center gap-2 text-sm text-muted">
+          <Spinner />
+          Buscando a proxima parte
+        </p>
+      ) : null}
 
       {/* Zonas de toque: metade esquerda volta, metade direita avanca. */}
       <button
@@ -782,11 +848,17 @@ function Finished({
   durationMs,
   wordsRead,
   onRestart,
+  canContinue,
+  loadingMore,
+  onContinue,
 }: {
   total: number;
   durationMs: number;
   wordsRead: number;
   onRestart: () => void;
+  canContinue: boolean;
+  loadingMore: boolean;
+  onContinue: () => void;
 }) {
   const minutes = durationMs / 60_000;
   const wpm = minutes > 0 ? Math.round(wordsRead / minutes) : 0;
@@ -813,7 +885,14 @@ function Finished({
       </Card>
 
       <div className="flex w-full max-w-sm flex-col gap-2">
-        <Button size="lg" full onClick={onRestart}>
+        {canContinue ? (
+          <Button size="lg" full loading={loadingMore} onClick={onContinue}>
+            <ForwardIcon className="size-5" />
+            {loadingMore ? "Buscando" : "Buscar proxima parte"}
+          </Button>
+        ) : null}
+
+        <Button variant={canContinue ? "secondary" : "primary"} size="lg" full onClick={onRestart}>
           <RestartIcon className="size-5" />
           Ler de novo
         </Button>
