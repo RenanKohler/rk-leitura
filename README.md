@@ -29,53 +29,67 @@ lido no momento do build).
 
 ---
 
-## Banco de dados em servidor gratuito
+## Banco de dados
 
-A recomendacao e **Neon**: Postgres gerenciado, plano gratuito sem cartao de
-credito, 0,5 GB de armazenamento e integracao direta com a Vercel.
+### Producao: Netlify DB (ja configurado)
 
-1. Crie a conta em <https://neon.tech> e um projeto novo.
-2. Escolha a regiao mais proxima (`sa-east-1`, Sao Paulo, para o Brasil).
-3. Em **Connection string**, copie a opcao **Pooled connection** — o host
-   termina em `-pooler`. Em ambiente serverless cada requisicao pode abrir uma
-   conexao nova, e o endpoint direto esgota o limite rapido.
-4. Cole em `DATABASE_URL`, mantendo `?sslmode=require`:
+O projeto usa **Netlify DB** — Postgres gerenciado por Neon, incluido no plano
+gratuito da Netlify. Nao ha connection string para copiar: o pacote
+`@netlify/database` provisiona o banco no primeiro deploy e injeta a conexao no
+ambiente. `src/db/index.ts` resolve a origem nesta ordem:
 
-   ```
-   DATABASE_URL="postgresql://USUARIO:SENHA@ep-xxxx-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require"
-   ```
+1. `DATABASE_URL`, quando definida (desenvolvimento local e outros hosts);
+2. Netlify DB, via `getConnectionString()`.
 
-5. Aplique o schema:
+Cada deploy preview recebe um branch isolado do banco, criado a partir de uma
+copia dos dados de producao. Somente os deploys de producao tocam o banco
+principal.
 
-   ```bash
-   npm run db:migrate
-   ```
+As migrations sao aplicadas pelo Drizzle no inicio do build, conforme o
+`netlify.toml`:
 
-O TLS e resolvido automaticamente: `src/db/index.ts` liga a verificacao de
-certificado quando o host nao e local e respeita o `sslmode` da connection
-string.
+```toml
+[build]
+  command = "npm run db:migrate && next build"
+```
 
-**Alternativas equivalentes:** Supabase (500 MB), Railway (creditos mensais) e
-Aiven (plano gratuito). Qualquer uma funciona sem mudar o codigo — basta
-trocar `DATABASE_URL`.
+### Outro provedor gratuito
+
+O codigo nao depende da Netlify. Para rodar em Vercel, Railway ou Neon direto,
+basta definir `DATABASE_URL` e aplicar as migrations:
+
+1. Crie o projeto em <https://neon.tech> (plano gratuito, sem cartao) e escolha
+   a regiao mais proxima (`sa-east-1` para o Brasil).
+2. Copie a **Pooled connection** — o host termina em `-pooler`. Em ambiente
+   serverless o endpoint direto esgota o limite de conexoes rapido.
+3. Defina `DATABASE_URL` mantendo `?sslmode=require` e rode `npm run db:migrate`.
+
+O TLS e resolvido automaticamente: a verificacao de certificado liga quando o
+host nao e local, respeitando o `sslmode` da connection string.
 
 > Um banco gratuito hiberna apos alguns minutos sem uso. A primeira requisicao
-> depois disso leva alguns segundos para responder, o que e esperado.
+> depois disso leva alguns segundos, o que e esperado.
 
 ---
 
-## Deploy na Vercel
+## Deploy
+
+### Netlify (configuracao atual)
+
+O projeto `rk-leitura` ja existe no time da Netlify, com a extensao Neon
+instalada e `JWT_SECRET` definido. Ligue o repositorio do GitHub ao projeto em
+**Project configuration > Build & deploy > Continuous deployment** para que cada
+push na `main` gere um deploy.
+
+O `netlify.toml` cuida do resto: aplica as migrations e compila.
+
+### Vercel
 
 1. Importe o repositorio em <https://vercel.com/new>.
-2. Defina as variaveis de ambiente do projeto:
-
-   | Variavel | Valor |
-   | --- | --- |
-   | `DATABASE_URL` | connection string pooled do Neon |
-   | `JWT_SECRET` | saida de `npm run secret` |
-
+2. Defina `DATABASE_URL` (connection string do Neon) e `JWT_SECRET`
+   (saida de `npm run secret`).
 3. Faca o deploy. O script `vercel-build` aplica as migrations antes de
-   compilar, entao nao ha passo manual.
+   compilar.
 
 Trocar o `JWT_SECRET` invalida todas as sessoes ativas.
 
@@ -85,7 +99,7 @@ Trocar o `JWT_SECRET` invalida todas as sessoes ativas.
 
 | Variavel | Obrigatoria | Descricao |
 | --- | --- | --- |
-| `DATABASE_URL` | sim | Connection string do Postgres. |
+| `DATABASE_URL` | fora da Netlify | Connection string do Postgres. Na Netlify a conexao vem do Netlify DB. |
 | `JWT_SECRET` | sim | Chave de assinatura das sessoes, minimo 32 caracteres. |
 | `DATABASE_POOL_MAX` | nao | Tamanho maximo do pool (padrao 5). |
 | `NEXT_PUBLIC_DEMO_HINT` | nao | `true` mostra as credenciais de demo no login. |

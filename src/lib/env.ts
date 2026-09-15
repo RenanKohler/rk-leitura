@@ -14,13 +14,6 @@ function required(name: string, hint: string): string {
   return value;
 }
 
-export function databaseUrl(): string {
-  return required(
-    "DATABASE_URL",
-    "Copie .env.example para .env.local e preencha a connection string do Postgres."
-  );
-}
-
 export function jwtSecret(): Uint8Array {
   const secret = required(
     "JWT_SECRET",

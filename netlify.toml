@@ -1,0 +1,15 @@
+# Configuracao de deploy na Netlify.
+#
+# O banco e o Netlify DB (Postgres gerenciado por Neon), provisionado pelo
+# pacote @netlify/database. As migrations sao aplicadas pelo Drizzle antes do
+# build, usando a conexao que a extensao injeta no ambiente de build.
+
+[build]
+  command = "npm run db:migrate && next build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

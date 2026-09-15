@@ -1,6 +1,6 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
-import { databaseUrl } from "@/lib/env";
+import { getConnectionString } from "@netlify/database";
 import * as schema from "./schema";
 
 type Database = NodePgDatabase<typeof schema>;
@@ -33,10 +33,33 @@ function resolveSsl(connectionString: string): PoolConfig["ssl"] {
   return isLocal ? false : { rejectUnauthorized: true };
 }
 
+/**
+ * Resolve a conexao na seguinte ordem:
+ *
+ * 1. `DATABASE_URL` - vale para desenvolvimento local e para qualquer host
+ *    (Vercel, Railway, Neon direto). Definida explicitamente, sempre vence.
+ * 2. Netlify DB - a extensao Neon provisiona o banco e injeta a conexao no
+ *    ambiente; `getConnectionString()` ja devolve o endpoint do branch certo
+ *    (producao ou deploy preview).
+ */
+export function resolveConnectionString(): string {
+  const explicit = process.env.DATABASE_URL;
+  if (explicit && explicit.trim().length > 0) return explicit.trim();
+
+  try {
+    return getConnectionString();
+  } catch {
+    throw new Error(
+      "Nenhuma conexao de banco disponivel. Defina DATABASE_URL (veja .env.example) " +
+        "ou rode dentro da Netlify com a extensao Neon instalada."
+    );
+  }
+}
+
 export function getPool(): Pool {
   if (globalForDb.__rkLeituraPool) return globalForDb.__rkLeituraPool;
 
-  const connectionString = databaseUrl();
+  const connectionString = resolveConnectionString();
   const pool = new Pool({
     connectionString,
     ssl: resolveSsl(connectionString),
