@@ -1,52 +1,78 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { texts } from "@/db/schema";
-import { getSession } from "@/lib/auth";
-import { eq, desc } from "drizzle-orm";
+import { asString, jsonError, readJson, requireSession, serverError } from "@/lib/api";
+import { countWords } from "@/lib/reading";
 
-export async function GET(request: NextRequest) {
+export const dynamic = "force-dynamic";
+
+const MAX_CONTENT_CHARS = 400_000;
+
+interface Body {
+  title?: unknown;
+  sourceUrl?: unknown;
+  content?: unknown;
+}
+
+export async function GET() {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const result = await db.select().from(texts)
+    const result = await db
+      .select({
+        id: texts.id,
+        title: texts.title,
+        sourceUrl: texts.sourceUrl,
+        wordCount: texts.wordCount,
+        progressIndex: texts.progressIndex,
+        createdAt: texts.createdAt,
+        updatedAt: texts.updatedAt,
+      })
+      // Lista sem o campo content: uma biblioteca com 50 artigos traria
+      // megabytes de texto que a tela nao usa.
+      .from(texts)
       .where(eq(texts.userId, session.id))
       .orderBy(desc(texts.createdAt));
 
     return NextResponse.json({ texts: result });
   } catch (error) {
-    console.error("Get texts error:", error);
-    return NextResponse.json({ error: "Failed to fetch texts" }, { status: 500 });
+    return serverError("texts/list", error);
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const body = await readJson<Body>(request);
+    const title = asString(body?.title);
+    const content = asString(body?.content);
+    const sourceUrl = asString(body?.sourceUrl);
+
+    if (!title || !content) {
+      return jsonError("Titulo e conteudo sao obrigatorios.", 400);
+    }
+    if (content.length > MAX_CONTENT_CHARS) {
+      return jsonError("O texto e grande demais.", 413);
     }
 
-    const body = await request.json();
-    const { title, sourceUrl, content, wordCount } = body;
+    const [created] = await db
+      .insert(texts)
+      .values({
+        userId: session.id,
+        title: title.slice(0, 200),
+        sourceUrl,
+        content,
+        // Calculado no servidor: o cliente nao decide a contagem.
+        wordCount: countWords(content),
+      })
+      .returning();
 
-    if (!title || !sourceUrl || !content) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-    }
-
-    const result = await db.insert(texts).values({
-      userId: session.id,
-      title,
-      sourceUrl,
-      content,
-      wordCount: wordCount || 0,
-    }).returning();
-
-    return NextResponse.json({ text: result[0] });
+    return NextResponse.json({ text: created }, { status: 201 });
   } catch (error) {
-    console.error("Create text error:", error);
-    return NextResponse.json({ error: "Failed to create text" }, { status: 500 });
+    return serverError("texts/create", error);
   }
 }

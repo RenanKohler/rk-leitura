@@ -1,24 +1,73 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import { Pool, type PoolConfig } from "pg";
+import { databaseUrl } from "@/lib/env";
+import * as schema from "./schema";
 
-const databaseUrl = process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is required");
-}
+type Database = NodePgDatabase<typeof schema>;
 
 const globalForDb = globalThis as typeof globalThis & {
-  __arenaNextJsPostgresqlPool?: Pool;
+  __rkLeituraPool?: Pool;
+  __rkLeituraDb?: Database;
 };
 
-export const pool =
-  globalForDb.__arenaNextJsPostgresqlPool ??
-  new Pool({
-    connectionString: databaseUrl,
-  });
+/**
+ * Provedores gerenciados (Neon, Supabase, Railway) exigem TLS; o Postgres local
+ * normalmente nao tem certificado. `sslmode` na connection string decide, e o
+ * host local serve de padrao seguro quando ele nao vem informado.
+ */
+function resolveSsl(connectionString: string): PoolConfig["ssl"] {
+  let parsed: URL;
+  try {
+    parsed = new URL(connectionString);
+  } catch {
+    return undefined;
+  }
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.__arenaNextJsPostgresqlPool = pool;
+  const mode = parsed.searchParams.get("sslmode");
+  if (mode === "disable") return false;
+  if (mode === "no-verify" || mode === "require") return { rejectUnauthorized: false };
+  if (mode === "verify-ca" || mode === "verify-full") return { rejectUnauthorized: true };
+
+  const host = parsed.hostname;
+  const isLocal = host === "localhost" || host === "127.0.0.1" || host === "::1";
+  return isLocal ? false : { rejectUnauthorized: true };
 }
 
-export const db = drizzle(pool);
+export function getPool(): Pool {
+  if (globalForDb.__rkLeituraPool) return globalForDb.__rkLeituraPool;
+
+  const connectionString = databaseUrl();
+  const pool = new Pool({
+    connectionString,
+    ssl: resolveSsl(connectionString),
+    max: Number(process.env.DATABASE_POOL_MAX ?? 5),
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
+  });
+
+  // Sem este handler uma conexao ociosa derrubada pelo provedor vira um
+  // `unhandledRejection` e mata o processo.
+  pool.on("error", (error) => {
+    console.error("[db] erro em conexao ociosa:", error.message);
+  });
+
+  globalForDb.__rkLeituraPool = pool;
+  return pool;
+}
+
+function getDb(): Database {
+  if (!globalForDb.__rkLeituraDb) {
+    globalForDb.__rkLeituraDb = drizzle(getPool(), { schema, casing: "snake_case" });
+  }
+  return globalForDb.__rkLeituraDb;
+}
+
+/**
+ * Proxy preguicoso: adiar a conexao ate a primeira query permite que o build
+ * do Next rode sem DATABASE_URL.
+ */
+export const db = new Proxy({} as Database, {
+  get(_target, property, receiver) {
+    return Reflect.get(getDb(), property, receiver);
+  },
+});

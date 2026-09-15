@@ -1,55 +1,49 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import { asString, jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { extractTextFromHtml } from "@/lib/parser";
+import { fetchPublicHtml, SafeFetchError } from "@/lib/safe-fetch";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+export const dynamic = "force-dynamic";
 
-    const body = await request.json();
-    const { url } = body;
+const MIN_WORDS = 10;
 
-    if (!url) {
-      return NextResponse.json({ error: "URL required" }, { status: 400 });
-    }
+export async function POST(request: Request) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
 
-    // Validate URL
-    try {
-      new URL(url);
-    } catch {
-      return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
-    }
-
-    // Fetch the URL
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Wordrunner/1.0 (speed reading app)",
-        "Accept": "text/html,application/xhtml+xml",
-      },
-      signal: AbortSignal.timeout(15000),
+  // A rota faz o servidor buscar uma URL arbitraria: limitar evita usar a
+  // aplicacao como proxy de varredura.
+  const limit = rateLimit(`import:${clientIp(request)}`, 20, 10 * 60 * 1000);
+  if (!limit.allowed) {
+    return jsonError("Muitas importacoes seguidas. Aguarde um pouco.", 429, {
+      retryAfter: limit.retryAfterSeconds,
     });
+  }
 
-    if (!response.ok) {
-      return NextResponse.json({ error: `Failed to fetch URL: ${response.status}` }, { status: 400 });
-    }
+  try {
+    const body = await readJson<{ url?: unknown }>(request);
+    const url = asString(body?.url);
+    if (!url) return jsonError("Informe a URL do artigo.", 400);
 
-    const html = await response.text();
-    const parsed = extractTextFromHtml(html, url);
+    const { html, finalUrl } = await fetchPublicHtml(url);
+    const parsed = extractTextFromHtml(html);
 
-    if (parsed.wordCount < 10) {
-      return NextResponse.json({ error: "Not enough content found on the page" }, { status: 400 });
+    if (parsed.wordCount < MIN_WORDS) {
+      return jsonError("Nao encontrei texto suficiente nessa pagina.", 422);
     }
 
     return NextResponse.json({
       title: parsed.title,
       content: parsed.content,
       wordCount: parsed.wordCount,
+      sourceUrl: finalUrl,
     });
   } catch (error) {
-    console.error("Import URL error:", error);
-    return NextResponse.json({ error: "Failed to import URL" }, { status: 500 });
+    if (error instanceof SafeFetchError) return jsonError(error.message, 400);
+    if (error instanceof Error && error.name === "TimeoutError") {
+      return jsonError("A pagina demorou demais para responder.", 504);
+    }
+    return serverError("import-url", error);
   }
 }

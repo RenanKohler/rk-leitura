@@ -1,90 +1,138 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { texts } from "@/db/schema";
-import { getSession } from "@/lib/auth";
-import { eq, and } from "drizzle-orm";
+import {
+  asInteger,
+  asString,
+  jsonError,
+  readJson,
+  requireSession,
+  serverError,
+} from "@/lib/api";
+import { clamp, countWords } from "@/lib/reading";
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const dynamic = "force-dynamic";
+
+const MAX_CONTENT_CHARS = 400_000;
+
+type Params = { params: Promise<{ id: string }> };
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Todas as consultas filtram por userId: um id valido de outra conta da 404. */
+function ownedText(id: string, userId: string) {
+  return and(eq(texts.id, id), eq(texts.userId, userId));
+}
+
+export async function GET(_request: Request, { params }: Params) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { id } = await params;
-    const result = await db.select().from(texts)
-      .where(and(eq(texts.id, id), eq(texts.userId, session.id)));
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
 
-    if (result.length === 0) {
-      return NextResponse.json({ error: "Text not found" }, { status: 404 });
-    }
+    const [text] = await db.select().from(texts).where(ownedText(id, session.id)).limit(1);
+    if (!text) return jsonError("Texto nao encontrado.", 404);
 
-    return NextResponse.json({ text: result[0] });
+    return NextResponse.json({ text });
   } catch (error) {
-    console.error("Get text error:", error);
-    return NextResponse.json({ error: "Failed to fetch text" }, { status: 500 });
+    return serverError("texts/get", error);
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(request: Request, { params }: Params) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { id } = await params;
-    const body = await request.json();
-    const { title, sourceUrl, content } = body;
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
 
-    if (!title || !sourceUrl || !content) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    const body = await readJson<{ title?: unknown; sourceUrl?: unknown; content?: unknown }>(request);
+    const title = asString(body?.title);
+    const content = asString(body?.content);
+    const sourceUrl = asString(body?.sourceUrl);
+
+    if (!title || !content) {
+      return jsonError("Titulo e conteudo sao obrigatorios.", 400);
+    }
+    if (content.length > MAX_CONTENT_CHARS) {
+      return jsonError("O texto e grande demais.", 413);
     }
 
-    const existing = await db.select().from(texts)
-      .where(and(eq(texts.id, id), eq(texts.userId, session.id)));
-
-    if (existing.length === 0) {
-      return NextResponse.json({ error: "Text not found" }, { status: 404 });
-    }
-
-    const result = await db.update(texts)
+    const wordCount = countWords(content);
+    const [updated] = await db
+      .update(texts)
       .set({
-        title,
+        title: title.slice(0, 200),
         sourceUrl,
         content,
-        wordCount: content.split(/\s+/).filter((w: string) => w.length > 0).length,
+        wordCount,
+        // O texto mudou: a posicao salva pode estar alem do novo fim.
+        progressIndex: 0,
         updatedAt: new Date(),
       })
-      .where(eq(texts.id, id))
+      .where(ownedText(id, session.id))
       .returning();
 
-    return NextResponse.json({ text: result[0] });
+    if (!updated) return jsonError("Texto nao encontrado.", 404);
+    return NextResponse.json({ text: updated });
   } catch (error) {
-    console.error("Update text error:", error);
-    return NextResponse.json({ error: "Failed to update text" }, { status: 500 });
+    return serverError("texts/update", error);
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+/** Salva a posicao de leitura para retomar depois. */
+export async function PATCH(request: Request, { params }: Params) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { id } = await params;
-    const existing = await db.select().from(texts)
-      .where(and(eq(texts.id, id), eq(texts.userId, session.id)));
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
 
-    if (existing.length === 0) {
-      return NextResponse.json({ error: "Text not found" }, { status: 404 });
-    }
+    const body = await readJson<{ progressIndex?: unknown }>(request);
+    const progressIndex = asInteger(body?.progressIndex);
+    if (progressIndex === null) return jsonError("Posicao invalida.", 400);
 
-    await db.delete(texts).where(eq(texts.id, id));
+    const [current] = await db
+      .select({ wordCount: texts.wordCount })
+      .from(texts)
+      .where(ownedText(id, session.id))
+      .limit(1);
+
+    if (!current) return jsonError("Texto nao encontrado.", 404);
+
+    const [updated] = await db
+      .update(texts)
+      .set({ progressIndex: clamp(progressIndex, 0, current.wordCount), updatedAt: new Date() })
+      .where(ownedText(id, session.id))
+      .returning({ id: texts.id, progressIndex: texts.progressIndex });
+
+    return NextResponse.json({ text: updated });
+  } catch (error) {
+    return serverError("texts/progress", error);
+  }
+}
+
+export async function DELETE(_request: Request, { params }: Params) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
+  try {
+    const { id } = await params;
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+
+    const deleted = await db
+      .delete(texts)
+      .where(ownedText(id, session.id))
+      .returning({ id: texts.id });
+
+    if (deleted.length === 0) return jsonError("Texto nao encontrado.", 404);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Delete text error:", error);
-    return NextResponse.json({ error: "Failed to delete text" }, { status: 500 });
+    return serverError("texts/delete", error);
   }
 }

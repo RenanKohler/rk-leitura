@@ -1,12 +1,20 @@
 {
-  "name": "nextjs-postgresql-template",
+  "name": "rk-leitura",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "vercel-build": "npm run db:migrate && next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:push": "drizzle-kit push",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:setup": "npm run db:migrate && npm run db:seed",
+    "secret": "node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\""
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -18,7 +26,7 @@
     "pg": "8.20.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "uuid": "^14.0.2"
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.17",
@@ -31,6 +39,7 @@
     "eslint-config-next": "16.2.6",
     "postcss": "8.5.8",
     "tailwindcss": "4.1.17",
+    "tsx": "4.21.1",
     "typescript": "5.9.3"
   }
 }

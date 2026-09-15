@@ -11,8 +11,8 @@ next-env.d.ts
 # production
 /build
 
-# drizzle
-/drizzle
+# migrations geradas SAO versionadas (pasta drizzle/)
+
 
 # env
 .env

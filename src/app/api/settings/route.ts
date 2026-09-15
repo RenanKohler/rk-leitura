@@ -1,67 +1,71 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { speedSettings } from "@/db/schema";
-import { getSession } from "@/lib/auth";
-import { eq } from "drizzle-orm";
+import { readJson, requireSession, serverError } from "@/lib/api";
+import { clamp, MAX_CHUNK, MAX_WPM, MIN_CHUNK, MIN_WPM } from "@/lib/reading";
 
-export async function GET(request: NextRequest) {
+export const dynamic = "force-dynamic";
+
+export const DEFAULT_SETTINGS = {
+  baseWpm: 300,
+  wordsPerChunk: 1,
+  highlightOpacity: 0.35,
+  readingMode: "rsvp" as const,
+  theme: "system" as const,
+};
+
+const READING_MODES = new Set(["rsvp", "flow"]);
+const THEMES = new Set(["system", "light", "dark"]);
+
+export async function GET() {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const [settings] = await db
+      .select()
+      .from(speedSettings)
+      .where(eq(speedSettings.userId, session.id))
+      .limit(1);
 
-    const result = await db.select().from(speedSettings)
-      .where(eq(speedSettings.userId, session.id));
-
-    if (result.length === 0) {
-      return NextResponse.json({ settings: null });
-    }
-
-    return NextResponse.json({ settings: result[0] });
+    // Sempre devolve algo utilizavel: o cliente nao precisa tratar null.
+    return NextResponse.json({ settings: settings ?? { ...DEFAULT_SETTINGS, userId: session.id } });
   } catch (error) {
-    console.error("Get settings error:", error);
-    return NextResponse.json({ error: "Failed to fetch settings" }, { status: 500 });
+    return serverError("settings/get", error);
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function PUT(request: Request) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const body = await readJson<Record<string, unknown>>(request);
 
-    const body = await request.json();
-    const { baseWpm, wordsPerChunk, highlightOpacity } = body;
+    const values = {
+      baseWpm: clamp(Math.trunc(Number(body?.baseWpm)), MIN_WPM, MAX_WPM),
+      wordsPerChunk: clamp(Math.trunc(Number(body?.wordsPerChunk)), MIN_CHUNK, MAX_CHUNK),
+      highlightOpacity: clamp(Number(body?.highlightOpacity), 0.1, 0.8),
+      readingMode: READING_MODES.has(String(body?.readingMode))
+        ? String(body?.readingMode)
+        : DEFAULT_SETTINGS.readingMode,
+      theme: THEMES.has(String(body?.theme)) ? String(body?.theme) : DEFAULT_SETTINGS.theme,
+    };
 
-    const existing = await db.select().from(speedSettings)
-      .where(eq(speedSettings.userId, session.id));
-
-    if (existing.length === 0) {
-      const result = await db.insert(speedSettings).values({
-        userId: session.id,
-        baseWpm: baseWpm || 350,
-        wordsPerChunk: wordsPerChunk || 4,
-        highlightOpacity: highlightOpacity || 0.35,
-      }).returning();
-
-      return NextResponse.json({ settings: result[0] });
-    }
-
-    const result = await db.update(speedSettings)
-      .set({
-        baseWpm: baseWpm || existing[0].baseWpm,
-        wordsPerChunk: wordsPerChunk || existing[0].wordsPerChunk,
-        highlightOpacity: highlightOpacity ?? existing[0].highlightOpacity,
-        updatedAt: new Date(),
+    // Um unico round-trip: o indice unico em user_id resolve a corrida entre
+    // duas abas salvando ao mesmo tempo.
+    const [settings] = await db
+      .insert(speedSettings)
+      .values({ userId: session.id, ...values })
+      .onConflictDoUpdate({
+        target: speedSettings.userId,
+        set: { ...values, updatedAt: new Date() },
       })
-      .where(eq(speedSettings.id, existing[0].id))
       .returning();
 
-    return NextResponse.json({ settings: result[0] });
+    return NextResponse.json({ settings });
   } catch (error) {
-    console.error("Update settings error:", error);
-    return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
+    return serverError("settings/update", error);
   }
 }

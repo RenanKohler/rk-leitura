@@ -1,26 +1,47 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/components/providers";
+import { Providers, themeBootstrapScript } from "@/components/providers";
+
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
-  title: "Wordrunner - Speed Reading App",
-  description: "Import text from URL and read at your optimal speed",
-  icons: {
-    icon: [
-      {
-        url: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%236366f1' width='100' height='100' rx='20'/><text y='70' x='50' text-anchor='middle' font-size='60' fill='white'>W</text></svg>",
-        type: "image/svg+xml",
-      },
-    ],
+  title: {
+    default: "Leitura - leitura dinamica",
+    template: "%s | Leitura",
   },
+  description:
+    "Importe artigos de qualquer site e leia no seu ritmo, com controle de velocidade e acompanhamento de progresso.",
+  applicationName: "Leitura",
+  appleWebApp: { capable: true, title: "Leitura", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Cobre a area sob a barra de gestos para que env(safe-area-inset-*) funcione.
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f5f2" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0f11" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
+      <head>
+        {/* Aplica o tema antes da primeira pintura, evitando o flash claro. */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+      </head>
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

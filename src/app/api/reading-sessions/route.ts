@@ -1,53 +1,95 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { readingSessions } from "@/db/schema";
-import { getSession } from "@/lib/auth";
-import { eq, desc } from "drizzle-orm";
+import { readingSessions, texts } from "@/db/schema";
+import { asInteger, asString, jsonError, readJson, requireSession, serverError } from "@/lib/api";
+import { clamp, MAX_WPM } from "@/lib/reading";
 
-export async function GET(request: NextRequest) {
+export const dynamic = "force-dynamic";
+
+const HISTORY_LIMIT = 200;
+
+export async function GET() {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const result = await db.select().from(readingSessions)
+    // Junta o titulo aqui: a tela de historico buscava todos os textos so para
+    // resolver o nome de cada sessao no cliente.
+    const result = await db
+      .select({
+        id: readingSessions.id,
+        textId: readingSessions.textId,
+        textTitle: texts.title,
+        wpm: readingSessions.wpm,
+        wordsRead: readingSessions.wordsRead,
+        durationMs: readingSessions.durationMs,
+        completed: readingSessions.completed,
+        createdAt: readingSessions.createdAt,
+      })
+      .from(readingSessions)
+      .innerJoin(texts, eq(texts.id, readingSessions.textId))
       .where(eq(readingSessions.userId, session.id))
-      .orderBy(desc(readingSessions.createdAt));
+      .orderBy(desc(readingSessions.createdAt))
+      .limit(HISTORY_LIMIT);
 
     return NextResponse.json({ sessions: result });
   } catch (error) {
-    console.error("Get sessions error:", error);
-    return NextResponse.json({ error: "Failed to fetch sessions" }, { status: 500 });
+    return serverError("sessions/list", error);
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const body = await readJson<{
+      textId?: unknown;
+      wpm?: unknown;
+      wordsRead?: unknown;
+      durationMs?: unknown;
+      completed?: unknown;
+    }>(request);
+
+    const textId = asString(body?.textId);
+    const wordsRead = asInteger(body?.wordsRead);
+    const durationMs = asInteger(body?.durationMs);
+
+    if (!textId || wordsRead === null || durationMs === null) {
+      return jsonError("Dados da sessao incompletos.", 400);
+    }
+    if (wordsRead <= 0 || durationMs <= 0) {
+      return jsonError("Sessao sem leitura registrada.", 400);
     }
 
-    const body = await request.json();
-    const { textId, wpm, wordsRead, durationMs, completed } = body;
+    // Sem esta checagem qualquer usuario grava sessoes no texto de outra conta
+    // (e a chave estrangeira responderia com erro 500 para ids inexistentes).
+    const [text] = await db
+      .select({ id: texts.id, wordCount: texts.wordCount })
+      .from(texts)
+      .where(and(eq(texts.id, textId), eq(texts.userId, session.id)))
+      .limit(1);
 
-    if (!textId || !wpm || !wordsRead) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-    }
+    if (!text) return jsonError("Texto nao encontrado.", 404);
 
-    const result = await db.insert(readingSessions).values({
-      userId: session.id,
-      textId,
-      wpm,
-      wordsRead,
-      durationMs: durationMs || 0,
-      completed: completed || 0,
-    }).returning();
+    // WPM recalculado no servidor a partir de palavras e duracao.
+    const computedWpm = Math.round(wordsRead / (durationMs / 60_000));
 
-    return NextResponse.json({ session: result[0] });
+    const [created] = await db
+      .insert(readingSessions)
+      .values({
+        userId: session.id,
+        textId: text.id,
+        wpm: clamp(computedWpm, 0, MAX_WPM),
+        wordsRead: clamp(wordsRead, 0, text.wordCount),
+        durationMs,
+        completed: body?.completed === true || body?.completed === 1,
+      })
+      .returning();
+
+    return NextResponse.json({ session: created }, { status: 201 });
   } catch (error) {
-    console.error("Create session error:", error);
-    return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
+    return serverError("sessions/create", error);
   }
 }

@@ -1,26 +1,40 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { authenticateUser, createToken, setSessionCookie } from "@/lib/auth";
+import { asString, jsonError, readJson, serverError } from "@/lib/api";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
-export async function POST(request: NextRequest) {
+interface Body {
+  email?: unknown;
+  password?: unknown;
+}
+
+export async function POST(request: Request) {
+  const limit = rateLimit(`login:${clientIp(request)}`, 10, 15 * 60 * 1000);
+  if (!limit.allowed) {
+    return jsonError("Muitas tentativas de login. Aguarde alguns minutos.", 429, {
+      retryAfter: limit.retryAfterSeconds,
+    });
+  }
+
   try {
-    const body = await request.json();
-    const { email, password } = body;
+    const body = await readJson<Body>(request);
+    const email = asString(body?.email);
+    const password = typeof body?.password === "string" ? body.password : null;
 
     if (!email || !password) {
-      return NextResponse.json({ error: "Missing credentials" }, { status: 400 });
+      return jsonError("Informe e-mail e senha.", 400);
     }
 
     const user = await authenticateUser(email, password);
     if (!user) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      // Mesma mensagem para e-mail inexistente e senha errada.
+      return jsonError("E-mail ou senha incorretos.", 401);
     }
 
-    const token = await createToken({ id: user.id, email: user.email, name: user.name });
-    await setSessionCookie(token);
+    await setSessionCookie(await createToken({ id: user.id, email: user.email, name: user.name }));
 
     return NextResponse.json({ user: { id: user.id, email: user.email, name: user.name } });
   } catch (error) {
-    console.error("Login error:", error);
-    return NextResponse.json({ error: "Login failed" }, { status: 500 });
+    return serverError("auth/login", error);
   }
 }

@@ -1,88 +1,88 @@
-import { SignJWT, jwtVerify } from "jose";
+import "server-only";
+
 import { cookies } from "next/headers";
+import { compare, hash } from "bcryptjs";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { compareSync, hashSync } from "bcryptjs";
+import { isProduction } from "@/lib/env";
+import {
+  SESSION_COOKIE,
+  SESSION_MAX_AGE_SECONDS,
+  verifyToken,
+  type SessionUser,
+} from "@/lib/session-token";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "wordrunner-secret-key-2024"
-);
+export { createToken, SESSION_COOKIE, type SessionUser } from "@/lib/session-token";
 
-export interface SessionUser {
-  id: string;
-  email: string;
-  name: string;
+const BCRYPT_ROUNDS = 12;
+
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  return hashSync(password, 12);
+export function hashPassword(password: string): Promise<string> {
+  // Versao assincrona: hashSync bloqueia o event loop por ~250ms por chamada.
+  return hash(password, BCRYPT_ROUNDS);
 }
 
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return compareSync(password, hash);
-}
-
-export async function createToken(user: SessionUser): Promise<string> {
-  return new SignJWT({ id: user.id, email: user.email, name: user.name })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("7d")
-    .sign(JWT_SECRET);
-}
-
-export async function verifyToken(token: string): Promise<SessionUser | null> {
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    return { id: payload.id as string, email: payload.email as string, name: payload.name as string };
-  } catch {
-    return null;
-  }
+export function verifyPassword(password: string, passwordHash: string): Promise<boolean> {
+  return compare(password, passwordHash);
 }
 
 export async function getSession(): Promise<SessionUser | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("session")?.value;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   return verifyToken(token);
 }
 
 export async function setSessionCookie(token: string): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.set("session", token, {
+  (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isProduction(),
     sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: SESSION_MAX_AGE_SECONDS,
     path: "/",
   });
 }
 
 export async function clearSession(): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.delete("session");
+  (await cookies()).delete(SESSION_COOKIE);
+}
+
+export async function findUserByEmail(email: string) {
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(sql`lower(${users.email}) = ${normalizeEmail(email)}`)
+    .limit(1);
+  return user ?? null;
 }
 
 export async function getUserById(id: string) {
-  const result = await db.select().from(users).where(eq(users.id, id));
-  return result[0] || null;
+  const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return user ?? null;
 }
 
 export async function createUser(email: string, password: string, name: string) {
-  const passwordHash = await hashPassword(password);
-  const result = await db.insert(users).values({
-    email,
-    passwordHash,
-    name,
-  }).returning();
-  return result[0];
+  const [user] = await db
+    .insert(users)
+    .values({
+      email: normalizeEmail(email),
+      passwordHash: await hashPassword(password),
+      name: name.trim(),
+    })
+    .returning();
+  return user;
 }
 
 export async function authenticateUser(email: string, password: string) {
-  const result = await db.select().from(users).where(eq(users.email, email));
-  if (result.length === 0) return null;
-  const user = result[0];
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) return null;
-  return user;
+  const user = await findUserByEmail(email);
+  if (!user) {
+    // Compara mesmo sem usuario para que o tempo de resposta nao revele se o
+    // e-mail existe (enumeracao de contas por timing).
+    await compare(password, "$2b$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidinva");
+    return null;
+  }
+  return (await verifyPassword(password, user.passwordHash)) ? user : null;
 }
