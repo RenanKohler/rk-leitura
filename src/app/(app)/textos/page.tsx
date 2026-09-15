@@ -12,23 +12,27 @@ import {
   EmptyState,
   Field,
   LinkButton,
+  Pagination,
   Sheet,
   Skeleton,
   TextArea,
 } from "@/components/ui";
 import { EditIcon, LibraryIcon, TrashIcon } from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
-import type { TextDetail, TextSummary } from "@/lib/types";
+import type { Paginated, TextDetail, TextSummary } from "@/lib/types";
 
 export default function TextsPage() {
   const { settings } = useSettings();
   const notify = useToast();
-  const resource = useResource<{ texts: TextSummary[] }>("/api/texts");
+  const [page, setPage] = useState(1);
+  const resource = useResource<{ texts: TextSummary[] } & Paginated>(`/api/texts?page=${page}`);
   const [editing, setEditing] = useState<TextDetail | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TextSummary | null>(null);
   const [busy, setBusy] = useState(false);
 
   const texts = resource.data?.texts ?? [];
+  const total = resource.data?.total ?? texts.length;
+  const pageCount = resource.data?.pageCount ?? 1;
 
   const openEditor = async (text: TextSummary) => {
     try {
@@ -64,13 +68,12 @@ export default function TextsPage() {
     setBusy(true);
     try {
       await apiSend(`/api/texts/${pendingDelete.id}`, "DELETE");
-      resource.setData((current) =>
-        current
-          ? { texts: current.texts.filter((item) => item.id !== pendingDelete.id) }
-          : current
-      );
       setPendingDelete(null);
       notify("Texto removido.", "success");
+      // Recarrega em vez de filtrar no cliente: a contagem total e o numero de
+      // paginas mudaram, e a pagina atual pode ter ficado vazia.
+      if (texts.length === 1 && page > 1) setPage(page - 1);
+      else resource.reload();
     } catch {
       notify("Falha ao remover.", "error");
     } finally {
@@ -86,7 +89,7 @@ export default function TextsPage() {
           <p className="mt-1 text-sm text-muted">
             {resource.loading
               ? "Carregando"
-              : `${texts.length} ${texts.length === 1 ? "texto" : "textos"} na biblioteca`}
+              : `${total} ${total === 1 ? "texto" : "textos"} na biblioteca`}
           </p>
         </div>
         {/* No celular o botao flutuante da barra inferior ja cobre esta acao. */}
@@ -115,18 +118,29 @@ export default function TextsPage() {
           />
         </Card>
       ) : (
-        <ul className="space-y-2">
-          {texts.map((text, index) => (
-            <TextCard
-              key={text.id}
-              text={text}
-              wpm={settings.baseWpm}
-              index={index}
-              onEdit={() => openEditor(text)}
-              onDelete={() => setPendingDelete(text)}
-            />
-          ))}
-        </ul>
+        <>
+          <ul className="space-y-2">
+            {texts.map((text, index) => (
+              <TextCard
+                key={text.id}
+                text={text}
+                wpm={settings.baseWpm}
+                index={index}
+                onEdit={() => openEditor(text)}
+                onDelete={() => setPendingDelete(text)}
+              />
+            ))}
+          </ul>
+          <Pagination
+            page={resource.data?.page ?? page}
+            pageCount={pageCount}
+            busy={resource.loading}
+            onChange={(next) => {
+              setPage(next);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
+        </>
       )}
 
       <Sheet

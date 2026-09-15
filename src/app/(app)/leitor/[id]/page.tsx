@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useResource } from "@/hooks/use-resource";
 import { useWakeLock } from "@/hooks/use-wake-lock";
+import { pageOfWord, usePagedText } from "@/hooks/use-paged-text";
 import { useSettings, useToast } from "@/components/providers";
 import { Button, Card, Segmented, Sheet, Skeleton, Slider } from "@/components/ui";
 import {
@@ -12,6 +13,7 @@ import {
   FastForwardIcon,
   PauseIcon,
   PlayIcon,
+  ForwardIcon,
   RestartIcon,
   RewindIcon,
   SettingsIcon,
@@ -31,8 +33,16 @@ import {
 } from "@/lib/reading";
 import type { TextDetail } from "@/lib/types";
 
+export const MODE_HINTS: Record<ReadingMode, string> = {
+  rsvp: "Uma palavra por vez no centro da tela, com a letra de fixacao destacada.",
+  flow: "Texto corrido com rolagem, destacando o trecho atual.",
+  page: "Uma tela cheia por vez, sem rolagem. Toque na metade direita para avancar e na esquerda para voltar.",
+};
+
 const MIN_WORDS_TO_RECORD = 10;
 const PROGRESS_SAVE_INTERVAL_MS = 5_000;
+/** Salto de "uma tela" nos modos que nao tem pagina medida. */
+const SCREENFUL_WORDS = 110;
 
 export default function ReaderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -82,6 +92,13 @@ function Reader({ text }: { text: TextDetail }) {
   const mode = settings.readingMode;
 
   useWakeLock(playing);
+
+  // As referencias so sao preenchidas quando o modo Paginas esta montado; nos
+  // outros modos o observer nunca liga e `pages` fica no valor inicial.
+  const { frameRef, rulerRef, pages, ready: pagesReady } = usePagedText(words);
+  const currentPage = pageOfWord(pages, index);
+  const pageStart = pages[currentPage] ?? 0;
+  const pageEnd = pages[currentPage + 1] ?? total;
 
   /* --- contabilidade da sessao ------------------------------------------ */
   // Refs em vez de estado: o cronometro nao precisa re-renderizar a cada tick.
@@ -149,14 +166,20 @@ function Reader({ text }: { text: TextDetail }) {
     // Ja no fim: nada a agendar. A conclusao e tratada no callback abaixo.
     if (index >= total) return;
 
-    const chunk = words.slice(index, index + chunkSize);
+    // No modo Paginas o passo e a pagina inteira: o tempo de permanencia
+    // corresponde as palavras que ainda faltam nela.
+    const step = mode === "page" ? Math.max(1, pageEnd - index) : chunkSize;
+    const chunk = words.slice(index, index + step);
     // A versao anterior dividia a duracao pelo tamanho do bloco em vez de
     // multiplicar: em 350 ppm com 4 palavras o texto passava a ~5600 ppm.
-    const delay = chunkDurationMs(wpm, chunkSize) * pauseFactor(chunk);
+    const delay =
+      mode === "page"
+        ? (60_000 / wpm) * step
+        : chunkDurationMs(wpm, chunkSize) * pauseFactor(chunk);
 
     const timer = setTimeout(() => {
-      wordsReadRef.current += Math.min(chunkSize, total - index);
-      const next = index + chunkSize;
+      wordsReadRef.current += Math.min(step, total - index);
+      const next = index + step;
 
       if (next >= total) {
         setIndex(total);
@@ -172,7 +195,7 @@ function Reader({ text }: { text: TextDetail }) {
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [playing, index, chunkSize, wpm, total, words, saveProgress, flushSession]);
+  }, [playing, index, chunkSize, wpm, total, words, mode, pageEnd, saveProgress, flushSession]);
 
   /* --- cronometro visivel ------------------------------------------------ */
   useEffect(() => {
@@ -239,6 +262,25 @@ function Reader({ text }: { text: TextDetail }) {
     [total]
   );
 
+  /** Vira a pagina no modo Paginas; nos outros, anda uma tela de texto. */
+  const turnPage = useCallback(
+    (direction: 1 | -1) => {
+      setFinished(false);
+      setIndex((current) => {
+        if (mode === "page") {
+          const page = pageOfWord(pages, current);
+          const target = pages[page + direction];
+          if (target === undefined) {
+            return direction === 1 ? Math.max(0, total - 1) : 0;
+          }
+          return target;
+        }
+        return clamp(current + direction * SCREENFUL_WORDS, 0, Math.max(0, total - 1));
+      });
+    },
+    [mode, pages, total]
+  );
+
   const restart = useCallback(() => {
     setPlaying(false);
     setFinished(false);
@@ -257,15 +299,21 @@ function Reader({ text }: { text: TextDetail }) {
         event.preventDefault();
         togglePlay();
       } else if (event.key === "ArrowLeft") {
-        jump(-chunkSize * 5);
+        turnPage(-1);
       } else if (event.key === "ArrowRight") {
-        jump(chunkSize * 5);
+        turnPage(1);
+      } else if (event.key === "PageUp") {
+        event.preventDefault();
+        turnPage(-1);
+      } else if (event.key === "PageDown") {
+        event.preventDefault();
+        turnPage(1);
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [togglePlay, jump, chunkSize]);
+  }, [togglePlay, turnPage]);
 
   const progress = total > 0 ? Math.min(100, (index / total) * 100) : 0;
   const chunk = words.slice(index, index + chunkSize);
@@ -327,6 +375,16 @@ function Reader({ text }: { text: TextDetail }) {
           />
         ) : mode === "rsvp" ? (
           <RsvpStage chunk={chunk} onToggle={togglePlay} playing={playing} />
+        ) : mode === "page" ? (
+          <PageStage
+            frameRef={frameRef}
+            rulerRef={rulerRef}
+            words={words}
+            pageStart={pageStart}
+            pageEnd={pageEnd}
+            ready={pagesReady}
+            onTurn={turnPage}
+          />
         ) : (
           <FlowStage
             words={words}
@@ -345,9 +403,15 @@ function Reader({ text }: { text: TextDetail }) {
         <footer className="pb-safe sticky bottom-0 border-t border-border bg-bg/95 backdrop-blur">
           <div className="mx-auto w-full max-w-3xl px-4 py-3">
             <div className="flex items-center justify-center gap-3">
-              <ControlButton label="Voltar 10 palavras" onClick={() => jump(-10)}>
-                <RewindIcon className="size-5" />
-              </ControlButton>
+              {mode === "page" ? (
+                <ControlButton label="Pagina anterior" onClick={() => turnPage(-1)}>
+                  <BackIcon className="size-5" />
+                </ControlButton>
+              ) : (
+                <ControlButton label="Voltar 10 palavras" onClick={() => jump(-10)}>
+                  <RewindIcon className="size-5" />
+                </ControlButton>
+              )}
 
               <button
                 type="button"
@@ -358,10 +422,22 @@ function Reader({ text }: { text: TextDetail }) {
                 {playing ? <PauseIcon className="size-7" /> : <PlayIcon className="size-7" />}
               </button>
 
-              <ControlButton label="Avancar 10 palavras" onClick={() => jump(10)}>
-                <FastForwardIcon className="size-5" />
-              </ControlButton>
+              {mode === "page" ? (
+                <ControlButton label="Proxima pagina" onClick={() => turnPage(1)}>
+                  <ForwardIcon className="size-5" />
+                </ControlButton>
+              ) : (
+                <ControlButton label="Avancar 10 palavras" onClick={() => jump(10)}>
+                  <FastForwardIcon className="size-5" />
+                </ControlButton>
+              )}
             </div>
+
+            {mode === "page" && pagesReady ? (
+              <p className="tabular mt-2 text-center text-sm text-muted">
+                {`Pagina ${currentPage + 1} de ${pages.length}`}
+              </p>
+            ) : null}
 
             <div className="mt-2">
               <Slider
@@ -388,14 +464,11 @@ function Reader({ text }: { text: TextDetail }) {
               onChange={(value) => void save({ readingMode: value })}
               options={[
                 { value: "rsvp", label: "Foco" },
-                { value: "flow", label: "Texto corrido" },
+                { value: "flow", label: "Rolagem" },
+                { value: "page", label: "Paginas" },
               ]}
             />
-            <p className="text-sm text-faint">
-              {mode === "rsvp"
-                ? "Uma palavra por vez no centro da tela, com a letra de fixacao destacada."
-                : "O texto inteiro na tela, com o trecho atual destacado."}
-            </p>
+            <p className="text-sm text-faint">{MODE_HINTS[mode]}</p>
           </div>
 
           <Slider
@@ -520,8 +593,93 @@ function OrpWord({ word }: { word: string }) {
   );
 }
 
+/**
+ * Modo Paginas: uma tela cheia de texto por vez, sem rolagem.
+ *
+ * O frame define a altura disponivel e a regua oculta mede, com a mesma
+ * largura e tipografia, quantas palavras cabem nela. Toque na metade direita
+ * avanca, na esquerda volta - o mesmo gesto de um e-reader.
+ */
+function PageStage({
+  frameRef,
+  rulerRef,
+  words,
+  pageStart,
+  pageEnd,
+  ready,
+  onTurn,
+}: {
+  frameRef: React.RefObject<HTMLDivElement | null>;
+  rulerRef: React.RefObject<HTMLDivElement | null>;
+  words: string[];
+  pageStart: number;
+  pageEnd: number;
+  ready: boolean;
+  onTurn: (direction: 1 | -1) => void;
+}) {
+  const touchStartX = useRef<number | null>(null);
+
+  const onTouchStart = (event: React.TouchEvent) => {
+    touchStartX.current = event.touches[0]?.clientX ?? null;
+  };
+
+  const onTouchEnd = (event: React.TouchEvent) => {
+    const start = touchStartX.current;
+    touchStartX.current = null;
+    if (start === null) return;
+
+    const delta = (event.changedTouches[0]?.clientX ?? start) - start;
+    if (Math.abs(delta) < SWIPE_THRESHOLD_PX) return;
+    onTurn(delta < 0 ? 1 : -1);
+  };
+
+  return (
+    <div
+      className="relative flex flex-1 flex-col px-5 py-6"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* A altura vem do flex, nao de height:100%: a altura do pai e definida
+          por flex-grow e, para porcentagem, conta como indefinida - o frame
+          media zero e nenhuma pagina era calculada. */}
+      <div
+        ref={frameRef}
+        className="relative mx-auto min-h-0 w-full max-w-2xl flex-1 overflow-hidden"
+      >
+        <p className="text-lg leading-[1.85] sm:text-xl">
+          {ready ? words.slice(pageStart, pageEnd).join(" ") : ""}
+        </p>
+
+        {/* Regua: fora da arvore visivel, mesma largura e tipografia. */}
+        <div
+          ref={rulerRef}
+          aria-hidden="true"
+          className="pointer-events-none invisible absolute inset-x-0 top-0 text-lg leading-[1.85] sm:text-xl"
+        />
+      </div>
+
+      {/* Zonas de toque: metade esquerda volta, metade direita avanca. */}
+      <button
+        type="button"
+        aria-label="Pagina anterior"
+        onClick={() => onTurn(-1)}
+        className="absolute inset-y-0 left-0 w-2/5"
+      />
+      <button
+        type="button"
+        aria-label="Proxima pagina"
+        onClick={() => onTurn(1)}
+        className="absolute inset-y-0 right-0 w-2/5"
+      />
+    </div>
+  );
+}
+
+const SWIPE_THRESHOLD_PX = 45;
 const WINDOW_BEFORE = 80;
 const WINDOW_AFTER = 220;
+/** Quanto a janela da rolagem cresce ao chegar no fim do que foi renderizado. */
+const WINDOW_STEP = 400;
 
 function FlowStage({
   words,
@@ -537,10 +695,33 @@ function FlowStage({
   onSeek: (position: number) => void;
 }) {
   // Renderiza so a janela ao redor da posicao atual: um artigo de 5 mil
-  // palavras viraria 5 mil elementos a cada passo.
-  const start = Math.max(0, index - WINDOW_BEFORE);
-  const visible = words.slice(start, index + WINDOW_AFTER);
+  // palavras viraria 5 mil elementos a cada passo. A janela cresce conforme a
+  // leitura chega ao fim do que ja foi renderizado - sem isso o texto
+  // simplesmente acabava algumas centenas de palavras a frente e nao havia
+  // como continuar lendo manualmente.
+  const [reach, setReach] = useState(WINDOW_AFTER);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLSpanElement>(null);
+
+  const start = Math.max(0, index - WINDOW_BEFORE);
+  const end = Math.min(words.length, index + reach);
+  const visible = words.slice(start, end);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    // Callback de um observer: estender a janela aqui mantem a escrita de
+    // estado fora do corpo do efeito.
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setReach((current) => current + WINDOW_STEP);
+      }
+    });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [end]);
 
   // Sem isso o destaque desce para fora da tela e o leitor perde a posicao.
   // Rola apenas quando a palavra atual sai da faixa confortavel de leitura,
@@ -583,8 +764,14 @@ function FlowStage({
           );
         })}
       </p>
+      {end < words.length ? (
+        <div ref={sentinelRef} aria-hidden="true" className="h-px" />
+      ) : null}
+
       <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-faint">
-        Toque em uma palavra para pular ate ela.
+        {end < words.length
+          ? "Toque em uma palavra para pular ate ela."
+          : "Fim do texto. Toque em uma palavra para voltar."}
       </p>
     </div>
   );

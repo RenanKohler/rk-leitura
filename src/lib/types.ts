@@ -41,3 +41,26 @@ export interface SettingsPayload {
   readingMode: ReadingMode;
   theme: "system" | "light" | "dark";
 }
+
+export interface DashboardStats {
+  texts: number;
+  sessions: number;
+  wordsRead: number;
+  avgWpm: number;
+  bestWpm: number;
+}
+
+export interface ContinueReading {
+  id: string;
+  title: string;
+  wordCount: number;
+  progressIndex: number;
+}
+
+/** Envelope comum das listas paginadas. */
+export interface Paginated {
+  total: number;
+  page: number;
+  perPage: number;
+  pageCount: number;
+}

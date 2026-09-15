@@ -186,3 +186,10 @@ export const LogoMark = (props: IconProps) => (
     />
   </svg>
 );
+
+export const PagesIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="4" y="4.5" width="16" height="15" rx="2" />
+    <path d="M8 9h8M8 12.5h8M8 16h5" />
+  </Icon>
+);

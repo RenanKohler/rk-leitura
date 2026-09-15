@@ -1,16 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useResource } from "@/hooks/use-resource";
-import { Card, EmptyState, LinkButton, Skeleton } from "@/components/ui";
+import { Card, EmptyState, LinkButton, Pagination, Skeleton } from "@/components/ui";
 import { CheckIcon, HistoryIcon } from "@/components/icons";
 import { formatDuration, formatNumber, formatRelativeDay } from "@/lib/reading";
-import type { SessionSummary } from "@/lib/types";
+import type { DashboardStats, Paginated, SessionSummary } from "@/lib/types";
 
 export default function HistoryPage() {
-  const resource = useResource<{ sessions: SessionSummary[] }>("/api/reading-sessions");
+  const [page, setPage] = useState(1);
+  const resource = useResource<{ sessions: SessionSummary[] } & Paginated>(
+    `/api/reading-sessions?page=${page}`
+  );
+  // O melhor ritmo e de toda a conta, nao apenas da pagina visivel.
+  const overview = useResource<{ stats: DashboardStats }>("/api/stats");
+
   const sessions = useMemo(() => resource.data?.sessions ?? [], [resource.data]);
+  const total = resource.data?.total ?? sessions.length;
+  const pageCount = resource.data?.pageCount ?? 1;
 
   const grouped = useMemo(() => {
     const map = new Map<string, SessionSummary[]>();
@@ -23,10 +31,7 @@ export default function HistoryPage() {
     return [...map.entries()];
   }, [sessions]);
 
-  const best = useMemo(
-    () => sessions.reduce((max, session) => Math.max(max, session.wpm), 0),
-    [sessions]
-  );
+  const best = overview.data?.stats.bestWpm ?? 0;
 
   return (
     <div className="space-y-6">
@@ -37,7 +42,7 @@ export default function HistoryPage() {
             ? "Carregando"
             : sessions.length === 0
               ? "Nenhuma sessao registrada"
-              : `${sessions.length} ${sessions.length === 1 ? "sessao" : "sessoes"} · melhor ritmo ${best} ppm`}
+              : `${total} ${total === 1 ? "sessao" : "sessoes"} · melhor ritmo ${best} ppm`}
         </p>
       </header>
 
@@ -92,6 +97,16 @@ export default function HistoryPage() {
               </ul>
             </section>
           ))}
+
+          <Pagination
+            page={resource.data?.page ?? page}
+            pageCount={pageCount}
+            busy={resource.loading}
+            onChange={(next) => {
+              setPage(next);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
         </div>
       )}
     </div>

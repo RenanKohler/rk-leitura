@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { texts } from "@/db/schema";
-import { asString, jsonError, readJson, requireSession, serverError } from "@/lib/api";
+import {
+  asString,
+  jsonError,
+  pageMeta,
+  readJson,
+  readPageParams,
+  requireSession,
+  serverError,
+} from "@/lib/api";
 import { countWords } from "@/lib/reading";
 
 export const dynamic = "force-dynamic";
@@ -15,28 +23,38 @@ interface Body {
   content?: unknown;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await requireSession();
   if (session instanceof NextResponse) return session;
 
   try {
-    const result = await db
-      .select({
-        id: texts.id,
-        title: texts.title,
-        sourceUrl: texts.sourceUrl,
-        wordCount: texts.wordCount,
-        progressIndex: texts.progressIndex,
-        createdAt: texts.createdAt,
-        updatedAt: texts.updatedAt,
-      })
+    const params = readPageParams(request);
+
+    const [result, [totals]] = await Promise.all([
       // Lista sem o campo content: uma biblioteca com 50 artigos traria
       // megabytes de texto que a tela nao usa.
-      .from(texts)
-      .where(eq(texts.userId, session.id))
-      .orderBy(desc(texts.createdAt));
+      db
+        .select({
+          id: texts.id,
+          title: texts.title,
+          sourceUrl: texts.sourceUrl,
+          wordCount: texts.wordCount,
+          progressIndex: texts.progressIndex,
+          createdAt: texts.createdAt,
+          updatedAt: texts.updatedAt,
+        })
+        .from(texts)
+        .where(eq(texts.userId, session.id))
+        .orderBy(desc(texts.createdAt))
+        .limit(params.limit)
+        .offset(params.offset),
+      db.select({ value: count() }).from(texts).where(eq(texts.userId, session.id)),
+    ]);
 
-    return NextResponse.json({ texts: result });
+    return NextResponse.json({
+      texts: result,
+      ...pageMeta(totals?.value ?? 0, params),
+    });
   } catch (error) {
     return serverError("texts/list", error);
   }

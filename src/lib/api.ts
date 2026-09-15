@@ -41,3 +41,32 @@ export function asInteger(value: unknown): number | null {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
 }
+
+export const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
+export interface PageParams {
+  limit: number;
+  offset: number;
+  page: number;
+}
+
+/** Le ?page= e ?perPage= da URL, com limites sensatos. */
+export function readPageParams(request: Request): PageParams {
+  const params = new URL(request.url).searchParams;
+
+  const page = Math.max(1, Math.trunc(Number(params.get("page")) || 1));
+  const requested = Math.trunc(Number(params.get("perPage")) || DEFAULT_PAGE_SIZE);
+  const limit = Math.min(Math.max(1, requested), MAX_PAGE_SIZE);
+
+  return { limit, offset: (page - 1) * limit, page };
+}
+
+export function pageMeta(total: number, { page, limit }: PageParams) {
+  return {
+    total,
+    page,
+    perPage: limit,
+    pageCount: Math.max(1, Math.ceil(total / limit)),
+  };
+}

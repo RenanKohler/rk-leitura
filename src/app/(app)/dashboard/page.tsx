@@ -8,37 +8,22 @@ import { useResource } from "@/hooks/use-resource";
 import { Card, EmptyState, LinkButton, SectionTitle, Skeleton } from "@/components/ui";
 import { ForwardIcon, LibraryIcon, PlayIcon, SpeedIcon, SparkIcon, WordsIcon } from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
-import type { SessionSummary, TextSummary } from "@/lib/types";
+import type { ContinueReading, DashboardStats, Paginated, TextSummary } from "@/lib/types";
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { settings } = useSettings();
-  const texts = useResource<{ texts: TextSummary[] }>("/api/texts");
-  const sessions = useResource<{ sessions: SessionSummary[] }>("/api/reading-sessions");
-
-  // Memoizado para nao recriar um array novo a cada render e invalidar os
-  // useMemo abaixo sem necessidade.
-  const list = useMemo(() => texts.data?.texts ?? [], [texts.data]);
-  const history = useMemo(() => sessions.data?.sessions ?? [], [sessions.data]);
-  const loading = texts.loading || sessions.loading;
-
-  const stats = useMemo(() => {
-    const wordsRead = history.reduce((total, session) => total + session.wordsRead, 0);
-    const avgWpm =
-      history.length > 0
-        ? Math.round(history.reduce((total, session) => total + session.wpm, 0) / history.length)
-        : 0;
-    return { wordsRead, avgWpm, sessions: history.length, texts: list.length };
-  }, [history, list]);
-
-  // Leitura em andamento: comecada e ainda nao terminada.
-  const inProgress = useMemo(
-    () =>
-      list
-        .filter((text) => text.progressIndex > 0 && text.progressIndex < text.wordCount)
-        .slice(0, 1)[0],
-    [list]
+  // Somas e a leitura em andamento vem prontas do servidor: a tela nao precisa
+  // baixar o historico inteiro para calcular media e total.
+  const overview = useResource<{ stats: DashboardStats; continueReading: ContinueReading | null }>(
+    "/api/stats"
   );
+  const texts = useResource<{ texts: TextSummary[] } & Paginated>("/api/texts?perPage=5");
+
+  const list = useMemo(() => texts.data?.texts ?? [], [texts.data]);
+  const stats = overview.data?.stats;
+  const inProgress = overview.data?.continueReading ?? null;
+  const loading = texts.loading || overview.loading;
 
   const firstName = user?.name?.split(" ")[0] ?? "";
 
@@ -49,7 +34,7 @@ export default function DashboardPage() {
           {firstName ? `Ola, ${firstName}` : "Ola"}
         </h1>
         <p className="mt-1 text-sm text-muted">
-          {stats.sessions > 0
+          {stats && stats.sessions > 0
             ? `${formatNumber(stats.wordsRead)} palavras lidas ate agora.`
             : "Importe um artigo e comece a ler."}
         </p>
@@ -61,31 +46,36 @@ export default function DashboardPage() {
         <Stat
           icon={<SpeedIcon className="size-5" />}
           label="Media"
-          value={stats.avgWpm > 0 ? `${stats.avgWpm}` : "--"}
+          value={stats && stats.avgWpm > 0 ? `${stats.avgWpm}` : "--"}
           suffix="ppm"
           loading={loading}
         />
         <Stat
           icon={<WordsIcon className="size-5" />}
           label="Palavras"
-          value={formatNumber(stats.wordsRead)}
+          value={formatNumber(stats?.wordsRead ?? 0)}
           loading={loading}
         />
         <Stat
           icon={<SparkIcon className="size-5" />}
           label="Sessoes"
-          value={`${stats.sessions}`}
+          value={`${stats?.sessions ?? 0}`}
           loading={loading}
         />
         <Stat
           icon={<LibraryIcon className="size-5" />}
           label="Textos"
-          value={`${stats.texts}`}
+          value={`${stats?.texts ?? 0}`}
           loading={loading}
         />
       </section>
 
-      <ImportCard onImported={() => texts.reload()} />
+      <ImportCard
+        onImported={() => {
+          texts.reload();
+          overview.reload();
+        }}
+      />
 
       <section className="space-y-3">
         <SectionTitle
@@ -127,7 +117,7 @@ export default function DashboardPage() {
   );
 }
 
-function ContinueCard({ text, wpm }: { text: TextSummary; wpm: number }) {
+function ContinueCard({ text, wpm }: { text: ContinueReading; wpm: number }) {
   const percent = Math.round((text.progressIndex / Math.max(1, text.wordCount)) * 100);
   const remaining = estimatedMinutes(text.wordCount - text.progressIndex, wpm);
 

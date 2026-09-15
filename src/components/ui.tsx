@@ -10,7 +10,7 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 import Link from "next/link";
-import { CloseIcon } from "@/components/icons";
+import { BackIcon, CloseIcon, ForwardIcon } from "@/components/icons";
 
 /* -------------------------------------------------------------------------- */
 /* Botao                                                                       */
@@ -388,5 +388,51 @@ export function Sheet({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Paginacao                                                                   */
+/* -------------------------------------------------------------------------- */
+
+export function Pagination({
+  page,
+  pageCount,
+  onChange,
+  busy,
+}: {
+  page: number;
+  pageCount: number;
+  onChange: (page: number) => void;
+  busy?: boolean;
+}) {
+  if (pageCount <= 1) return null;
+
+  return (
+    <nav aria-label="Paginacao" className="flex items-center justify-between gap-2 pt-1">
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={busy || page <= 1}
+        onClick={() => onChange(page - 1)}
+      >
+        <BackIcon className="size-4" />
+        Anterior
+      </Button>
+
+      <p aria-live="polite" className="tabular text-sm text-muted">
+        {`${page} de ${pageCount}`}
+      </p>
+
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={busy || page >= pageCount}
+        onClick={() => onChange(page + 1)}
+      >
+        Proxima
+        <ForwardIcon className="size-4" />
+      </Button>
+    </nav>
   );
 }

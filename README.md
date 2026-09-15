@@ -176,6 +176,17 @@ scripts/            geracao da copia acima
   em `useEffect` no cliente.
 - **Palavras.** Derivadas de `texts.content` em tempo de execucao. Nao ha tabela
   com uma linha por palavra.
+- **Modos de leitura.** *Foco* mostra uma palavra por vez com a letra de
+  fixacao destacada; *Rolagem* mantem o texto corrido com o trecho atual em
+  evidencia; *Paginas* apresenta uma tela cheia por vez, sem rolagem, com toque
+  nas laterais ou arrasto para virar.
+- **Paginacao do texto.** Medida por uma regua oculta com a mesma largura e
+  tipografia da area de leitura, via busca binaria. Cada pagina comeca no inicio
+  de uma linha, entao o que foi medido e exatamente o que aparece. Recalcula ao
+  girar a tela e quando as fontes terminam de carregar.
+- **Listas paginadas.** `/api/texts` e `/api/reading-sessions` aceitam `page` e
+  `perPage` e devolvem o total. `/api/stats` calcula as somas do painel no
+  banco, em vez de baixar o historico inteiro para somar no cliente.
 - **Importacao de URL.** Toda busca passa por `lib/safe-fetch.ts`, que resolve o
   DNS e recusa enderecos de rede interna, revalidando cada redirecionamento.
 - **Migrations.** `drizzle/` e a unica fonte. Fora da Netlify, `npm run

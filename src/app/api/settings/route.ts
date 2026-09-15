@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS = {
   theme: "system" as const,
 };
 
-const READING_MODES = new Set(["rsvp", "flow"]);
+const READING_MODES = new Set(["rsvp", "flow", "page"]);
 const THEMES = new Set(["system", "light", "dark"]);
 
 export async function GET() {

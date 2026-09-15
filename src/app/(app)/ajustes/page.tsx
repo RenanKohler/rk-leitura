@@ -16,6 +16,12 @@ import {
 
 const SAMPLE = "A leitura dinamica treina o olho a reconhecer palavras inteiras".split(" ");
 
+const MODE_HINTS: Record<ReadingMode, string> = {
+  rsvp: "Uma palavra por vez no centro da tela, com a letra de fixacao destacada.",
+  flow: "Texto corrido com rolagem, destacando o trecho atual.",
+  page: "Uma tela cheia por vez, sem rolagem. Toque na metade direita para avancar e na esquerda para voltar.",
+};
+
 export default function SettingsPage() {
   const { user, logout } = useAuth();
   const { settings, save } = useSettings();
@@ -51,9 +57,11 @@ export default function SettingsPage() {
             onChange={(value) => void update({ readingMode: value })}
             options={[
               { value: "rsvp", label: "Foco" },
-              { value: "flow", label: "Texto corrido" },
+              { value: "flow", label: "Rolagem" },
+              { value: "page", label: "Paginas" },
             ]}
           />
+          <p className="text-sm text-faint">{MODE_HINTS[settings.readingMode]}</p>
         </div>
 
         <Slider
@@ -130,7 +138,14 @@ function Preview({ mode, chunkSize }: { mode: ReadingMode; chunkSize: number }) 
     <div className="space-y-2">
       <p className="text-sm font-medium text-muted">Previa</p>
       <div className="flex min-h-24 items-center justify-center rounded-2xl bg-bg px-4 py-6 text-center">
-        {mode === "rsvp" ? (
+        {mode === "page" ? (
+          <div className="w-full max-w-xs">
+            <div className="rounded-lg border border-border bg-surface px-3 py-3 text-left">
+              <p className="text-sm leading-relaxed">{SAMPLE.join(" ")}</p>
+            </div>
+            <p className="tabular mt-2 text-xs text-muted">Pagina 1 de 8</p>
+          </div>
+        ) : mode === "rsvp" ? (
           <p className="reader-word w-full text-2xl font-semibold sm:text-3xl">
             {chunk.length === 1 ? <OrpPreview word={chunk[0]!} /> : chunk.join(" ")}
           </p>

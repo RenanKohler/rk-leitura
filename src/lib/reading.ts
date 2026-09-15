@@ -8,7 +8,12 @@ export const MAX_WPM = 1200;
 export const MIN_CHUNK = 1;
 export const MAX_CHUNK = 6;
 
-export type ReadingMode = "rsvp" | "flow";
+/**
+ * rsvp  - uma palavra por vez no centro da tela
+ * flow  - texto corrido com rolagem e destaque do trecho atual
+ * page  - paginado, uma tela cheia por vez, sem rolagem
+ */
+export type ReadingMode = "rsvp" | "flow" | "page";
 
 /**
  * Divide o texto em palavras preservando acentuacao e pontuacao.
