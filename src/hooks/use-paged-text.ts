@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { sliceParagraphs, type Paragraph } from "@/lib/reading";
 
 /** Teto de palavras testadas por pagina na busca binaria. */
 const MAX_WORDS_PER_PAGE = 800;
@@ -8,16 +9,19 @@ const MAX_WORDS_PER_PAGE = 800;
 /**
  * Quebra o texto em paginas que cabem exatamente na altura disponivel.
  *
- * A medicao usa uma "regua": um elemento oculto com a mesma largura e
- * tipografia da area de leitura, preenchido por manipulacao direta do DOM e
- * consultado por busca binaria. Evita renderizar uma <span> por palavra so
- * para medir - um artigo de cinco mil palavras viraria cinco mil elementos
- * permanentes na arvore.
+ * A medicao usa uma "regua": um elemento oculto com a mesma largura, tipografia
+ * e espacamento entre paragrafos da area de leitura, preenchido por
+ * manipulacao direta do DOM e consultado por busca binaria. Evita renderizar
+ * uma <span> por palavra so para medir - um artigo de cinco mil palavras
+ * viraria cinco mil elementos permanentes na arvore.
+ *
+ * A regua monta os mesmos paragrafos da pagina visivel: medir um bloco corrido
+ * daria uma altura menor que a real, porque o espaco entre paragrafos conta.
  *
  * Cada pagina comeca no inicio de uma linha, entao o que foi medido e
  * exatamente o que aparece na tela.
  */
-export function usePagedText(words: string[]) {
+export function usePagedText(paragraphs: Paragraph[], totalWords: number) {
   // Ref de callback em vez de objeto: o modo Paginas so monta depois que as
   // preferencias chegam do servidor, entao ao abrir o leitor direto pela URL o
   // efeito rodava com a referencia ainda vazia e nunca voltava a rodar - nenhuma
@@ -34,15 +38,15 @@ export function usePagedText(words: string[]) {
     const height = frame.clientHeight;
     if (height <= 0) return;
 
-    if (words.length === 0) {
+    if (totalWords === 0) {
       setPages([0]);
       setReady(true);
       return;
     }
 
-    setPages(computePageStarts(ruler, words, height));
+    setPages(computePageStarts(ruler, paragraphs, totalWords, height));
     setReady(true);
-  }, [frame, words]);
+  }, [frame, paragraphs, totalWords]);
 
   useEffect(() => {
     if (!frame) return;
@@ -68,32 +72,43 @@ export function usePagedText(words: string[]) {
   return { frameRef: setFrame, rulerRef, pages, ready };
 }
 
-function computePageStarts(ruler: HTMLElement, words: string[], height: number): number[] {
+function computePageStarts(
+  ruler: HTMLElement,
+  paragraphs: Paragraph[],
+  totalWords: number,
+  height: number
+): number[] {
   const starts = [0];
   let start = 0;
 
-  while (start < words.length) {
-    const fitting = wordsThatFit(ruler, words, start, height);
+  while (start < totalWords) {
+    const fitting = wordsThatFit(ruler, paragraphs, totalWords, start, height);
     const next = start + fitting;
-    if (next >= words.length) break;
+    if (next >= totalWords) break;
     starts.push(next);
     start = next;
   }
 
-  ruler.textContent = "";
+  ruler.replaceChildren();
   return starts;
 }
 
 /** Maior quantidade de palavras a partir de `start` que cabe em `height`. */
-function wordsThatFit(ruler: HTMLElement, words: string[], start: number, height: number): number {
-  const remaining = words.length - start;
+function wordsThatFit(
+  ruler: HTMLElement,
+  paragraphs: Paragraph[],
+  totalWords: number,
+  start: number,
+  height: number
+): number {
+  const remaining = totalWords - start;
   let low = 1;
   let high = Math.min(remaining, MAX_WORDS_PER_PAGE);
   let best = 1;
 
   while (low <= high) {
     const middle = (low + high) >> 1;
-    ruler.textContent = words.slice(start, start + middle).join(" ");
+    fillRuler(ruler, paragraphs, start, middle);
 
     if (ruler.scrollHeight <= height) {
       best = middle;
@@ -105,6 +120,17 @@ function wordsThatFit(ruler: HTMLElement, words: string[], start: number, height
 
   // Garante avanco mesmo quando uma unica palavra nao cabe (fonte enorme).
   return Math.max(1, best);
+}
+
+function fillRuler(ruler: HTMLElement, paragraphs: Paragraph[], start: number, count: number) {
+  const nodes = sliceParagraphs(paragraphs, start, start + count).map((paragraph) => {
+    const element = document.createElement("p");
+    // textContent, nunca innerHTML: o conteudo vem de uma pagina externa.
+    element.textContent = paragraph.words.join(" ");
+    return element;
+  });
+
+  ruler.replaceChildren(...nodes);
 }
 
 /** Indice da pagina que contem a palavra `wordIndex`. */

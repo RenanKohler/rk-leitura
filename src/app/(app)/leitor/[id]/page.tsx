@@ -28,7 +28,9 @@ import {
   MIN_CHUNK,
   MIN_WPM,
   orpIndex,
-  tokenize,
+  parseParagraphs,
+  sliceParagraphs,
+  type Paragraph,
   type ReadingMode,
 } from "@/lib/reading";
 import { apiSend } from "@/lib/client";
@@ -85,7 +87,9 @@ function Reader({ text: initialText }: { text: TextDetail }) {
   const [text, setText] = useState(initialText);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const words = useMemo(() => tokenize(text.content), [text.content]);
+  // As duas visoes do mesmo texto: a lista corrida indexa a posicao, os
+  // paragrafos dao a forma na tela.
+  const { words, paragraphs } = useMemo(() => parseParagraphs(text.content), [text.content]);
   const total = words.length;
 
   const [index, setIndex] = useState(() => clamp(text.progressIndex, 0, Math.max(0, total - 1)));
@@ -101,7 +105,7 @@ function Reader({ text: initialText }: { text: TextDetail }) {
 
   // As referencias so sao preenchidas quando o modo Paginas esta montado; nos
   // outros modos o observer nunca liga e `pages` fica no valor inicial.
-  const { frameRef, rulerRef, pages, ready: pagesReady } = usePagedText(words);
+  const { frameRef, rulerRef, pages, ready: pagesReady } = usePagedText(paragraphs, total);
   const currentPage = pageOfWord(pages, index);
   const pageStart = pages[currentPage] ?? 0;
   const pageEnd = pages[currentPage + 1] ?? total;
@@ -435,7 +439,7 @@ function Reader({ text: initialText }: { text: TextDetail }) {
           <PageStage
             frameRef={frameRef}
             rulerRef={rulerRef}
-            words={words}
+            paragraphs={paragraphs}
             pageStart={pageStart}
             pageEnd={pageEnd}
             ready={pagesReady}
@@ -444,7 +448,8 @@ function Reader({ text: initialText }: { text: TextDetail }) {
           />
         ) : (
           <FlowStage
-            words={words}
+            paragraphs={paragraphs}
+            totalWords={total}
             index={index}
             chunkSize={chunkSize}
             onToggle={togglePlay}
@@ -660,7 +665,7 @@ function OrpWord({ word }: { word: string }) {
 function PageStage({
   frameRef,
   rulerRef,
-  words,
+  paragraphs,
   pageStart,
   pageEnd,
   ready,
@@ -669,7 +674,7 @@ function PageStage({
 }: {
   frameRef: React.Ref<HTMLDivElement>;
   rulerRef: React.RefObject<HTMLDivElement | null>;
-  words: string[];
+  paragraphs: Paragraph[];
   pageStart: number;
   pageEnd: number;
   ready: boolean;
@@ -705,15 +710,20 @@ function PageStage({
         ref={frameRef}
         className="relative mx-auto min-h-0 w-full max-w-2xl flex-1 overflow-hidden"
       >
-        <p className="text-lg leading-[1.85] sm:text-xl">
-          {ready ? words.slice(pageStart, pageEnd).join(" ") : ""}
-        </p>
+        <div className="reader-prose text-lg leading-[1.85] sm:text-xl">
+          {ready
+            ? sliceParagraphs(paragraphs, pageStart, pageEnd).map((paragraph) => (
+                <p key={paragraph.start}>{paragraph.words.join(" ")}</p>
+              ))
+            : null}
+        </div>
 
-        {/* Regua: fora da arvore visivel, mesma largura e tipografia. */}
+        {/* Regua: fora da arvore visivel, com a mesma largura, tipografia e
+            espacamento entre paragrafos da pagina acima. */}
         <div
           ref={rulerRef}
           aria-hidden="true"
-          className="pointer-events-none invisible absolute inset-x-0 top-0 text-lg leading-[1.85] sm:text-xl"
+          className="reader-prose pointer-events-none invisible absolute inset-x-0 top-0 text-lg leading-[1.85] sm:text-xl"
         />
       </div>
 
@@ -748,13 +758,15 @@ const WINDOW_AFTER = 220;
 const WINDOW_STEP = 400;
 
 function FlowStage({
-  words,
+  paragraphs,
+  totalWords,
   index,
   chunkSize,
   onToggle,
   onSeek,
 }: {
-  words: string[];
+  paragraphs: Paragraph[];
+  totalWords: number;
   index: number;
   chunkSize: number;
   onToggle: () => void;
@@ -770,8 +782,8 @@ function FlowStage({
   const activeRef = useRef<HTMLSpanElement>(null);
 
   const start = Math.max(0, index - WINDOW_BEFORE);
-  const end = Math.min(words.length, index + reach);
-  const visible = words.slice(start, end);
+  const end = Math.min(totalWords, index + reach);
+  const visible = sliceParagraphs(paragraphs, start, end);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -807,35 +819,40 @@ function FlowStage({
 
   return (
     <div className="flex-1 px-5 py-8" onDoubleClick={onToggle}>
-      <p className="mx-auto max-w-2xl text-lg leading-[1.9] sm:text-xl">
-        {visible.map((word, offset) => {
-          const position = start + offset;
-          const state =
-            position >= index && position < index + chunkSize
-              ? "active"
-              : position < index
-                ? "read"
-                : "pending";
+      <div className="reader-prose mx-auto max-w-2xl text-lg leading-[1.9] sm:text-xl">
+        {visible.map((paragraph) => (
+          <p key={paragraph.start}>
+            {paragraph.words.map((word, offset) => {
+              const position = paragraph.start + offset;
+              const state =
+                position >= index && position < index + chunkSize
+                  ? "active"
+                  : position < index
+                    ? "read"
+                    : "pending";
 
-          return (
-            <span
-              key={position}
-              ref={position === index ? activeRef : undefined}
-              data-state={state}
-              className="flow-word cursor-pointer"
-              onClick={() => onSeek(position)}
-            >
-              {word}{" "}
-            </span>
-          );
-        })}
-      </p>
-      {end < words.length ? (
+              return (
+                <span
+                  key={position}
+                  ref={position === index ? activeRef : undefined}
+                  data-state={state}
+                  className="flow-word cursor-pointer"
+                  onClick={() => onSeek(position)}
+                >
+                  {word}{" "}
+                </span>
+              );
+            })}
+          </p>
+        ))}
+      </div>
+
+      {end < totalWords ? (
         <div ref={sentinelRef} aria-hidden="true" className="h-px" />
       ) : null}
 
       <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-faint">
-        {end < words.length
+        {end < totalWords
           ? "Toque em uma palavra para pular ate ela."
           : "Fim do texto. Toque em uma palavra para voltar."}
       </p>

@@ -31,6 +31,60 @@ export function countWords(content: string): number {
   return tokenize(content).length;
 }
 
+export interface Paragraph {
+  /** Indice, no texto inteiro, da primeira palavra do paragrafo. */
+  start: number;
+  words: string[];
+}
+
+/**
+ * Separa o texto em paragrafos e, ao mesmo tempo, na lista corrida de palavras
+ * usada para indexar a posicao de leitura.
+ *
+ * O leitor precisa das duas visoes: a lista corrida da o ritmo e o progresso,
+ * os paragrafos dao a forma na tela. Antes so existia a lista corrida, entao o
+ * texto era exibido como um bloco unico - dialogo e narracao sem separacao.
+ */
+export function parseParagraphs(content: string): { words: string[]; paragraphs: Paragraph[] } {
+  const words: string[] = [];
+  const paragraphs: Paragraph[] = [];
+
+  for (const block of content.split(/\n+/)) {
+    const blockWords = block
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0);
+
+    if (blockWords.length === 0) continue;
+
+    paragraphs.push({ start: words.length, words: blockWords });
+    for (const word of blockWords) words.push(word);
+  }
+
+  return { words, paragraphs };
+}
+
+/** Recorte dos paragrafos que cobrem o intervalo de palavras [start, end). */
+export function sliceParagraphs(
+  paragraphs: Paragraph[],
+  start: number,
+  end: number
+): Paragraph[] {
+  const slice: Paragraph[] = [];
+
+  for (const paragraph of paragraphs) {
+    const paragraphEnd = paragraph.start + paragraph.words.length;
+    if (paragraphEnd <= start) continue;
+    if (paragraph.start >= end) break;
+
+    const from = Math.max(start, paragraph.start) - paragraph.start;
+    const to = Math.min(end, paragraphEnd) - paragraph.start;
+    slice.push({ start: paragraph.start + from, words: paragraph.words.slice(from, to) });
+  }
+
+  return slice;
+}
+
 /** Milissegundos que cada bloco de palavras fica na tela. */
 export function chunkDurationMs(wpm: number, wordsPerChunk: number): number {
   const safeWpm = clamp(wpm, MIN_WPM, MAX_WPM);

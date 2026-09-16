@@ -186,8 +186,29 @@ function normalize(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Mede a fracao de paragrafos da parte recebida que ja estao no texto.
+ *
+ * Comparar apenas a abertura falharia nos dois sentidos: uma origem que repete
+ * o primeiro paragrafo em toda pagina seria lida como fim do conto, e uma que
+ * muda so o inicio passaria como parte nova. Paragrafos curtos ficam de fora
+ * da conta porque falas de dialogo se repetem naturalmente.
+ */
+const REPEAT_THRESHOLD = 0.9;
+const MIN_COMPARABLE_CHARS = 40;
+
 function alreadyPresent(existing: string, incoming: string): boolean {
-  const probe = normalize(incoming).slice(0, 300);
-  if (probe.length < 60) return false;
-  return normalize(existing).includes(probe);
+  const known = new Set(comparableBlocks(existing));
+  const blocks = comparableBlocks(incoming);
+  if (blocks.length === 0) return false;
+
+  const repeated = blocks.filter((block) => known.has(block)).length;
+  return repeated / blocks.length >= REPEAT_THRESHOLD;
+}
+
+function comparableBlocks(content: string): string[] {
+  return content
+    .split(/\n+/)
+    .map(normalize)
+    .filter((block) => block.length >= MIN_COMPARABLE_CHARS);
 }

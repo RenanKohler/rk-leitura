@@ -180,6 +180,17 @@ scripts/            geracao da copia acima
   fixacao destacada; *Rolagem* mantem o texto corrido com o trecho atual em
   evidencia; *Paginas* apresenta uma tela cheia por vez, sem rolagem, com toque
   nas laterais ou arrasto para virar.
+- **Extracao do texto.** O corpo sai do container marcado com
+  `itemprop="articleBody"` (microdado schema.org) quando existe - e o caso do
+  Literotica, e com ele o bloco de anuncios que vinha antes do conto some por
+  completo. Sem esse marcador, tenta o `articleBody` de JSON-LD, depois
+  `<article>`, e so por ultimo o palpite pelo maior container. Quando o
+  container e exato, nenhum bloco e descartado por tamanho: em ficcao as falas
+  de dialogo sao curtas e o filtro antigo apagava boa parte do texto.
+- **Paragrafos.** Preservados da extracao ate a tela. O conteudo guarda uma
+  linha em branco entre paragrafos, e o leitor renderiza um `<p>` para cada um
+  nos modos Rolagem e Paginas. A regua de medicao monta os mesmos paragrafos,
+  senao a quebra de pagina calcularia uma altura menor que a real.
 - **Continuacao do conto.** Ao chegar no fim de um texto importado, "proxima
   pagina" busca a proxima parte na propria origem: a URL da importacao com
   `?page=` incrementado. A base e sempre a URL importada, que conta como pagina

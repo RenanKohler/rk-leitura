@@ -224,3 +224,15 @@ a,
     scroll-behavior: auto !important;
   }
 }
+
+/* ==========================================================================
+   Prosa do leitor
+   O espacamento entre paragrafos precisa ser identico na pagina visivel e na
+   regua de medicao, senao a quebra de pagina calcula uma altura menor que a
+   real. `p + p` em vez de margem em todo paragrafo evita margem sobrando no
+   topo e no rodape, que falsearia scrollHeight.
+   ========================================================================== */
+
+.reader-prose p + p {
+  margin-top: 0.85em;
+}
