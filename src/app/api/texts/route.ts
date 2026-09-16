@@ -60,6 +60,18 @@ export async function GET(request: Request) {
   }
 }
 
+/** Numero da parte que a URL importada representa; 1 quando nao ha `page`. */
+function pageFromUrl(sourceUrl: string | null): number {
+  if (!sourceUrl) return 1;
+
+  try {
+    const page = Number(new URL(sourceUrl).searchParams.get("page"));
+    return Number.isInteger(page) && page > 1 ? page : 1;
+  } catch {
+    return 1;
+  }
+}
+
 export async function POST(request: Request) {
   const session = await requireSession();
   if (session instanceof NextResponse) return session;
@@ -86,6 +98,10 @@ export async function POST(request: Request) {
         content,
         // Calculado no servidor: o cliente nao decide a contagem.
         wordCount: countWords(content),
+        // Importar uma URL que ja aponta para uma parte ("?page=3") significa
+        // que a continuacao deve seguir da 4, nao voltar para a 2 - o que
+        // traria de novo o que ja esta salvo.
+        sourcePage: pageFromUrl(sourceUrl),
       })
       .returning();
 
