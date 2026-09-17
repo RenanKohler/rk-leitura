@@ -4,16 +4,9 @@ import { db } from "@/db";
 import { speedSettings } from "@/db/schema";
 import { readJson, requireSession, serverError } from "@/lib/api";
 import { clamp, MAX_CHUNK, MAX_WPM, MIN_CHUNK, MIN_WPM } from "@/lib/reading";
+import { DEFAULT_SETTINGS, loadSettings } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
-
-export const DEFAULT_SETTINGS = {
-  baseWpm: 300,
-  wordsPerChunk: 1,
-  highlightOpacity: 0.35,
-  readingMode: "rsvp" as const,
-  theme: "system" as const,
-};
 
 const READING_MODES = new Set(["rsvp", "flow", "page"]);
 const THEMES = new Set(["system", "light", "dark"]);
@@ -23,14 +16,8 @@ export async function GET() {
   if (session instanceof NextResponse) return session;
 
   try {
-    const [settings] = await db
-      .select()
-      .from(speedSettings)
-      .where(eq(speedSettings.userId, session.id))
-      .limit(1);
-
     // Sempre devolve algo utilizavel: o cliente nao precisa tratar null.
-    return NextResponse.json({ settings: settings ?? { ...DEFAULT_SETTINGS, userId: session.id } });
+    return NextResponse.json({ settings: await loadSettings(session.id) });
   } catch (error) {
     return serverError("settings/get", error);
   }

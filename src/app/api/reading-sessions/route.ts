@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { readingSessions, texts } from "@/db/schema";
 import {
   asInteger,
   asString,
   jsonError,
-  pageMeta,
   readJson,
   readPageParams,
   requireSession,
   serverError,
 } from "@/lib/api";
+import { loadSessions } from "@/lib/queries";
 import { clamp, MAX_WPM } from "@/lib/reading";
 
 export const dynamic = "force-dynamic";
@@ -22,39 +22,8 @@ export async function GET(request: Request) {
 
   try {
     const params = readPageParams(request);
-
-    // Junta o titulo aqui: a tela de historico buscava todos os textos so para
-    // resolver o nome de cada sessao no cliente.
-    const [result, [totals]] = await Promise.all([
-      db
-        .select({
-          id: readingSessions.id,
-          textId: readingSessions.textId,
-          textTitle: texts.title,
-          wpm: readingSessions.wpm,
-          wordsRead: readingSessions.wordsRead,
-          durationMs: readingSessions.durationMs,
-          completed: readingSessions.completed,
-          createdAt: readingSessions.createdAt,
-        })
-        .from(readingSessions)
-        .innerJoin(texts, eq(texts.id, readingSessions.textId))
-        .where(eq(readingSessions.userId, session.id))
-        .orderBy(desc(readingSessions.createdAt))
-        .limit(params.limit)
-        .offset(params.offset),
-      // Antes a consulta era cortada em 200 sessoes em silencio: passado esse
-      // ponto o historico antigo sumia sem nenhum aviso na tela.
-      db
-        .select({ value: count() })
-        .from(readingSessions)
-        .where(eq(readingSessions.userId, session.id)),
-    ]);
-
-    return NextResponse.json({
-      sessions: result,
-      ...pageMeta(totals?.value ?? 0, params),
-    });
+    const { items, ...page } = await loadSessions(session.id, params.page, params.limit);
+    return NextResponse.json({ sessions: items, ...page });
   } catch (error) {
     return serverError("sessions/list", error);
   }

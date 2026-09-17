@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { apiGet } from "@/lib/client";
 
 interface Resource<T> {
@@ -24,14 +24,28 @@ interface State<T> {
  * da comparacao com a chave atual, em vez de um setState sincrono dentro do
  * efeito (que dispara renderizacoes em cascata). A requisicao em andamento e
  * cancelada ao desmontar.
+ *
+ * `initialData` vem do componente de servidor: quando o HTML ja chegou com os
+ * dados, a montagem nao dispara requisicao nenhuma. Sem isso a tela pediria de
+ * novo, pela rede, exatamente o que acabou de renderizar.
  */
-export function useResource<T>(path: string): Resource<T> {
+export function useResource<T>(path: string, initialData?: T): Resource<T> {
   const [nonce, setNonce] = useState(0);
-  const [state, setState] = useState<State<T>>({ key: "", data: null, error: null });
+  const [state, setState] = useState<State<T>>(() =>
+    initialData === undefined
+      ? { key: "", data: null, error: null }
+      : { key: `${path}::0`, data: initialData, error: null }
+  );
 
   const key = `${path}::${nonce}`;
+  // Chaves ja atendidas: a inicial quando o servidor entregou os dados, e cada
+  // uma que ja disparou uma requisicao.
+  const servedRef = useRef<string | null>(initialData === undefined ? null : `${path}::0`);
 
   useEffect(() => {
+    if (servedRef.current === key) return;
+    servedRef.current = key;
+
     const controller = new AbortController();
 
     apiGet<T>(path, controller.signal)

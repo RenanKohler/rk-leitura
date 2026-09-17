@@ -192,27 +192,18 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/auth/me")
-      .then((response) => response.json())
-      .then((data) => {
-        if (active) setUser(data.user ?? null);
-      })
-      .catch(() => {
-        if (active) setUser(null);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+function AuthProvider({
+  children,
+  initialUser,
+}: {
+  children: ReactNode;
+  initialUser: AuthUser | null;
+}) {
+  // O servidor ja resolveu a sessao ao renderizar a pagina. Buscar /api/auth/me
+  // na montagem custava uma ida e volta em toda navegacao, so para reconfirmar
+  // o que o HTML ja trazia.
+  const [user, setUser] = useState<AuthUser | null>(initialUser);
+  const loading = false;
 
   const submit = useCallback(
     async (path: string, payload: Record<string, string>): Promise<{ error?: string }> => {
@@ -289,33 +280,17 @@ interface SettingsContextValue {
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
-function SettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<ReadingSettings>(FALLBACK_SETTINGS);
-  const [fetched, setFetched] = useState(false);
-  const { user, loading: authLoading } = useAuth();
-
-  useEffect(() => {
-    if (!user) return;
-
-    let active = true;
-    fetch("/api/settings")
-      .then((response) => response.json())
-      .then((data) => {
-        if (!active) return;
-        if (data.settings) setSettings({ ...FALLBACK_SETTINGS, ...data.settings });
-        setFetched(true);
-      })
-      .catch(() => {
-        if (active) setFetched(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, [user]);
-
-  // Derivado em vez de um setState sincrono dentro do efeito para o caso
-  // "visitante sem sessao".
-  const loading = authLoading || (user !== null && !fetched);
+function SettingsProvider({
+  children,
+  initialSettings,
+}: {
+  children: ReactNode;
+  initialSettings: ReadingSettings;
+}) {
+  // Tambem vem pronto do servidor: era a segunda ida e volta antes de a tela
+  // saber em que ritmo e em que modo renderizar.
+  const [settings, setSettings] = useState<ReadingSettings>(initialSettings);
+  const loading = false;
 
   const save = useCallback(
     async (patch: Partial<ReadingSettings>) => {
@@ -352,12 +327,20 @@ export function useSettings() {
 
 /* -------------------------------------------------------------------------- */
 
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({
+  children,
+  initialUser,
+  initialSettings,
+}: {
+  children: ReactNode;
+  initialUser: AuthUser | null;
+  initialSettings: ReadingSettings;
+}) {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <AuthProvider>
-          <SettingsProvider>{children}</SettingsProvider>
+        <AuthProvider initialUser={initialUser}>
+          <SettingsProvider initialSettings={initialSettings}>{children}</SettingsProvider>
         </AuthProvider>
       </ToastProvider>
     </ThemeProvider>

@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server";
-import { count, desc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { texts } from "@/db/schema";
-import {
-  asString,
-  jsonError,
-  pageMeta,
-  readJson,
-  readPageParams,
-  requireSession,
-  serverError,
-} from "@/lib/api";
+import { asString, jsonError, readJson, readPageParams, requireSession, serverError } from "@/lib/api";
+import { loadTexts } from "@/lib/queries";
 import { countWords } from "@/lib/reading";
 
 export const dynamic = "force-dynamic";
@@ -29,32 +22,8 @@ export async function GET(request: Request) {
 
   try {
     const params = readPageParams(request);
-
-    const [result, [totals]] = await Promise.all([
-      // Lista sem o campo content: uma biblioteca com 50 artigos traria
-      // megabytes de texto que a tela nao usa.
-      db
-        .select({
-          id: texts.id,
-          title: texts.title,
-          sourceUrl: texts.sourceUrl,
-          wordCount: texts.wordCount,
-          progressIndex: texts.progressIndex,
-          createdAt: texts.createdAt,
-          updatedAt: texts.updatedAt,
-        })
-        .from(texts)
-        .where(eq(texts.userId, session.id))
-        .orderBy(desc(texts.createdAt))
-        .limit(params.limit)
-        .offset(params.offset),
-      db.select({ value: count() }).from(texts).where(eq(texts.userId, session.id)),
-    ]);
-
-    return NextResponse.json({
-      texts: result,
-      ...pageMeta(totals?.value ?? 0, params),
-    });
+    const { items, ...page } = await loadTexts(session.id, params.page, params.limit);
+    return NextResponse.json({ texts: items, ...page });
   } catch (error) {
     return serverError("texts/list", error);
   }

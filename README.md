@@ -212,6 +212,16 @@ scripts/            geracao da copia acima
   db:migrate` aplica. Na Netlify, a plataforma aplica o SQL de
   `netlify/database/migrations/` logo antes de publicar — momento em que o
   banco ja foi provisionado, o que o comando de build nao garante.
+- **Carga de dados.** As telas autenticadas sao componentes de servidor: a
+  consulta roda antes do HTML sair e o conteudo chega pronto. Sessao e
+  preferencias saem do proprio cookie assinado e de uma consulta no layout, em
+  vez de duas chamadas depois de hidratar. `lib/queries.ts` guarda essas
+  consultas e serve tanto as telas quanto as rotas de API, para nao existirem
+  duas versoes da mesma pergunta ao banco.
+- **Limites de carregamento.** Cada rota tem um `loading.tsx`. Alem de responder
+  ao toque na hora, ele permite que o servidor envie a estrutura da pagina antes
+  de a consulta terminar - o que importa porque o banco do plano gratuito
+  hiberna e a primeira consulta depois disso demora.
 - **Diagnostico.** `GET /api/health` responde se o banco esta acessivel e
   quais variaveis estao presentes, sem expor nenhum valor.
 - **Interface.** Mobile-first, com barra inferior ao alcance do polegar, areas

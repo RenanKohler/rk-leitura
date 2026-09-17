@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers, themeBootstrapScript } from "@/components/providers";
+import { getSession } from "@/lib/auth";
+import { DEFAULT_SETTINGS, loadSettings } from "@/lib/queries";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -33,7 +35,19 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+/**
+ * Sessao e preferencias sao resolvidas aqui e entregues ja no HTML.
+ *
+ * Antes a aplicacao subia sem saber quem era o usuario nem em que ritmo
+ * renderizar: buscava as duas coisas depois de hidratar, o que custava duas
+ * idas e voltas antes de qualquer conteudo util aparecer. A sessao sai do
+ * proprio cookie assinado, sem consulta ao banco; so as preferencias fazem
+ * uma consulta, e apenas quando ha sessao.
+ */
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const session = await getSession();
+  const settings = session ? await loadSettings(session.id) : DEFAULT_SETTINGS;
+
   return (
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -41,7 +55,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body>
-        <Providers>{children}</Providers>
+        <Providers initialUser={session} initialSettings={settings}>
+          {children}
+        </Providers>
       </body>
     </html>
   );
