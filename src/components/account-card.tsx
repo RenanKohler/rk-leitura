@@ -91,8 +91,10 @@ export function AccountCard() {
     setDeleting(true);
     try {
       await apiSend("/api/auth/me", "DELETE", { password: deletePassword });
-      // A rota ja apagou o cookie; recarregar pela raiz devolve a tela de
-      // entrada sem depender do estado que acabou de deixar de existir.
+      // Navegacao de pagina inteira de proposito, e nao `router.push`: a
+      // conta acabou de deixar de existir, e o que precisa ser descartado e
+      // justamente o estado do cliente que a navegacao interna preservaria.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = "/login";
     } catch (cause) {
       setDeleteError(cause instanceof Error ? cause.message : "Falha ao excluir a conta.");

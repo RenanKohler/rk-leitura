@@ -238,7 +238,10 @@ function AuthProvider({
           await fetch("/api/auth/logout", { method: "POST" });
         } finally {
           setUser(null);
-          // Recarrega pela raiz para o middleware reavaliar a sessao.
+          // Navegacao de pagina inteira de proposito, e nao `router.push`: o
+          // cookie acabou de ser apagado, e so um carregamento novo faz o
+          // middleware reavaliar a sessao com o estado do cliente zerado.
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination
           window.location.href = "/login";
         }
       },
