@@ -69,6 +69,8 @@ export const readingSessions = pgTable(
     wordsRead: integer("words_read").notNull().default(0),
     durationMs: integer("duration_ms").notNull().default(0),
     completed: boolean("completed").notNull().default(false),
+    /** Acertos do questionario, em porcentagem. Nulo quando nao houve. */
+    comprehension: integer("comprehension"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("reading_sessions_user_created_idx").on(table.userId, table.createdAt.desc())]
@@ -138,8 +140,33 @@ export const readingGoals = pgTable(
   ]
 );
 
+/**
+ * Questionarios de compreensao, em cache por texto e versao do conteudo.
+ *
+ * A chave inclui um resumo do conteudo porque a continuacao (US-23) anexa
+ * partes novas: sem ela, o questionario ficaria preso a primeira parte do
+ * conto para sempre. Com ela, anexar conteudo gera um questionario novo e o
+ * antigo deixa de ser usado - sem apagar nada.
+ */
+export const comprehensionQuizzes = pgTable(
+  "comprehension_quizzes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    textId: uuid("text_id")
+      .notNull()
+      .references(() => texts.id, { onDelete: "cascade" }),
+    /** Impressao do conteudo que gerou estas perguntas. */
+    contentKey: text("content_key").notNull(),
+    /** Perguntas em JSON, no formato de `lib/quiz.ts`. */
+    questions: text("questions").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("comprehension_quizzes_text_key_unique").on(table.textId, table.contentKey)]
+);
+
 export type User = typeof users.$inferSelect;
 export type Text = typeof texts.$inferSelect;
 export type ReadingSession = typeof readingSessions.$inferSelect;
 export type SpeedSettings = typeof speedSettings.$inferSelect;
 export type ReadingGoal = typeof readingGoals.$inferSelect;
+export type ComprehensionQuiz = typeof comprehensionQuizzes.$inferSelect;

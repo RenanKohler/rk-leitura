@@ -16,6 +16,7 @@ import {
   RestartIcon,
   RewindIcon,
   SettingsIcon,
+  SparkIcon,
 } from "@/components/icons";
 import {
   chunkDurationMs,
@@ -36,6 +37,8 @@ import {
   type ReadingMode,
 } from "@/lib/reading";
 import { apiSend } from "@/lib/client";
+import { QuizSheet } from "@/components/quiz-sheet";
+import { MIN_WORDS_FOR_QUIZ } from "@/lib/quiz";
 import type { ContinuationResult, TextDetail } from "@/lib/types";
 
 export const MODE_HINTS: Record<ReadingMode, string> = {
@@ -104,6 +107,8 @@ function Reader({ text: initialText }: { text: TextDetail }) {
   const savedIndexRef = useRef(index);
   const [displayMs, setDisplayMs] = useState(0);
   const [summary, setSummary] = useState<{ durationMs: number; wordsRead: number } | null>(null);
+  const [quizOpen, setQuizOpen] = useState(false);
+  const [comprehension, setComprehension] = useState<number | null>(null);
 
   const elapsedMs = useCallback(
     () => elapsedRef.current + (startedAtRef.current ? Date.now() - startedAtRef.current : 0),
@@ -453,7 +458,10 @@ function Reader({ text: initialText }: { text: TextDetail }) {
             onRestart={restart}
             canContinue={Boolean(text.sourceUrl)}
             loadingMore={loadingMore}
-            onContinue={continueFromSource}
+            onContinue={() => void continueFromSource()}
+            canQuiz={total >= MIN_WORDS_FOR_QUIZ}
+            comprehension={comprehension}
+            onQuiz={() => setQuizOpen(true)}
           />
         ) : mode === "rsvp" ? (
           <RsvpStage chunk={chunk} onToggle={togglePlay} playing={playing} />
@@ -537,6 +545,13 @@ function Reader({ text: initialText }: { text: TextDetail }) {
           </div>
         </footer>
       ) : null}
+
+      <QuizSheet
+        textId={text.id}
+        open={quizOpen}
+        onClose={() => setQuizOpen(false)}
+        onScored={setComprehension}
+      />
 
       <Sheet open={showSettings} onClose={() => setShowSettings(false)} title="Ajustes de leitura">
         <div className="space-y-6">
@@ -890,6 +905,9 @@ function Finished({
   canContinue,
   loadingMore,
   onContinue,
+  canQuiz,
+  comprehension,
+  onQuiz,
 }: {
   total: number;
   durationMs: number;
@@ -898,6 +916,9 @@ function Finished({
   canContinue: boolean;
   loadingMore: boolean;
   onContinue: () => void;
+  canQuiz: boolean;
+  comprehension: number | null;
+  onQuiz: () => void;
 }) {
   const minutes = durationMs / 60_000;
   const wpm = minutes > 0 ? Math.round(wordsRead / minutes) : 0;
@@ -912,7 +933,11 @@ function Finished({
         <p className="mt-1 text-muted">{formatNumber(total)} palavras</p>
       </div>
 
-      <Card className="grid w-full max-w-sm grid-cols-2 divide-x divide-border">
+      <Card
+        className={`grid w-full max-w-sm divide-x divide-border ${
+          comprehension === null ? "grid-cols-2" : "grid-cols-3"
+        }`}
+      >
         <div className="p-4">
           <p className="tabular text-2xl font-semibold">{wpm > 0 ? wpm : "--"}</p>
           <p className="text-sm text-muted">ppm</p>
@@ -921,9 +946,22 @@ function Finished({
           <p className="tabular text-2xl font-semibold">{formatClock(durationMs)}</p>
           <p className="text-sm text-muted">tempo</p>
         </div>
+        {comprehension !== null ? (
+          <div className="p-4">
+            <p className="tabular text-2xl font-semibold">{comprehension}%</p>
+            <p className="text-sm text-muted">acertos</p>
+          </div>
+        ) : null}
       </Card>
 
       <div className="flex w-full max-w-sm flex-col gap-2">
+        {canQuiz ? (
+          <Button variant="secondary" size="lg" full onClick={onQuiz}>
+            <SparkIcon className="size-5" />
+            {comprehension === null ? "Testar compreensao" : "Ver o questionario"}
+          </Button>
+        ) : null}
+
         {canContinue ? (
           <Button size="lg" full loading={loadingMore} onClick={onContinue}>
             <ForwardIcon className="size-5" />

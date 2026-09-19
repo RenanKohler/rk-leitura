@@ -29,6 +29,13 @@
       "when": 1789839520743,
       "tag": "0003_sharp_korvac",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789840198927,
+      "tag": "0004_careless_tarot",
+      "breakpoints": true
     }
   ]
 }

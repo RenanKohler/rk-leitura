@@ -249,6 +249,7 @@ export async function loadSessions(
         wordsRead: readingSessions.wordsRead,
         durationMs: readingSessions.durationMs,
         completed: readingSessions.completed,
+        comprehension: readingSessions.comprehension,
         createdAt: readingSessions.createdAt,
       })
       .from(readingSessions)

@@ -71,7 +71,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
 | **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
 
-Status: 42 Implementadas, 16 Propostas, 2 Aguardando pendência.
+Status: 43 Implementadas, 16 Propostas, 2 Aguardando pendência.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -822,7 +822,8 @@ Como leitor novo, eu quero fazer um teste de leitura, para que o app sugira uma 
 **Épico:** Treino de velocidade e compreensão
 **Prioridade:** Should
 **Story points:** 8
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/quiz.ts`, `src/lib/quiz-generator.ts`, `src/app/api/texts/[id]/questionario/route.ts`, `src/app/api/texts/[id]/questionario/respostas/route.ts`, `src/components/quiz-sheet.tsx`
 **Decisão tomada:** usa a API da Anthropic, com a chave em `ANTHROPIC_API_KEY` (guardada como variável sensível na Vercel) e sem teto mensal.
 
 Como estudante, eu quero responder perguntas sobre o texto que acabei de ler, para que eu saiba se a velocidade está prejudicando meu entendimento.
@@ -833,7 +834,7 @@ Como estudante, eu quero responder perguntas sobre o texto que acabei de ler, pa
 3. Dado que a sessão tem questionário respondido, quando aparece no histórico, então exibe o percentual de compreensão ao lado do ppm.
 4. Dado que o serviço de geração está indisponível ou o limite diário foi atingido, quando peço o questionário, então vejo mensagem informativa e a conclusão da leitura não é afetada.
 
-**Notas técnicas:** cache por texto e versão do conteúdo, senão a continuação (US-23) faria regerar a cada parte anexada. O conteúdo do texto sai da aplicação rumo a um terceiro, o que precisa estar dito na tela antes do primeiro uso — vale lembrar que a biblioteca deste app guarda leitura pessoal.
+**Notas técnicas:** cache por `(texto, impressão do conteúdo)` em `comprehension_quizzes`, senão a continuação (US-23) faria regerar a cada parte anexada; a impressão muda quando a parte nova é anexada, então o questionário acompanha o texto. O gabarito nunca sai do servidor: a rota de abertura devolve só enunciado e alternativas, e a correção acontece em `/respostas`. O conteúdo do texto sai da aplicação rumo a um terceiro, o que está dito na tela antes do primeiro uso — vale lembrar que a biblioteca deste app guarda leitura pessoal. Sem `ANTHROPIC_API_KEY` a rota responde 503 com mensagem própria e o resto da leitura segue igual.
 
 ### US-47: Seguir um programa de treino
 
@@ -850,7 +851,7 @@ Como leitor, eu quero seguir um programa com metas progressivas de velocidade, p
 3. Dado que a compreensão do dia fica abaixo de 60%, quando existir questionário (US-46), então o alvo do dia seguinte não aumenta.
 4. Dado que abandono o programa, quando confirmo, então as preferências voltam à velocidade anterior ao programa.
 
-**Notas técnicas:** depende de US-45. O critério 3 depende de US-46, que está bloqueada — então ele fica opcional, e o programa funciona sem ele.
+**Notas técnicas:** depende de US-45. O critério 3 depende de US-46, que já está implementada, então ele deixa de ser opcional: a compreensão fica em `reading_sessions.comprehension`.
 
 ---
 
@@ -1203,9 +1204,10 @@ Entregue até aqui, em ordem:
 | US-26 | 2 | Intensidade do destaque |
 | US-14 | 3 | Busca e filtro na biblioteca |
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
+| US-46 | 8 | Perguntas de compreensão ao concluir um texto |
 
-Restam 27 stories: 24 prontas para entrar em sprint (119 pontos) e 3 travadas
-por decisão externa (18 pontos). A ordem abaixo agrupa por dependência, não por
+Restam 18 stories: 16 prontas para entrar em sprint (95 pontos) e 2 travadas
+por decisão externa (10 pontos). A ordem abaixo agrupa por dependência, não por
 tema: cada faixa entrega algo utilizável e prepara a seguinte.
 
 | Ordem | Stories | Pontos | Objetivo |
@@ -1234,6 +1236,7 @@ Por que esta ordem e não a do documento de origem:
   de maior risco em produção, e entra por último, com a suíte de testes já
   montada.
 
-Duas decisões pendentes travam 10 pontos. Nenhuma delas bloqueia as ordens 1 a
-8: provedor de e-mail (US-05), armazenamento do limitador (US-31) e provedor de
-modelo de linguagem com teto de custo (US-46).
+Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia as ordens 3
+a 8: provedor de e-mail (US-05) e armazenamento do limitador (US-31). A terceira
+pendência, o provedor de modelo de linguagem da US-46, foi resolvida — a chave
+da Anthropic entrou como variável sensível na Vercel, sem teto mensal.

@@ -95,10 +95,17 @@ export function HistoryClient({
                           ) : null}
                         </div>
 
-                        <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+                        <dl
+                          className={`mt-3 grid gap-2 text-center ${
+                            session.comprehension === null ? "grid-cols-3" : "grid-cols-4"
+                          }`}
+                        >
                           <Metric label="ppm" value={`${session.wpm}`} highlight />
                           <Metric label="palavras" value={formatNumber(session.wordsRead)} />
                           <Metric label="tempo" value={formatDuration(session.durationMs)} />
+                          {session.comprehension !== null ? (
+                            <Metric label="acertos" value={`${session.comprehension}%`} />
+                          ) : null}
                         </dl>
                       </Card>
                     </Link>

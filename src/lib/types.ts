@@ -38,6 +38,8 @@ export interface SessionSummary {
   wordsRead: number;
   durationMs: number;
   completed: boolean;
+  /** Acertos do questionario, quando houve. */
+  comprehension: number | null;
   createdAt: string;
 }
 
