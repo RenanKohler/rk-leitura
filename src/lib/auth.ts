@@ -59,6 +59,12 @@ export async function findUserByEmail(email: string) {
   return user ?? null;
 }
 
+/** Consulta de existencia: so a chave primaria, sem trazer a linha inteira. */
+export async function userExists(id: string): Promise<boolean> {
+  const [row] = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
+  return row !== undefined;
+}
+
 export async function getUserById(id: string) {
   const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return user ?? null;

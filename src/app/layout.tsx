@@ -46,7 +46,10 @@ export const viewport: Viewport = {
  */
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const session = await getSession();
-  const settings = session ? await loadSettings(session.id) : DEFAULT_SETTINGS;
+  // `null` significa conta apagada: o token ainda assina, mas nao ha usuario
+  // do outro lado. A aplicacao trata como visitante ate o layout autenticado
+  // encerrar a sessao (ver src/app/(app)/layout.tsx).
+  const settings = session ? await loadSettings(session.id) : null;
 
   return (
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
@@ -55,7 +58,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body>
-        <Providers initialUser={session} initialSettings={settings}>
+        <Providers
+          initialUser={settings ? session : null}
+          initialSettings={settings ?? DEFAULT_SETTINGS}
+        >
           {children}
         </Providers>
       </body>

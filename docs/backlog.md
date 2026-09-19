@@ -58,7 +58,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Produto: novas funcionalidades | 4 | 37 | 0 | 1 | 3 |
 | **Total** | **40** | **165** | **15 (38%)** | **16 (40%)** | **9 (22%)** |
 
-Status: 32 Implementadas, 6 Propostas, 2 Aguardando pendência.
+Status: 34 Implementadas, 4 Propostas, 2 Aguardando pendência.
 
 O épico "Produto: novas funcionalidades" reúne o que ainda não existe no código
 e não foi extraído dele: são propostas de produto, levantadas em conversa e
@@ -158,8 +158,8 @@ Como leitor, eu quero redefinir minha senha pelo e-mail, para que eu não perca 
 **Épico:** Autenticação e conta
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** seção "Conta" de `src/app/(app)/ajustes/page.tsx` exibe apenas o nome e o botão de sair
+**Status:** Implementada
+**Evidência:** `PATCH /api/auth/me`, `src/components/account-card.tsx`
 
 Como leitor, eu quero alterar meu nome de exibição e minha senha, para que eu mantenha meus dados atualizados sem criar outra conta.
 
@@ -168,15 +168,15 @@ Como leitor, eu quero alterar meu nome de exibição e minha senha, para que eu 
 2. Dado que informo a senha atual correta e uma nova senha com 8 ou mais caracteres, quando salvo, então a senha é alterada.
 3. Dado que a senha atual está errada, quando salvo, então recebo mensagem de erro e nada é alterado.
 
-**Notas técnicas:** o nome também vive no JWT; a sessão precisa ser reemitida após a alteração.
+**Notas técnicas:** o nome também vive no JWT, então a rota reemite a sessão — sem isso a navegação seguiria mostrando o nome antigo por até sete dias. Nome e senha são independentes: dá para mudar um, o outro ou os dois na mesma chamada. Trocar a senha exige a atual (403 quando erra), porque sem isso um cookie roubado bastaria para tomar a conta em definitivo; a rota divide o balde de limite com o login, já que confirmar a senha atual é um oráculo tão útil à força bruta quanto a tela de entrada.
 
 ### US-07: Excluir conta
 
 **Épico:** Autenticação e conta
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** não há rota de exclusão; o schema já usa `onDelete: "cascade"` em `src/db/schema.ts`
+**Status:** Implementada
+**Evidência:** `DELETE /api/auth/me`, `src/app/sair/route.ts`, `src/lib/api.ts` (`requireSession`), `src/lib/queries.ts` (`loadSettings`), `src/app/(app)/layout.tsx`
 
 Como leitor, eu quero excluir minha conta e todos os meus dados, para que eu exerça meu direito de eliminação de dados pessoais.
 
@@ -185,7 +185,9 @@ Como leitor, eu quero excluir minha conta e todos os meus dados, para que eu exe
 2. Dado que a senha informada está errada, quando confirmo, então nada é removido.
 3. Dado que a conta foi excluída, quando o token antigo é usado, então `/api/auth/me` retorna `user: null` e as telas redirecionam ao login.
 
-**Notas técnicas:** atende ao direito de eliminação previsto na LGPD. O middleware valida apenas a assinatura do JWT; as rotas de API precisam tratar usuário inexistente sem erro 500.
+**Notas técnicas:** atende ao direito de eliminação previsto na LGPD. A cascata do schema apaga textos, sessões e preferências junto, então basta uma instrução e não há estado parcial possível.
+
+O caso do token pendurado foi resolvido de três lados, porque o middleware roda no Edge e não consulta banco: `requireSession` confirma a conta antes de qualquer rota de API responder — o que trocou uma classe de erro 500 por violação de chave estrangeira por um 401 honesto; `loadSettings` devolve `null` quando a conta sumiu, e o layout autenticado redireciona para `/sair`; `/sair` apaga o cookie e volta ao login. A rota existe porque um componente de servidor não pode apagar cookie durante a renderização, e redirecionar direto para `/login` entraria em laço — o middleware manda quem tem token válido de volta ao painel.
 
 ---
 
@@ -804,20 +806,28 @@ Como leitor em deslocamento, eu quero ler os textos que já abri mesmo sem rede,
 O MVP está implementado: as 15 stories Must somam 49 pontos e cobrem cadastro,
 importação, compartilhamento, leitura com retomada e registro de sessões.
 
-Restam quatro stories prontas para entrar em sprint e duas bloqueadas:
+Entregue nesta rodada, em ordem:
+
+| Stories | Pontos | Resultado |
+| --- | --- | --- |
+| US-32 | 8 | Rede de testes e pipeline de CI |
+| US-26 | 2 | Intensidade do destaque |
+| US-14 | 3 | Busca e filtro na biblioteca |
+| US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
+
+O que resta:
 
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
-| ~~1~~ | ~~US-32~~ | ~~8~~ | Concluída: rede de testes e pipeline de CI |
-| ~~1~~ | ~~US-26~~ | ~~2~~ | Concluída: intensidade do destaque |
-| ~~1~~ | ~~US-14~~ | ~~3~~ | Concluída: busca e filtro na biblioteca |
-| 1 | US-07, US-06 | 6 | Conta: exclusão com eliminação de dados e edição de nome e senha |
-| 3 | US-37 | 8 | Produto: séries de capítulos, a de maior valor no uso atual |
-| 4 | US-39, US-38 | 16 | Produto: audiolivro e consulta ao toque |
-| 5 | US-40 | 13 | Produto: leitura offline |
+| 1 | US-37 | 8 | Produto: séries de capítulos, a de maior valor no uso atual |
+| 2 | US-39, US-38 | 16 | Produto: audiolivro e consulta ao toque |
+| 3 | US-40 | 13 | Produto: leitura offline |
 | — | US-05, US-31 | 10 | Aguardando pendência: provedor de e-mail e armazenamento do limitador |
 
 A US-32 veio primeiro porque não dependia de nada externo e porque o histórico
-do projeto já registrava três regressões que um teste teria pegado. O épico de
-produto vem por último de propósito: cada uma das quatro é maior que tudo o que
-está acima somado por ordem, e entra com a rede de testes já montada.
+do projeto já registrava três regressões que um teste teria pegado.
+
+Todas as stories extraídas do código estão fechadas, com exceção das duas que
+dependem de decisão externa. O que resta é o épico de produto: cada uma das
+quatro é maior que tudo o que foi entregue nesta rodada somado, e entra com a
+rede de testes já montada.

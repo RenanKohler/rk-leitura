@@ -347,10 +347,14 @@ export function Sheet({
     // Trava o scroll do fundo enquanto a folha esta aberta.
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // Marca para o aviso flutuante sair de baixo: ali ele cairia em cima do
+    // conteudo da folha, que ocupa justamente o rodape da tela.
+    document.body.dataset.sheet = "aberta";
     document.addEventListener("keydown", onKeyDown);
 
     return () => {
       document.body.style.overflow = previousOverflow;
+      delete document.body.dataset.sheet;
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [open, onClose]);

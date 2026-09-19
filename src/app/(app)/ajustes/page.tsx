@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useAuth, useSettings, useTheme, useToast, type ThemePreference } from "@/components/providers";
-import { Button, Card, SectionTitle, Segmented, Slider } from "@/components/ui";
-import { LogoutIcon, MoonIcon, SettingsIcon, SunIcon } from "@/components/icons";
+import { useSettings, useTheme, useToast, type ThemePreference } from "@/components/providers";
+import { Card, SectionTitle, Segmented, Slider } from "@/components/ui";
+import { AccountCard } from "@/components/account-card";
+import { MoonIcon, SettingsIcon, SunIcon } from "@/components/icons";
 import {
   MAX_CHUNK,
   MAX_HIGHLIGHT,
@@ -28,11 +28,9 @@ const MODE_HINTS: Record<ReadingMode, string> = {
 };
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth();
   const { settings, save } = useSettings();
   const { preference, setPreference } = useTheme();
   const notify = useToast();
-  const [signingOut, setSigningOut] = useState(false);
 
   const update = async (patch: Parameters<typeof save>[0]) => {
     const ok = await save(patch);
@@ -134,30 +132,7 @@ export default function SettingsPage() {
         </p>
       </Card>
 
-      <Card className="space-y-4 p-5">
-        <SectionTitle>Conta</SectionTitle>
-        <div className="flex items-center gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent-soft font-semibold text-accent">
-            {user?.name?.charAt(0).toUpperCase() ?? "?"}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate font-medium">{user?.name}</p>
-            <p className="break-anywhere text-sm text-muted">{user?.email}</p>
-          </div>
-        </div>
-        <Button
-          variant="secondary"
-          full
-          loading={signingOut}
-          onClick={() => {
-            setSigningOut(true);
-            void logout();
-          }}
-        >
-          <LogoutIcon className="size-5" />
-          Sair da conta
-        </Button>
-      </Card>
+      <AccountCard />
     </div>
   );
 }

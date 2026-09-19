@@ -1,7 +1,7 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
-import { getSession, type SessionUser } from "@/lib/auth";
+import { getSession, userExists, type SessionUser } from "@/lib/auth";
 
 export function jsonError(message: string, status: number, extra?: Record<string, unknown>) {
   return NextResponse.json({ error: message, ...extra }, { status });
@@ -13,10 +13,16 @@ export const unauthorized = () => jsonError("Sessao expirada. Entre novamente.",
  * Devolve a sessao ou uma resposta 401 pronta. Uso:
  *   const session = await requireSession();
  *   if (session instanceof NextResponse) return session;
+ *
+ * Confirma a conta no banco, nao so a assinatura do token. Uma conta apagada
+ * em outro dispositivo deixa um token que continua valido; sem esta consulta,
+ * a primeira escrita falharia por chave estrangeira e o usuario veria um erro
+ * generico de servidor em vez de "entre novamente".
  */
 export async function requireSession(): Promise<SessionUser | NextResponse> {
   const session = await getSession();
-  return session ?? unauthorized();
+  if (!session) return unauthorized();
+  return (await userExists(session.id)) ? session : unauthorized();
 }
 
 export async function readJson<T>(request: Request): Promise<T | null> {

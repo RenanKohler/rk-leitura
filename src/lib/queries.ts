@@ -1,8 +1,9 @@
 import "server-only";
 
+import { cache } from "react";
 import { and, count, desc, eq, gt, inArray, lt, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { readingSessions, speedSettings, texts } from "@/db/schema";
+import { readingSessions, speedSettings, texts, users } from "@/db/schema";
 import { DEFAULT_PAGE_SIZE } from "@/lib/api";
 import {
   ACCENTED,
@@ -61,23 +62,40 @@ function isoDate(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : value;
 }
 
-export async function loadSettings(userId: string): Promise<SettingsPayload> {
+/**
+ * Preferencias do usuario, ou `null` quando a conta nao existe mais.
+ *
+ * Envolvida em `cache()` porque o layout raiz e o layout autenticado chamam a
+ * mesma consulta na mesma requisicao: sem isso seriam duas idas ao banco para
+ * responder a mesma pergunta.
+ *
+ * A consulta parte de `users` justamente para distinguir os dois casos: quem
+ * nunca salvou preferencia recebe o padrao, e quem teve a conta apagada em
+ * outro dispositivo recebe null - o token continua com assinatura valida, e
+ * sem esta checagem a tela renderizaria normalmente ate a primeira escrita
+ * falhar por chave estrangeira.
+ */
+export const loadSettings = cache(async function loadSettings(
+  userId: string
+): Promise<SettingsPayload | null> {
   const [row] = await db
-    .select()
-    .from(speedSettings)
-    .where(eq(speedSettings.userId, userId))
+    .select({ settings: speedSettings })
+    .from(users)
+    .leftJoin(speedSettings, eq(speedSettings.userId, users.id))
+    .where(eq(users.id, userId))
     .limit(1);
 
-  if (!row) return DEFAULT_SETTINGS;
+  if (!row) return null;
+  if (!row.settings) return DEFAULT_SETTINGS;
 
   return {
-    baseWpm: row.baseWpm,
-    wordsPerChunk: row.wordsPerChunk,
-    highlightOpacity: row.highlightOpacity,
-    readingMode: row.readingMode as SettingsPayload["readingMode"],
-    theme: row.theme as SettingsPayload["theme"],
+    baseWpm: row.settings.baseWpm,
+    wordsPerChunk: row.settings.wordsPerChunk,
+    highlightOpacity: row.settings.highlightOpacity,
+    readingMode: row.settings.readingMode as SettingsPayload["readingMode"],
+    theme: row.settings.theme as SettingsPayload["theme"],
   };
-}
+})
 
 export interface TextFilters {
   /** Termo ja dobrado por `foldForSearch`, ou null para nao filtrar. */

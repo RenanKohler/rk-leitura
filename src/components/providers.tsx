@@ -144,7 +144,7 @@ function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pb-safe pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6"
+        className="pb-safe pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6 in-data-[sheet=aberta]:bottom-auto in-data-[sheet=aberta]:top-4"
       >
         {toasts.map((toast) => (
           <div
@@ -188,6 +188,8 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<{ error?: string }>;
   register: (name: string, email: string, password: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
+  /** Reflete na interface o usuario devolvido por uma alteracao de conta. */
+  setUser: (user: AuthUser) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -239,6 +241,7 @@ function AuthProvider({
           window.location.href = "/login";
         }
       },
+      setUser,
     }),
     [user, loading, submit]
   );
