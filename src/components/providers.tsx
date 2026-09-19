@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -267,6 +268,8 @@ export interface ReadingSettings {
   fontFamily: FontFamily;
   lineHeightStep: number;
   warmup: boolean;
+  timezone: string;
+  weeklySummarySeenOn: string | null;
   readingMode: ReadingMode;
   theme: ThemePreference;
 }
@@ -279,6 +282,8 @@ export const FALLBACK_SETTINGS: ReadingSettings = {
   fontFamily: "sans",
   lineHeightStep: 2,
   warmup: true,
+  timezone: "UTC",
+  weeklySummarySeenOn: null,
   readingMode: "rsvp",
   theme: "system",
 };
@@ -324,6 +329,42 @@ function SettingsProvider({
     },
     [settings]
   );
+
+  /**
+   * Sincroniza o fuso do aparelho uma vez.
+   *
+   * O servidor nao tem como saber onde o usuario esta; so o navegador sabe. O
+   * padrao gravado e UTC, e enquanto ele valer a meta do dia e a sequencia
+   * contam no dia errado para quem le a noite. A gravacao acontece uma unica
+   * vez por montagem, e so quando ha diferenca de verdade.
+   */
+  const syncedRef = useRef(false);
+  useEffect(() => {
+    if (syncedRef.current) return;
+
+    const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!local || local === settings.timezone) return;
+
+    syncedRef.current = true;
+
+    // Gravacao direta em vez de `save`: aquele atualiza o estado na hora, e um
+    // setState sincrono dentro do efeito dispara renderizacao em cascata. Aqui
+    // o estado so muda quando a resposta chega.
+    void (async () => {
+      try {
+        const response = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...settings, timezone: local }),
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data.settings) setSettings({ ...FALLBACK_SETTINGS, ...data.settings });
+      } catch {
+        // Sem rede agora: o fuso sincroniza na proxima abertura.
+      }
+    })();
+  }, [settings]);
 
   const value = useMemo(() => ({ settings, loading, save }), [settings, loading, save]);
 

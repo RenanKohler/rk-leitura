@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 import {
   and,
+  asc,
   count,
   desc,
   eq,
@@ -15,9 +16,20 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { db } from "@/db";
-import { readingSessions, speedSettings, texts, users } from "@/db/schema";
+import { readingGoals, readingSessions, speedSettings, texts, users } from "@/db/schema";
 import { DEFAULT_PAGE_SIZE } from "@/lib/api";
 import { asFontFamily } from "@/lib/reading";
+import {
+  asGoalKind,
+  asTimezone,
+  computeStreak,
+  goalOn,
+  mondayOf,
+  progressFor,
+  todayIn,
+  type DayTotals,
+  type Goal,
+} from "@/lib/goals";
 import {
   ACCENTED,
   DEFAULT_SCOPE,
@@ -30,10 +42,12 @@ import {
 import type {
   ContinueReading,
   DashboardStats,
+  GoalStatus,
   SessionSummary,
   SettingsPayload,
   TextDetail,
   TextSummary,
+  WeeklySummary,
 } from "@/lib/types";
 
 /**
@@ -55,6 +69,8 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   fontFamily: "sans",
   lineHeightStep: 2,
   warmup: true,
+  timezone: "UTC",
+  weeklySummarySeenOn: null,
 };
 
 export interface Page<T> {
@@ -117,6 +133,8 @@ export const loadSettings = cache(async function loadSettings(
     fontFamily: asFontFamily(row.settings.fontFamily),
     lineHeightStep: row.settings.lineHeightStep,
     warmup: row.settings.warmup,
+    timezone: asTimezone(row.settings.timezone),
+    weeklySummarySeenOn: row.settings.weeklySummarySeenOn,
   };
 })
 
@@ -323,6 +341,225 @@ export async function findTextBySourceUrl(
     .limit(1);
 
   return found ?? null;
+}
+
+/** Todas as metas do usuario, em ordem de vigencia. */
+export async function loadGoals(userId: string): Promise<Goal[]> {
+  const rows = await db
+    .select({ kind: readingGoals.kind, target: readingGoals.target, startsOn: readingGoals.startsOn })
+    .from(readingGoals)
+    .where(eq(readingGoals.userId, userId))
+    .orderBy(asc(readingGoals.startsOn));
+
+  return rows.map((row) => ({
+    kind: asGoalKind(row.kind),
+    target: row.target,
+    startsOn: row.startsOn,
+  }));
+}
+
+/**
+ * Minutos, palavras e ritmo por dia, agrupados no fuso do usuario.
+ *
+ * O agrupamento e do banco e nao do cliente: baixar o historico inteiro para
+ * somar na tela e justamente o que o painel evita desde o inicio. O ppm sai
+ * ponderado pelas palavras, senao uma sessao de dez palavras a 900 ppm pesaria
+ * o mesmo que uma de mil a 300.
+ */
+export async function loadDailyTotals(
+  userId: string,
+  timezone: string,
+  sinceDay: string
+): Promise<(DayTotals & { wpm: number })[]> {
+  const rows = await db.execute<{
+    day: string;
+    ms: string;
+    words: string;
+    wpm: string | null;
+  }>(sql`
+    select
+      to_char(${readingSessions.createdAt} at time zone ${timezone}, 'YYYY-MM-DD') as day,
+      sum(${readingSessions.durationMs})::text as ms,
+      sum(${readingSessions.wordsRead})::text as words,
+      (sum(${readingSessions.wpm}::numeric * ${readingSessions.wordsRead})
+        / nullif(sum(${readingSessions.wordsRead}), 0))::text as wpm
+    from ${readingSessions}
+    where ${readingSessions.userId} = ${userId}
+      and to_char(${readingSessions.createdAt} at time zone ${timezone}, 'YYYY-MM-DD') >= ${sinceDay}
+    group by 1
+    order by 1
+  `);
+
+  return rows.rows.map((row) => ({
+    day: row.day,
+    // Minutos inteiros: a meta e em minutos, e meio minuto arredondado para
+    // cima faria 4,5 contarem como 5.
+    minutes: Math.floor(Number(row.ms) / 60_000),
+    words: Number(row.words),
+    wpm: Math.round(Number(row.wpm ?? 0)),
+  }));
+}
+
+/**
+ * Series para o grafico de evolucao.
+ *
+ * A serie semanal e agrupada em JS a partir da diaria em vez de uma segunda
+ * consulta: sao no maximo 182 linhas, e uma unica ida ao banco mantem as duas
+ * series consistentes entre si - com duas consultas, uma sessao gravada entre
+ * elas apareceria em um grafico e nao no outro.
+ */
+export async function loadTrend(userId: string, timezone: string, today: string) {
+  const start = shiftDay(today, -WEEKLY_DAYS);
+  const rows = await loadDailyTotals(userId, timezone, start);
+
+  const dailyStart = shiftDay(today, -DAILY_DAYS);
+  const daily = rows.filter((row) => row.day >= dailyStart);
+
+  const buckets = new Map<string, { minutes: number; words: number; wpmWeight: number }>();
+  for (const row of rows) {
+    const week = mondayOf(row.day);
+    const bucket = buckets.get(week) ?? { minutes: 0, words: 0, wpmWeight: 0 };
+    bucket.minutes += row.minutes;
+    bucket.words += row.words;
+    // Ritmo ponderado pelas palavras, como na serie diaria.
+    bucket.wpmWeight += row.wpm * row.words;
+    buckets.set(week, bucket);
+  }
+
+  const weekly = [...buckets.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day, bucket]) => ({
+      day,
+      minutes: bucket.minutes,
+      words: bucket.words,
+      wpm: bucket.words > 0 ? Math.round(bucket.wpmWeight / bucket.words) : 0,
+    }));
+
+  const [totals] = await db
+    .select({ value: count() })
+    .from(readingSessions)
+    .where(eq(readingSessions.userId, userId));
+
+  return { daily, weekly, sessions: totals?.value ?? 0 };
+}
+
+/** Dias cobertos por cada serie do grafico. */
+const DAILY_DAYS = 30;
+const WEEKLY_DAYS = 182;
+
+function shiftDay(day: string, days: number): string {
+  const date = new Date(`${day}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** Janela olhada para tras ao montar a sequencia de dias. */
+export const STREAK_DAYS = 400;
+
+/**
+ * Meta do dia com a sequencia ja calculada.
+ *
+ * Vive aqui porque duas entradas pedem a mesma coisa: o painel, que serve o
+ * estado junto do HTML, e `GET /api/metas`, que atualiza depois de salvar.
+ * Duas versoes sairiam do lugar na primeira mudanca de regra.
+ */
+export async function loadGoalStatus(userId: string): Promise<GoalStatus> {
+  const settings = await loadSettings(userId);
+  const timezone = settings?.timezone ?? "UTC";
+  const today = todayIn(timezone);
+
+  const [goals, days] = await Promise.all([
+    loadGoals(userId),
+    loadDailyTotals(userId, timezone, shiftDay(today, -STREAK_DAYS)),
+  ]);
+
+  const goal = goalOn(goals, today);
+  if (!goal) return { defined: false, today, timezone };
+
+  const streak = computeStreak(days, goals, today, STREAK_DAYS);
+
+  return {
+    defined: true,
+    today,
+    timezone,
+    kind: goal.kind,
+    target: goal.target,
+    progress: progressFor(
+      goal,
+      days.find((entry) => entry.day === today)
+    ),
+    streak: streak.current,
+    bestStreak: streak.best,
+    pendingToday: streak.pendingToday,
+  };
+}
+
+/**
+ * Resumo da semana anterior, ou `null` quando nao ha o que mostrar.
+ *
+ * Devolve null em tres casos, e cada um tem um motivo diferente: ja foi
+ * dispensado nesta semana, nao houve leitura na semana passada, ou o usuario
+ * nunca leu. Os tres levam a mesma tela - a ausencia do cartao.
+ */
+export async function loadWeeklySummary(
+  userId: string,
+  timezone: string,
+  today: string,
+  seenOn: string | null
+): Promise<WeeklySummary | null> {
+  const thisMonday = mondayOf(today);
+  if (seenOn === thisMonday) return null;
+
+  const lastMonday = shiftDay(thisMonday, -7);
+  const priorMonday = shiftDay(thisMonday, -14);
+
+  const days = await loadDailyTotals(userId, timezone, priorMonday);
+
+  const week = (from: string, to: string) => {
+    const slice = days.filter((day) => day.day >= from && day.day < to);
+    const words = slice.reduce((total, day) => total + day.words, 0);
+    return {
+      minutes: slice.reduce((total, day) => total + day.minutes, 0),
+      words,
+      wpm:
+        words > 0
+          ? Math.round(slice.reduce((total, day) => total + day.wpm * day.words, 0) / words)
+          : 0,
+    };
+  };
+
+  const last = week(lastMonday, thisMonday);
+  if (last.minutes === 0 && last.words === 0) return null;
+
+  const prior = week(priorMonday, lastMonday);
+
+  const [finished] = await db
+    .select({ value: count() })
+    .from(readingSessions)
+    .where(
+      and(
+        eq(readingSessions.userId, userId),
+        eq(readingSessions.completed, true),
+        sql`to_char(${readingSessions.createdAt} at time zone ${timezone}, 'YYYY-MM-DD') >= ${lastMonday}`,
+        sql`to_char(${readingSessions.createdAt} at time zone ${timezone}, 'YYYY-MM-DD') < ${thisMonday}`
+      )
+    );
+
+  return {
+    monday: lastMonday,
+    minutes: last.minutes,
+    words: last.words,
+    wpm: last.wpm,
+    texts: finished?.value ?? 0,
+    minutesChange: percentChange(prior.minutes, last.minutes),
+    wpmChange: percentChange(prior.wpm, last.wpm),
+  };
+}
+
+/** Variacao percentual, ou null quando nao ha base de comparacao. */
+function percentChange(before: number, after: number): number | null {
+  if (before <= 0) return null;
+  return Math.round(((after - before) / before) * 100);
 }
 
 export async function loadText(userId: string, id: string): Promise<TextDetail | null> {

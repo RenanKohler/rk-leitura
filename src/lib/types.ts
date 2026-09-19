@@ -1,4 +1,5 @@
 import type { FontFamily, ReadingMode } from "@/lib/reading";
+import type { GoalKind } from "@/lib/goals";
 
 /** Formatos devolvidos pelas rotas internas, consumidos no cliente. */
 
@@ -64,6 +65,53 @@ export interface SettingsPayload {
   fontFamily: FontFamily;
   lineHeightStep: number;
   warmup: boolean;
+  /** Fuso IANA usado para decidir o que e "hoje". */
+  timezone: string;
+  /** Segunda-feira da ultima semana em que o resumo foi dispensado. */
+  weeklySummarySeenOn: string | null;
+}
+
+/** Resposta de GET/PUT /api/metas. */
+export type GoalStatus =
+  | { defined: false; today: string; timezone: string }
+  | {
+      defined: true;
+      today: string;
+      timezone: string;
+      kind: GoalKind;
+      target: number;
+      progress: number;
+      streak: number;
+      bestStreak: number;
+      pendingToday: boolean;
+    };
+
+/** Um ponto do grafico de evolucao. */
+export interface TrendPoint {
+  /** `AAAA-MM-DD` do dia, ou da segunda-feira quando a serie e semanal. */
+  day: string;
+  minutes: number;
+  words: number;
+  wpm: number;
+}
+
+export interface TrendData {
+  daily: TrendPoint[];
+  weekly: TrendPoint[];
+  sessions: number;
+}
+
+/** Cartao de resumo da semana anterior, no painel. */
+export interface WeeklySummary {
+  /** Segunda-feira da semana resumida. */
+  monday: string;
+  minutes: number;
+  words: number;
+  wpm: number;
+  texts: number;
+  /** Variacao percentual contra a semana anterior; null quando nao ha base. */
+  minutesChange: number | null;
+  wpmChange: number | null;
 }
 
 export interface DashboardStats {

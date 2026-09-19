@@ -23,6 +23,14 @@
   --color-positive-soft: #e3f3ea;
   --color-danger: #c0341d;
   --color-danger-soft: #fbe8e4;
+  /*
+   * Marca dos graficos. Separada do acento da interface porque o acento do
+   * tema escuro fica claro demais para uma marca de dado sobre a superficie
+   * do grafico - o validador de paleta reprova na faixa de luminosidade. Este
+   * passo e o vizinho mais proximo que passa.
+   */
+  --color-chart: #d4451f;
+  --color-chart-soft: #f6d5cb;
 
   --radius-card: 1rem;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -49,6 +57,8 @@
     --color-positive-soft: #12271c;
     --color-danger: #ff7a66;
     --color-danger-soft: #2a1512;
+    --color-chart: #f05a2c;
+    --color-chart-soft: #4a2418;
 
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.8);
     --shadow-float: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 16px 40px -20px rgb(0 0 0 / 0.9);

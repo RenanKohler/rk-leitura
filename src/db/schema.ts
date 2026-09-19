@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   index,
   integer,
   pgTable,
@@ -93,13 +94,52 @@ export const speedSettings = pgTable(
     lineHeightStep: integer("line_height_step").notNull().default(2),
     // Rampa de aceleracao no inicio da leitura.
     warmup: boolean("warmup").notNull().default(true),
+    /**
+     * Fuso do usuario, no formato IANA ("America/Sao_Paulo").
+     *
+     * Sem ele nao ha como dizer o que e "hoje": uma sessao das 22h em Sao
+     * Paulo cai no dia seguinte em UTC, e a meta diaria e a sequencia de dias
+     * contariam errado justamente no horario em que mais se le.
+     */
+    timezone: text("timezone").notNull().default("UTC"),
+    /** Ultima segunda-feira em que o resumo da semana foi dispensado. */
+    weeklySummarySeenOn: date("weekly_summary_seen_on"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [uniqueIndex("speed_settings_user_unique").on(table.userId)]
 );
 
+/**
+ * Metas de leitura, com historico.
+ *
+ * Uma linha por meta vigente a partir de uma data. Guardar so o valor atual
+ * faria a sequencia de dias ser reavaliada pela meta de hoje, e mudar a meta
+ * reescreveria o passado - um dia cumprido viraria falha retroativa.
+ */
+export const readingGoals = pgTable(
+  "reading_goals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** "minutos" ou "palavras". */
+    kind: text("kind").notNull().default("minutos"),
+    target: integer("target").notNull(),
+    /** Primeiro dia em que esta meta vale, no fuso do usuario. */
+    startsOn: date("starts_on").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // Uma meta por dia de vigencia: trocar a meta duas vezes no mesmo dia
+    // substitui, em vez de acumular linhas que empatariam na consulta.
+    uniqueIndex("reading_goals_user_start_unique").on(table.userId, table.startsOn),
+  ]
+);
+
 export type User = typeof users.$inferSelect;
 export type Text = typeof texts.$inferSelect;
 export type ReadingSession = typeof readingSessions.$inferSelect;
 export type SpeedSettings = typeof speedSettings.$inferSelect;
+export type ReadingGoal = typeof readingGoals.$inferSelect;

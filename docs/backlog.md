@@ -71,7 +71,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
 | **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
 
-Status: 38 Implementadas, 20 Propostas, 2 Aguardando pendência.
+Status: 42 Implementadas, 16 Propostas, 2 Aguardando pendência.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -729,7 +729,8 @@ Como mantenedor, eu quero testes automatizados para extração, segurança de im
 **Épico:** Hábito e metas
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `reading_goals`, `src/lib/goals.ts`, `/api/metas`, `src/components/goal-card.tsx`
 
 Como leitor, eu quero definir uma meta diária em minutos ou em palavras, para que eu crie o hábito de ler todos os dias.
 
@@ -746,7 +747,8 @@ Como leitor, eu quero definir uma meta diária em minutos ou em palavras, para q
 **Épico:** Hábito e metas
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `computeStreak` em `src/lib/goals.ts`, `loadGoalStatus` em `src/lib/queries.ts`
 
 Como leitor, eu quero ver quantos dias seguidos atingi minha meta, para que eu tenha um incentivo para manter a regularidade.
 
@@ -859,7 +861,8 @@ Como leitor, eu quero seguir um programa com metas progressivas de velocidade, p
 **Épico:** Estatísticas e evolução
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `loadTrend` em `src/lib/queries.ts`, `src/components/trend-chart.tsx`, `/estatisticas`
 
 Como leitor, eu quero ver um gráfico do meu ppm médio e do tempo de leitura por período, para que eu confirme se estou evoluindo.
 
@@ -876,7 +879,8 @@ Como leitor, eu quero ver um gráfico do meu ppm médio e do tempo de leitura po
 **Épico:** Estatísticas e evolução
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `loadWeeklySummary`, `/api/resumo-semanal`, `src/components/weekly-summary-card.tsx`
 
 Como leitor, eu quero ver um resumo da semana anterior ao abrir o app na segunda-feira, para que eu compare meu desempenho sem precisar consultar gráficos.
 
@@ -1207,7 +1211,7 @@ tema: cada faixa entrega algo utilizável e prepara a seguinte.
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
 | ~~1~~ | ~~US-50, US-55, US-60, US-44~~ | ~~10~~ | Concluída: exportar dados, arquivar, tipografia e aceleração gradual |
-| 2 | US-41, US-42, US-48, US-49 | 14 | Hábito e evolução. Começa pelo fuso horário, que as quatro compartilham. |
+| ~~2~~ | ~~US-41, US-42, US-48, US-49~~ | ~~14~~ | Concluída: meta diária, sequência, evolução e resumo semanal |
 | 3 | US-51, US-52, US-53 | 11 | Estudo: destacar, anotar e exportar destaques. |
 | 4 | US-37, US-54, US-56 | 16 | Organização: séries, etiquetas e fila. |
 | 5 | US-45, US-47 | 13 | Treino: medir a velocidade inicial e o programa progressivo. |

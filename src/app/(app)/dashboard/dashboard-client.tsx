@@ -8,7 +8,16 @@ import { useResource } from "@/hooks/use-resource";
 import { Card, EmptyState, LinkButton, SectionTitle, Skeleton } from "@/components/ui";
 import { ForwardIcon, LibraryIcon, PlayIcon, SpeedIcon, SparkIcon, WordsIcon } from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
-import type { ContinueReading, DashboardStats, Paginated, TextSummary } from "@/lib/types";
+import { GoalCard } from "@/components/goal-card";
+import { WeeklySummaryCard } from "@/components/weekly-summary-card";
+import type {
+  ContinueReading,
+  DashboardStats,
+  GoalStatus,
+  Paginated,
+  TextSummary,
+  WeeklySummary,
+} from "@/lib/types";
 
 export type Overview = { stats: DashboardStats; continueReading: ContinueReading | null };
 export type RecentTexts = { texts: TextSummary[] } & Paginated;
@@ -16,9 +25,13 @@ export type RecentTexts = { texts: TextSummary[] } & Paginated;
 export function DashboardClient({
   initialOverview,
   initialTexts,
+  goal,
+  weekly,
 }: {
   initialOverview: Overview;
   initialTexts: RecentTexts;
+  goal: GoalStatus;
+  weekly: WeeklySummary | null;
 }) {
   const { user } = useAuth();
   const { settings } = useSettings();
@@ -47,7 +60,21 @@ export function DashboardClient({
         </p>
       </header>
 
+      {weekly ? <WeeklySummaryCard summary={weekly} /> : null}
+
+      <GoalCard initial={goal} />
+
       {inProgress ? <ContinueCard text={inProgress} wpm={settings.baseWpm} /> : null}
+
+      <SectionTitle
+        action={
+          <Link href="/estatisticas" className="min-h-11 text-sm font-medium text-accent">
+            Ver evolucao
+          </Link>
+        }
+      >
+        Numeros
+      </SectionTitle>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat

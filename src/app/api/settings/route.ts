@@ -18,6 +18,7 @@ import {
   MIN_WPM,
 } from "@/lib/reading";
 import { DEFAULT_SETTINGS, loadSettings } from "@/lib/queries";
+import { asTimezone } from "@/lib/goals";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ export async function PUT(request: Request) {
         MAX_LINE_HEIGHT
       ),
       warmup: body?.warmup !== false,
+      timezone: asTimezone(body?.timezone),
     };
 
     // Um unico round-trip: o indice unico em user_id resolve a corrida entre

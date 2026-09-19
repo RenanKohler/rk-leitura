@@ -16,6 +16,7 @@ const PROTECTED_PREFIXES = [
   "/historico",
   "/ajustes",
   "/compartilhar",
+  "/estatisticas",
 ];
 const GUEST_ONLY = ["/login", "/cadastro"];
 
@@ -67,5 +68,6 @@ export const config = {
     "/historico/:path*",
     "/ajustes/:path*",
     "/compartilhar/:path*",
+    "/estatisticas/:path*",
   ],
 };
