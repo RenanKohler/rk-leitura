@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useResource } from "@/hooks/use-resource";
 import { apiGet, apiSend } from "@/lib/client";
 import { useSettings, useToast } from "@/components/providers";
@@ -13,13 +13,25 @@ import {
   Field,
   LinkButton,
   Pagination,
+  Segmented,
   Sheet,
   Skeleton,
   TextArea,
 } from "@/components/ui";
 import { EditIcon, LibraryIcon, TrashIcon } from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
+import { DEFAULT_STATUS, MAX_QUERY_CHARS, type TextStatus } from "@/lib/text-filter";
 import type { Paginated, TextDetail, TextSummary } from "@/lib/types";
+
+const STATUS_OPTIONS: { value: TextStatus; label: string }[] = [
+  { value: "todos", label: "Todos" },
+  { value: "nao-iniciados", label: "Nao lidos" },
+  { value: "em-andamento", label: "Lendo" },
+  { value: "concluidos", label: "Lidos" },
+];
+
+/** Espera entre a ultima tecla e a busca, para nao consultar a cada letra. */
+const DEBOUNCE_MS = 300;
 
 export type TextsPage = { texts: TextSummary[] } & Paginated;
 
@@ -27,11 +39,37 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
   const { settings } = useSettings();
   const notify = useToast();
   const [page, setPage] = useState(1);
-  // A primeira pagina ja veio no HTML; so a navegacao entre paginas busca.
-  const resource = useResource<TextsPage>(
-    `/api/texts?page=${page}`,
-    page === 1 ? initial : undefined
-  );
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<TextStatus>(DEFAULT_STATUS);
+
+  // O termo so chega a consulta depois que a digitacao para.
+  const [searched, setSearched] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setSearched(query.trim()), DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const filtering = searched.length > 0 || status !== DEFAULT_STATUS;
+  const path =
+    `/api/texts?page=${page}&status=${status}` +
+    (searched ? `&q=${encodeURIComponent(searched)}` : "");
+
+  // A primeira pagina sem filtro ja veio no HTML; o resto busca.
+  const resource = useResource<TextsPage>(path, page === 1 && !filtering ? initial : undefined);
+
+  const changeFilter = (apply: () => void) => {
+    apply();
+    // Sem isto, filtrar estando na pagina 3 cairia em uma lista vazia que
+    // parece "nada encontrado" mas e so pagina fora do intervalo.
+    setPage(1);
+  };
+
+  const clearFilters = () =>
+    changeFilter(() => {
+      setQuery("");
+      setSearched("");
+      setStatus(DEFAULT_STATUS);
+    });
   const [editing, setEditing] = useState<TextDetail | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TextSummary | null>(null);
   const [busy, setBusy] = useState(false);
@@ -95,7 +133,9 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
           <p className="mt-1 text-sm text-muted">
             {resource.loading
               ? "Carregando"
-              : `${total} ${total === 1 ? "texto" : "textos"} na biblioteca`}
+              : filtering
+                ? `${total} ${total === 1 ? "resultado" : "resultados"}`
+                : `${total} ${total === 1 ? "texto" : "textos"} na biblioteca`}
           </p>
         </div>
         {/* No celular o botao flutuante da barra inferior ja cobre esta acao. */}
@@ -108,6 +148,28 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
 
       <ImportCard onImported={() => resource.reload()} />
 
+      <div className="space-y-3">
+        <Field
+          label="Buscar"
+          name="busca"
+          type="search"
+          inputMode="search"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          maxLength={MAX_QUERY_CHARS}
+          placeholder="Titulo do texto"
+          value={query}
+          onChange={(event) => changeFilter(() => setQuery(event.target.value))}
+        />
+        <Segmented<TextStatus>
+          label="Filtrar por leitura"
+          value={status}
+          onChange={(value) => changeFilter(() => setStatus(value))}
+          options={STATUS_OPTIONS}
+        />
+      </div>
+
       {resource.loading ? (
         <div className="space-y-2">
           {[0, 1, 2, 3].map((index) => (
@@ -116,12 +178,25 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
         </div>
       ) : texts.length === 0 ? (
         <Card>
-          <EmptyState
-            icon={<LibraryIcon className="size-7" />}
-            title="Nada por aqui ainda"
-            description="Importe um artigo pelo link acima ou cole um texto seu."
-            action={<LinkButton href="/textos/novo">Adicionar texto</LinkButton>}
-          />
+          {filtering ? (
+            <EmptyState
+              icon={<LibraryIcon className="size-7" />}
+              title="Nenhum texto encontrado"
+              description="Nada na biblioteca corresponde a busca e ao filtro escolhidos."
+              action={
+                <Button variant="secondary" onClick={clearFilters}>
+                  Limpar filtros
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={<LibraryIcon className="size-7" />}
+              title="Nada por aqui ainda"
+              description="Importe um artigo pelo link acima ou cole um texto seu."
+              action={<LinkButton href="/textos/novo">Adicionar texto</LinkButton>}
+            />
+          )}
         </Card>
       ) : (
         <>

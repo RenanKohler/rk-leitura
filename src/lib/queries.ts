@@ -1,9 +1,16 @@
 import "server-only";
 
-import { and, count, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, lt, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { readingSessions, speedSettings, texts } from "@/db/schema";
 import { DEFAULT_PAGE_SIZE } from "@/lib/api";
+import {
+  ACCENTED,
+  DEFAULT_STATUS,
+  escapeLike,
+  UNACCENTED,
+  type TextStatus,
+} from "@/lib/text-filter";
 import type {
   ContinueReading,
   DashboardStats,
@@ -72,12 +79,56 @@ export async function loadSettings(userId: string): Promise<SettingsPayload> {
   };
 }
 
+export interface TextFilters {
+  /** Termo ja dobrado por `foldForSearch`, ou null para nao filtrar. */
+  query?: string | null;
+  status?: TextStatus;
+}
+
+/**
+ * Titulo na mesma forma do termo buscado: minusculo e sem acento.
+ *
+ * `translate()` em vez da extensao `unaccent` porque a extensao exige um
+ * `CREATE EXTENSION` no banco, e um deploy novo passaria a depender de um
+ * passo manual fora das migrations.
+ */
+const foldedTitle = sql`translate(lower(${texts.title}), ${ACCENTED}, ${UNACCENTED})`;
+
+/**
+ * Um texto esta em andamento quando saiu do inicio e ainda nao chegou ao fim;
+ * concluido quando a posicao alcancou a contagem de palavras. O texto vazio
+ * nunca conta como concluido - nao ha o que ler nele.
+ */
+function statusCondition(status: TextStatus): SQL | undefined {
+  if (status === "nao-iniciados") return eq(texts.progressIndex, 0);
+  if (status === "em-andamento") {
+    return and(gt(texts.progressIndex, 0), lt(texts.progressIndex, texts.wordCount));
+  }
+  if (status === "concluidos") {
+    return and(gt(texts.wordCount, 0), sql`${texts.progressIndex} >= ${texts.wordCount}`);
+  }
+  return undefined;
+}
+
+function textsWhere(userId: string, filters: TextFilters): SQL | undefined {
+  const conditions: (SQL | undefined)[] = [eq(texts.userId, userId)];
+
+  if (filters.query) {
+    conditions.push(sql`${foldedTitle} like ${`%${escapeLike(filters.query)}%`} escape '\\'`);
+  }
+  conditions.push(statusCondition(filters.status ?? DEFAULT_STATUS));
+
+  return and(...conditions.filter((condition): condition is SQL => condition !== undefined));
+}
+
 export async function loadTexts(
   userId: string,
   page = 1,
-  perPage = DEFAULT_PAGE_SIZE
+  perPage = DEFAULT_PAGE_SIZE,
+  filters: TextFilters = {}
 ): Promise<Page<TextSummary>> {
   const offset = (page - 1) * perPage;
+  const where = textsWhere(userId, filters);
 
   const [items, [totals]] = await Promise.all([
     // Lista sem o campo content: uma biblioteca com 50 artigos traria
@@ -93,11 +144,11 @@ export async function loadTexts(
         updatedAt: texts.updatedAt,
       })
       .from(texts)
-      .where(eq(texts.userId, userId))
+      .where(where)
       .orderBy(desc(texts.createdAt))
       .limit(perPage)
       .offset(offset),
-    db.select({ value: count() }).from(texts).where(eq(texts.userId, userId)),
+    db.select({ value: count() }).from(texts).where(where),
   ]);
 
   const rows: TextSummary[] = items.map((item) => ({

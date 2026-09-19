@@ -58,7 +58,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Produto: novas funcionalidades | 4 | 37 | 0 | 1 | 3 |
 | **Total** | **40** | **165** | **15 (38%)** | **16 (40%)** | **9 (22%)** |
 
-Status: 31 Implementadas, 7 Propostas, 2 Aguardando pendência.
+Status: 32 Implementadas, 6 Propostas, 2 Aguardando pendência.
 
 O épico "Produto: novas funcionalidades" reúne o que ainda não existe no código
 e não foi extraído dele: são propostas de produto, levantadas em conversa e
@@ -299,8 +299,8 @@ Como leitor, eu quero remover textos que não vou mais ler, para que minha bibli
 **Épico:** Biblioteca de textos
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `GET /api/texts` aceita apenas `page` e `perPage`
+**Status:** Implementada
+**Evidência:** `src/lib/text-filter.ts`, `src/lib/queries.ts` (`loadTexts` com `TextFilters`), `src/app/api/texts/route.ts` (`q` e `status`), `src/app/(app)/textos/texts-client.tsx`
 
 Como leitor, eu quero buscar textos pelo título e filtrar por status de leitura, para que eu encontre um texto sem percorrer todas as páginas.
 
@@ -308,6 +308,11 @@ Como leitor, eu quero buscar textos pelo título e filtrar por status de leitura
 1. Dado que digito parte de um título, quando a busca é aplicada, então vejo apenas textos cujo título contém o termo, sem diferenciar maiúsculas, minúsculas e acentos.
 2. Dado que filtro por "Não iniciados", "Em andamento" ou "Concluídos", quando o filtro é aplicado, então a lista e a paginação refletem apenas esse grupo.
 3. Dado que nenhum texto corresponde, quando a busca termina, então vejo estado vazio específico com opção de limpar o filtro.
+4. Dado que o termo contém `%` ou `_`, quando busco, então eles são procurados como texto comum, não como curinga.
+5. Dado que estou na página 3 e mudo a busca ou o filtro, quando a lista recarrega, então volto à página 1.
+6. Dado que digito, quando as teclas se sucedem, então só uma consulta é feita depois que a digitação para.
+
+**Notas técnicas:** a dobra de acento usa `translate()` em SQL com o mesmo par de listas que `foldForSearch` usa no cliente — `unaccent` exigiria um `CREATE EXTENSION` fora das migrations, e um deploy novo passaria a depender de um passo manual. O teste fixa que as duas listas têm o mesmo tamanho: `translate()` apaga os caracteres sem par, então listas desiguais fariam letras sumirem do título consultado. O total e a contagem de páginas são calculados com o mesmo filtro da listagem.
 
 ---
 
@@ -805,8 +810,8 @@ Restam quatro stories prontas para entrar em sprint e duas bloqueadas:
 | --- | --- | --- | --- |
 | ~~1~~ | ~~US-32~~ | ~~8~~ | Concluída: rede de testes e pipeline de CI |
 | ~~1~~ | ~~US-26~~ | ~~2~~ | Concluída: intensidade do destaque |
-| 1 | US-14 | 3 | Busca e filtro na biblioteca |
-| 2 | US-07, US-06 | 6 | Conta: exclusão com eliminação de dados e edição de nome e senha |
+| ~~1~~ | ~~US-14~~ | ~~3~~ | Concluída: busca e filtro na biblioteca |
+| 1 | US-07, US-06 | 6 | Conta: exclusão com eliminação de dados e edição de nome e senha |
 | 3 | US-37 | 8 | Produto: séries de capítulos, a de maior valor no uso atual |
 | 4 | US-39, US-38 | 16 | Produto: audiolivro e consulta ao toque |
 | 5 | US-40 | 13 | Produto: leitura offline |
