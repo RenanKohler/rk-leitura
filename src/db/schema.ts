@@ -164,9 +164,41 @@ export const comprehensionQuizzes = pgTable(
   (table) => [uniqueIndex("comprehension_quizzes_text_key_unique").on(table.textId, table.contentKey)]
 );
 
+/**
+ * Trechos destacados durante a leitura.
+ *
+ * O intervalo e por indice de palavra, no mesmo sistema do `progressIndex`:
+ * a marcacao sobrevive a troca de fonte, de modo e de tamanho de tela. A
+ * continuacao (US-23) apenas anexa conteudo ao fim, entao os indices
+ * existentes seguem validos; editar o conteudo nao garante isso, e por isso a
+ * edicao apaga os destaques do texto.
+ */
+export const highlights = pgTable(
+  "highlights",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    textId: uuid("text_id")
+      .notNull()
+      .references(() => texts.id, { onDelete: "cascade" }),
+    /** Primeira palavra do trecho. */
+    startIndex: integer("start_index").notNull(),
+    /** Primeira palavra depois do trecho: o intervalo e `[start, end)`. */
+    endIndex: integer("end_index").notNull(),
+    /** Comentario de quem leu. Nulo quando o destaque e so a marcacao. */
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("highlights_text_start_idx").on(table.textId, table.startIndex)]
+);
+
 export type User = typeof users.$inferSelect;
 export type Text = typeof texts.$inferSelect;
 export type ReadingSession = typeof readingSessions.$inferSelect;
 export type SpeedSettings = typeof speedSettings.$inferSelect;
 export type ReadingGoal = typeof readingGoals.$inferSelect;
 export type ComprehensionQuiz = typeof comprehensionQuizzes.$inferSelect;
+export type Highlight = typeof highlights.$inferSelect;

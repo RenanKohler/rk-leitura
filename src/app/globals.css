@@ -31,6 +31,13 @@
    */
   --color-chart: #d4451f;
   --color-chart-soft: #f6d5cb;
+  /*
+   * Marca-texto dos destaques salvos. Amarela de proposito: o acento ja pinta
+   * a posicao atual da leitura, e as duas coisas no mesmo tom seriam lidas
+   * como a mesma coisa.
+   */
+  --color-mark: #8a6a07;
+  --color-mark-soft: #f7e79d;
 
   --radius-card: 1rem;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -59,6 +66,8 @@
     --color-danger-soft: #2a1512;
     --color-chart: #f05a2c;
     --color-chart-soft: #4a2418;
+    --color-mark: #e0bb4e;
+    --color-mark-soft: #413616;
 
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.8);
     --shadow-float: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 16px 40px -20px rgb(0 0 0 / 0.9);
@@ -202,6 +211,60 @@ a,
 
 .flow-word[data-state="read"] {
   color: var(--color-faint);
+}
+
+/*
+ * Trechos destacados pelo leitor.
+ *
+ * O fundo e opaco, nao translucido: ele precisa ficar igual embaixo do bloco
+ * ativo, que pinta por cima com a propria transparencia. A linha inferior
+ * mantem o trecho reconhecivel quando o destaque cai na posicao atual e os
+ * dois fundos se somam.
+ */
+.mark {
+  background-color: var(--color-mark-soft);
+  box-shadow: inset 0 -0.12em 0 var(--color-mark);
+  border-radius: 0.15rem;
+  cursor: pointer;
+}
+
+/*
+ * No modo Rolagem cada palavra e uma `<span>` propria, entao um destaque de
+ * oito palavras seriam oito caixas arredondadas em fila - lido como oito
+ * marcacoes, nao uma. So as pontas do trecho ficam arredondadas.
+ */
+.mark[data-edge="inicio"],
+.mark[data-edge="meio"] {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.mark[data-edge="fim"],
+.mark[data-edge="meio"] {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/*
+ * Um trecho destacado nao desbota junto com o que ja foi lido. O apagamento
+ * serve para mostrar onde a leitura esta; sobre a marca ele deixaria o texto
+ * em 2,3 para 1 de contraste, justamente no trecho que o leitor marcou para
+ * voltar depois.
+ */
+.mark[data-state="read"] {
+  color: var(--color-ink);
+}
+
+/* Bolinha de "tem nota", colada no fim do trecho. */
+.mark[data-note="sim"]::after {
+  content: "";
+  display: inline-block;
+  width: 0.4em;
+  height: 0.4em;
+  margin-left: 0.25em;
+  vertical-align: 0.35em;
+  border-radius: 9999px;
+  background-color: var(--color-mark);
 }
 
 /* ==========================================================================

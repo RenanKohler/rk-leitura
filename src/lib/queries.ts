@@ -16,9 +16,17 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { db } from "@/db";
-import { readingGoals, readingSessions, speedSettings, texts, users } from "@/db/schema";
+import {
+  highlights,
+  readingGoals,
+  readingSessions,
+  speedSettings,
+  texts,
+  users,
+} from "@/db/schema";
 import { DEFAULT_PAGE_SIZE } from "@/lib/api";
-import { asFontFamily } from "@/lib/reading";
+import { asFontFamily, parseParagraphs } from "@/lib/reading";
+import { excerptOf } from "@/lib/highlights";
 import {
   asGoalKind,
   asTimezone,
@@ -43,6 +51,7 @@ import type {
   ContinueReading,
   DashboardStats,
   GoalStatus,
+  HighlightItem,
   SessionSummary,
   SettingsPayload,
   TextDetail,
@@ -220,8 +229,12 @@ export async function loadTexts(
     db.select({ value: count() }).from(texts).where(where),
   ]);
 
+  // Uma consulta so para a pagina inteira, em vez de uma por cartao.
+  const marks = await highlightCounts(items.map((item) => item.id));
+
   const rows: TextSummary[] = items.map((item) => ({
     ...item,
+    highlights: marks.get(item.id) ?? 0,
     archivedAt: item.archivedAt ? isoDate(item.archivedAt) : null,
     createdAt: isoDate(item.createdAt),
     updatedAt: isoDate(item.updatedAt),
@@ -564,11 +577,17 @@ function percentChange(before: number, after: number): number | null {
 }
 
 export async function loadText(userId: string, id: string): Promise<TextDetail | null> {
-  const [text] = await db
-    .select()
-    .from(texts)
-    .where(and(eq(texts.id, id), eq(texts.userId, userId)))
-    .limit(1);
+  const [[text], [marks]] = await Promise.all([
+    db
+      .select()
+      .from(texts)
+      .where(and(eq(texts.id, id), eq(texts.userId, userId)))
+      .limit(1),
+    db
+      .select({ value: count() })
+      .from(highlights)
+      .where(and(eq(highlights.userId, userId), eq(highlights.textId, id))),
+  ]);
 
   if (!text) return null;
 
@@ -580,8 +599,59 @@ export async function loadText(userId: string, id: string): Promise<TextDetail |
     wordCount: text.wordCount,
     progressIndex: text.progressIndex,
     sourcePage: text.sourcePage,
+    highlights: marks?.value ?? 0,
     archivedAt: text.archivedAt ? isoDate(text.archivedAt) : null,
     createdAt: isoDate(text.createdAt),
     updatedAt: isoDate(text.updatedAt),
+  };
+}
+
+/* --- destaques ---------------------------------------------------------- */
+
+/** Quantos destaques cada texto tem, em uma consulta so para a pagina toda. */
+async function highlightCounts(textIds: string[]): Promise<Map<string, number>> {
+  if (textIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({ textId: highlights.textId, value: count() })
+    .from(highlights)
+    .where(inArray(highlights.textId, textIds))
+    .groupBy(highlights.textId);
+
+  return new Map(rows.map((row) => [row.textId, row.value]));
+}
+
+/**
+ * Destaques de um texto, na ordem da leitura, com o trecho ja reconstruido.
+ *
+ * O trecho nao e guardado no banco: ele e derivado do conteudo pelos indices.
+ * Duplicar o texto criaria duas versoes do mesmo trecho, e a que a tela
+ * mostrasse poderia nao ser a que esta no texto.
+ */
+export async function loadHighlights(
+  userId: string,
+  textId: string
+): Promise<{ text: TextDetail; items: HighlightItem[] } | null> {
+  const text = await loadText(userId, textId);
+  if (!text) return null;
+
+  const rows = await db
+    .select()
+    .from(highlights)
+    .where(and(eq(highlights.userId, userId), eq(highlights.textId, textId)))
+    .orderBy(asc(highlights.startIndex));
+
+  const { words } = parseParagraphs(text.content);
+
+  return {
+    text,
+    items: rows.map((row) => ({
+      id: row.id,
+      start: row.startIndex,
+      end: row.endIndex,
+      note: row.note,
+      excerpt: excerptOf(words, row.startIndex, row.endIndex),
+      createdAt: isoDate(row.createdAt),
+    })),
   };
 }

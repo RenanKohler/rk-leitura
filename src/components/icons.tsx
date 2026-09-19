@@ -210,3 +210,37 @@ export const PagesIcon = (props: IconProps) => (
     <path d="M8 9h8M8 12.5h8M8 16h5" />
   </Icon>
 );
+
+/** Marca-texto: destaques salvos. */
+export const MarkIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M14.5 3.5 20.5 9.5l-7.2 7.2a2 2 0 0 1-1.1.6l-4.1.7.7-4.1a2 2 0 0 1 .6-1.1z" />
+    <path d="M4 21h16" />
+  </Icon>
+);
+
+/** Nota escrita em um destaque. */
+export const NoteIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M5 4.5h14a1 1 0 0 1 1 1V14l-5 5H5a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1z" />
+    <path d="M20 14h-5v5" />
+    <path d="M8 9h8M8 12.5h5" />
+  </Icon>
+);
+
+/** Copiar para a area de transferencia. */
+export const CopyIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M5 15H4.5A1.5 1.5 0 0 1 3 13.5v-9A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5V5" />
+  </Icon>
+);
+
+/** Baixar um arquivo. */
+export const DownloadIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M12 3.5v11" />
+    <path d="m7.5 10.5 4.5 4.5 4.5-4.5" />
+    <path d="M4 20h16" />
+  </Icon>
+);

@@ -9,6 +9,8 @@ export interface TextSummary {
   sourceUrl: string | null;
   wordCount: number;
   progressIndex: number;
+  /** Quantos trechos destacados o texto tem. */
+  highlights: number;
   /** Nulo enquanto o texto esta na lista principal. */
   archivedAt: string | null;
   createdAt: string;
@@ -55,6 +57,19 @@ export interface ShareResult {
   status: "created" | "existing";
   id: string;
   title: string;
+}
+
+/** Um destaque como a tela o consome: intervalo, trecho e nota. */
+export interface HighlightItem {
+  id: string;
+  /** Primeira palavra do trecho, no indice do texto inteiro. */
+  start: number;
+  /** Primeira palavra depois do trecho. */
+  end: number;
+  note: string | null;
+  /** Trecho citado, derivado do conteudo pelos indices. */
+  excerpt: string;
+  createdAt: string;
 }
 
 export interface SettingsPayload {

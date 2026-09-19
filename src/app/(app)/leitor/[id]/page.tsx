@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { loadText } from "@/lib/queries";
+import { loadHighlights } from "@/lib/queries";
 import { ReaderClient } from "./reader-client";
 
 export const dynamic = "force-dynamic";
@@ -13,14 +13,20 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * leitor so podia medir as paginas depois que o conteudo chegasse, entao a
  * espera da rede aparecia como tela vazia.
  */
-export default async function ReaderPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReaderPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ de?: string }>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const { id } = await params;
-  const text = UUID_PATTERN.test(id) ? await loadText(session.id, id) : null;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  const loaded = UUID_PATTERN.test(id) ? await loadHighlights(session.id, id) : null;
 
-  if (!text) {
+  if (!loaded) {
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-4 px-6 text-center">
         <h1 className="text-xl font-semibold tracking-tight">Texto nao encontrado</h1>
@@ -35,5 +41,10 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
     );
   }
 
-  return <ReaderClient text={text} />;
+  // `?de=` vem da lista de destaques: abrir um destaque posiciona a leitura
+  // nele. Um valor invalido simplesmente nao muda nada.
+  const from = Number(query.de);
+  const startAt = Number.isInteger(from) && from >= 0 ? from : undefined;
+
+  return <ReaderClient text={loaded.text} highlights={loaded.items} startAt={startAt} />;
 }

@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { readingSessions, texts } from "@/db/schema";
+import { highlights, readingSessions, texts } from "@/db/schema";
 import { jsonError, requireSession, serverError } from "@/lib/api";
+import { excerptOf } from "@/lib/highlights";
+import { parseParagraphs } from "@/lib/reading";
 
 export const dynamic = "force-dynamic";
 
@@ -59,23 +61,46 @@ async function exportSessions(userId: string) {
 }
 
 async function exportLibrary(userId: string) {
-  const rows = await db
-    .select()
-    .from(texts)
-    .where(and(eq(texts.userId, userId)))
-    .orderBy(asc(texts.createdAt));
+  const [rows, marks] = await Promise.all([
+    db.select().from(texts).where(and(eq(texts.userId, userId))).orderBy(asc(texts.createdAt)),
+    db
+      .select()
+      .from(highlights)
+      .where(eq(highlights.userId, userId))
+      .orderBy(asc(highlights.startIndex)),
+  ]);
 
-  const payload = rows.map((row) => ({
-    titulo: row.title,
-    origem: row.sourceUrl,
-    parteDaOrigem: row.sourcePage,
-    palavras: row.wordCount,
-    progresso: row.progressIndex,
-    arquivadoEm: row.archivedAt?.toISOString() ?? null,
-    criadoEm: row.createdAt.toISOString(),
-    atualizadoEm: row.updatedAt.toISOString(),
-    conteudo: row.content,
-  }));
+  const byText = new Map<string, typeof marks>();
+  for (const mark of marks) {
+    const list = byText.get(mark.textId) ?? [];
+    list.push(mark);
+    byText.set(mark.textId, list);
+  }
+
+  const payload = rows.map((row) => {
+    // O trecho vai junto: quem abrir o arquivo fora do app nao tem como
+    // reconstruir um intervalo de palavras a partir do indice sozinho.
+    const { words } = parseParagraphs(row.content);
+
+    return {
+      titulo: row.title,
+      origem: row.sourceUrl,
+      parteDaOrigem: row.sourcePage,
+      palavras: row.wordCount,
+      progresso: row.progressIndex,
+      arquivadoEm: row.archivedAt?.toISOString() ?? null,
+      criadoEm: row.createdAt.toISOString(),
+      atualizadoEm: row.updatedAt.toISOString(),
+      conteudo: row.content,
+      destaques: (byText.get(row.id) ?? []).map((mark) => ({
+        inicio: mark.startIndex,
+        fim: mark.endIndex,
+        trecho: excerptOf(words, mark.startIndex, mark.endIndex),
+        nota: mark.note,
+        criadoEm: mark.createdAt.toISOString(),
+      })),
+    };
+  });
 
   return download(JSON.stringify(payload, null, 2), "application/json", "leitura-biblioteca.json");
 }

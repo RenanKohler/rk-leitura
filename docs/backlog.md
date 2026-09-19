@@ -71,7 +71,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
 | **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
 
-Status: 43 Implementadas, 16 Propostas, 2 Aguardando pendência.
+Status: 46 Implementadas, 13 Propostas, 2 Aguardando pendência.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -291,7 +291,7 @@ Como leitor, eu quero corrigir título, conteúdo e link de origem de um texto, 
 2. Dado que salvei a edição, quando abro o texto no leitor, então a leitura começa do início, pois o progresso é zerado.
 3. Dado que deixo título ou conteúdo vazio, quando salvo, então recebo "Titulo e conteudo sao obrigatorios.".
 
-**Notas técnicas:** zerar o progresso evita posição além do novo fim. Uma alternativa futura é preservar a posição quando ela ainda for válida.
+**Notas técnicas:** zerar o progresso evita posição além do novo fim. Desde a US-51 isso só acontece quando o conteúdo muda de fato: trocar apenas o título não mexe na leitura nem nos destaques, e é essa distinção que torna honesto o aviso do critério 4 da US-51.
 
 ### US-13: Remover texto
 
@@ -916,7 +916,8 @@ Como leitor, eu quero baixar meu histórico de sessões e minha biblioteca, para
 **Épico:** Anotações e destaques
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/highlights.ts`, `src/hooks/use-word-selection.ts`, `src/app/api/texts/[id]/destaques/route.ts`, `src/app/(app)/leitor/[id]/reader-client.tsx`
 
 Como estudante, eu quero marcar trechos importantes enquanto leio, para que eu os revise depois sem reler o texto inteiro.
 
@@ -933,7 +934,8 @@ Como estudante, eu quero marcar trechos importantes enquanto leio, para que eu o
 **Épico:** Anotações e destaques
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/components/highlight-sheet.tsx`, `src/app/api/texts/[id]/destaques/[markId]/route.ts`
 
 Como estudante, eu quero escrever uma nota em um destaque, para que eu registre minha interpretação junto do trecho.
 
@@ -947,7 +949,8 @@ Como estudante, eu quero escrever uma nota em um destaque, para que eu registre 
 **Épico:** Anotações e destaques
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/app/(app)/textos/[id]/destaques/`, `toMarkdown` em `src/lib/highlights.ts`
 
 Como estudante, eu quero ver todos os destaques de um texto em uma lista e exportá-los, para que eu use o material em resumos e anotações externas.
 
@@ -1206,7 +1209,7 @@ Entregue até aqui, em ordem:
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
 | US-46 | 8 | Perguntas de compreensão ao concluir um texto |
 
-Restam 18 stories: 16 prontas para entrar em sprint (95 pontos) e 2 travadas
+Restam 15 stories: 13 prontas para entrar em sprint (84 pontos) e 2 travadas
 por decisão externa (10 pontos). A ordem abaixo agrupa por dependência, não por
 tema: cada faixa entrega algo utilizável e prepara a seguinte.
 
@@ -1214,7 +1217,7 @@ tema: cada faixa entrega algo utilizável e prepara a seguinte.
 | --- | --- | --- | --- |
 | ~~1~~ | ~~US-50, US-55, US-60, US-44~~ | ~~10~~ | Concluída: exportar dados, arquivar, tipografia e aceleração gradual |
 | ~~2~~ | ~~US-41, US-42, US-48, US-49~~ | ~~14~~ | Concluída: meta diária, sequência, evolução e resumo semanal |
-| 3 | US-51, US-52, US-53 | 11 | Estudo: destacar, anotar e exportar destaques. |
+| ~~3~~ | ~~US-51, US-52, US-53~~ | ~~11~~ | Concluída: destacar, anotar, revisar e exportar destaques |
 | 4 | US-37, US-54, US-56 | 16 | Organização: séries, etiquetas e fila. |
 | 5 | US-45, US-47 | 13 | Treino: medir a velocidade inicial e o programa progressivo. |
 | 6 | US-57, US-59, US-58 | 18 | Importação ampliada: PDF, favorito e EPUB. |
@@ -1236,7 +1239,7 @@ Por que esta ordem e não a do documento de origem:
   de maior risco em produção, e entra por último, com a suíte de testes já
   montada.
 
-Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia as ordens 3
+Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia as ordens 4
 a 8: provedor de e-mail (US-05) e armazenamento do limitador (US-31). A terceira
 pendência, o provedor de modelo de linguagem da US-46, foi resolvida — a chave
 da Anthropic entrou como variável sensível na Vercel, sem teto mensal.

@@ -9,7 +9,9 @@ import { Button, Card, Segmented, Sheet, Slider, Spinner } from "@/components/ui
 import {
   BackIcon,
   CheckIcon,
+  CloseIcon,
   FastForwardIcon,
+  MarkIcon,
   PauseIcon,
   PlayIcon,
   ForwardIcon,
@@ -38,8 +40,17 @@ import {
 } from "@/lib/reading";
 import { apiSend } from "@/lib/client";
 import { QuizSheet } from "@/components/quiz-sheet";
+import { HighlightSheet } from "@/components/highlight-sheet";
 import { MIN_WORDS_FOR_QUIZ } from "@/lib/quiz";
-import type { ContinuationResult, TextDetail } from "@/lib/types";
+import { useWordSelection } from "@/hooks/use-word-selection";
+import {
+  markCovering,
+  segmentsOf,
+  sentenceRange,
+  type Span,
+  type StoredHighlight,
+} from "@/lib/highlights";
+import type { ContinuationResult, HighlightItem, TextDetail } from "@/lib/types";
 
 export const MODE_HINTS: Record<ReadingMode, string> = {
   rsvp: "Uma palavra por vez no centro da tela, com a letra de fixacao destacada.",
@@ -55,11 +66,27 @@ const SCREENFUL_WORDS = 110;
 /** Abaixo disso, retomar nao reinicia a rampa de aquecimento. */
 const SHORT_PAUSE_MS = 3000;
 
-export function ReaderClient({ text }: { text: TextDetail }) {
-  return <Reader key={text.id} text={text} />;
+export function ReaderClient({
+  text,
+  highlights,
+  startAt,
+}: {
+  text: TextDetail;
+  highlights: HighlightItem[];
+  startAt?: number;
+}) {
+  return <Reader key={text.id} text={text} highlights={highlights} startAt={startAt} />;
 }
 
-function Reader({ text: initialText }: { text: TextDetail }) {
+function Reader({
+  text: initialText,
+  highlights,
+  startAt,
+}: {
+  text: TextDetail;
+  highlights: HighlightItem[];
+  startAt?: number;
+}) {
   const { settings, save } = useSettings();
   const notify = useToast();
 
@@ -73,7 +100,11 @@ function Reader({ text: initialText }: { text: TextDetail }) {
   const { words, paragraphs } = useMemo(() => parseParagraphs(text.content), [text.content]);
   const total = words.length;
 
-  const [index, setIndex] = useState(() => clamp(text.progressIndex, 0, Math.max(0, total - 1)));
+  // `startAt` vem da lista de destaques: abrir um destaque posiciona a
+  // leitura nele, em vez de onde a leitura tinha parado.
+  const [index, setIndex] = useState(() =>
+    clamp(startAt ?? text.progressIndex, 0, Math.max(0, total - 1))
+  );
   const [playing, setPlaying] = useState(false);
   // Posicao em que a leitura corrente comecou: a rampa de aquecimento conta a
   // partir dela, nao do inicio do texto - senao retomar no meio ja chegaria
@@ -109,6 +140,68 @@ function Reader({ text: initialText }: { text: TextDetail }) {
   const [summary, setSummary] = useState<{ durationMs: number; wordsRead: number } | null>(null);
   const [quizOpen, setQuizOpen] = useState(false);
   const [comprehension, setComprehension] = useState<number | null>(null);
+
+  /* --- destaques --------------------------------------------------------- */
+  const [marks, setMarks] = useState<HighlightItem[]>(highlights);
+  const [openMark, setOpenMark] = useState<string | null>(null);
+  const [marking, setMarking] = useState(false);
+  // Selecionar texto so faz sentido onde o texto esta na tela; no modo Foco a
+  // unidade que da para apontar sem parar a leitura e a frase.
+  const selectable = mode !== "rsvp" && !finished;
+  const { span: selection, clear: clearSelection } = useWordSelection(selectable);
+
+  const stored: StoredHighlight[] = useMemo(
+    () => marks.map(({ id, start, end, note }) => ({ id, start, end, note })),
+    [marks]
+  );
+
+  const createMark = useCallback(
+    async (range: Span) => {
+      setMarking(true);
+      try {
+        const data = await apiSend<{ highlights: HighlightItem[] }>(
+          `/api/texts/${text.id}/destaques`,
+          "POST",
+          range
+        );
+        setMarks(data.highlights);
+        notify("Trecho destacado.", "success");
+      } catch (cause) {
+        notify(cause instanceof Error ? cause.message : "Nao consegui destacar.", "error");
+      } finally {
+        setMarking(false);
+        clearSelection();
+      }
+    },
+    [text.id, notify, clearSelection]
+  );
+
+  const saveNote = useCallback(
+    async (markId: string, note: string) => {
+      await apiSend(`/api/texts/${text.id}/destaques/${markId}`, "PATCH", { note });
+      const trimmed = note.trim();
+      setMarks((current) =>
+        current.map((item) =>
+          item.id === markId ? { ...item, note: trimmed.length > 0 ? trimmed : null } : item
+        )
+      );
+    },
+    [text.id]
+  );
+
+  const removeMark = useCallback(
+    async (markId: string) => {
+      await apiSend(`/api/texts/${text.id}/destaques/${markId}`, "DELETE");
+      setMarks((current) => current.filter((item) => item.id !== markId));
+    },
+    [text.id]
+  );
+
+  /** Destaca a frase que contem a palavra atual, sem parar a leitura. */
+  const markSentence = useCallback(() => {
+    const range = sentenceRange(words, index);
+    if (range) void createMark(range);
+  }, [words, index, createMark]);
 
   const elapsedMs = useCallback(
     () => elapsedRef.current + (startedAtRef.current ? Date.now() - startedAtRef.current : 0),
@@ -432,6 +525,21 @@ function Reader({ text: initialText }: { text: TextDetail }) {
               {formatClock(displayMs)}
             </p>
           </div>
+          {/* So aparece quando ha o que revisar: um atalho para uma lista
+              vazia seria ruido em uma barra ja estreita. */}
+          {marks.length > 0 ? (
+            <Link
+              href={`/textos/${text.id}/destaques`}
+              aria-label={`Destaques (${marks.length})`}
+              className="relative flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+            >
+              <MarkIcon className="size-5" />
+              <span className="tabular absolute right-1 top-1 min-w-4 rounded-full bg-mark-soft px-1 text-[0.625rem] font-medium leading-4 text-ink">
+                {marks.length}
+              </span>
+            </Link>
+          ) : null}
+
           <button
             type="button"
             onClick={() => setShowSettings(true)}
@@ -474,7 +582,9 @@ function Reader({ text: initialText }: { text: TextDetail }) {
             pageEnd={pageEnd}
             ready={pagesReady}
             loadingMore={loadingMore}
+            marks={stored}
             onTurn={turnPage}
+            onOpenMark={setOpenMark}
           />
         ) : (
           <FlowStage
@@ -482,19 +592,35 @@ function Reader({ text: initialText }: { text: TextDetail }) {
             totalWords={total}
             index={index}
             chunkSize={chunkSize}
+            marks={stored}
             onToggle={togglePlay}
             onSeek={(position) => {
               setIndex(position);
               setFinished(false);
             }}
+            onOpenMark={setOpenMark}
           />
         )}
       </main>
 
+      {selection && !finished ? (
+        <div className="pointer-events-none sticky bottom-0 z-30 flex justify-center px-4">
+          <div className="pointer-events-auto mb-2 flex items-center gap-1 rounded-full border border-border bg-surface p-1 shadow-float">
+            <Button size="md" loading={marking} onClick={() => void createMark(selection)}>
+              <MarkIcon className="size-5" />
+              Destacar
+            </Button>
+            <ControlButton label="Cancelar selecao" onClick={clearSelection}>
+              <CloseIcon className="size-5" />
+            </ControlButton>
+          </div>
+        </div>
+      ) : null}
+
       {!finished ? (
         <footer className="pb-safe sticky bottom-0 border-t border-border bg-bg/95 backdrop-blur">
           <div className="mx-auto w-full max-w-3xl px-4 py-3">
-            <div className="flex items-center justify-center gap-3">
+            <div className="relative flex items-center justify-center gap-3">
               {mode === "page" ? (
                 <ControlButton label="Pagina anterior" onClick={() => turnPage(-1)}>
                   <BackIcon className="size-5" />
@@ -523,6 +649,18 @@ function Reader({ text: initialText }: { text: TextDetail }) {
                   <FastForwardIcon className="size-5" />
                 </ControlButton>
               )}
+
+              {/* No modo Foco nao ha texto na tela para selecionar: a unidade
+                  que da para apontar sem parar a leitura e a frase. Fica
+                  absoluto na borda para nao tirar o botao de play do centro,
+                  que e onde o polegar o procura. */}
+              {mode === "rsvp" ? (
+                <div className="absolute right-0">
+                  <ControlButton label="Destacar frase" onClick={markSentence}>
+                    <MarkIcon className="size-5" />
+                  </ControlButton>
+                </div>
+              ) : null}
             </div>
 
             {mode === "page" && pagesReady ? (
@@ -544,6 +682,16 @@ function Reader({ text: initialText }: { text: TextDetail }) {
             </div>
           </div>
         </footer>
+      ) : null}
+
+      {openMark && marks.some((item) => item.id === openMark) ? (
+        <HighlightSheet
+          key={openMark}
+          mark={marks.find((item) => item.id === openMark)!}
+          onClose={() => setOpenMark(null)}
+          onSaveNote={(note) => saveNote(openMark, note)}
+          onRemove={() => removeMark(openMark)}
+        />
       ) : null}
 
       <QuizSheet
@@ -699,6 +847,75 @@ function OrpWord({ word }: { word: string }) {
  * largura e tipografia, quantas palavras cabem nela. Toque na metade direita
  * avanca, na esquerda volta - o mesmo gesto de um e-reader.
  */
+/** Posicao da palavra dentro do trecho destacado. */
+function edgeOf(position: number, mark: StoredHighlight): string {
+  const first = position === mark.start;
+  const last = position === mark.end - 1;
+  if (first && last) return "unico";
+  if (first) return "inicio";
+  if (last) return "fim";
+  return "meio";
+}
+
+/**
+ * Um paragrafo do modo Paginas, quebrado nos trechos destacados.
+ *
+ * Sem destaque algum sai um no de texto unico - exatamente o que a regua de
+ * paginacao mede. Com destaque, os pedacos sao `<span>` em linha, sem caixa
+ * propria: o fundo pintado nao muda onde as linhas quebram.
+ */
+function MarkedText({
+  paragraph,
+  marks,
+  onOpenMark,
+}: {
+  paragraph: Paragraph;
+  marks: StoredHighlight[];
+  onOpenMark: (id: string) => void;
+}) {
+  const end = paragraph.start + paragraph.words.length;
+  const segments = segmentsOf(paragraph.start, end, marks);
+
+  if (segments.length === 1 && segments[0]!.id === null) {
+    return <span data-start={paragraph.start}>{paragraph.words.join(" ")}</span>;
+  }
+
+  return (
+    <>
+      {segments.map((segment, position) => {
+        const from = segment.start - paragraph.start;
+        const words = paragraph.words.slice(from, segment.end - paragraph.start).join(" ");
+        // O espaco entre pedacos vive fora deles: dentro, entraria na contagem
+        // de palavras do pedaco seguinte e deslocaria a selecao em um.
+        const gap = segment.end < end ? " " : "";
+
+        if (!segment.id) {
+          return (
+            <span key={position} data-start={segment.start}>
+              {words}
+              {gap}
+            </span>
+          );
+        }
+
+        return (
+          <span key={position}>
+            <span
+              data-start={segment.start}
+              data-note={segment.hasNote ? "sim" : undefined}
+              className="mark"
+              onClick={() => onOpenMark(segment.id!)}
+            >
+              {words}
+            </span>
+            {gap}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 function PageStage({
   frameRef,
   rulerRef,
@@ -707,7 +924,9 @@ function PageStage({
   pageEnd,
   ready,
   loadingMore,
+  marks,
   onTurn,
+  onOpenMark,
 }: {
   frameRef: React.Ref<HTMLDivElement>;
   rulerRef: React.RefObject<HTMLDivElement | null>;
@@ -716,7 +935,9 @@ function PageStage({
   pageEnd: number;
   ready: boolean;
   loadingMore: boolean;
+  marks: StoredHighlight[];
   onTurn: (direction: 1 | -1) => void;
+  onOpenMark: (id: string) => void;
 }) {
   const touchStartX = useRef<number | null>(null);
 
@@ -750,7 +971,9 @@ function PageStage({
         <div className="reader-prose">
           {ready
             ? sliceParagraphs(paragraphs, pageStart, pageEnd).map((paragraph) => (
-                <p key={paragraph.start}>{paragraph.words.join(" ")}</p>
+                <p key={paragraph.start}>
+                  <MarkedText paragraph={paragraph} marks={marks} onOpenMark={onOpenMark} />
+                </p>
               ))
             : null}
         </div>
@@ -799,15 +1022,19 @@ function FlowStage({
   totalWords,
   index,
   chunkSize,
+  marks,
   onToggle,
   onSeek,
+  onOpenMark,
 }: {
   paragraphs: Paragraph[];
   totalWords: number;
   index: number;
   chunkSize: number;
+  marks: StoredHighlight[];
   onToggle: () => void;
   onSeek: (position: number) => void;
+  onOpenMark: (id: string) => void;
 }) {
   // Renderiza so a janela ao redor da posicao atual: um artigo de 5 mil
   // palavras viraria 5 mil elementos a cada passo. A janela cresce conforme a
@@ -867,14 +1094,24 @@ function FlowStage({
                   : position < index
                     ? "read"
                     : "pending";
+              const mark = markCovering(marks, position);
+              const last = mark ? position === mark.end - 1 : false;
 
               return (
                 <span
                   key={position}
                   ref={position === index ? activeRef : undefined}
                   data-state={state}
-                  className="flow-word cursor-pointer"
-                  onClick={() => onSeek(position)}
+                  // `data-start` e o elo entre a tela e os indices: e por ele
+                  // que a selecao vira intervalo de palavras.
+                  data-start={position}
+                  className={`flow-word cursor-pointer${mark ? " mark" : ""}`}
+                  // Onde a palavra esta dentro do trecho: so as pontas do
+                  // destaque ficam arredondadas, para que ele seja lido como
+                  // uma marcacao unica e nao uma por palavra.
+                  data-edge={mark ? edgeOf(position, mark) : undefined}
+                  data-note={mark?.note && last ? "sim" : undefined}
+                  onClick={() => (mark ? onOpenMark(mark.id) : onSeek(position))}
                 >
                   {word}{" "}
                 </span>

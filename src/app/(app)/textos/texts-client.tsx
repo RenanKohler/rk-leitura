@@ -7,6 +7,7 @@ import { apiGet, apiSend } from "@/lib/client";
 import { useSettings, useToast } from "@/components/providers";
 import { ImportCard } from "@/components/import-card";
 import {
+  Alert,
   Button,
   Card,
   EmptyState,
@@ -18,7 +19,14 @@ import {
   Skeleton,
   TextArea,
 } from "@/components/ui";
-import { ArchiveIcon, EditIcon, LibraryIcon, RestoreIcon, TrashIcon } from "@/components/icons";
+import {
+  ArchiveIcon,
+  EditIcon,
+  LibraryIcon,
+  MarkIcon,
+  RestoreIcon,
+  TrashIcon,
+} from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
 import {
   DEFAULT_SCOPE,
@@ -98,6 +106,9 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
     }
   };
   const [editing, setEditing] = useState<TextDetail | null>(null);
+  // Conteudo como estava ao abrir o editor: e a comparacao com ele que diz se
+  // os destaques e a posicao de leitura vao embora.
+  const [original, setOriginal] = useState("");
   const [pendingDelete, setPendingDelete] = useState<TextSummary | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -109,6 +120,7 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
     try {
       // A listagem nao traz o conteudo; busca so ao abrir o editor.
       const { text: detail } = await apiGet<{ text: TextDetail }>(`/api/texts/${text.id}`);
+      setOriginal(detail.content);
       setEditing(detail);
     } catch {
       notify("Nao foi possivel abrir o texto.", "error");
@@ -119,14 +131,23 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
     if (!editing) return;
     setBusy(true);
     try {
-      await apiSend(`/api/texts/${editing.id}`, "PUT", {
-        title: editing.title,
-        sourceUrl: editing.sourceUrl,
-        content: editing.content,
-      });
+      const { removedHighlights } = await apiSend<{ removedHighlights: number }>(
+        `/api/texts/${editing.id}`,
+        "PUT",
+        {
+          title: editing.title,
+          sourceUrl: editing.sourceUrl,
+          content: editing.content,
+        }
+      );
       setEditing(null);
       resource.reload();
-      notify("Texto atualizado.", "success");
+      notify(
+        removedHighlights > 0
+          ? `Texto atualizado. ${removedHighlights === 1 ? "1 destaque removido" : `${removedHighlights} destaques removidos`}.`
+          : "Texto atualizado.",
+        "success"
+      );
     } catch (error) {
       notify(error instanceof Error ? error.message : "Falha ao salvar.", "error");
     } finally {
@@ -307,6 +328,18 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
               value={editing.content}
               onChange={(event) => setEditing({ ...editing, content: event.target.value })}
             />
+
+            {/* O aviso aparece antes de salvar, com o Cancelar ao lado do
+                Salvar: os indices dos destaques apontam para as palavras do
+                conteudo antigo, e nao ha como remapea-los para um texto que
+                pode ter mudado em qualquer ponto. */}
+            {editing.content !== original && editing.highlights > 0 ? (
+              <Alert>
+                {editing.highlights === 1
+                  ? "Salvar vai remover o destaque deste texto e reiniciar a leitura."
+                  : `Salvar vai remover os ${editing.highlights} destaques deste texto e reiniciar a leitura.`}
+              </Alert>
+            ) : null}
           </div>
         ) : null}
       </Sheet>
@@ -386,6 +419,18 @@ function TextCard({
             </IconButton>
           </div>
         </div>
+
+        {/* Fora do <Link> do titulo: um link dentro de outro nao e valido, e
+            o toque cairia no destino errado. */}
+        {text.highlights > 0 ? (
+          <Link
+            href={`/textos/${text.id}/destaques`}
+            className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface-2 px-3 text-sm font-medium text-muted"
+          >
+            <MarkIcon className="size-4" />
+            {text.highlights === 1 ? "1 destaque" : `${text.highlights} destaques`}
+          </Link>
+        ) : null}
 
         {percent > 0 ? (
           <div className="mt-3 h-1 overflow-hidden rounded-full bg-surface-2">

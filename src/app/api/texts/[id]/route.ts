@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { texts } from "@/db/schema";
+import { highlights, texts } from "@/db/schema";
 import {
   asInteger,
   asString,
@@ -10,6 +10,7 @@ import {
   requireSession,
   serverError,
 } from "@/lib/api";
+import { loadText } from "@/lib/queries";
 import { clamp, countWords } from "@/lib/reading";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,9 @@ export async function GET(_request: Request, { params }: Params) {
     const { id } = await params;
     if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
 
-    const [text] = await db.select().from(texts).where(ownedText(id, session.id)).limit(1);
+    // `loadText` em vez da linha crua: o editor precisa saber quantos
+    // destaques existem para avisar que salvar o conteudo vai remove-los.
+    const text = await loadText(session.id, id);
     if (!text) return jsonError("Texto nao encontrado.", 404);
 
     return NextResponse.json({ text });
@@ -62,23 +65,46 @@ export async function PUT(request: Request, { params }: Params) {
       return jsonError("O texto e grande demais.", 413);
     }
 
-    const wordCount = countWords(content);
-    const [updated] = await db
-      .update(texts)
-      .set({
-        title: title.slice(0, 200),
-        sourceUrl,
-        content,
-        wordCount,
-        // O texto mudou: a posicao salva pode estar alem do novo fim.
-        progressIndex: 0,
-        updatedAt: new Date(),
-      })
+    const [current] = await db
+      .select({ content: texts.content })
+      .from(texts)
       .where(ownedText(id, session.id))
-      .returning();
+      .limit(1);
+
+    if (!current) return jsonError("Texto nao encontrado.", 404);
+
+    // Trocar so o titulo nao mexe na leitura. E o conteudo que invalida a
+    // posicao salva e os indices dos destaques - por isso as duas perdas
+    // acontecem juntas, e so quando ele muda de fato.
+    const rewritten = current.content !== content;
+    const wordCount = countWords(content);
+
+    const [updated, removed] = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(texts)
+        .set({
+          title: title.slice(0, 200),
+          sourceUrl,
+          content,
+          wordCount,
+          ...(rewritten ? { progressIndex: 0 } : {}),
+          updatedAt: new Date(),
+        })
+        .where(ownedText(id, session.id))
+        .returning();
+
+      const dropped = rewritten
+        ? await tx
+            .delete(highlights)
+            .where(eq(highlights.textId, id))
+            .returning({ id: highlights.id })
+        : [];
+
+      return [row, dropped.length] as const;
+    });
 
     if (!updated) return jsonError("Texto nao encontrado.", 404);
-    return NextResponse.json({ text: updated });
+    return NextResponse.json({ text: updated, removedHighlights: removed });
   } catch (error) {
     return serverError("texts/update", error);
   }
