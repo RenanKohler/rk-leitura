@@ -22,9 +22,15 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 - Os identificadores US-NN são estáveis. O épico de compartilhamento foi
   acrescentado depois, então sua numeração (US-33 a US-36) não segue a ordem de
   leitura do documento.
-- Os épicos US-01 a US-36 descrevem o que o código faz ou o que falta nele. O
-  épico final (US-37 a US-40) é de produto: funcionalidades que ainda não
-  existem em lugar nenhum e cujas estimativas são previsões, não leitura.
+- Os épicos US-01 a US-36 descrevem o que o código faz ou o que falta nele. Os
+  oito épicos finais (US-37 a US-61) são de produto: funcionalidades que ainda
+  não existem em lugar nenhum e cujas estimativas são previsões, não leitura.
+- Três itens antes listados como Won't Have foram reavaliados e entraram:
+  leitura offline (US-40), importação de PDF e EPUB (US-57 e US-58) e gráficos
+  de evolução (US-48). Compartilhamento entre usuários continua fora.
+- O fuso horário do usuário não é armazenado hoje. É o pré-requisito comum de
+  US-41, US-42, US-48 e US-49, e deve ser a primeira entrega do épico de
+  hábito.
 - Velocidade de referência para planejamento: 20 a 25 pontos por sprint de 2
   semanas.
 
@@ -55,14 +61,20 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Preferências | 3 | 7 | 1 | 1 | 1 |
 | Painel e histórico | 3 | 8 | 0 | 2 | 1 |
 | Plataforma e operação | 3 | 15 | 0 | 3 | 0 |
-| Produto: novas funcionalidades | 4 | 37 | 0 | 1 | 3 |
-| **Total** | **40** | **165** | **15 (38%)** | **16 (40%)** | **9 (22%)** |
+| Hábito e metas | 3 | 11 | 2 | 1 | 0 |
+| Treino de velocidade e compreensão | 4 | 24 | 2 | 1 | 1 |
+| Estatísticas e evolução | 3 | 10 | 2 | 1 | 0 |
+| Anotações e destaques | 3 | 11 | 2 | 1 | 0 |
+| Organização da biblioteca | 4 | 18 | 1 | 2 | 1 |
+| Importação ampliada | 3 | 18 | 0 | 2 | 1 |
+| Ferramentas de leitura | 4 | 22 | 1 | 1 | 2 |
+| Leitura offline | 1 | 13 | 0 | 1 | 0 |
+| **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
 
-Status: 34 Implementadas, 4 Propostas, 2 Aguardando pendência.
+Status: 34 Implementadas, 24 Propostas, 3 Aguardando pendência.
 
-O épico "Produto: novas funcionalidades" reúne o que ainda não existe no código
-e não foi extraído dele: são propostas de produto, levantadas em conversa e
-dimensionadas contra a base atual. Vêm depois das demais stories.
+Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
+no código: são propostas de produto, não leitura dele. Vêm depois das demais.
 
 ---
 
@@ -710,15 +722,240 @@ Como mantenedor, eu quero testes automatizados para extração, segurança de im
 
 ---
 
-## Épico: Produto: novas funcionalidades
+## Épico: Hábito e metas
 
-Funcionalidades propostas para depois das stories acima. Nenhuma existe no
-código: as estimativas foram feitas contra a base atual, e os critérios são
-intenção de produto, não descrição de comportamento.
+### US-41: Definir meta diária de leitura
+
+**Épico:** Hábito e metas
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+
+Como leitor, eu quero definir uma meta diária em minutos ou em palavras, para que eu crie o hábito de ler todos os dias.
+
+**Critérios de aceitação**
+1. Dado que defino em Ajustes uma meta de 5 a 180 minutos ou de 500 a 50.000 palavras, quando salvo, então o painel passa a exibir o progresso do dia em relação à meta.
+2. Dado que registro sessões ao longo do dia, quando abro o painel, então o progresso soma todas as sessões do dia no meu fuso horário.
+3. Dado que atinjo a meta durante uma leitura, quando a sessão é registrada, então vejo um aviso de meta concluída uma única vez naquele dia.
+4. Dado que não defini meta, quando abro o painel, então o bloco de meta mostra apenas um convite para configurá-la.
+
+**Notas técnicas:** requer armazenar o fuso horário do usuário (detectado no navegador e editável) — é o pré-requisito compartilhado por esta story, US-42, US-48 e US-49. O limiar de 10 palavras da US-21 é do cliente, então sessões curtas não chegam a ser registradas e não contam para a meta.
+
+### US-42: Acompanhar sequência de dias
+
+**Épico:** Hábito e metas
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+
+Como leitor, eu quero ver quantos dias seguidos atingi minha meta, para que eu tenha um incentivo para manter a regularidade.
+
+**Critérios de aceitação**
+1. Dado que atingi a meta em dias consecutivos, quando abro o painel, então vejo a sequência atual e a maior sequência já alcançada.
+2. Dado que ainda não atingi a meta hoje, mas atingi ontem, quando abro o painel, então a sequência atual é mantida e sinalizada como pendente para hoje.
+3. Dado que um dia inteiro passou sem a meta atingida, quando abro o painel no dia seguinte, então a sequência atual volta a zero e a maior sequência é preservada.
+4. Dado que altero a meta, quando a mudança é salva, então os dias anteriores são avaliados pela meta vigente em cada dia.
+
+**Notas técnicas:** o critério 4 exige guardar o histórico de metas (valor e data de vigência), não só o valor atual. Depende de US-41.
+
+### US-43: Receber lembrete diário
+
+**Épico:** Hábito e metas
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Proposta
+**Decisão pendente:** a periodicidade do agendamento. O plano Hobby da Vercel limita a frequência dos cron jobs, o que define a granularidade possível do horário escolhido.
+
+Como leitor, eu quero receber um lembrete no horário que escolher quando ainda não li no dia, para que eu não quebre minha sequência por esquecimento.
+
+**Critérios de aceitação**
+1. Dado que ativo lembretes e escolho um horário, quando concedo permissão de notificação, então passo a receber um lembrete diário nesse horário no meu fuso.
+2. Dado que já atingi a meta do dia, quando chega o horário, então nenhum lembrete é enviado.
+3. Dado que nego a permissão ou o navegador não suporta notificações, quando tento ativar, então vejo orientação de como habilitar ou a indicação de que o recurso não está disponível.
+4. Dado que toco no lembrete, quando o app abre, então vou para o texto em andamento mais recente ou para a biblioteca, se não houver.
+
+**Notas técnicas:** Web Push com chaves VAPID, que são geradas localmente e não exigem contratar nada. Exige service worker — o mesmo da US-40, então vale entregar as duas próximas uma da outra. No iOS, notificação web só funciona com o app instalado na tela inicial, o que já é requisito do compartilhamento (US-33).
+
+---
+
+## Épico: Treino de velocidade e compreensão
+
+### US-44: Acelerar gradualmente no início da leitura
+
+**Épico:** Treino de velocidade e compreensão
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+
+Como leitor, eu quero que a velocidade comece mais baixa e suba até a configurada, para que eu me adapte ao ritmo sem perder as primeiras frases.
+
+**Critérios de aceitação**
+1. Dado que a aceleração gradual está ativa, quando inicio ou retomo a leitura, então a velocidade começa em 60% da configurada e atinge 100% ao longo das primeiras 50 palavras.
+2. Dado que pauso por menos de 3 segundos, quando retomo, então a leitura continua na velocidade plena, sem nova aceleração.
+3. Dado que desativo a opção em Ajustes, quando inicio a leitura, então ela começa direto na velocidade configurada.
+4. Dado que a sessão usa aceleração, quando é registrada, então o ppm continua calculado a partir de palavras e duração reais.
+
+**Notas técnicas:** entra em `chunkDurationMs`, que hoje é pura e testada. Manter a pureza: a rampa vira parâmetro da função, não estado escondido no leitor.
+
+### US-45: Medir minha velocidade inicial
+
+**Épico:** Treino de velocidade e compreensão
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+
+Como leitor novo, eu quero fazer um teste de leitura, para que o app sugira uma velocidade adequada em vez de eu escolher no escuro.
+
+**Critérios de aceitação**
+1. Dado que inicio o teste, quando leio um texto padrão em modo normal (sem avanço automático) e toco em "Terminei", então o app calcula meu ppm.
+2. Dado que termino o texto, quando respondo 5 perguntas de múltipla escolha, então vejo ppm, percentual de acertos e uma velocidade sugerida.
+3. Dado que acerto menos de 60%, quando a sugestão é calculada, então ela fica abaixo do ppm medido.
+4. Dado que aceito a sugestão, quando confirmo, então ela passa a ser minha velocidade base; posso refazer o teste a qualquer momento em Ajustes.
+
+**Notas técnicas:** textos e perguntas fixos, escritos para o teste e versionados no repositório, sem dependência de IA — é o que separa esta story da US-46 e o que a mantém entregável sem decisão externa. Oferecer no primeiro acesso após o cadastro, com opção de pular.
+
+### US-46: Responder perguntas de compreensão ao concluir um texto
+
+**Épico:** Treino de velocidade e compreensão
+**Prioridade:** Should
+**Story points:** 8
+**Status:** Aguardando pendência
+**Pendência:** exige escolher um provedor de modelo de linguagem e definir teto de custo mensal e limite diário por usuário. É a única story do backlog com custo recorrente por uso.
+
+Como estudante, eu quero responder perguntas sobre o texto que acabei de ler, para que eu saiba se a velocidade está prejudicando meu entendimento.
+
+**Critérios de aceitação**
+1. Dado que concluo um texto com pelo menos 300 palavras, quando a tela de conclusão aparece, então posso iniciar um questionário de 3 a 5 perguntas de múltipla escolha sobre o conteúdo.
+2. Dado que respondo o questionário, quando envio, então vejo acertos, a resposta correta de cada pergunta e o trecho do texto que a justifica.
+3. Dado que a sessão tem questionário respondido, quando aparece no histórico, então exibe o percentual de compreensão ao lado do ppm.
+4. Dado que o serviço de geração está indisponível ou o limite diário foi atingido, quando peço o questionário, então vejo mensagem informativa e a conclusão da leitura não é afetada.
+
+**Notas técnicas:** cache por texto e versão do conteúdo, senão a continuação (US-23) faria regerar a cada parte anexada. O conteúdo do texto sai da aplicação rumo a um terceiro, o que precisa estar dito na tela antes do primeiro uso — vale lembrar que a biblioteca deste app guarda leitura pessoal.
+
+### US-47: Seguir um programa de treino
+
+**Épico:** Treino de velocidade e compreensão
+**Prioridade:** Could
+**Story points:** 8
+**Status:** Proposta
+
+Como leitor, eu quero seguir um programa com metas progressivas de velocidade, para que eu aumente meu ritmo de forma estruturada.
+
+**Critérios de aceitação**
+1. Dado que escolho um programa de 14 ou 30 dias, quando começo, então cada dia define uma velocidade alvo calculada a partir da minha velocidade atual.
+2. Dado que concluo a sessão do dia na velocidade alvo, quando ela é registrada, então o dia é marcado como cumprido e o próximo é liberado.
+3. Dado que a compreensão do dia fica abaixo de 60%, quando existir questionário (US-46), então o alvo do dia seguinte não aumenta.
+4. Dado que abandono o programa, quando confirmo, então as preferências voltam à velocidade anterior ao programa.
+
+**Notas técnicas:** depende de US-45. O critério 3 depende de US-46, que está bloqueada — então ele fica opcional, e o programa funciona sem ele.
+
+---
+
+## Épico: Estatísticas e evolução
+
+### US-48: Ver a evolução do ritmo ao longo do tempo
+
+**Épico:** Estatísticas e evolução
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+
+Como leitor, eu quero ver um gráfico do meu ppm médio e do tempo de leitura por período, para que eu confirme se estou evoluindo.
+
+**Critérios de aceitação**
+1. Dado que tenho sessões registradas, quando abro Estatísticas, então vejo ppm médio e minutos lidos por dia nos últimos 30 dias e por semana nos últimos 6 meses.
+2. Dado que um dia não tem sessões, quando o gráfico é exibido, então esse dia aparece vazio, sem interpolação.
+3. Dado que tenho menos de 3 sessões, quando abro a tela, então vejo mensagem de dados insuficientes em vez do gráfico.
+4. Dado que uso o app no celular, quando vejo o gráfico, então ele cabe na largura da tela e permite consultar o valor de cada ponto com toque.
+
+**Notas técnicas:** agregação no banco por dia no fuso do usuário, seguindo o padrão de `loadOverview` — baixar o histórico para somar no cliente é justamente o que o painel evita hoje. Gráfico em SVG próprio: uma biblioteca de gráficos custaria mais bundle do que o desenho de duas séries.
+
+### US-49: Receber um resumo semanal
+
+**Épico:** Estatísticas e evolução
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Proposta
+
+Como leitor, eu quero ver um resumo da semana anterior ao abrir o app na segunda-feira, para que eu compare meu desempenho sem precisar consultar gráficos.
+
+**Critérios de aceitação**
+1. Dado que li na semana anterior, quando abro o painel pela primeira vez na semana, então vejo um cartão com minutos lidos, palavras, ppm médio e textos concluídos, com variação em relação à semana anterior.
+2. Dado que dispenso o cartão, quando volto ao painel, então ele não aparece novamente naquela semana.
+3. Dado que não li na semana anterior, quando abro o painel, então o cartão não é exibido.
+
+### US-50: Exportar meus dados de leitura
+
+**Épico:** Estatísticas e evolução
+**Prioridade:** Must
+**Story points:** 2
+**Status:** Proposta
+
+Como leitor, eu quero baixar meu histórico de sessões e minha biblioteca, para que eu analise os dados em outra ferramenta e tenha uma cópia do que é meu.
+
+**Critérios de aceitação**
+1. Dado que aciono "Exportar dados" em Ajustes, quando escolho sessões, então baixo um CSV com data, título, ppm, palavras, duração e conclusão.
+2. Dado que escolho biblioteca, quando exporto, então baixo um JSON com título, origem, conteúdo, progresso e datas de cada texto.
+3. Dado que não tenho dados, quando exporto, então o arquivo contém apenas o cabeçalho ou uma lista vazia.
+
+**Notas técnicas:** atende à portabilidade prevista na LGPD e fecha o par com a US-07, que já entrega a eliminação. É a menor story do backlog e a de maior valor por ponto.
+
+---
+
+## Épico: Anotações e destaques
+
+### US-51: Destacar trechos durante a leitura
+
+**Épico:** Anotações e destaques
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+
+Como estudante, eu quero marcar trechos importantes enquanto leio, para que eu os revise depois sem reler o texto inteiro.
+
+**Critérios de aceitação**
+1. Dado que estou no modo Rolagem ou Páginas, quando seleciono um trecho e aciono "Destacar", então o trecho fica marcado e continua visível ao reabrir o texto.
+2. Dado que estou no modo Foco, quando aciono "Destacar frase", então a frase que contém a palavra atual é destacada sem interromper a leitura.
+3. Dado que toco em um destaque existente, quando escolho remover, então ele deixa de existir.
+4. Dado que edito o conteúdo do texto (US-12), quando salvo, então sou avisado de que os destaques serão removidos e posso cancelar.
+
+**Notas técnicas:** armazenar início e fim por índice de palavra, coerente com `progressIndex`. A continuação (US-23) apenas anexa conteúdo, então os índices existentes seguem válidos; a edição não garante isso, e a US-12 já zera o progresso pelo mesmo motivo — daí o critério 4.
+
+### US-52: Adicionar notas aos destaques
+
+**Épico:** Anotações e destaques
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Proposta
+
+Como estudante, eu quero escrever uma nota em um destaque, para que eu registre minha interpretação junto do trecho.
+
+**Critérios de aceitação**
+1. Dado que toco em um destaque, quando escolho "Adicionar nota" e salvo um texto de até 2.000 caracteres, então a nota fica associada ao trecho.
+2. Dado que um destaque tem nota, quando é exibido no leitor, então há um indicador visual que abre a nota ao toque.
+3. Dado que apago todo o texto da nota, quando salvo, então a nota é removida e o destaque permanece.
+
+### US-53: Revisar e exportar destaques
+
+**Épico:** Anotações e destaques
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+
+Como estudante, eu quero ver todos os destaques de um texto em uma lista e exportá-los, para que eu use o material em resumos e anotações externas.
+
+**Critérios de aceitação**
+1. Dado que um texto tem destaques, quando abro "Destaques" a partir da biblioteca ou do leitor, então vejo os trechos na ordem do texto, com as notas.
+2. Dado que toco em um destaque da lista, quando o leitor abre, então a leitura se posiciona no início desse trecho.
+3. Dado que aciono "Exportar", quando confirmo, então baixo um arquivo Markdown com título, link de origem, trechos em citação e notas, ou copio o mesmo conteúdo para a área de transferência.
+
+---
+
+## Épico: Organização da biblioteca
 
 ### US-37: Ler uma história em vários capítulos como uma série
 
-**Épico:** Produto: novas funcionalidades
+**Épico:** Organização da biblioteca
 **Prioridade:** Should
 **Story points:** 8
 **Status:** Proposta
@@ -734,100 +971,261 @@ Como leitor de ficção seriada, eu quero que os capítulos de uma mesma histór
 5. Dado que o padrão de capítulo não é reconhecido, quando o texto é salvo, então ele fica solto na biblioteca, como hoje, sem erro.
 6. Dado que abro uma série, quando vejo seus capítulos, então posso desvincular um capítulo ou a série inteira.
 
-**Notas técnicas:** exige migration (`series_key` e `chapter` em `texts`, ou tabela própria) e detecção heurística por título e slug, confiável no padrão do Literotica e sujeita a falha em outras origens — daí o critério 5. Reaproveita `lib/source-url.ts` e a proteção anti-SSRF da importação.
+**Notas técnicas:** exige migration (`series_key` e `chapter` em `texts`, ou tabela própria) e detecção heurística por título e slug, confiável no padrão do Literotica e sujeita a falha em outras origens — daí o critério 5. Reaproveita `lib/source-url.ts` e a proteção anti-SSRF da importação. Série e etiqueta (US-54) resolvem problemas diferentes: uma é sequência automática, a outra é classificação manual.
 
-### US-38: Consultar significado e tradução ao toque
+### US-54: Organizar textos com etiquetas
 
-**Épico:** Produto: novas funcionalidades
+**Épico:** Organização da biblioteca
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Proposta
+
+Como leitor, eu quero atribuir etiquetas aos textos e filtrar por elas, para que eu separe estudo, trabalho e lazer.
+
+**Critérios de aceitação**
+1. Dado que edito um texto, quando adiciono etiquetas existentes ou crio novas (até 30 caracteres cada), então elas aparecem no card do texto.
+2. Dado que escolho uma etiqueta no filtro da biblioteca, quando o filtro é aplicado, então a lista e a paginação mostram apenas textos com essa etiqueta.
+3. Dado que renomeio ou excluo uma etiqueta, quando confirmo, então a mudança vale para todos os textos associados.
+
+**Notas técnicas:** entra na barra de filtros que a US-14 já entregou, junto da busca e do estado de leitura — `TextFilters` em `lib/queries.ts` foi feito para receber mais um critério sem reescrita.
+
+### US-55: Arquivar textos concluídos
+
+**Épico:** Organização da biblioteca
+**Prioridade:** Must
+**Story points:** 2
+**Status:** Proposta
+
+Como leitor, eu quero que textos concluídos saiam da lista principal sem serem apagados, para que a biblioteca mostre só o que ainda vou ler e o histórico seja preservado.
+
+**Critérios de aceitação**
+1. Dado que concluo um texto, quando volto à biblioteca, então ele aparece na aba "Arquivados", e não mais em "Meus textos".
+2. Dado que desarquivo um texto, quando confirmo, então ele volta à lista principal com o progresso atual.
+3. Dado que arquivo manualmente um texto não concluído, quando confirmo, então ele vai para "Arquivados" sem perder a posição de leitura.
+4. Dado que um texto é arquivado, quando consulto histórico e estatísticas, então suas sessões continuam contabilizadas.
+
+**Notas técnicas:** o filtro "Lidos" da US-14 já responde "o que terminei"; esta story separa o que ainda está em jogo do que saiu de cena, o que é uma pergunta diferente. Coluna `archived_at` em `texts`, acrescentada ao mesmo `TextFilters`.
+
+### US-56: Montar uma fila de leitura
+
+**Épico:** Organização da biblioteca
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Proposta
+
+Como leitor, eu quero ordenar os próximos textos em uma fila, para que o app sugira automaticamente o próximo ao terminar um.
+
+**Critérios de aceitação**
+1. Dado que adiciono textos à fila, quando a abro, então posso reordená-los arrastando.
+2. Dado que concluo um texto, quando a tela de conclusão aparece, então ela oferece abrir o próximo texto da fila.
+3. Dado que um texto da fila é removido ou arquivado, quando isso ocorre, então ele sai da fila automaticamente.
+
+---
+
+## Épico: Importação ampliada
+
+### US-57: Importar arquivos PDF
+
+**Épico:** Importação ampliada
+**Prioridade:** Should
+**Story points:** 8
+**Status:** Proposta
+
+Como estudante, eu quero importar um PDF com texto, para que eu leia artigos acadêmicos e apostilas no ritmo do app.
+
+**Critérios de aceitação**
+1. Dado que envio um PDF de até 10 MB com texto selecionável, quando importo, então vejo título (dos metadados ou do nome do arquivo) e prévia do conteúdo com parágrafos.
+2. Dado que o PDF tem cabeçalhos e números de página repetidos, quando o texto é extraído, então essas linhas repetidas são removidas.
+3. Dado que o PDF é digitalizado e não tem camada de texto, quando importo, então vejo mensagem informando que o arquivo não contém texto extraível.
+4. Dado que o texto extraído excede 400.000 caracteres, quando importo, então sou informado e posso importar apenas o trecho inicial.
+
+**Notas técnicas:** extração no cliente com pdf.js evita o limite de corpo e de tempo das funções serverless. O arquivo não é armazenado, apenas o texto extraído — o que também mantém a superfície de dados igual à de hoje.
+
+### US-58: Importar livros EPUB por capítulo
+
+**Épico:** Importação ampliada
 **Prioridade:** Could
 **Story points:** 8
 **Status:** Proposta
-**Decisão pendente:** a metade de tradução exige um provedor externo. A metade de dicionário em inglês pode ser entregue antes, sem contratar nada.
-**Evidência:** não há interação por palavra no leitor; os parágrafos são renderizados como blocos em `reader-client.tsx`
 
-Como leitor de textos em outro idioma, eu quero tocar numa palavra e ver significado e tradução, para que eu não precise sair do app e perder o fio da leitura.
+Como leitor, eu quero importar um EPUB sem DRM, para que eu leia livros no app capítulo a capítulo.
 
 **Critérios de aceitação**
-1. Dado que leio nos modos Rolagem ou Páginas, quando toco numa palavra, então uma folha inferior mostra a palavra, o significado e, quando disponível, a tradução.
-2. Dado que leio no modo Foco, quando pauso e toco na palavra exibida, então vejo a mesma folha.
-3. Dado que a consulta falha ou a palavra não é encontrada, quando a folha abre, então vejo mensagem própria e a leitura continua de onde estava.
-4. Dado que consultei uma palavra, quando abro "Palavras salvas", então vejo a lista das consultas com o texto de origem.
-5. Dado que a palavra vira alvo de toque, quando leio no modo Páginas, então a quebra de página continua idêntica à de hoje.
+1. Dado que envio um EPUB sem DRM, quando importo, então vejo o sumário e escolho importar o livro inteiro ou capítulos específicos.
+2. Dado que importo o livro inteiro, quando ele é salvo, então cada capítulo vira um texto com etiqueta do livro (US-54) e ordem preservada.
+3. Dado que o EPUB tem DRM ou está corrompido, quando importo, então vejo mensagem específica e nada é salvo.
 
-**Notas técnicas:** o critério 5 é o risco real: a régua de medição de `use-paged-text.ts` monta os mesmos parágrafos, então envolver cada palavra em um elemento próprio muda a medição se a régua não acompanhar. Requer rota própria passando por `lib/safe-fetch.ts`, tabela de palavras salvas e tratamento de limite do provedor.
+**Notas técnicas:** depende de US-54 para agrupar capítulos, e convém decidir antes se livro e série (US-37) são o mesmo conceito no schema. São: os dois são uma sequência ordenada de textos com uma origem comum.
 
-### US-39: Ouvir o texto com a voz do aparelho
+### US-59: Importar a página atual pelo navegador
 
-**Épico:** Produto: novas funcionalidades
-**Prioridade:** Could
+**Épico:** Importação ampliada
+**Prioridade:** Should
+**Story points:** 2
+**Status:** Proposta
+
+Como leitor no computador ou no iPhone, eu quero enviar a página que estou vendo para o Leitura com um toque, para que eu não precise copiar a URL.
+
+**Critérios de aceitação**
+1. Dado que instalo o favorito ("bookmarklet") oferecido em Ajustes, quando o aciono em uma página, então o Leitura abre em nova aba na importação com a URL preenchida.
+2. Dado que uso iOS, quando sigo as instruções em Ajustes, então consigo criar um Atalho que envia a URL compartilhada para a mesma tela.
+3. Dado que a URL recebida não é http ou https, quando a tela abre, então vejo a mensagem de URL inválida já existente na importação.
+
+**Notas técnicas:** `/compartilhar?url=` já faz exatamente isso e já trata os três critérios, incluindo a confirmação exigida quando a navegação vem de outro site (US-36). Esta story é o que falta: o favorito, o Atalho do iOS e as instruções em Ajustes. É o caminho do iPhone, onde o Safari não implementa Web Share Target.
+
+---
+
+## Épico: Ferramentas de leitura
+
+### US-60: Personalizar a tipografia
+
+**Épico:** Ferramentas de leitura
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+
+Como leitor, eu quero ajustar tamanho, família da fonte e espaçamento entre linhas, para que a leitura seja confortável para a minha visão.
+
+**Critérios de aceitação**
+1. Dado que abro Ajustes, quando altero tamanho (5 níveis), família (serifada, sem serifa ou fonte voltada a dislexia) ou espaçamento (3 níveis), então a prévia reflete a mudança imediatamente.
+2. Dado que leio no modo Páginas, quando mudo a tipografia, então as páginas são recalculadas mantendo a palavra atual visível.
+3. Dado que as preferências foram salvas, quando abro o app em outro dispositivo, então a mesma tipografia é aplicada.
+
+**Notas técnicas:** segue o padrão que a US-26 estabeleceu — variável CSS na raiz do leitor, para que mudar o ajuste não rerrenderize palavra nenhuma. A régua de `use-paged-text.ts` já recalcula quando as fontes carregam; falta incluir a tipografia nas dependências do cálculo.
+
+### US-39: Ouvir o texto em voz alta com destaque sincronizado
+
+**Épico:** Ferramentas de leitura
+**Prioridade:** Should
 **Story points:** 8
 **Status:** Proposta
 **Evidência:** `ReadingMode` em `src/lib/reading.ts` tem apenas `rsvp`, `flow` e `page`
 
-Como leitor, eu quero ouvir o texto em voz alta com a frase atual destacada, para que eu acompanhe a história com as mãos ou os olhos ocupados.
+Como leitor, eu quero que o app leia o texto em voz alta enquanto destaca as palavras, para que eu continue a leitura em momentos em que não posso olhar para a tela o tempo todo.
 
 **Critérios de aceitação**
-1. Dado que escolho o modo Audiolivro, quando inicio, então o texto é lido em voz alta pelo próprio aparelho e a frase atual fica destacada.
-2. Dado que pauso ou saio, quando volto ao texto, então a leitura retoma na mesma posição e a sessão é registrada como nos demais modos.
-3. Dado que abro os ajustes, quando escolho a voz, então vejo as vozes disponíveis no aparelho e a velocidade acompanha a configuração de ppm.
-4. Dado que o navegador não oferece síntese de voz, quando escolho o modo, então vejo aviso claro e os outros modos continuam disponíveis.
+1. Dado que ativo a leitura em voz alta, quando inicio, então o texto é narrado e o trecho narrado é destacado no modo Rolagem.
+2. Dado que pauso, avanço ou volto, quando a ação é aplicada, então a narração acompanha a nova posição.
+3. Dado que a velocidade configurada excede a suportada pela voz, quando a narração começa, então a velocidade é limitada e sou informado do valor aplicado.
+4. Dado que o dispositivo não tem voz no idioma do texto, quando tento ativar, então vejo mensagem explicando a limitação.
+5. Dado que a narração termina, quando uso a leitura em voz alta, então progresso e sessão são registrados como em uma leitura comum.
 
-**Notas técnicas:** usa `speechSynthesis`, no próprio aparelho, sem custo e sem chave. Exige segmentação por frase em `lib/reading.ts` e sincronia entre os eventos de fala e `progressIndex`. Limitação conhecida: reprodução com a tela bloqueada é instável nos navegadores móveis, então o caso "ouvir no caminho" fica parcialmente atendido.
+**Notas técnicas:** `speechSynthesis`, no próprio aparelho, sem custo e sem chave. Os eventos de fronteira de palavra variam entre navegadores e vozes, então prever sincronização por frase como alternativa. Limitação conhecida: reprodução com a tela bloqueada é instável nos navegadores móveis, o que atende só parcialmente o caso "ouvir no caminho". A narração não deve contar para o alvo de ppm do programa de treino (US-47).
 
-### US-40: Ler sem conexão
+### US-38: Consultar o significado de uma palavra
 
-**Épico:** Produto: novas funcionalidades
+**Épico:** Ferramentas de leitura
 **Prioridade:** Could
+**Story points:** 8
+**Status:** Proposta
+**Decisão pendente:** a fonte do dicionário. Definição em inglês tem API gratuita e pode ser entregue sem contratar nada; tradução e dicionário em português exigem provedor, e a cobertura gratuita é fraca.
+**Evidência:** não há interação por palavra no leitor; os parágrafos são renderizados como blocos em `reader-client.tsx`
+
+Como leitor, eu quero tocar em uma palavra desconhecida e ver seu significado, para que eu não interrompa a leitura para pesquisar em outro app.
+
+**Critérios de aceitação**
+1. Dado que toco longamente em uma palavra no modo Rolagem ou Páginas, quando o toque é reconhecido, então a leitura pausa e vejo a definição em um painel.
+2. Dado que leio no modo Foco, quando pauso e toco na palavra exibida, então vejo o mesmo painel.
+3. Dado que a palavra está flexionada (plural, conjugação), quando a consulta é feita, então a busca tenta a forma base antes de informar que não encontrou.
+4. Dado que fecho o painel, quando retomo, então a leitura continua da mesma posição.
+5. Dado que consultei uma palavra, quando abro "Palavras salvas", então vejo a lista das consultas com o texto de origem.
+6. Dado que a palavra vira alvo de toque, quando leio no modo Páginas, então a quebra de página continua idêntica à de hoje.
+
+**Notas técnicas:** o critério 6 é o risco real e o que justifica os 8 pontos em vez dos 5 de uma estimativa superficial: a régua de `use-paged-text.ts` monta os mesmos parágrafos, então envolver cada palavra em um elemento próprio muda a medição se a régua não acompanhar. A consulta passa por `lib/safe-fetch.ts`. Integra com US-52 para salvar a palavra como nota.
+
+### US-61: Enfatizar o início das palavras
+
+**Épico:** Ferramentas de leitura
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Proposta
+
+Como leitor, eu quero que as primeiras letras de cada palavra fiquem em negrito, para que eu teste se esse apoio visual melhora minha fluidez nos modos de texto corrido.
+
+**Critérios de aceitação**
+1. Dado que ativo a opção, quando leio nos modos Rolagem ou Páginas, então aproximadamente a primeira metade das letras de cada palavra aparece em negrito.
+2. Dado que a opção está ativa, quando o modo Páginas calcula as páginas, então a medição considera a ênfase aplicada.
+3. Dado que desativo a opção, quando volto ao texto, então ele é exibido sem ênfase.
+
+**Notas técnicas:** não usar o nome comercial da técnica, que é marca registrada. Compartilha com a US-38 o problema de envolver cada palavra em um elemento próprio sem quebrar a régua de paginação — vale entregar as duas próximas uma da outra.
+
+---
+
+## Épico: Leitura offline
+
+### US-40: Ler textos salvos sem conexão
+
+**Épico:** Leitura offline
+**Prioridade:** Should
 **Story points:** 13
 **Status:** Proposta
 **Evidência:** não há service worker no projeto; o manifest não prevê cache
 
-Como leitor em deslocamento, eu quero ler os textos que já abri mesmo sem rede, para que metrô, avião e área sem sinal não interrompam a leitura.
+Como leitor, eu quero continuar lendo textos já abertos sem internet, para que eu aproveite viagens e locais com sinal ruim.
 
 **Critérios de aceitação**
-1. Dado que já abri um texto com rede, quando fico sem conexão, então consigo abrir e ler esse texto normalmente.
-2. Dado que li sem conexão, quando a rede volta, então o progresso e as sessões registradas offline são enviados.
-3. Dado que o mesmo texto avançou em outro dispositivo enquanto eu lia offline, quando a sincronização acontece, então a posição mais recente vence e nada é perdido silenciosamente.
-4. Dado que estou sem conexão, quando tento importar uma URL, então vejo aviso de que a ação exige rede, em vez de erro genérico.
+1. Dado que abri um texto com conexão, quando fico offline, então consigo abrir esse texto e os 20 textos mais recentes da biblioteca.
+2. Dado que leio offline, quando progresso e sessões são gerados, então ficam em fila local e são enviados automaticamente ao reconectar.
+3. Dado que o mesmo texto avançou em outro dispositivo enquanto eu estava offline, quando sincronizo, então prevalece a posição com atualização mais recente.
+4. Dado que tento importar ou continuar um texto offline, quando aciono a ação, então vejo aviso de que a ação exige conexão.
 5. Dado que publico uma versão nova, quando abro o app, então não fico preso a uma versão em cache.
 
-**Notas técnicas:** é a maior das quatro e a única que adiciona uma camada com risco de comportamento estranho em produção — o critério 5 existe por causa disso. O service worker passa a mediar chamadas autenticadas, o que exige cuidado com o cookie de sessão e com cache de resposta de API.
+**Notas técnicas:** service worker com IndexedDB. É a maior story do backlog e a única que adiciona uma camada com risco de comportamento estranho em produção — o critério 5 existe por causa disso. O service worker passa a mediar chamadas autenticadas, o que exige cuidado com o cookie de sessão e com cache de resposta de API; hoje o `middleware.ts` valida a sessão no servidor, e a navegação offline precisa de uma casca de app em cache. As sessões usam o horário do dispositivo para contar na meta do dia correto (US-41). O mesmo service worker serve à US-43.
 
 ---
 
 ## Fora do escopo (Won't Have)
 
-- **Importação de PDF e EPUB:** a importação aceita apenas páginas HTML (`O endereco nao devolveu uma pagina de texto.`).
-- **Compartilhamento de textos entre usuários:** todas as consultas são restritas ao dono; compartilhar mudaria o modelo de privacidade. Não confundir com o épico Compartilhamento, que trata de trazer conteúdo de fora para dentro.
-- **Gráficos de evolução de ritmo:** os dados existem nas sessões, mas o painel atual trabalha apenas com agregados.
+- **Compartilhamento de textos e destaques entre usuários:** todas as consultas são restritas ao dono; compartilhar mudaria o modelo de privacidade. Não confundir com o épico Compartilhamento, que trata de trazer conteúdo de fora para dentro.
+- **Resumo automático do texto antes da leitura:** seria uma segunda dependência de modelo de linguagem, com custo próprio. Reavaliar depois de medir uso e custo do questionário (US-46).
+- **Aplicativos nativos:** o PWA com Share Target (US-33) e o modo offline (US-40) cobrem os principais casos de uso móvel.
+- **Ranking e competição entre leitores:** depende de dados compartilhados e não se alinha ao objetivo de treino individual.
 
 ## Sugestão de MVP e próximos passos
 
-O MVP está implementado: as 15 stories Must somam 49 pontos e cobrem cadastro,
-importação, compartilhamento, leitura com retomada e registro de sessões.
+O MVP está implementado: as stories extraídas do código estão todas fechadas,
+com exceção das duas que dependem de decisão externa.
 
-Entregue nesta rodada, em ordem:
+Entregue até aqui, em ordem:
 
 | Stories | Pontos | Resultado |
 | --- | --- | --- |
+| US-33 a US-36 | 13 | Compartilhar do navegador direto para a biblioteca |
 | US-32 | 8 | Rede de testes e pipeline de CI |
 | US-26 | 2 | Intensidade do destaque |
 | US-14 | 3 | Busca e filtro na biblioteca |
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
 
-O que resta:
+Restam 27 stories: 24 prontas para entrar em sprint (119 pontos) e 3 travadas
+por decisão externa (18 pontos). A ordem abaixo agrupa por dependência, não por
+tema: cada faixa entrega algo utilizável e prepara a seguinte.
 
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
-| 1 | US-37 | 8 | Produto: séries de capítulos, a de maior valor no uso atual |
-| 2 | US-39, US-38 | 16 | Produto: audiolivro e consulta ao toque |
-| 3 | US-40 | 13 | Produto: leitura offline |
-| — | US-05, US-31 | 10 | Aguardando pendência: provedor de e-mail e armazenamento do limitador |
+| 1 | US-50, US-55, US-60, US-44 | 10 | Ganhos isolados e baratos: exportar dados, arquivar, tipografia e aceleração gradual. Nenhuma depende de schema novo além de uma coluna. |
+| 2 | US-41, US-42, US-48, US-49 | 14 | Hábito e evolução. Começa pelo fuso horário, que as quatro compartilham. |
+| 3 | US-51, US-52, US-53 | 11 | Estudo: destacar, anotar e exportar destaques. |
+| 4 | US-37, US-54, US-56 | 16 | Organização: séries, etiquetas e fila. |
+| 5 | US-45, US-47 | 13 | Treino: medir a velocidade inicial e o programa progressivo. |
+| 6 | US-57, US-59, US-58 | 18 | Importação ampliada: PDF, favorito e EPUB. |
+| 7 | US-39, US-61, US-38 | 19 | Ferramentas de leitura: voz alta, ênfase no início das palavras e dicionário. |
+| 8 | US-40, US-43 | 18 | Offline e lembrete, que compartilham o service worker. |
+| — | US-05, US-31, US-46 | 18 | Aguardando pendência: provedor de e-mail, armazenamento do limitador e provedor de modelo de linguagem. |
 
-A US-32 veio primeiro porque não dependia de nada externo e porque o histórico
-do projeto já registrava três regressões que um teste teria pegado.
+Por que esta ordem e não a do documento de origem:
 
-Todas as stories extraídas do código estão fechadas, com exceção das duas que
-dependem de decisão externa. O que resta é o épico de produto: cada uma das
-quatro é maior que tudo o que foi entregue nesta rodada somado, e entra com a
-rede de testes já montada.
+- **US-50 (exportar dados) primeiro.** São 2 pontos, fecha o par com a US-07
+  que já entrega a eliminação, e não depende de nada.
+- **O fuso horário é um marco, não um detalhe.** US-41, US-42, US-48 e US-49
+  não podem ser entregues em sprints diferentes sem duplicar a decisão de como
+  agrupar sessões por dia. Estão juntas de propósito.
+- **US-38 e US-61 perto uma da outra.** As duas precisam envolver cada palavra
+  em um elemento próprio sem quebrar a régua de paginação. Resolver isso duas
+  vezes seria desperdício, e resolver mal quebra o modo Páginas.
+- **US-40 e US-43 no fim, juntas.** As duas exigem service worker. É a camada
+  de maior risco em produção, e entra por último, com a suíte de testes já
+  montada.
+
+Três decisões pendentes travam 18 pontos. Nenhuma delas bloqueia as ordens 1 a
+8: provedor de e-mail (US-05), armazenamento do limitador (US-31) e provedor de
+modelo de linguagem com teto de custo (US-46).
