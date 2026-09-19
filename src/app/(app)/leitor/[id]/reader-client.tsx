@@ -20,6 +20,9 @@ import {
 import {
   chunkDurationMs,
   clamp,
+  typographyVars,
+  warmupFactor,
+  WARMUP_WORDS,
   formatClock,
   formatNumber,
   MAX_CHUNK,
@@ -46,6 +49,9 @@ const PROGRESS_SAVE_INTERVAL_MS = 5_000;
 /** Salto de "uma tela" nos modos que nao tem pagina medida. */
 const SCREENFUL_WORDS = 110;
 
+/** Abaixo disso, retomar nao reinicia a rampa de aquecimento. */
+const SHORT_PAUSE_MS = 3000;
+
 export function ReaderClient({ text }: { text: TextDetail }) {
   return <Reader key={text.id} text={text} />;
 }
@@ -66,12 +72,20 @@ function Reader({ text: initialText }: { text: TextDetail }) {
 
   const [index, setIndex] = useState(() => clamp(text.progressIndex, 0, Math.max(0, total - 1)));
   const [playing, setPlaying] = useState(false);
+  // Posicao em que a leitura corrente comecou: a rampa de aquecimento conta a
+  // partir dela, nao do inicio do texto - senao retomar no meio ja chegaria
+  // acelerado, que e justamente o que a rampa evita.
+  const warmupOriginRef = useRef(0);
+  // Quando a leitura parou. Uma pausa curta nao reinicia a rampa: tirar o dedo
+  // da tela por um segundo nao desfaz a adaptacao ao ritmo.
+  const pausedAtRef = useRef(0);
   const [showSettings, setShowSettings] = useState(false);
   const [finished, setFinished] = useState(false);
 
   const wpm = settings.baseWpm;
   const chunkSize = settings.wordsPerChunk;
   const mode = settings.readingMode;
+  const warmup = settings.warmup;
 
   useWakeLock(playing);
 
@@ -152,12 +166,18 @@ function Reader({ text: initialText }: { text: TextDetail }) {
     // corresponde as palavras que ainda faltam nela.
     const step = mode === "page" ? Math.max(1, pageEnd - index) : chunkSize;
     const chunk = words.slice(index, index + step);
+
+    // A rampa vale para o ritmo palavra a palavra. No modo Paginas a tela
+    // inteira ja da tempo de sobra para o olho se ajustar.
+    const factor =
+      warmup && mode !== "page" ? warmupFactor(index - warmupOriginRef.current) : 1;
+
     // A versao anterior dividia a duracao pelo tamanho do bloco em vez de
     // multiplicar: em 350 ppm com 4 palavras o texto passava a ~5600 ppm.
     const delay =
       mode === "page"
         ? (60_000 / wpm) * step
-        : chunkDurationMs(wpm, chunkSize) * pauseFactor(chunk);
+        : chunkDurationMs(wpm, chunkSize, factor) * pauseFactor(chunk);
 
     const timer = setTimeout(() => {
       wordsReadRef.current += Math.min(step, total - index);
@@ -177,7 +197,19 @@ function Reader({ text: initialText }: { text: TextDetail }) {
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [playing, index, chunkSize, wpm, total, words, mode, pageEnd, saveProgress, flushSession]);
+  }, [
+    playing,
+    index,
+    chunkSize,
+    wpm,
+    total,
+    words,
+    mode,
+    pageEnd,
+    warmup,
+    saveProgress,
+    flushSession,
+  ]);
 
   /* --- cronometro visivel ------------------------------------------------ */
   useEffect(() => {
@@ -225,12 +257,19 @@ function Reader({ text: initialText }: { text: TextDetail }) {
     if (stateRef.current.playing) {
       elapsedRef.current += startedAtRef.current ? Date.now() - startedAtRef.current : 0;
       startedAtRef.current = null;
+      pausedAtRef.current = Date.now();
       saveProgress(stateRef.current.index);
       setPlaying(false);
       return;
     }
 
     if (stateRef.current.index >= total) return;
+
+    // Pausa curta nao reinicia a rampa. O numero e o que separa "parei para
+    // ajustar a tela" de "voltei ao texto depois de um tempo".
+    const brief = Date.now() - pausedAtRef.current < SHORT_PAUSE_MS;
+    if (!brief) warmupOriginRef.current = stateRef.current.index;
+
     startedAtRef.current = Date.now();
     setFinished(false);
     setPlaying(true);
@@ -365,7 +404,12 @@ function Reader({ text: initialText }: { text: TextDetail }) {
       // A intensidade do destaque desce por variavel CSS: quem pinta o trecho
       // atual e uma regra de estilo, nao o React, entao mudar o ajuste nao
       // rerrenderiza palavra nenhuma.
-      style={{ "--highlight-opacity": settings.highlightOpacity } as React.CSSProperties}
+      style={
+        {
+          "--highlight-opacity": settings.highlightOpacity,
+          ...typographyVars(settings),
+        } as React.CSSProperties
+      }
     >
       <header className="pt-safe sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-2 py-2">
@@ -688,7 +732,7 @@ function PageStage({
         ref={frameRef}
         className="relative mx-auto min-h-0 w-full max-w-2xl flex-1 overflow-hidden"
       >
-        <div className="reader-prose text-lg leading-[1.85] sm:text-xl">
+        <div className="reader-prose">
           {ready
             ? sliceParagraphs(paragraphs, pageStart, pageEnd).map((paragraph) => (
                 <p key={paragraph.start}>{paragraph.words.join(" ")}</p>
@@ -701,7 +745,7 @@ function PageStage({
         <div
           ref={rulerRef}
           aria-hidden="true"
-          className="reader-prose pointer-events-none invisible absolute inset-x-0 top-0 text-lg leading-[1.85] sm:text-xl"
+          className="reader-prose pointer-events-none invisible absolute inset-x-0 top-0"
         />
       </div>
 
@@ -797,7 +841,7 @@ function FlowStage({
 
   return (
     <div className="flex-1 px-5 py-8" onDoubleClick={onToggle}>
-      <div className="reader-prose mx-auto max-w-2xl text-lg leading-[1.9] sm:text-xl">
+      <div className="reader-prose mx-auto max-w-2xl">
         {visible.map((paragraph) => (
           <p key={paragraph.start}>
             {paragraph.words.map((word, offset) => {

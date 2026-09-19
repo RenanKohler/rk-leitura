@@ -3,16 +3,24 @@
 import { useSettings, useTheme, useToast, type ThemePreference } from "@/components/providers";
 import { Card, SectionTitle, Segmented, Slider } from "@/components/ui";
 import { AccountCard } from "@/components/account-card";
+import { ExportCard } from "@/components/export-card";
 import { MoonIcon, SettingsIcon, SunIcon } from "@/components/icons";
 import {
   MAX_CHUNK,
+  MAX_FONT_SCALE,
   MAX_HIGHLIGHT,
+  MAX_LINE_HEIGHT,
   MAX_WPM,
   MIN_CHUNK,
+  MIN_FONT_SCALE,
   MIN_HIGHLIGHT,
+  MIN_LINE_HEIGHT,
   MIN_WPM,
   estimatedMinutes,
   orpIndex,
+  typographyVars,
+  WARMUP_WORDS,
+  type FontFamily,
   type ReadingMode,
 } from "@/lib/reading";
 
@@ -20,6 +28,20 @@ const SAMPLE = "A leitura dinamica treina o olho a reconhecer palavras inteiras"
 
 /** O slider trabalha em pontos percentuais inteiros; o valor guardado e a fracao. */
 const toPercent = (fraction: number) => Math.round(fraction * 100);
+
+const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
+  { value: "sans", label: "Sem serifa" },
+  { value: "serif", label: "Com serifa" },
+  { value: "legivel", label: "Legivel" },
+];
+
+const FONT_HINTS: Record<FontFamily, string> = {
+  sans: "Traço uniforme, o padrão em tela.",
+  serif: "Remates nas pontas das letras, como em livro impresso.",
+  legivel: "Letras mais distintas entre si e com mais folga, para leitura com dislexia.",
+};
+
+const LINE_HEIGHT_LABELS = ["Compacto", "Normal", "Folgado"];
 
 const MODE_HINTS: Record<ReadingMode, string> = {
   rsvp: "Uma palavra por vez no centro da tela, com a letra de fixacao destacada.",
@@ -99,6 +121,21 @@ export default function SettingsPage() {
           onChange={(value) => void update({ highlightOpacity: value / 100 })}
         />
 
+        <Segmented<"gradual" | "direto">
+          label="Aceleracao no inicio"
+          value={settings.warmup ? "gradual" : "direto"}
+          onChange={(value) => void update({ warmup: value === "gradual" })}
+          options={[
+            { value: "gradual", label: "Gradual" },
+            { value: "direto", label: "Direto" },
+          ]}
+        />
+        <p className="text-sm text-faint">
+          {settings.warmup
+            ? `A leitura comeca a 60% do ritmo e chega ao total nas primeiras ${WARMUP_WORDS} palavras.`
+            : "A leitura comeca direto na velocidade configurada."}
+        </p>
+
         <Preview
           mode={settings.readingMode}
           chunkSize={settings.wordsPerChunk}
@@ -119,6 +156,57 @@ export default function SettingsPage() {
           ]}
         />
       </Card>
+
+      <Card className="space-y-6 p-5">
+        <SectionTitle>Tipografia</SectionTitle>
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted">Fonte</p>
+          <Segmented<FontFamily>
+            label="Familia da fonte"
+            value={settings.fontFamily}
+            onChange={(value) => void update({ fontFamily: value })}
+            options={FONT_OPTIONS}
+          />
+          <p className="text-sm text-faint">{FONT_HINTS[settings.fontFamily]}</p>
+        </div>
+
+        <Slider
+          label="Tamanho"
+          display={`${settings.fontScale} de ${MAX_FONT_SCALE}`}
+          min={MIN_FONT_SCALE}
+          max={MAX_FONT_SCALE}
+          value={settings.fontScale}
+          onChange={(value) => void update({ fontScale: value })}
+        />
+
+        <Slider
+          label="Entrelinha"
+          display={LINE_HEIGHT_LABELS[settings.lineHeightStep - 1] ?? ""}
+          min={MIN_LINE_HEIGHT}
+          max={MAX_LINE_HEIGHT}
+          value={settings.lineHeightStep}
+          onChange={(value) => void update({ lineHeightStep: value })}
+        />
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted">Previa</p>
+          <div
+            className="rounded-2xl bg-bg px-4 py-4"
+            style={typographyVars(settings) as React.CSSProperties}
+          >
+            <div className="reader-prose">
+              <p>
+                A leitura dinamica treina o olho a reconhecer palavras inteiras em vez de
+                soletrar.
+              </p>
+              <p>Ajuste ate a linha ficar confortavel de acompanhar sem apertar os olhos.</p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <ExportCard />
 
       <Card className="space-y-3 p-5">
         <SectionTitle>Compartilhar do navegador</SectionTitle>

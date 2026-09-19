@@ -1,4 +1,4 @@
-import type { ReadingMode } from "@/lib/reading";
+import type { FontFamily, ReadingMode } from "@/lib/reading";
 
 /** Formatos devolvidos pelas rotas internas, consumidos no cliente. */
 
@@ -8,6 +8,8 @@ export interface TextSummary {
   sourceUrl: string | null;
   wordCount: number;
   progressIndex: number;
+  /** Nulo enquanto o texto esta na lista principal. */
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,6 +60,10 @@ export interface SettingsPayload {
   highlightOpacity: number;
   readingMode: ReadingMode;
   theme: "system" | "light" | "dark";
+  fontScale: number;
+  fontFamily: FontFamily;
+  lineHeightStep: number;
+  warmup: boolean;
 }
 
 export interface DashboardStats {

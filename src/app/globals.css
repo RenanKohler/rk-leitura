@@ -245,6 +245,32 @@ a,
    topo e no rodape, que falsearia scrollHeight.
    ========================================================================== */
 
+.reader-prose,
+.reader-word {
+  font-family: var(--reader-font, var(--font-sans));
+  letter-spacing: var(--reader-tracking, normal);
+}
+
+.reader-prose {
+  font-size: var(--reader-size, 1.125rem);
+  line-height: var(--reader-leading, 1.85);
+}
+
 .reader-prose p + p {
   margin-top: 0.85em;
+}
+
+/*
+ * Tipografia da leitura.
+ *
+ * Os valores descem por variavel para que a regua de medicao do modo Paginas
+ * use exatamente a mesma fonte, o mesmo corpo e a mesma entrelinha da pagina
+ * visivel: as duas leem `.reader-prose`, entao nao ha como sairem do lugar.
+ */
+:root {
+  --reader-font-sans: var(--font-sans);
+  --reader-font-serif: ui-serif, Georgia, "Times New Roman", serif;
+  /* Sem webfont: pilha de sistema com altura de x grande e formas distintas
+     entre si, mais folga entre letras - o que a leitura com dislexia pede. */
+  --reader-font-legivel: Verdana, Tahoma, "DejaVu Sans", sans-serif;
 }

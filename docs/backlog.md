@@ -71,7 +71,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
 | **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
 
-Status: 34 Implementadas, 24 Propostas, 3 Aguardando pendência.
+Status: 38 Implementadas, 20 Propostas, 2 Aguardando pendência.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -785,7 +785,8 @@ Como leitor, eu quero receber um lembrete no horário que escolher quando ainda 
 **Épico:** Treino de velocidade e compreensão
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `warmupFactor` e `chunkDurationMs` em `src/lib/reading.ts`, motor de avanco do leitor
 
 Como leitor, eu quero que a velocidade comece mais baixa e suba até a configurada, para que eu me adapte ao ritmo sem perder as primeiras frases.
 
@@ -819,8 +820,8 @@ Como leitor novo, eu quero fazer um teste de leitura, para que o app sugira uma 
 **Épico:** Treino de velocidade e compreensão
 **Prioridade:** Should
 **Story points:** 8
-**Status:** Aguardando pendência
-**Pendência:** exige escolher um provedor de modelo de linguagem e definir teto de custo mensal e limite diário por usuário. É a única story do backlog com custo recorrente por uso.
+**Status:** Proposta
+**Decisão tomada:** usa a API da Anthropic, com a chave em `ANTHROPIC_API_KEY` (guardada como variável sensível na Vercel) e sem teto mensal.
 
 Como estudante, eu quero responder perguntas sobre o texto que acabei de ler, para que eu saiba se a velocidade está prejudicando meu entendimento.
 
@@ -889,7 +890,8 @@ Como leitor, eu quero ver um resumo da semana anterior ao abrir o app na segunda
 **Épico:** Estatísticas e evolução
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/app/api/exportar/route.ts`, `src/components/export-card.tsx`
 
 Como leitor, eu quero baixar meu histórico de sessões e minha biblioteca, para que eu analise os dados em outra ferramenta e tenha uma cópia do que é meu.
 
@@ -994,7 +996,8 @@ Como leitor, eu quero atribuir etiquetas aos textos e filtrar por elas, para que
 **Épico:** Organização da biblioteca
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `texts.archivedAt`, `POST`/`DELETE /api/texts/[id]/arquivo`, aba na biblioteca
 
 Como leitor, eu quero que textos concluídos saiam da lista principal sem serem apagados, para que a biblioteca mostre só o que ainda vou ler e o histórico seja preservado.
 
@@ -1082,7 +1085,8 @@ Como leitor no computador ou no iPhone, eu quero enviar a página que estou vend
 **Épico:** Ferramentas de leitura
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `typographyVars` em `src/lib/reading.ts`, `.reader-prose` em `globals.css`, controles em Ajustes
 
 Como leitor, eu quero ajustar tamanho, família da fonte e espaçamento entre linhas, para que a leitura seja confortável para a minha visão.
 
@@ -1202,7 +1206,7 @@ tema: cada faixa entrega algo utilizável e prepara a seguinte.
 
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
-| 1 | US-50, US-55, US-60, US-44 | 10 | Ganhos isolados e baratos: exportar dados, arquivar, tipografia e aceleração gradual. Nenhuma depende de schema novo além de uma coluna. |
+| ~~1~~ | ~~US-50, US-55, US-60, US-44~~ | ~~10~~ | Concluída: exportar dados, arquivar, tipografia e aceleração gradual |
 | 2 | US-41, US-42, US-48, US-49 | 14 | Hábito e evolução. Começa pelo fuso horário, que as quatro compartilham. |
 | 3 | US-51, US-52, US-53 | 11 | Estudo: destacar, anotar e exportar destaques. |
 | 4 | US-37, US-54, US-56 | 16 | Organização: séries, etiquetas e fila. |
@@ -1210,7 +1214,7 @@ tema: cada faixa entrega algo utilizável e prepara a seguinte.
 | 6 | US-57, US-59, US-58 | 18 | Importação ampliada: PDF, favorito e EPUB. |
 | 7 | US-39, US-61, US-38 | 19 | Ferramentas de leitura: voz alta, ênfase no início das palavras e dicionário. |
 | 8 | US-40, US-43 | 18 | Offline e lembrete, que compartilham o service worker. |
-| — | US-05, US-31, US-46 | 18 | Aguardando pendência: provedor de e-mail, armazenamento do limitador e provedor de modelo de linguagem. |
+| — | US-05, US-31 | 10 | Aguardando pendência: provedor de e-mail e armazenamento do limitador. |
 
 Por que esta ordem e não a do documento de origem:
 
@@ -1226,6 +1230,6 @@ Por que esta ordem e não a do documento de origem:
   de maior risco em produção, e entra por último, com a suíte de testes já
   montada.
 
-Três decisões pendentes travam 18 pontos. Nenhuma delas bloqueia as ordens 1 a
+Duas decisões pendentes travam 10 pontos. Nenhuma delas bloqueia as ordens 1 a
 8: provedor de e-mail (US-05), armazenamento do limitador (US-31) e provedor de
 modelo de linguagem com teto de custo (US-46).

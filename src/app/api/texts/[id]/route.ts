@@ -105,9 +105,18 @@ export async function PATCH(request: Request, { params }: Params) {
 
     if (!current) return jsonError("Texto nao encontrado.", 404);
 
+    const position = clamp(progressIndex, 0, current.wordCount);
+
     const [updated] = await db
       .update(texts)
-      .set({ progressIndex: clamp(progressIndex, 0, current.wordCount), updatedAt: new Date() })
+      .set({
+        progressIndex: position,
+        updatedAt: new Date(),
+        // Chegar ao fim tira o texto da lista principal; reiniciar traz de
+        // volta. Entre os dois extremos o arquivamento e manual, senao um
+        // texto arquivado a mao sumiria de novo a cada palavra lida.
+        ...archiveOnProgress(position, current.wordCount),
+      })
       .where(ownedText(id, session.id))
       .returning({ id: texts.id, progressIndex: texts.progressIndex });
 
@@ -115,6 +124,13 @@ export async function PATCH(request: Request, { params }: Params) {
   } catch (error) {
     return serverError("texts/progress", error);
   }
+}
+
+/** Arquiva ao concluir, desarquiva ao reiniciar, e nada no meio do caminho. */
+function archiveOnProgress(position: number, wordCount: number) {
+  if (wordCount > 0 && position >= wordCount) return { archivedAt: new Date() };
+  if (position === 0) return { archivedAt: null };
+  return {};
 }
 
 export async function DELETE(_request: Request, { params }: Params) {

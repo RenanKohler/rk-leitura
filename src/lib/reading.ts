@@ -14,6 +14,55 @@ export const MAX_CHUNK = 6;
 export const MIN_HIGHLIGHT = 0.1;
 export const MAX_HIGHLIGHT = 0.8;
 
+/** Tipografia da area de leitura, em niveis em vez de pixels. */
+export const MIN_FONT_SCALE = 1;
+export const MAX_FONT_SCALE = 5;
+export const MIN_LINE_HEIGHT = 1;
+export const MAX_LINE_HEIGHT = 3;
+
+export const FONT_FAMILIES = ["sans", "serif", "legivel"] as const;
+export type FontFamily = (typeof FONT_FAMILIES)[number];
+
+export function asFontFamily(value: unknown): FontFamily {
+  return FONT_FAMILIES.includes(value as FontFamily) ? (value as FontFamily) : "sans";
+}
+
+/** Variaveis CSS da area de leitura, a partir das preferencias. */
+export function typographyVars(settings: {
+  fontScale: number;
+  fontFamily: FontFamily;
+  lineHeightStep: number;
+}): Record<string, string> {
+  const scale = clamp(settings.fontScale, MIN_FONT_SCALE, MAX_FONT_SCALE);
+  const leading = clamp(settings.lineHeightStep, MIN_LINE_HEIGHT, MAX_LINE_HEIGHT);
+
+  return {
+    // 1rem a 1.5rem em cinco degraus.
+    "--reader-size": `${(1 + (scale - 1) * 0.125).toFixed(3)}rem`,
+    "--reader-leading": ["1.6", "1.85", "2.1"][leading - 1]!,
+    "--reader-font": `var(--reader-font-${settings.fontFamily})`,
+    // A pilha "legivel" pede folga entre letras; as outras nao.
+    "--reader-tracking": settings.fontFamily === "legivel" ? "0.02em" : "normal",
+  };
+}
+
+/**
+ * Rampa de aquecimento: a leitura comeca mais devagar e chega a velocidade
+ * cheia ao longo das primeiras palavras.
+ *
+ * Sem ela as primeiras frases passam antes de o olho se ajustar ao ritmo, o
+ * que custa justamente a abertura do texto - a parte que orienta o resto.
+ */
+export const WARMUP_WORDS = 50;
+export const WARMUP_START = 0.6;
+
+/** Fracao da velocidade configurada a ser aplicada na posicao `wordsIntoRun`. */
+export function warmupFactor(wordsIntoRun: number): number {
+  if (wordsIntoRun >= WARMUP_WORDS) return 1;
+  const progress = clamp(wordsIntoRun / WARMUP_WORDS, 0, 1);
+  return WARMUP_START + (1 - WARMUP_START) * progress;
+}
+
 /**
  * rsvp  - uma palavra por vez no centro da tela
  * flow  - texto corrido com rolagem e destaque do trecho atual
@@ -91,9 +140,18 @@ export function sliceParagraphs(
   return slice;
 }
 
-/** Milissegundos que cada bloco de palavras fica na tela. */
-export function chunkDurationMs(wpm: number, wordsPerChunk: number): number {
-  const safeWpm = clamp(wpm, MIN_WPM, MAX_WPM);
+/**
+ * Milissegundos que cada bloco de palavras fica na tela.
+ *
+ * `speedFactor` existe para a rampa de aquecimento entrar sem estado escondido:
+ * quem chama decide a fracao, a funcao continua pura e testavel.
+ */
+export function chunkDurationMs(
+  wpm: number,
+  wordsPerChunk: number,
+  speedFactor = 1
+): number {
+  const safeWpm = clamp(wpm, MIN_WPM, MAX_WPM) * clamp(speedFactor, WARMUP_START, 1);
   const safeChunk = clamp(wordsPerChunk, MIN_CHUNK, MAX_CHUNK);
   return (60_000 / safeWpm) * safeChunk;
 }

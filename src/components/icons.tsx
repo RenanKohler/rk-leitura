@@ -187,6 +187,23 @@ export const LogoMark = (props: IconProps) => (
   </svg>
 );
 
+export const ArchiveIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="3" y="4" width="18" height="4" rx="1" />
+    <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" />
+    <path d="M10 12h4" />
+  </Icon>
+);
+
+export const RestoreIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="3" y="4" width="18" height="4" rx="1" />
+    <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" />
+    <path d="M12 17v-6" />
+    <path d="m9 14 3-3 3 3" />
+  </Icon>
+);
+
 export const PagesIcon = (props: IconProps) => (
   <Icon {...props}>
     <rect x="4" y="4.5" width="16" height="15" rx="2" />

@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { CheckIcon } from "@/components/icons";
-import type { ReadingMode } from "@/lib/reading";
+import type { FontFamily, ReadingMode } from "@/lib/reading";
 
 /* -------------------------------------------------------------------------- */
 /* Tema                                                                        */
@@ -263,6 +263,10 @@ export interface ReadingSettings {
   baseWpm: number;
   wordsPerChunk: number;
   highlightOpacity: number;
+  fontScale: number;
+  fontFamily: FontFamily;
+  lineHeightStep: number;
+  warmup: boolean;
   readingMode: ReadingMode;
   theme: ThemePreference;
 }
@@ -271,6 +275,10 @@ export const FALLBACK_SETTINGS: ReadingSettings = {
   baseWpm: 300,
   wordsPerChunk: 1,
   highlightOpacity: 0.35,
+  fontScale: 3,
+  fontFamily: "sans",
+  lineHeightStep: 2,
+  warmup: true,
   readingMode: "rsvp",
   theme: "system",
 };

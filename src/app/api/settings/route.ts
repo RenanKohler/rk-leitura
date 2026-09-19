@@ -4,12 +4,17 @@ import { db } from "@/db";
 import { speedSettings } from "@/db/schema";
 import { readJson, requireSession, serverError } from "@/lib/api";
 import {
+  asFontFamily,
   clamp,
   MAX_CHUNK,
+  MAX_FONT_SCALE,
   MAX_HIGHLIGHT,
+  MAX_LINE_HEIGHT,
   MAX_WPM,
   MIN_CHUNK,
+  MIN_FONT_SCALE,
   MIN_HIGHLIGHT,
+  MIN_LINE_HEIGHT,
   MIN_WPM,
 } from "@/lib/reading";
 import { DEFAULT_SETTINGS, loadSettings } from "@/lib/queries";
@@ -46,6 +51,14 @@ export async function PUT(request: Request) {
         ? String(body?.readingMode)
         : DEFAULT_SETTINGS.readingMode,
       theme: THEMES.has(String(body?.theme)) ? String(body?.theme) : DEFAULT_SETTINGS.theme,
+      fontScale: clamp(Math.trunc(Number(body?.fontScale)), MIN_FONT_SCALE, MAX_FONT_SCALE),
+      fontFamily: asFontFamily(body?.fontFamily),
+      lineHeightStep: clamp(
+        Math.trunc(Number(body?.lineHeightStep)),
+        MIN_LINE_HEIGHT,
+        MAX_LINE_HEIGHT
+      ),
+      warmup: body?.warmup !== false,
     };
 
     // Um unico round-trip: o indice unico em user_id resolve a corrida entre

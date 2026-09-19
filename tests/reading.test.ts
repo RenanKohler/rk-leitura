@@ -6,6 +6,7 @@ import {
   MIN_CHUNK,
   MIN_HIGHLIGHT,
   MIN_WPM,
+  asFontFamily,
   chunkDurationMs,
   clamp,
   countWords,
@@ -13,6 +14,10 @@ import {
   parseParagraphs,
   sliceParagraphs,
   tokenize,
+  typographyVars,
+  warmupFactor,
+  WARMUP_START,
+  WARMUP_WORDS,
 } from "@/lib/reading";
 
 describe("tokenize", () => {
@@ -159,5 +164,84 @@ describe("faixa da intensidade do destaque", () => {
     for (const fracao of [0.1, 0.35, 0.5, 0.8]) {
       expect(Math.round(fracao * 100) / 100).toBe(fracao);
     }
+  });
+});
+
+describe("warmupFactor", () => {
+  it("comeca reduzido e chega ao ritmo cheio", () => {
+    expect(warmupFactor(0)).toBe(WARMUP_START);
+    expect(warmupFactor(WARMUP_WORDS)).toBe(1);
+    expect(warmupFactor(WARMUP_WORDS * 10)).toBe(1);
+  });
+
+  it("sobe sem voltar atras", () => {
+    let anterior = 0;
+    for (let palavra = 0; palavra <= WARMUP_WORDS; palavra += 5) {
+      const atual = warmupFactor(palavra);
+      expect(atual).toBeGreaterThanOrEqual(anterior);
+      anterior = atual;
+    }
+  });
+
+  it("nunca sai da faixa, nem com entrada absurda", () => {
+    for (const palavra of [-100, Number.NaN, 1e9]) {
+      const fator = warmupFactor(palavra);
+      expect(fator).toBeGreaterThanOrEqual(WARMUP_START);
+      expect(fator).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("chunkDurationMs com rampa", () => {
+  it("demora mais no inicio da leitura que depois dela", () => {
+    const inicio = chunkDurationMs(300, 1, warmupFactor(0));
+    const depois = chunkDurationMs(300, 1, warmupFactor(WARMUP_WORDS));
+    expect(inicio).toBeGreaterThan(depois);
+    expect(depois).toBe(chunkDurationMs(300, 1));
+  });
+
+  it("o fator padrao nao muda nada", () => {
+    // A rampa entrou como parametro justamente para nao mudar o caminho antigo.
+    expect(chunkDurationMs(450, 2, 1)).toBe(chunkDurationMs(450, 2));
+  });
+
+  it("prende o fator na faixa da rampa", () => {
+    expect(chunkDurationMs(300, 1, 0)).toBe(chunkDurationMs(300, 1, WARMUP_START));
+    expect(chunkDurationMs(300, 1, 99)).toBe(chunkDurationMs(300, 1, 1));
+  });
+});
+
+describe("tipografia", () => {
+  it("cresce com o nivel e fica preso na faixa", () => {
+    const tamanho = (nivel: number) =>
+      Number.parseFloat(typographyVars({ fontScale: nivel, fontFamily: "sans", lineHeightStep: 2 })["--reader-size"]!);
+
+    expect(tamanho(1)).toBeLessThan(tamanho(5));
+    expect(tamanho(-5)).toBe(tamanho(1));
+    expect(tamanho(99)).toBe(tamanho(5));
+  });
+
+  it("da entrelinha para todos os degraus", () => {
+    for (const degrau of [1, 2, 3]) {
+      const vars = typographyVars({ fontScale: 3, fontFamily: "sans", lineHeightStep: degrau });
+      expect(Number.parseFloat(vars["--reader-leading"]!)).toBeGreaterThan(1);
+    }
+  });
+
+  it("so a pilha legivel abre o espacamento entre letras", () => {
+    const folga = (familia: "sans" | "serif" | "legivel") =>
+      typographyVars({ fontScale: 3, fontFamily: familia, lineHeightStep: 2 })["--reader-tracking"];
+
+    expect(folga("legivel")).not.toBe("normal");
+    expect(folga("sans")).toBe("normal");
+    expect(folga("serif")).toBe("normal");
+  });
+
+  it("recusa familia desconhecida em vez de repassar ao CSS", () => {
+    // O valor entra em `var(--reader-font-X)`: aceitar qualquer texto criaria
+    // uma variavel inexistente e a fonte cairia para o padrao do navegador.
+    expect(asFontFamily("comic")).toBe("sans");
+    expect(asFontFamily(null)).toBe("sans");
+    expect(asFontFamily("serif")).toBe("serif");
   });
 });

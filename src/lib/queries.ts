@@ -1,15 +1,30 @@
 import "server-only";
 
 import { cache } from "react";
-import { and, count, desc, eq, gt, inArray, lt, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { db } from "@/db";
 import { readingSessions, speedSettings, texts, users } from "@/db/schema";
 import { DEFAULT_PAGE_SIZE } from "@/lib/api";
+import { asFontFamily } from "@/lib/reading";
 import {
   ACCENTED,
+  DEFAULT_SCOPE,
   DEFAULT_STATUS,
   escapeLike,
   UNACCENTED,
+  type TextScope,
   type TextStatus,
 } from "@/lib/text-filter";
 import type {
@@ -36,6 +51,10 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   highlightOpacity: 0.35,
   readingMode: "rsvp",
   theme: "system",
+  fontScale: 3,
+  fontFamily: "sans",
+  lineHeightStep: 2,
+  warmup: true,
 };
 
 export interface Page<T> {
@@ -94,6 +113,10 @@ export const loadSettings = cache(async function loadSettings(
     highlightOpacity: row.settings.highlightOpacity,
     readingMode: row.settings.readingMode as SettingsPayload["readingMode"],
     theme: row.settings.theme as SettingsPayload["theme"],
+    fontScale: row.settings.fontScale,
+    fontFamily: asFontFamily(row.settings.fontFamily),
+    lineHeightStep: row.settings.lineHeightStep,
+    warmup: row.settings.warmup,
   };
 })
 
@@ -101,6 +124,7 @@ export interface TextFilters {
   /** Termo ja dobrado por `foldForSearch`, ou null para nao filtrar. */
   query?: string | null;
   status?: TextStatus;
+  scope?: TextScope;
 }
 
 /**
@@ -136,6 +160,14 @@ function textsWhere(userId: string, filters: TextFilters): SQL | undefined {
   }
   conditions.push(statusCondition(filters.status ?? DEFAULT_STATUS));
 
+  // Arquivar e uma aba, nao um filtro somado aos outros: um texto esta na
+  // lista principal ou fora dela, nunca nas duas.
+  conditions.push(
+    (filters.scope ?? DEFAULT_SCOPE) === "arquivados"
+      ? isNotNull(texts.archivedAt)
+      : isNull(texts.archivedAt)
+  );
+
   return and(...conditions.filter((condition): condition is SQL => condition !== undefined));
 }
 
@@ -158,6 +190,7 @@ export async function loadTexts(
         sourceUrl: texts.sourceUrl,
         wordCount: texts.wordCount,
         progressIndex: texts.progressIndex,
+        archivedAt: texts.archivedAt,
         createdAt: texts.createdAt,
         updatedAt: texts.updatedAt,
       })
@@ -171,6 +204,7 @@ export async function loadTexts(
 
   const rows: TextSummary[] = items.map((item) => ({
     ...item,
+    archivedAt: item.archivedAt ? isoDate(item.archivedAt) : null,
     createdAt: isoDate(item.createdAt),
     updatedAt: isoDate(item.updatedAt),
   }));
@@ -308,6 +342,7 @@ export async function loadText(userId: string, id: string): Promise<TextDetail |
     wordCount: text.wordCount,
     progressIndex: text.progressIndex,
     sourcePage: text.sourcePage,
+    archivedAt: text.archivedAt ? isoDate(text.archivedAt) : null,
     createdAt: isoDate(text.createdAt),
     updatedAt: isoDate(text.updatedAt),
   };

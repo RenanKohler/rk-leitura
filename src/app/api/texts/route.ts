@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { texts } from "@/db/schema";
 import { asString, jsonError, readJson, readPageParams, requireSession, serverError } from "@/lib/api";
 import { loadTexts } from "@/lib/queries";
-import { asTextStatus, normalizeQuery } from "@/lib/text-filter";
+import { asTextScope, asTextStatus, normalizeQuery } from "@/lib/text-filter";
 import { countWords } from "@/lib/reading";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
 
@@ -29,6 +29,7 @@ export async function GET(request: Request) {
     const { items, ...page } = await loadTexts(session.id, params.page, params.limit, {
       query: normalizeQuery(search.get("q")),
       status: asTextStatus(search.get("status")),
+      scope: asTextScope(search.get("scope")),
     });
 
     return NextResponse.json({ texts: items, ...page });

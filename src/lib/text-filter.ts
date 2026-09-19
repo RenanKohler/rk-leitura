@@ -14,6 +14,15 @@ export const DEFAULT_STATUS: TextStatus = "todos";
 /** Termo com mais que isso nao ajuda a filtrar e so pesa na consulta. */
 export const MAX_QUERY_CHARS = 80;
 
+/** Aba da biblioteca: a lista principal ou o que foi tirado dela. */
+export const TEXT_SCOPES = ["ativos", "arquivados"] as const;
+export type TextScope = (typeof TEXT_SCOPES)[number];
+export const DEFAULT_SCOPE: TextScope = "ativos";
+
+export function asTextScope(value: unknown): TextScope {
+  return TEXT_SCOPES.includes(value as TextScope) ? (value as TextScope) : DEFAULT_SCOPE;
+}
+
 export function asTextStatus(value: unknown): TextStatus {
   return TEXT_STATUSES.includes(value as TextStatus) ? (value as TextStatus) : DEFAULT_STATUS;
 }

@@ -18,9 +18,15 @@ import {
   Skeleton,
   TextArea,
 } from "@/components/ui";
-import { EditIcon, LibraryIcon, TrashIcon } from "@/components/icons";
+import { ArchiveIcon, EditIcon, LibraryIcon, RestoreIcon, TrashIcon } from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
-import { DEFAULT_STATUS, MAX_QUERY_CHARS, type TextStatus } from "@/lib/text-filter";
+import {
+  DEFAULT_SCOPE,
+  DEFAULT_STATUS,
+  MAX_QUERY_CHARS,
+  type TextScope,
+  type TextStatus,
+} from "@/lib/text-filter";
 import type { Paginated, TextDetail, TextSummary } from "@/lib/types";
 
 const STATUS_OPTIONS: { value: TextStatus; label: string }[] = [
@@ -28,6 +34,11 @@ const STATUS_OPTIONS: { value: TextStatus; label: string }[] = [
   { value: "nao-iniciados", label: "Nao lidos" },
   { value: "em-andamento", label: "Lendo" },
   { value: "concluidos", label: "Lidos" },
+];
+
+const SCOPE_OPTIONS: { value: TextScope; label: string }[] = [
+  { value: "ativos", label: "Meus textos" },
+  { value: "arquivados", label: "Arquivados" },
 ];
 
 /** Espera entre a ultima tecla e a busca, para nao consultar a cada letra. */
@@ -41,6 +52,7 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<TextStatus>(DEFAULT_STATUS);
+  const [scope, setScope] = useState<TextScope>(DEFAULT_SCOPE);
 
   // O termo so chega a consulta depois que a digitacao para.
   const [searched, setSearched] = useState("");
@@ -50,12 +62,16 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
   }, [query]);
 
   const filtering = searched.length > 0 || status !== DEFAULT_STATUS;
+  const archived = scope === "arquivados";
   const path =
-    `/api/texts?page=${page}&status=${status}` +
+    `/api/texts?page=${page}&status=${status}&scope=${scope}` +
     (searched ? `&q=${encodeURIComponent(searched)}` : "");
 
-  // A primeira pagina sem filtro ja veio no HTML; o resto busca.
-  const resource = useResource<TextsPage>(path, page === 1 && !filtering ? initial : undefined);
+  // A primeira pagina da lista principal sem filtro ja veio no HTML.
+  const resource = useResource<TextsPage>(
+    path,
+    page === 1 && !filtering && !archived ? initial : undefined
+  );
 
   const changeFilter = (apply: () => void) => {
     apply();
@@ -70,6 +86,17 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
       setSearched("");
       setStatus(DEFAULT_STATUS);
     });
+
+  const toggleArchive = async (text: TextSummary) => {
+    const restoring = text.archivedAt !== null;
+    try {
+      await apiSend(`/api/texts/${text.id}/arquivo`, restoring ? "DELETE" : "POST");
+      notify(restoring ? "Texto de volta a biblioteca." : "Texto arquivado.", "success");
+      resource.reload();
+    } catch {
+      notify(restoring ? "Falha ao desarquivar." : "Falha ao arquivar.", "error");
+    }
+  };
   const [editing, setEditing] = useState<TextDetail | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TextSummary | null>(null);
   const [busy, setBusy] = useState(false);
@@ -146,7 +173,17 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
         </span>
       </header>
 
-      <ImportCard onImported={() => resource.reload()} />
+      {/* Arquivar nao e um filtro somado aos outros: um texto esta na lista
+          principal ou fora dela. Por isso aba, e nao mais uma opcao ao lado
+          de "Lidos". */}
+      <Segmented<TextScope>
+        label="Aba da biblioteca"
+        value={scope}
+        onChange={(value) => changeFilter(() => setScope(value))}
+        options={SCOPE_OPTIONS}
+      />
+
+      {archived ? null : <ImportCard onImported={() => resource.reload()} />}
 
       <div className="space-y-3">
         <Field
@@ -178,7 +215,13 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
         </div>
       ) : texts.length === 0 ? (
         <Card>
-          {filtering ? (
+          {archived && !filtering ? (
+            <EmptyState
+              icon={<ArchiveIcon className="size-7" />}
+              title="Nada arquivado"
+              description="Textos concluidos vem parar aqui, e o historico de leitura deles continua contando."
+            />
+          ) : filtering ? (
             <EmptyState
               icon={<LibraryIcon className="size-7" />}
               title="Nenhum texto encontrado"
@@ -209,6 +252,7 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
                 index={index}
                 onEdit={() => openEditor(text)}
                 onDelete={() => setPendingDelete(text)}
+                onToggleArchive={() => void toggleArchive(text)}
               />
             ))}
           </ul>
@@ -297,13 +341,16 @@ function TextCard({
   index,
   onEdit,
   onDelete,
+  onToggleArchive,
 }: {
   text: TextSummary;
   wpm: number;
   index: number;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleArchive: () => void;
 }) {
+  const archived = text.archivedAt !== null;
   const percent =
     text.wordCount > 0 ? Math.round((text.progressIndex / text.wordCount) * 100) : 0;
 
@@ -325,6 +372,12 @@ function TextCard({
           {/* Botoes sempre visiveis: a versao anterior os escondia atras de
               :hover, inalcancavel em tela de toque. */}
           <div className="flex shrink-0 gap-1">
+            <IconButton
+              label={archived ? "Voltar a biblioteca" : "Arquivar"}
+              onClick={onToggleArchive}
+            >
+              {archived ? <RestoreIcon className="size-5" /> : <ArchiveIcon className="size-5" />}
+            </IconButton>
             <IconButton label="Editar" onClick={onEdit}>
               <EditIcon className="size-5" />
             </IconButton>

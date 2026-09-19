@@ -45,6 +45,9 @@ export const texts = pgTable(
     // Ultima pagina ja trazida da origem. A importacao inicial e a pagina 1;
     // a continuacao busca sourceUrl com ?page=sourcePage+1.
     sourcePage: integer("source_page").notNull().default(1),
+    // Nulo enquanto o texto esta na lista principal. Arquivar tira da lista
+    // sem apagar: o historico de leitura continua contando.
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -83,6 +86,13 @@ export const speedSettings = pgTable(
     // "rsvp" (uma palavra por vez) ou "flow" (texto corrido com destaque).
     readingMode: text("reading_mode").notNull().default("rsvp"),
     theme: text("theme").notNull().default("system"),
+    // Tipografia da area de leitura. Guardada por nivel, nao em pixels: a
+    // conversao para tamanho real e do CSS, e muda com a largura da tela.
+    fontScale: integer("font_scale").notNull().default(3),
+    fontFamily: text("font_family").notNull().default("sans"),
+    lineHeightStep: integer("line_height_step").notNull().default(2),
+    // Rampa de aceleracao no inicio da leitura.
+    warmup: boolean("warmup").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
