@@ -84,7 +84,19 @@ function fromTitle(title: string): SeriesMatch | null {
   const stem = title.slice(0, match.index).trim();
   if (stem.length === 0) return null;
 
-  return { key: `titulo:${foldForSearch(stem)}`, chapter, title: stem };
+  return { key: seriesKeyFor(stem), chapter, title: stem };
+}
+
+/**
+ * Chave de serie derivada de um titulo.
+ *
+ * Usada tambem pela importacao de EPUB, onde a sequencia e conhecida de
+ * antemao e nao precisa ser adivinhada a partir do nome do capitulo - o que
+ * permite ao capitulo manter o proprio titulo ("A chegada") em vez de virar
+ * "Livro Ch. 01" so para a deteccao funcionar.
+ */
+export function seriesKeyFor(title: string): string {
+  return `titulo:${foldForSearch(title)}`;
 }
 
 /** Titulo sem a marca de capitulo, quando ela esta la. */

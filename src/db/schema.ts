@@ -59,6 +59,15 @@ export const texts = pgTable(
     /** Numero do capitulo dentro da serie. Nulo junto com `seriesKey`. */
     chapter: integer("chapter"),
     /**
+     * Nome da serie como ele deve aparecer na tela.
+     *
+     * A chave e comparavel, nao legivel: `titulo:a cabana no inverno` perdeu
+     * caixa e acento. Sem esta coluna, o cartao da serie so teria o titulo do
+     * primeiro capitulo para mostrar - que em um livro e "A chegada", nao o
+     * nome do livro.
+     */
+    seriesTitle: text("series_title"),
+    /**
      * Posicao na fila de leitura (US-56). Nulo quando o texto nao esta na
      * fila - que e o estado normal. Arquivar ou concluir tira da fila.
      */

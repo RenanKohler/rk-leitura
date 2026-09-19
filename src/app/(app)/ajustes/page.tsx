@@ -5,6 +5,7 @@ import { useSettings, useTheme, useToast, type ThemePreference } from "@/compone
 import { Button, Card, SectionTitle, Segmented, Slider } from "@/components/ui";
 import { AccountCard } from "@/components/account-card";
 import { ExportCard } from "@/components/export-card";
+import { BookmarkletCard } from "@/components/bookmarklet-card";
 import { MoonIcon, SettingsIcon, SpeedIcon, SunIcon } from "@/components/icons";
 import {
   MAX_CHUNK,
@@ -234,6 +235,8 @@ export default function SettingsPage() {
           No Chrome do Android: menu de tres pontos, &ldquo;Adicionar a tela inicial&rdquo;.
         </p>
       </Card>
+
+      <BookmarkletCard />
 
       <AccountCard />
     </div>

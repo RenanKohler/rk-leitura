@@ -261,6 +261,7 @@ const summaryColumns = {
   wordCount: texts.wordCount,
   progressIndex: texts.progressIndex,
   seriesKey: texts.seriesKey,
+  seriesTitle: texts.seriesTitle,
   chapter: texts.chapter,
   queuePosition: texts.queuePosition,
   archivedAt: texts.archivedAt,
@@ -273,7 +274,7 @@ type SummaryRow = {
     ? Date | null
     : K extends "createdAt" | "updatedAt"
       ? Date
-      : K extends "sourceUrl" | "seriesKey"
+      : K extends "sourceUrl" | "seriesKey" | "seriesTitle"
         ? string | null
         : K extends "chapter" | "queuePosition"
           ? number | null
@@ -657,6 +658,7 @@ export async function loadText(userId: string, id: string): Promise<TextDetail |
     highlights: marks?.value ?? 0,
     tags: labels.get(id) ?? [],
     seriesKey: text.seriesKey,
+    seriesTitle: text.seriesTitle,
     chapter: text.chapter,
     queuePosition: text.queuePosition,
     archivedAt: text.archivedAt ? isoDate(text.archivedAt) : null,
@@ -861,7 +863,9 @@ function toLibraryItem(chapters: TextSummary[]): LibraryItem | null {
   return {
     kind: "serie",
     key: current.seriesKey!,
-    title: cleanTitle(ordered[0]!.title),
+    // O nome guardado quando ele existe; o titulo do primeiro capitulo e
+    // reserva para as series criadas antes desta coluna.
+    title: ordered.find((item) => item.seriesTitle)?.seriesTitle ?? cleanTitle(ordered[0]!.title),
     chapters: ordered,
     current: current.chapter ?? 1,
     total: ordered.length,

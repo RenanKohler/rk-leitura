@@ -82,6 +82,7 @@ export async function POST(request: Request, { params }: Params) {
         // Quando o capitulo novo nao casa com o padrao, herda a serie do
         // anterior: foi ela que levou ate ele.
         seriesKey: series?.key ?? owner.seriesKey,
+        seriesTitle: series?.title ?? owner.seriesTitle,
         chapter: series?.chapter ?? next.chapter ?? null,
       })
       .returning({ id: texts.id, title: texts.title });
@@ -106,12 +107,16 @@ export async function POST(request: Request, { params }: Params) {
 async function seriesOf(
   userId: string,
   textId: string
-): Promise<{ found: boolean; seriesKey: string | null }> {
+): Promise<{ found: boolean; seriesKey: string | null; seriesTitle: string | null }> {
   const [row] = await db
-    .select({ seriesKey: texts.seriesKey })
+    .select({ seriesKey: texts.seriesKey, seriesTitle: texts.seriesTitle })
     .from(texts)
     .where(and(eq(texts.id, textId), eq(texts.userId, userId)))
     .limit(1);
 
-  return { found: Boolean(row), seriesKey: row?.seriesKey ?? null };
+  return {
+    found: Boolean(row),
+    seriesKey: row?.seriesKey ?? null,
+    seriesTitle: row?.seriesTitle ?? null,
+  };
 }

@@ -7,7 +7,9 @@ import { loadLibrary } from "@/lib/queries";
 import { asTextScope, asTextStatus, normalizeQuery } from "@/lib/text-filter";
 import { countWords } from "@/lib/reading";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
-import { detectSeries } from "@/lib/series";
+import { detectSeries, seriesKeyFor } from "@/lib/series";
+import { normalizeTagList } from "@/lib/tags";
+import { applyTags } from "@/lib/text-tags";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,9 @@ interface Body {
   title?: unknown;
   sourceUrl?: unknown;
   content?: unknown;
+  tags?: unknown;
+  /** Sequencia conhecida de antemao, como na importacao de EPUB. */
+  series?: unknown;
 }
 
 export async function GET(request: Request) {
@@ -61,26 +66,48 @@ export async function POST(request: Request) {
     }
 
     // Capitulo reconhecido vira vinculo de serie; nao reconhecido fica solto,
-    // que e o comportamento de sempre e nao um erro.
-    const series = detectSeries(title, sourceUrl);
+    // que e o comportamento de sempre e nao um erro. Quem ja conhece a
+    // sequencia - a importacao de EPUB - manda `series` e nao depende da
+    // deteccao, o que permite ao capitulo manter o proprio titulo.
+    const declared = asDeclaredSeries(body?.series);
+    const series = declared ?? detectSeries(title, sourceUrl);
+    const tagNames = normalizeTagList(body?.tags);
 
-    const [created] = await db
-      .insert(texts)
-      .values({
-        userId: session.id,
-        title: title.slice(0, 200),
-        sourceUrl,
-        content,
-        // Calculado no servidor: o cliente nao decide a contagem.
-        wordCount: countWords(content),
-        sourcePage: pageFromUrl(sourceUrl),
-        seriesKey: series?.key ?? null,
-        chapter: series?.chapter ?? null,
-      })
-      .returning();
+    const created = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(texts)
+        .values({
+          userId: session.id,
+          title: title.slice(0, 200),
+          sourceUrl,
+          content,
+          // Calculado no servidor: o cliente nao decide a contagem.
+          wordCount: countWords(content),
+          sourcePage: pageFromUrl(sourceUrl),
+          seriesKey: series?.key ?? null,
+          seriesTitle: series?.title ?? null,
+          chapter: series?.chapter ?? null,
+        })
+        .returning();
+
+      if (row && tagNames.length > 0) await applyTags(tx, session.id, row.id, tagNames);
+      return row;
+    });
 
     return NextResponse.json({ text: created }, { status: 201 });
   } catch (error) {
     return serverError("texts/create", error);
   }
+}
+
+/** Serie informada pelo cliente: o titulo do livro e a posicao do capitulo. */
+function asDeclaredSeries(
+  raw: unknown
+): { key: string; chapter: number; title: string } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const title = asString((raw as { title?: unknown }).title);
+  const chapter = Math.trunc(Number((raw as { chapter?: unknown }).chapter));
+
+  if (!title || !Number.isInteger(chapter) || chapter < 1 || chapter > 999) return null;
+  return { key: seriesKeyFor(title), chapter, title: title.slice(0, 200) };
 }

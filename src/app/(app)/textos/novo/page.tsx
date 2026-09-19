@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
 import { Button, Card, Field, Segmented } from "@/components/ui";
-import { BackIcon, LinkIcon, TextIcon } from "@/components/icons";
+import { BackIcon, FileIcon, LinkIcon, TextIcon } from "@/components/icons";
 import { PasteForm } from "@/components/paste-form";
+import { FileImport } from "@/components/file-import";
 import { formatNumber } from "@/lib/reading";
 import type { ImportedText, TextDetail } from "@/lib/types";
 import Link from "next/link";
 
-type Source = "link" | "texto";
+type Source = "link" | "texto" | "arquivo";
 
 export default function NewTextPage() {
   const [source, setSource] = useState<Source>("link");
@@ -35,11 +36,12 @@ export default function NewTextPage() {
         onChange={setSource}
         options={[
           { value: "link", label: "Link", icon: <LinkIcon className="size-4" /> },
-          { value: "texto", label: "Colar texto", icon: <TextIcon className="size-4" /> },
+          { value: "texto", label: "Colar", icon: <TextIcon className="size-4" /> },
+          { value: "arquivo", label: "Arquivo", icon: <FileIcon className="size-4" /> },
         ]}
       />
 
-      {source === "link" ? <FromLink /> : <PasteForm />}
+      {source === "link" ? <FromLink /> : source === "arquivo" ? <FileImport /> : <PasteForm />}
     </div>
   );
 }

@@ -274,3 +274,11 @@ export const DragIcon = (props: IconProps) => (
     <path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" strokeWidth={2.5} />
   </Icon>
 );
+
+/** Arquivo enviado do dispositivo. */
+export const FileIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z" />
+    <path d="M13 3v6h6" />
+  </Icon>
+);

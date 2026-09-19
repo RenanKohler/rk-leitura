@@ -1,0 +1,1 @@
+ALTER TABLE "texts" ADD COLUMN "series_title" text;

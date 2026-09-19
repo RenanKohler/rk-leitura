@@ -71,7 +71,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
 | **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
 
-Status: 51 Implementadas, 8 Propostas, 2 Aguardando pendência.
+Status: 54 Implementadas, 5 Propostas, 2 Aguardando pendência.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -1044,7 +1044,8 @@ Como leitor, eu quero ordenar os próximos textos em uma fila, para que o app su
 **Épico:** Importação ampliada
 **Prioridade:** Should
 **Story points:** 8
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/pdf-text.ts`, `src/lib/pdf-client.ts`, `src/components/file-import.tsx`
 
 Como estudante, eu quero importar um PDF com texto, para que eu leia artigos acadêmicos e apostilas no ritmo do app.
 
@@ -1054,14 +1055,15 @@ Como estudante, eu quero importar um PDF com texto, para que eu leia artigos aca
 3. Dado que o PDF é digitalizado e não tem camada de texto, quando importo, então vejo mensagem informando que o arquivo não contém texto extraível.
 4. Dado que o texto extraído excede 400.000 caracteres, quando importo, então sou informado e posso importar apenas o trecho inicial.
 
-**Notas técnicas:** extração no cliente com pdf.js evita o limite de corpo e de tempo das funções serverless. O arquivo não é armazenado, apenas o texto extraído — o que também mantém a superfície de dados igual à de hoje.
+**Notas técnicas:** extração no cliente com pdf.js evita o limite de corpo e de tempo das funções serverless. O arquivo não é armazenado, apenas o texto extraído — o que também mantém a superfície de dados igual à de hoje. `pdfjs-dist` fica preso em 4.10.38: a linha 6 usa `Map.getOrInsertComputed`, que quase nenhum navegador implementa hoje.
 
 ### US-58: Importar livros EPUB por capítulo
 
 **Épico:** Importação ampliada
 **Prioridade:** Could
 **Story points:** 8
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/epub-text.ts`, `src/components/file-import.tsx`, `series` em `POST /api/texts`
 
 Como leitor, eu quero importar um EPUB sem DRM, para que eu leia livros no app capítulo a capítulo.
 
@@ -1070,14 +1072,15 @@ Como leitor, eu quero importar um EPUB sem DRM, para que eu leia livros no app c
 2. Dado que importo o livro inteiro, quando ele é salvo, então cada capítulo vira um texto com etiqueta do livro (US-54) e ordem preservada.
 3. Dado que o EPUB tem DRM ou está corrompido, quando importo, então vejo mensagem específica e nada é salvo.
 
-**Notas técnicas:** depende de US-54 para agrupar capítulos, e convém decidir antes se livro e série (US-37) são o mesmo conceito no schema. São: os dois são uma sequência ordenada de textos com uma origem comum.
+**Notas técnicas:** livro e série (US-37) são o mesmo conceito no schema — os dois são uma sequência ordenada de textos com uma origem comum. A importação declara a série em vez de depender da detecção por título, o que deixa cada capítulo manter o próprio nome ("A chegada") em vez de virar "Livro Ch. 01" só para ser reconhecido. O nome da série ficou em coluna própria: a chave é comparável, não legível.
 
 ### US-59: Importar a página atual pelo navegador
 
 **Épico:** Importação ampliada
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/components/bookmarklet-card.tsx`, `src/app/(app)/compartilhar/page.tsx`
 
 Como leitor no computador ou no iPhone, eu quero enviar a página que estou vendo para o Leitura com um toque, para que eu não precise copiar a URL.
 
@@ -1213,7 +1216,7 @@ Entregue até aqui, em ordem:
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
 | US-46 | 8 | Perguntas de compreensão ao concluir um texto |
 
-Restam 10 stories: 8 prontas para entrar em sprint (55 pontos) e 2 travadas
+Restam 7 stories: 5 prontas para entrar em sprint (37 pontos) e 2 travadas
 por decisão externa (10 pontos). A ordem abaixo agrupa por dependência, não por
 tema: cada faixa entrega algo utilizável e prepara a seguinte.
 
@@ -1224,7 +1227,7 @@ tema: cada faixa entrega algo utilizável e prepara a seguinte.
 | ~~3~~ | ~~US-51, US-52, US-53~~ | ~~11~~ | Concluída: destacar, anotar, revisar e exportar destaques |
 | ~~4~~ | ~~US-37, US-54, US-56~~ | ~~16~~ | Concluída: séries de capítulos, etiquetas e fila de leitura |
 | ~~5~~ | ~~US-45, US-47~~ | ~~13~~ | Concluída: teste de velocidade inicial e programa progressivo |
-| 6 | US-57, US-59, US-58 | 18 | Importação ampliada: PDF, favorito e EPUB. |
+| ~~6~~ | ~~US-57, US-59, US-58~~ | ~~18~~ | Concluída: importação de PDF e EPUB, favorito e Atalho do iOS |
 | 7 | US-39, US-61, US-38 | 19 | Ferramentas de leitura: voz alta, ênfase no início das palavras e dicionário. |
 | 8 | US-40, US-43 | 18 | Offline e lembrete, que compartilham o service worker. |
 | — | US-05, US-31 | 10 | Aguardando pendência: provedor de e-mail e armazenamento do limitador. |
@@ -1243,7 +1246,7 @@ Por que esta ordem e não a do documento de origem:
   de maior risco em produção, e entra por último, com a suíte de testes já
   montada.
 
-Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia as ordens 6
-a 8: provedor de e-mail (US-05) e armazenamento do limitador (US-31). A terceira
+Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia as ordens 7
+e 8: provedor de e-mail (US-05) e armazenamento do limitador (US-31). A terceira
 pendência, o provedor de modelo de linguagem da US-46, foi resolvida — a chave
 da Anthropic entrou como variável sensível na Vercel, sem teto mensal.

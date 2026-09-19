@@ -77,7 +77,11 @@ export async function POST(request: Request) {
 /** Vinculo de serie quando o padrao de capitulo e reconhecido. */
 function seriesFields(title: string, sourceUrl: string) {
   const series = detectSeries(title, sourceUrl);
-  return { seriesKey: series?.key ?? null, chapter: series?.chapter ?? null };
+  return {
+    seriesKey: series?.key ?? null,
+    seriesTitle: series?.title ?? null,
+    chapter: series?.chapter ?? null,
+  };
 }
 
 function result(

@@ -15,6 +15,8 @@ export interface TextSummary {
   tags: string[];
   /** Identidade da serie, quando o capitulo foi reconhecido. */
   seriesKey: string | null;
+  /** Nome da serie como ela aparece na tela. */
+  seriesTitle: string | null;
   /** Numero do capitulo dentro da serie. */
   chapter: number | null;
   /** Posicao na fila de leitura; nulo quando o texto nao esta na fila. */

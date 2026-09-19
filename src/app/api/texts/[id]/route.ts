@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { highlights, tags, texts, textTags } from "@/db/schema";
+import { highlights, texts } from "@/db/schema";
 import {
   asInteger,
   asString,
@@ -11,7 +11,8 @@ import {
   serverError,
 } from "@/lib/api";
 import { loadText } from "@/lib/queries";
-import { normalizeTagList, tagKey } from "@/lib/tags";
+import { normalizeTagList } from "@/lib/tags";
+import { applyTags } from "@/lib/text-tags";
 import { detectSeries } from "@/lib/series";
 import { clamp, countWords } from "@/lib/reading";
 
@@ -105,7 +106,11 @@ export async function PUT(request: Request, { params }: Params) {
           wordCount,
           ...(rewritten ? { progressIndex: 0 } : {}),
           ...(retitled && current.seriesKey !== null
-            ? { seriesKey: series?.key ?? null, chapter: series?.chapter ?? null }
+            ? {
+                seriesKey: series?.key ?? null,
+                seriesTitle: series?.title ?? null,
+                chapter: series?.chapter ?? null,
+              }
             : {}),
           updatedAt: new Date(),
         })
@@ -128,45 +133,6 @@ export async function PUT(request: Request, { params }: Params) {
     return NextResponse.json({ text: updated, removedHighlights: removed });
   } catch (error) {
     return serverError("texts/update", error);
-  }
-}
-
-/**
- * Deixa as etiquetas do texto exatamente como a lista pedida.
- *
- * Cria o que falta pelo nome, reaproveita o que ja existe e desfaz os
- * vinculos que sobraram. A etiqueta em si nao e apagada: ela pode estar em
- * outros textos, e some da conta apenas quando o leitor a exclui.
- */
-async function applyTags(
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
-  userId: string,
-  textId: string,
-  names: string[]
-) {
-  const existing = await tx.select().from(tags).where(eq(tags.userId, userId));
-  const byKey = new Map(existing.map((tag) => [tagKey(tag.name), tag]));
-
-  const missing = names.filter((name) => !byKey.has(tagKey(name)));
-  if (missing.length > 0) {
-    const created = await tx
-      .insert(tags)
-      .values(missing.map((name) => ({ userId, name })))
-      .onConflictDoNothing()
-      .returning();
-    for (const tag of created) byKey.set(tagKey(tag.name), tag);
-  }
-
-  const wanted = names
-    .map((name) => byKey.get(tagKey(name))?.id)
-    .filter((id): id is string => Boolean(id));
-
-  await tx.delete(textTags).where(eq(textTags.textId, textId));
-  if (wanted.length > 0) {
-    await tx
-      .insert(textTags)
-      .values(wanted.map((tagId) => ({ textId, tagId })))
-      .onConflictDoNothing();
   }
 }
 

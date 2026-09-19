@@ -65,11 +65,22 @@ export default async function SharePage({
     );
   }
 
+  // Veio um endereco, mas nao um que de para buscar. Dizer isso e diferente
+  // de dizer que nao veio nada: o favorito e o Atalho do iOS (US-59) mandam
+  // o endereco da pagina atual, que as vezes e um `file:` ou um `ftp:`.
+  const rejected = [url, text].some(
+    (value) => typeof value === "string" && value.trim().length > 0
+  );
+
   return (
     <EmptyState
       icon={<LinkIcon className="size-6" />}
-      title="Nada para importar"
-      description="O compartilhamento chegou sem link e sem texto suficiente para ler."
+      title={rejected ? "Endereco invalido" : "Nada para importar"}
+      description={
+        rejected
+          ? "O endereco precisa comecar com http:// ou https://"
+          : "O compartilhamento chegou sem link e sem texto suficiente para ler."
+      }
       action={
         <LinkButton href="/textos/novo" size="lg">
           Adicionar texto
