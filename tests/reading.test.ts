@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_CHUNK,
+  MAX_HIGHLIGHT,
   MAX_WPM,
   MIN_CHUNK,
+  MIN_HIGHLIGHT,
   MIN_WPM,
   chunkDurationMs,
   clamp,
@@ -132,5 +134,30 @@ describe("orpIndex", () => {
     expect(orpIndex("casa")).toBe(1);
     expect(orpIndex("cabana")).toBe(2);
     expect(orpIndex("extraordinario")).toBe(3);
+  });
+});
+
+describe("faixa da intensidade do destaque", () => {
+  it("cobre do quase imperceptivel ao quase solido, sem passar disso", () => {
+    // Faixa unica: o slider dos ajustes e o clamp da rota leem daqui. Quando
+    // os dois guardavam o proprio numero, bastava mudar um para a tela
+    // oferecer um valor que o servidor recusava.
+    expect(MIN_HIGHLIGHT).toBeGreaterThan(0);
+    expect(MIN_HIGHLIGHT).toBeLessThan(MAX_HIGHLIGHT);
+    expect(MAX_HIGHLIGHT).toBeLessThan(1);
+  });
+
+  it("aceita o padrao e prende o que vem de fora", () => {
+    expect(clamp(0.35, MIN_HIGHLIGHT, MAX_HIGHLIGHT)).toBe(0.35);
+    expect(clamp(0, MIN_HIGHLIGHT, MAX_HIGHLIGHT)).toBe(MIN_HIGHLIGHT);
+    expect(clamp(5, MIN_HIGHLIGHT, MAX_HIGHLIGHT)).toBe(MAX_HIGHLIGHT);
+    expect(clamp(Number.NaN, MIN_HIGHLIGHT, MAX_HIGHLIGHT)).toBe(MIN_HIGHLIGHT);
+  });
+
+  it("vai e volta entre fracao e ponto percentual inteiro", () => {
+    // O slider trabalha em inteiros; o valor guardado e a fracao.
+    for (const fracao of [0.1, 0.35, 0.5, 0.8]) {
+      expect(Math.round(fracao * 100) / 100).toBe(fracao);
+    }
   });
 });

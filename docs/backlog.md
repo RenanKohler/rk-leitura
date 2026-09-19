@@ -58,7 +58,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Produto: novas funcionalidades | 4 | 37 | 0 | 1 | 3 |
 | **Total** | **40** | **165** | **15 (38%)** | **16 (40%)** | **9 (22%)** |
 
-Status: 30 Implementadas, 1 Parcial, 7 Propostas, 2 Aguardando pendência.
+Status: 31 Implementadas, 7 Propostas, 2 Aguardando pendência.
 
 O épico "Produto: novas funcionalidades" reúne o que ainda não existe no código
 e não foi extraído dele: são propostas de produto, levantadas em conversa e
@@ -584,8 +584,8 @@ Como leitor, eu quero escolher entre tema do sistema, claro ou escuro, para que 
 **Épico:** Preferências
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Parcial
-**Evidência:** `highlightOpacity` existe em `src/db/schema.ts`, é validado em `src/app/api/settings/route.ts` (0,1 a 0,8) e chega ao cliente em `src/components/providers.tsx`, mas não há controle em `ajustes/page.tsx` nem uso no leitor
+**Status:** Implementada
+**Evidência:** `src/lib/reading.ts` (`MIN_HIGHLIGHT`, `MAX_HIGHLIGHT`), `src/app/(app)/ajustes/page.tsx` (slider e prévia), `src/app/globals.css` (`--highlight-opacity`), `src/app/(app)/leitor/[id]/reader-client.tsx`
 
 Como leitor, eu quero ajustar a intensidade do destaque do trecho atual, para que o realce não canse a vista nem fique imperceptível.
 
@@ -594,7 +594,7 @@ Como leitor, eu quero ajustar a intensidade do destaque do trecho atual, para qu
 2. Dado que salvei a intensidade, quando leio no modo Rolagem, então o trecho atual usa a opacidade configurada.
 3. Dado que nunca alterei a opção, quando leio, então a intensidade padrão é 35%.
 
-**Notas técnicas:** persistência, validação e transporte até o cliente já existem; falta o controle na tela e a aplicação no estilo do leitor. Alternativa: remover o campo, caso a opção tenha sido descartada.
+**Notas técnicas:** a intensidade desce por variável CSS (`--highlight-opacity`), então mudá-la não rerrenderiza palavra nenhuma: quem pinta o trecho é uma regra de estilo. O texto do trecho destacado passou a usar a tinta normal em vez da tinta do acento — com fundo translúcido é ela que tem contraste (10:1 no ajuste padrão contra menos de 2:1 da outra, medido nos dois temas). Um contorno de 1px mantém o trecho localizável na intensidade mínima. A faixa virou constante única em `lib/reading.ts`, lida pelo slider e pelo clamp da rota; antes cada lado guardava o próprio número.
 
 ---
 
@@ -804,7 +804,8 @@ Restam quatro stories prontas para entrar em sprint e duas bloqueadas:
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
 | ~~1~~ | ~~US-32~~ | ~~8~~ | Concluída: rede de testes e pipeline de CI |
-| 1 | US-26, US-14 | 5 | Concluir o destaque e dar busca e filtro à biblioteca |
+| ~~1~~ | ~~US-26~~ | ~~2~~ | Concluída: intensidade do destaque |
+| 1 | US-14 | 3 | Busca e filtro na biblioteca |
 | 2 | US-07, US-06 | 6 | Conta: exclusão com eliminação de dados e edição de nome e senha |
 | 3 | US-37 | 8 | Produto: séries de capítulos, a de maior valor no uso atual |
 | 4 | US-39, US-38 | 16 | Produto: audiolivro e consulta ao toque |

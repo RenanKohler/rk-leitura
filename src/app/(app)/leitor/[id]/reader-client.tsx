@@ -360,7 +360,13 @@ function Reader({ text: initialText }: { text: TextDetail }) {
   }
 
   return (
-    <div className="min-h-dvh flex flex-col bg-bg">
+    <div
+      className="min-h-dvh flex flex-col bg-bg"
+      // A intensidade do destaque desce por variavel CSS: quem pinta o trecho
+      // atual e uma regra de estilo, nao o React, entao mudar o ajuste nao
+      // rerrenderiza palavra nenhuma.
+      style={{ "--highlight-opacity": settings.highlightOpacity } as React.CSSProperties}
+    >
       <header className="pt-safe sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-2 py-2">
           <Link

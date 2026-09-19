@@ -6,8 +6,10 @@ import { Button, Card, SectionTitle, Segmented, Slider } from "@/components/ui";
 import { LogoutIcon, MoonIcon, SettingsIcon, SunIcon } from "@/components/icons";
 import {
   MAX_CHUNK,
+  MAX_HIGHLIGHT,
   MAX_WPM,
   MIN_CHUNK,
+  MIN_HIGHLIGHT,
   MIN_WPM,
   estimatedMinutes,
   orpIndex,
@@ -15,6 +17,9 @@ import {
 } from "@/lib/reading";
 
 const SAMPLE = "A leitura dinamica treina o olho a reconhecer palavras inteiras".split(" ");
+
+/** O slider trabalha em pontos percentuais inteiros; o valor guardado e a fracao. */
+const toPercent = (fraction: number) => Math.round(fraction * 100);
 
 const MODE_HINTS: Record<ReadingMode, string> = {
   rsvp: "Uma palavra por vez no centro da tela, com a letra de fixacao destacada.",
@@ -85,7 +90,22 @@ export default function SettingsPage() {
           onChange={(value) => void update({ wordsPerChunk: value })}
         />
 
-        <Preview mode={settings.readingMode} chunkSize={settings.wordsPerChunk} />
+        <Slider
+          label="Intensidade do destaque"
+          display={`${toPercent(settings.highlightOpacity)}%`}
+          min={toPercent(MIN_HIGHLIGHT)}
+          max={toPercent(MAX_HIGHLIGHT)}
+          step={5}
+          hint="Vale para o trecho atual no modo Rolagem."
+          value={toPercent(settings.highlightOpacity)}
+          onChange={(value) => void update({ highlightOpacity: value / 100 })}
+        />
+
+        <Preview
+          mode={settings.readingMode}
+          chunkSize={settings.wordsPerChunk}
+          highlightOpacity={settings.highlightOpacity}
+        />
       </Card>
 
       <Card className="space-y-4 p-5">
@@ -143,13 +163,26 @@ export default function SettingsPage() {
 }
 
 /** Mostra como o texto aparece com os ajustes atuais. */
-function Preview({ mode, chunkSize }: { mode: ReadingMode; chunkSize: number }) {
+function Preview({
+  mode,
+  chunkSize,
+  highlightOpacity,
+}: {
+  mode: ReadingMode;
+  chunkSize: number;
+  highlightOpacity: number;
+}) {
   const chunk = SAMPLE.slice(0, chunkSize);
 
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium text-muted">Previa</p>
-      <div className="flex min-h-24 items-center justify-center rounded-2xl bg-bg px-4 py-6 text-center">
+      <div
+        className="flex min-h-24 items-center justify-center rounded-2xl bg-bg px-4 py-6 text-center"
+        // Mesma variavel que o leitor define: a previa mostra o destaque de
+        // verdade, nao uma imitacao que sai do lugar na primeira mudanca.
+        style={{ "--highlight-opacity": highlightOpacity } as React.CSSProperties}
+      >
         {mode === "page" ? (
           <div className="w-full max-w-xs">
             <div className="rounded-lg border border-border bg-surface px-3 py-3 text-left">
@@ -167,7 +200,7 @@ function Preview({ mode, chunkSize }: { mode: ReadingMode; chunkSize: number }) 
               <span
                 key={index}
                 className="flow-word"
-                data-state={index < chunkSize ? "active" : index < chunkSize + 2 ? "pending" : "pending"}
+                data-state={index < chunkSize ? "active" : "pending"}
               >
                 {word}{" "}
               </span>

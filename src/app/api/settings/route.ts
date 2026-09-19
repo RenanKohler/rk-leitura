@@ -3,7 +3,15 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { speedSettings } from "@/db/schema";
 import { readJson, requireSession, serverError } from "@/lib/api";
-import { clamp, MAX_CHUNK, MAX_WPM, MIN_CHUNK, MIN_WPM } from "@/lib/reading";
+import {
+  clamp,
+  MAX_CHUNK,
+  MAX_HIGHLIGHT,
+  MAX_WPM,
+  MIN_CHUNK,
+  MIN_HIGHLIGHT,
+  MIN_WPM,
+} from "@/lib/reading";
 import { DEFAULT_SETTINGS, loadSettings } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +41,7 @@ export async function PUT(request: Request) {
     const values = {
       baseWpm: clamp(Math.trunc(Number(body?.baseWpm)), MIN_WPM, MAX_WPM),
       wordsPerChunk: clamp(Math.trunc(Number(body?.wordsPerChunk)), MIN_CHUNK, MAX_CHUNK),
-      highlightOpacity: clamp(Number(body?.highlightOpacity), 0.1, 0.8),
+      highlightOpacity: clamp(Number(body?.highlightOpacity), MIN_HIGHLIGHT, MAX_HIGHLIGHT),
       readingMode: READING_MODES.has(String(body?.readingMode))
         ? String(body?.readingMode)
         : DEFAULT_SETTINGS.readingMode,

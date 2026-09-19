@@ -7,6 +7,12 @@ export const MIN_WPM = 100;
 export const MAX_WPM = 1200;
 export const MIN_CHUNK = 1;
 export const MAX_CHUNK = 6;
+/**
+ * Intensidade do destaque, em fracao. O minimo deixa o trecho perceptivel sem
+ * pesar; acima do maximo o fundo cobre a palavra e a leitura piora.
+ */
+export const MIN_HIGHLIGHT = 0.1;
+export const MAX_HIGHLIGHT = 0.8;
 
 /**
  * rsvp  - uma palavra por vez no centro da tela

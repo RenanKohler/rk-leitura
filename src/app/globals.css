@@ -173,9 +173,21 @@ a,
   transition: background-color 120ms ease, color 120ms ease;
 }
 
+/*
+ * A intensidade vem de `--highlight-opacity`, definida pelo leitor a partir
+ * das preferencias. O texto segue com a tinta normal em vez da tinta do
+ * acento: com o fundo translucido e ela que tem contraste - 10 para 1 no
+ * ajuste padrao, contra menos de 2 para 1 da outra. O contorno mantem o trecho
+ * localizavel na intensidade mais baixa, onde o fundo quase some.
+ */
 .flow-word[data-state="active"] {
-  background-color: var(--color-accent);
-  color: var(--color-accent-ink);
+  background-color: color-mix(
+    in srgb,
+    var(--color-accent) calc(var(--highlight-opacity, 0.35) * 100%),
+    transparent
+  );
+  box-shadow: 0 0 0 1px
+    color-mix(in srgb, var(--color-accent) calc(var(--highlight-opacity, 0.35) * 60%), transparent);
 }
 
 .flow-word[data-state="read"] {
