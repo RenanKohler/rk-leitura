@@ -13,7 +13,6 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const config = {
     databaseUrl: hasValue(process.env.DATABASE_URL),
-    netlifyDatabase: hasValue(process.env.NETLIFY_DATABASE_URL),
     jwtSecret: hasValue(process.env.JWT_SECRET),
   };
 

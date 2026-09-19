@@ -33,12 +33,13 @@ lido no momento do build).
 
 ### Producao: Neon
 
-Postgres gerenciado, plano gratuito sem cartao. `src/db/index.ts` resolve a
-conexao nesta ordem:
+Postgres gerenciado, plano gratuito sem cartao. A conexao vem de
+`DATABASE_URL`: em desenvolvimento pelo `.env.local`, em producao pela variavel
+de ambiente do host.
 
-1. `DATABASE_URL`, quando definida — vale para desenvolvimento local e para
-   qualquer host;
-2. Netlify DB, via `getConnectionString()` — so funciona dentro da Netlify.
+Use a **Pooled connection** do Neon — o host termina em `-pooler`. Em ambiente
+serverless cada requisicao pode abrir uma conexao nova, e o endpoint direto
+esgota o limite rapido.
 
 O TLS e resolvido automaticamente: a verificacao de certificado liga quando o
 host nao e local, respeitando o `sslmode` da connection string.
@@ -53,30 +54,22 @@ acompanha o deploy sem passo manual.
 
 ## Deploy
 
-### Vercel (destino atual)
+### Vercel
 
-O projeto `rk-leitura` existe no time da Vercel, ligado a este repositorio, com
-`JWT_SECRET` definido e as funcoes na regiao `gru1` (Sao Paulo) - perto de quem
-usa e do banco. Cada push na `main` gera um deploy.
+Em producao: <https://rk-leitura.vercel.app>.
 
-Falta apenas `DATABASE_URL`, a connection string do Neon. Com ela definida, o
-script `vercel-build` aplica as migrations antes de compilar, entao o schema
-sobe sozinho no primeiro deploy.
+O projeto `rk-leitura` esta ligado a este repositorio, com `DATABASE_URL` e
+`JWT_SECRET` definidos como variaveis sensiveis e as funcoes na regiao `gru1`
+(Sao Paulo) - perto de quem usa e do banco. Cada push na `main` gera um deploy.
+
+O script `vercel-build` aplica as migrations antes de compilar, entao o schema
+acompanha o deploy sem passo manual. Se as migrations falharem, o build para e
+o deploy anterior continua no ar.
 
 Para criar o banco: projeto novo em <https://neon.tech> (gratuito, sem cartao),
-regiao `sa-east-1`, e copie a **Pooled connection** - o host termina em
-`-pooler`. Em ambiente serverless cada requisicao pode abrir uma conexao nova, e
-o endpoint direto esgota o limite rapido.
+regiao `sa-east-1`, e copie a **Pooled connection**.
 
-### Netlify (hospedagem anterior)
-
-Continua no ar em <https://rk-leitura.netlify.app> enquanto a mudanca acontece,
-com o Netlify DB provisionado. O codigo ainda sabe conversar com os dois: a
-conexao vem de `DATABASE_URL` quando definida e, na falta dela, do Netlify DB.
-Depois que a Vercel estiver confirmada, da para remover `netlify.toml`, a pasta
-`netlify/` e a dependencia `@netlify/database`.
-
-Dois detalhes que valem para qualquer um dos dois:
+Dois detalhes que valem em qualquer host:
 
 - **Variaveis de ambiente novas so valem no proximo deploy.** Defini-las nao
   afeta o deploy que ja esta publicado.
@@ -94,7 +87,7 @@ Trocar o `JWT_SECRET` invalida todas as sessoes ativas.
 
 | Variavel | Obrigatoria | Descricao |
 | --- | --- | --- |
-| `DATABASE_URL` | fora da Netlify | Connection string do Postgres. Na Netlify a conexao vem do Netlify DB. |
+| `DATABASE_URL` | sim | Connection string do Postgres (no Neon, a *pooled connection*). |
 | `JWT_SECRET` | sim | Chave de assinatura das sessoes, minimo 32 caracteres. |
 | `DATABASE_POOL_MAX` | nao | Tamanho maximo do pool (padrao 5). |
 | `NEXT_PUBLIC_DEMO_HINT` | nao | `true` mostra as credenciais de demo no login. |
@@ -126,10 +119,9 @@ existe mais. Nao ha nada a configurar no lugar.
 | `npm run dev` | Servidor de desenvolvimento. |
 | `npm run build` / `npm start` | Build e execucao em producao. |
 | `npm run lint` / `npm run typecheck` | ESLint e TypeScript. |
-| `npm run db:generate` | Gera migration a partir do schema e sincroniza a copia da Netlify. |
+| `npm run db:generate` | Gera migration a partir do schema. |
 | `npm run db:migrate` | Aplica as migrations pendentes. |
 | `npm run db:push` | Sincroniza o schema sem migration (so em desenvolvimento). |
-| `npm run db:sync-netlify` | Regenera `netlify/database/migrations/` a partir de `drizzle/`. |
 | `npm run db:seed` | Dados de demonstracao. |
 | `npm run secret` | Gera um `JWT_SECRET`. |
 
@@ -148,9 +140,7 @@ src/
   hooks/            useResource, useWakeLock
   lib/              auth, sessao, parser, leitura, rate limit, busca protegida
   middleware.ts     protecao de rotas no servidor
-drizzle/            migrations SQL versionadas (fonte unica)
-netlify/database/   copia gerada das migrations, aplicada pela Netlify no deploy
-scripts/            geracao da copia acima
+drizzle/            migrations SQL versionadas
 ```
 
 ### Decisoes que valem registro
@@ -193,10 +183,8 @@ scripts/            geracao da copia acima
   banco, em vez de baixar o historico inteiro para somar no cliente.
 - **Importacao de URL.** Toda busca passa por `lib/safe-fetch.ts`, que resolve o
   DNS e recusa enderecos de rede interna, revalidando cada redirecionamento.
-- **Migrations.** `drizzle/` e a unica fonte. Fora da Netlify, `npm run
-  db:migrate` aplica. Na Netlify, a plataforma aplica o SQL de
-  `netlify/database/migrations/` logo antes de publicar — momento em que o
-  banco ja foi provisionado, o que o comando de build nao garante.
+- **Migrations.** `drizzle/` e a unica fonte, aplicada por `npm run db:migrate`
+  — localmente a mao e, no deploy, pelo `vercel-build` antes do `next build`.
 - **Carga de dados.** As telas autenticadas sao componentes de servidor: a
   consulta roda antes do HTML sair e o conteudo chega pronto. Sessao e
   preferencias saem do proprio cookie assinado e de uma consulta no layout, em
