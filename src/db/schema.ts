@@ -99,6 +99,13 @@ export const readingSessions = pgTable(
     completed: boolean("completed").notNull().default(false),
     /** Acertos do questionario, em porcentagem. Nulo quando nao houve. */
     comprehension: integer("comprehension"),
+    /**
+     * Sessao ouvida em voz alta (US-39).
+     *
+     * Conta no historico como qualquer leitura, mas nao cumpre o dia do
+     * programa de treino: o ritmo ali e o da voz, nao o do olho.
+     */
+    narrated: boolean("narrated").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("reading_sessions_user_created_idx").on(table.userId, table.createdAt.desc())]
@@ -124,6 +131,11 @@ export const speedSettings = pgTable(
     lineHeightStep: integer("line_height_step").notNull().default(2),
     // Rampa de aceleracao no inicio da leitura.
     warmup: boolean("warmup").notNull().default(true),
+    /**
+     * Enfase nas primeiras letras de cada palavra (US-61). Opcao e nao
+     * padrao: o apoio ajuda alguns leitores e atrapalha outros.
+     */
+    wordEmphasis: boolean("word_emphasis").notNull().default(false),
     /**
      * Fuso do usuario, no formato IANA ("America/Sao_Paulo").
      *
@@ -333,6 +345,40 @@ export const trainingDays = pgTable(
   (table) => [uniqueIndex("training_days_program_day_unique").on(table.programId, table.day)]
 );
 
+/**
+ * Palavras consultadas durante a leitura (US-38).
+ *
+ * Uma linha por palavra, nao por consulta: consultar duas vezes atualiza a
+ * definicao em vez de encher a lista com a mesma palavra. A chave ignora
+ * caixa e acento, como o resto do app.
+ */
+export const savedWords = pgTable(
+  "saved_words",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Palavra como ela aparece no texto. */
+    word: text("word").notNull(),
+    /** Forma de dicionario. */
+    base: text("base").notNull(),
+    /** Classe gramatical no uso daquela frase. */
+    kind: text("kind").notNull().default(""),
+    definition: text("definition").notNull(),
+    /** Texto em que a palavra foi encontrada; nulo se ele for apagado. */
+    textId: uuid("text_id").references(() => texts.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("saved_words_user_word_unique").on(
+      table.userId,
+      sql`translate(lower(${table.word}), 'áàâãäåéèêëíìîïóòôõöøúùûüçñýÿ', 'aaaaaaeeeeiiiioooooouuuucnyy')`
+    ),
+  ]
+);
+
 export type User = typeof users.$inferSelect;
 export type Text = typeof texts.$inferSelect;
 export type ReadingSession = typeof readingSessions.$inferSelect;
@@ -342,3 +388,4 @@ export type ComprehensionQuiz = typeof comprehensionQuizzes.$inferSelect;
 export type Highlight = typeof highlights.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type TrainingProgram = typeof trainingPrograms.$inferSelect;
+export type SavedWord = typeof savedWords.$inferSelect;

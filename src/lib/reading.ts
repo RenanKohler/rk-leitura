@@ -215,3 +215,50 @@ export function formatRelativeDay(value: string | Date): string {
   if (diffDays < 7) return `${diffDays} dias atras`;
   return formatDate(date);
 }
+
+/**
+ * Enfase no inicio das palavras.
+ *
+ * Aproximadamente a primeira metade das letras em negrito. A ideia e que o
+ * olho reconheca a palavra pelo comeco, sem soletrar o resto; se ajuda ou nao
+ * depende de quem le, e por isso e uma opcao e nao o padrao.
+ */
+export interface WordPart {
+  text: string;
+  bold: boolean;
+}
+
+/** Quantas letras iniciais recebem enfase. */
+export function emphasisLength(word: string): number {
+  // Conta so letras: pontuacao e aspas no inicio nao deveriam puxar o negrito
+  // para dentro da palavra nem consumir a metade enfatizada.
+  const letters = word.replace(/[^\p{L}\p{N}]/gu, "").length;
+  if (letters <= 1) return letters;
+  if (letters <= 3) return 1;
+  return Math.ceil(letters / 2);
+}
+
+/** Divide a palavra entre a parte enfatizada e o resto. */
+export function splitEmphasis(word: string, enabled: boolean): WordPart[] {
+  if (!enabled) return [{ text: word, bold: false }];
+
+  const target = emphasisLength(word);
+  if (target === 0) return [{ text: word, bold: false }];
+
+  let letters = 0;
+  let cut = 0;
+  for (const char of word) {
+    cut += char.length;
+    if (/[\p{L}\p{N}]/u.test(char)) letters += 1;
+    if (letters >= target) break;
+  }
+
+  const head = word.slice(0, cut);
+  const tail = word.slice(cut);
+  return tail.length > 0
+    ? [
+        { text: head, bold: true },
+        { text: tail, bold: false },
+      ]
+    : [{ text: head, bold: true }];
+}

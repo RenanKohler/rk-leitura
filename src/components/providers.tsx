@@ -268,6 +268,7 @@ export interface ReadingSettings {
   fontFamily: FontFamily;
   lineHeightStep: number;
   warmup: boolean;
+  wordEmphasis: boolean;
   timezone: string;
   weeklySummarySeenOn: string | null;
   readingMode: ReadingMode;
@@ -282,6 +283,7 @@ export const FALLBACK_SETTINGS: ReadingSettings = {
   fontFamily: "sans",
   lineHeightStep: 2,
   warmup: true,
+  wordEmphasis: false,
   timezone: "UTC",
   weeklySummarySeenOn: null,
   readingMode: "rsvp",

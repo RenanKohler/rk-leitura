@@ -1,0 +1,1 @@
+ALTER TABLE "speed_settings" ADD COLUMN "word_emphasis" boolean DEFAULT false NOT NULL;

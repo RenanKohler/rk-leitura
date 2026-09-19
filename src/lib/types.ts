@@ -27,6 +27,19 @@ export interface TextSummary {
   updatedAt: string;
 }
 
+/** Uma palavra consultada, como a lista a mostra. */
+export interface SavedWordItem {
+  id: string;
+  word: string;
+  base: string;
+  kind: string;
+  definition: string;
+  /** Texto em que ela foi encontrada; nulo quando o texto foi apagado. */
+  textId: string | null;
+  textTitle: string | null;
+  createdAt: string;
+}
+
 /** Etiqueta com quantos textos ela marca. */
 export interface TagSummary {
   id: string;
@@ -88,6 +101,8 @@ export interface SessionSummary {
   wordsRead: number;
   durationMs: number;
   completed: boolean;
+  /** Sessao ouvida em voz alta. */
+  narrated: boolean;
   /** Acertos do questionario, quando houve. */
   comprehension: number | null;
   createdAt: string;
@@ -130,6 +145,8 @@ export interface SettingsPayload {
   fontFamily: FontFamily;
   lineHeightStep: number;
   warmup: boolean;
+  /** Enfase nas primeiras letras de cada palavra. */
+  wordEmphasis: boolean;
   /** Fuso IANA usado para decidir o que e "hoje". */
   timezone: string;
   /** Segunda-feira da ultima semana em que o resumo foi dispensado. */

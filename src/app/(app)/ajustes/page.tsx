@@ -6,7 +6,7 @@ import { Button, Card, SectionTitle, Segmented, Slider } from "@/components/ui";
 import { AccountCard } from "@/components/account-card";
 import { ExportCard } from "@/components/export-card";
 import { BookmarkletCard } from "@/components/bookmarklet-card";
-import { MoonIcon, SettingsIcon, SpeedIcon, SunIcon } from "@/components/icons";
+import { MoonIcon, SettingsIcon, SpeedIcon, SunIcon, WordsIcon } from "@/components/icons";
 import {
   MAX_CHUNK,
   MAX_FONT_SCALE,
@@ -20,6 +20,7 @@ import {
   MIN_WPM,
   estimatedMinutes,
   orpIndex,
+  splitEmphasis,
   typographyVars,
   WARMUP_WORDS,
   type FontFamily,
@@ -138,10 +139,26 @@ export default function SettingsPage() {
             : "A leitura comeca direto na velocidade configurada."}
         </p>
 
+        <Segmented<"normal" | "enfase">
+          label="Enfase no inicio das palavras"
+          value={settings.wordEmphasis ? "enfase" : "normal"}
+          onChange={(value) => void update({ wordEmphasis: value === "enfase" })}
+          options={[
+            { value: "normal", label: "Sem enfase" },
+            { value: "enfase", label: "Com enfase" },
+          ]}
+        />
+        <p className="text-sm text-faint">
+          {settings.wordEmphasis
+            ? "As primeiras letras de cada palavra ficam em negrito nos modos Rolagem e Paginas."
+            : "O texto aparece com peso uniforme, como em um livro."}
+        </p>
+
         <Preview
           mode={settings.readingMode}
           chunkSize={settings.wordsPerChunk}
           highlightOpacity={settings.highlightOpacity}
+          emphasis={settings.wordEmphasis}
         />
       </Card>
 
@@ -236,6 +253,20 @@ export default function SettingsPage() {
         </p>
       </Card>
 
+      <Card className="space-y-3 p-5">
+        <SectionTitle>Palavras</SectionTitle>
+        <p className="text-sm text-muted">
+          Durante a leitura, toque e segure em uma palavra para ver o significado. No modo Foco,
+          pause e toque na palavra exibida.
+        </p>
+        <Link href="/palavras" className="block">
+          <Button variant="secondary" size="lg" full>
+            <WordsIcon className="size-5" />
+            Palavras salvas
+          </Button>
+        </Link>
+      </Card>
+
       <BookmarkletCard />
 
       <AccountCard />
@@ -248,10 +279,12 @@ function Preview({
   mode,
   chunkSize,
   highlightOpacity,
+  emphasis,
 }: {
   mode: ReadingMode;
   chunkSize: number;
   highlightOpacity: number;
+  emphasis: boolean;
 }) {
   const chunk = SAMPLE.slice(0, chunkSize);
 
@@ -267,7 +300,14 @@ function Preview({
         {mode === "page" ? (
           <div className="w-full max-w-xs">
             <div className="rounded-lg border border-border bg-surface px-3 py-3 text-left">
-              <p className="text-sm leading-relaxed">{SAMPLE.join(" ")}</p>
+              <p className="text-sm leading-relaxed">
+                {SAMPLE.map((word, index) => (
+                  <span key={index}>
+                    {index > 0 ? " " : null}
+                    <Emphasized word={word} on={emphasis} />
+                  </span>
+                ))}
+              </p>
             </div>
             <p className="tabular mt-2 text-xs text-muted">Pagina 1 de 8</p>
           </div>
@@ -283,13 +323,25 @@ function Preview({
                 className="flow-word"
                 data-state={index < chunkSize ? "active" : "pending"}
               >
-                {word}{" "}
+                <Emphasized word={word} on={emphasis} />{" "}
               </span>
             ))}
           </p>
         )}
       </div>
     </div>
+  );
+}
+
+/** Mesma divisao que o leitor usa, para a previa nao mentir. */
+function Emphasized({ word, on }: { word: string; on: boolean }) {
+  if (!on) return <>{word}</>;
+  return (
+    <>
+      {splitEmphasis(word, true).map((part, index) =>
+        part.bold ? <b key={index}>{part.text}</b> : <span key={index}>{part.text}</span>
+      )}
+    </>
   );
 }
 

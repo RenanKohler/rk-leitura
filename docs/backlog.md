@@ -71,7 +71,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
 | **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
 
-Status: 54 Implementadas, 5 Propostas, 2 Aguardando pendência.
+Status: 57 Implementadas, 2 Propostas, 2 Aguardando pendência.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -1117,8 +1117,8 @@ Como leitor, eu quero ajustar tamanho, família da fonte e espaçamento entre li
 **Épico:** Ferramentas de leitura
 **Prioridade:** Should
 **Story points:** 8
-**Status:** Proposta
-**Evidência:** `ReadingMode` em `src/lib/reading.ts` tem apenas `rsvp`, `flow` e `page`
+**Status:** Implementada
+**Evidência:** `src/lib/speech.ts`, `src/hooks/use-speech.ts`, botao de voz em `reader-client.tsx`
 
 Como leitor, eu quero que o app leia o texto em voz alta enquanto destaca as palavras, para que eu continue a leitura em momentos em que não posso olhar para a tela o tempo todo.
 
@@ -1136,9 +1136,9 @@ Como leitor, eu quero que o app leia o texto em voz alta enquanto destaca as pal
 **Épico:** Ferramentas de leitura
 **Prioridade:** Could
 **Story points:** 8
-**Status:** Proposta
-**Decisão pendente:** a fonte do dicionário. Definição em inglês tem API gratuita e pode ser entregue sem contratar nada; tradução e dicionário em português exigem provedor, e a cobertura gratuita é fraca.
-**Evidência:** não há interação por palavra no leitor; os parágrafos são renderizados como blocos em `reader-client.tsx`
+**Status:** Implementada
+**Evidência:** `src/lib/dictionary.ts`, `src/lib/word-lookup.ts`, `src/hooks/use-word-touch.ts`, `src/app/(app)/palavras/`
+**Decisão tomada:** a fonte é o mesmo provedor do questionário (US-46), com a chave já configurada. Dicionário aberto em português tem cobertura fraca e nenhum resolve o sentido pelo contexto — "manga" em um texto de botânica é outra coisa que em um de costura.
 
 Como leitor, eu quero tocar em uma palavra desconhecida e ver seu significado, para que eu não interrompa a leitura para pesquisar em outro app.
 
@@ -1150,14 +1150,15 @@ Como leitor, eu quero tocar em uma palavra desconhecida e ver seu significado, p
 5. Dado que consultei uma palavra, quando abro "Palavras salvas", então vejo a lista das consultas com o texto de origem.
 6. Dado que a palavra vira alvo de toque, quando leio no modo Páginas, então a quebra de página continua idêntica à de hoje.
 
-**Notas técnicas:** o critério 6 é o risco real e o que justifica os 8 pontos em vez dos 5 de uma estimativa superficial: a régua de `use-paged-text.ts` monta os mesmos parágrafos, então envolver cada palavra em um elemento próprio muda a medição se a régua não acompanhar. A consulta passa por `lib/safe-fetch.ts`. Integra com US-52 para salvar a palavra como nota.
+**Notas técnicas:** o critério 6 é resolvido por construção: a palavra tocada é encontrada pela posição do dedo (`caretPositionFromPoint`), não por um elemento próprio, então o parágrafo continua sendo um nó de texto só e a quebra de página não muda. A consulta manda a frase em volta, o que também resolve o critério 3 sem tabela de conjugações.
 
 ### US-61: Enfatizar o início das palavras
 
 **Épico:** Ferramentas de leitura
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `splitEmphasis` em `src/lib/reading.ts`, `fillRuler` em `src/hooks/use-paged-text.ts`
 
 Como leitor, eu quero que as primeiras letras de cada palavra fiquem em negrito, para que eu teste se esse apoio visual melhora minha fluidez nos modos de texto corrido.
 
@@ -1166,7 +1167,7 @@ Como leitor, eu quero que as primeiras letras de cada palavra fiquem em negrito,
 2. Dado que a opção está ativa, quando o modo Páginas calcula as páginas, então a medição considera a ênfase aplicada.
 3. Dado que desativo a opção, quando volto ao texto, então ele é exibido sem ênfase.
 
-**Notas técnicas:** não usar o nome comercial da técnica, que é marca registrada. Compartilha com a US-38 o problema de envolver cada palavra em um elemento próprio sem quebrar a régua de paginação — vale entregar as duas próximas uma da outra.
+**Notas técnicas:** não usar o nome comercial da técnica, que é marca registrada. A ênfase é o único dos dois que precisa de marcação por palavra; a régua de paginação monta a mesma árvore, as duas passando por `splitEmphasis`, então o negrito que muda a largura na tela também muda a largura medida.
 
 ---
 
@@ -1216,7 +1217,7 @@ Entregue até aqui, em ordem:
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
 | US-46 | 8 | Perguntas de compreensão ao concluir um texto |
 
-Restam 7 stories: 5 prontas para entrar em sprint (37 pontos) e 2 travadas
+Restam 4 stories: 2 prontas para entrar em sprint (18 pontos) e 2 travadas
 por decisão externa (10 pontos). A ordem abaixo agrupa por dependência, não por
 tema: cada faixa entrega algo utilizável e prepara a seguinte.
 
@@ -1228,7 +1229,7 @@ tema: cada faixa entrega algo utilizável e prepara a seguinte.
 | ~~4~~ | ~~US-37, US-54, US-56~~ | ~~16~~ | Concluída: séries de capítulos, etiquetas e fila de leitura |
 | ~~5~~ | ~~US-45, US-47~~ | ~~13~~ | Concluída: teste de velocidade inicial e programa progressivo |
 | ~~6~~ | ~~US-57, US-59, US-58~~ | ~~18~~ | Concluída: importação de PDF e EPUB, favorito e Atalho do iOS |
-| 7 | US-39, US-61, US-38 | 19 | Ferramentas de leitura: voz alta, ênfase no início das palavras e dicionário. |
+| ~~7~~ | ~~US-39, US-61, US-38~~ | ~~19~~ | Concluída: voz alta, ênfase no início das palavras e dicionário |
 | 8 | US-40, US-43 | 18 | Offline e lembrete, que compartilham o service worker. |
 | — | US-05, US-31 | 10 | Aguardando pendência: provedor de e-mail e armazenamento do limitador. |
 
@@ -1246,7 +1247,6 @@ Por que esta ordem e não a do documento de origem:
   de maior risco em produção, e entra por último, com a suíte de testes já
   montada.
 
-Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia as ordens 7
-e 8: provedor de e-mail (US-05) e armazenamento do limitador (US-31). A terceira
+Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia a ordem 8: provedor de e-mail (US-05) e armazenamento do limitador (US-31). A terceira
 pendência, o provedor de modelo de linguagem da US-46, foi resolvida — a chave
 da Anthropic entrou como variável sensível na Vercel, sem teto mensal.

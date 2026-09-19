@@ -20,6 +20,7 @@ import {
   highlights,
   readingGoals,
   readingSessions,
+  savedWords,
   speedSettings,
   tags,
   texts,
@@ -31,6 +32,7 @@ import {
 import { DEFAULT_PAGE_SIZE } from "@/lib/api";
 import { asFontFamily, parseParagraphs } from "@/lib/reading";
 import { excerptOf } from "@/lib/highlights";
+import { MAX_SAVED_WORDS } from "@/lib/dictionary";
 import { tagKey } from "@/lib/tags";
 import { cleanTitle, nextChapterUrl } from "@/lib/series";
 import { asProgramLength, programStatus, type ProgramStatus } from "@/lib/training";
@@ -61,6 +63,7 @@ import type {
   HighlightItem,
   LibraryItem,
   NextUp,
+  SavedWordItem,
   SessionSummary,
   SettingsPayload,
   TagSummary,
@@ -88,6 +91,7 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   fontFamily: "sans",
   lineHeightStep: 2,
   warmup: true,
+  wordEmphasis: false,
   timezone: "UTC",
   weeklySummarySeenOn: null,
   placementWpm: null,
@@ -154,6 +158,7 @@ export const loadSettings = cache(async function loadSettings(
     fontFamily: asFontFamily(row.settings.fontFamily),
     lineHeightStep: row.settings.lineHeightStep,
     warmup: row.settings.warmup,
+    wordEmphasis: row.settings.wordEmphasis,
     timezone: asTimezone(row.settings.timezone),
     weeklySummarySeenOn: row.settings.weeklySummarySeenOn,
     placementWpm: row.settings.placementWpm,
@@ -317,6 +322,7 @@ export async function loadSessions(
         wordsRead: readingSessions.wordsRead,
         durationMs: readingSessions.durationMs,
         completed: readingSessions.completed,
+        narrated: readingSessions.narrated,
         comprehension: readingSessions.comprehension,
         createdAt: readingSessions.createdAt,
       })
@@ -1021,4 +1027,28 @@ export async function activeProgram(userId: string) {
     .limit(1);
 
   return program ?? null;
+}
+
+/* --- palavras salvas ----------------------------------------------------- */
+
+/** Palavras consultadas, da mais recente para a mais antiga. */
+export async function loadSavedWords(userId: string): Promise<SavedWordItem[]> {
+  const rows = await db
+    .select({
+      id: savedWords.id,
+      word: savedWords.word,
+      base: savedWords.base,
+      kind: savedWords.kind,
+      definition: savedWords.definition,
+      textId: savedWords.textId,
+      textTitle: texts.title,
+      createdAt: savedWords.createdAt,
+    })
+    .from(savedWords)
+    .leftJoin(texts, eq(texts.id, savedWords.textId))
+    .where(eq(savedWords.userId, userId))
+    .orderBy(desc(savedWords.updatedAt))
+    .limit(MAX_SAVED_WORDS);
+
+  return rows.map((row) => ({ ...row, createdAt: isoDate(row.createdAt) }));
 }

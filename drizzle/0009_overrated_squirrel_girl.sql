@@ -1,0 +1,1 @@
+ALTER TABLE "reading_sessions" ADD COLUMN "narrated" boolean DEFAULT false NOT NULL;

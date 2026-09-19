@@ -60,6 +60,7 @@ export async function PUT(request: Request) {
         MAX_LINE_HEIGHT
       ),
       warmup: body?.warmup !== false,
+      wordEmphasis: body?.wordEmphasis === true,
       timezone: asTimezone(body?.timezone),
     };
 

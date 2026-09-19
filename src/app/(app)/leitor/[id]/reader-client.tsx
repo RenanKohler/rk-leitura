@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import { pageOfWord, usePagedText } from "@/hooks/use-paged-text";
 import { useSettings, useToast } from "@/components/providers";
-import { Button, Card, Segmented, Sheet, Slider, Spinner } from "@/components/ui";
+import { Alert, Button, Card, Segmented, Sheet, Slider, Spinner } from "@/components/ui";
 import {
   BackIcon,
   CheckIcon,
@@ -20,6 +20,7 @@ import {
   RewindIcon,
   SettingsIcon,
   SparkIcon,
+  VoiceIcon,
 } from "@/components/icons";
 import {
   chunkDurationMs,
@@ -36,14 +37,20 @@ import {
   orpIndex,
   parseParagraphs,
   sliceParagraphs,
+  splitEmphasis,
   type Paragraph,
   type ReadingMode,
 } from "@/lib/reading";
 import { apiSend } from "@/lib/client";
 import { QuizSheet } from "@/components/quiz-sheet";
 import { HighlightSheet } from "@/components/highlight-sheet";
+import { WordSheet } from "@/components/word-sheet";
 import { MIN_WORDS_FOR_QUIZ } from "@/lib/quiz";
 import { useWordSelection } from "@/hooks/use-word-selection";
+import { useWordTouch } from "@/hooks/use-word-touch";
+import { useSpeech } from "@/hooks/use-speech";
+import { rateNotice } from "@/lib/speech";
+import { normalizeWord, trimContext } from "@/lib/dictionary";
 import {
   markCovering,
   segmentsOf,
@@ -138,7 +145,12 @@ function Reader({
 
   // As referencias so sao preenchidas quando o modo Paginas esta montado; nos
   // outros modos o observer nunca liga e `pages` fica no valor inicial.
-  const { frameRef, rulerRef, pages, ready: pagesReady } = usePagedText(paragraphs, total);
+  const emphasis = settings.wordEmphasis;
+  const { frameRef, rulerRef, pages, ready: pagesReady } = usePagedText(
+    paragraphs,
+    total,
+    emphasis
+  );
   const currentPage = pageOfWord(pages, index);
   const pageStart = pages[currentPage] ?? 0;
   const pageEnd = pages[currentPage + 1] ?? total;
@@ -245,6 +257,10 @@ function Reader({
     }
   }, [nextUp, text.id, router, notify]);
 
+  /* --- dicionario -------------------------------------------------------- */
+  // Toque longo so nos modos em que o texto esta na tela; no Foco a palavra e
+  // uma so e o toque dela e o de pausar.
+  const word = useWordTouch(mode !== "rsvp" && !finished);
   /** Destaca a frase que contem a palavra atual, sem parar a leitura. */
   const markSentence = useCallback(() => {
     const range = sentenceRange(words, index);
@@ -272,7 +288,7 @@ function Reader({
 
   /** Grava a sessao e zera os acumuladores. Devolve o que foi contabilizado. */
   const flushSession = useCallback(
-    (completed: boolean, useKeepalive = false) => {
+    (completed: boolean, useKeepalive = false, narrated = false) => {
       const duration = elapsedMs();
       const wordsRead = wordsReadRef.current;
 
@@ -292,6 +308,7 @@ function Reader({
           wordsRead,
           durationMs: duration,
           completed,
+          narrated,
         }),
         keepalive: useKeepalive,
       }).catch(() => undefined);
@@ -420,6 +437,88 @@ function Reader({
     setFinished(false);
     setPlaying(true);
   }, [total, saveProgress]);
+
+  // Consultar uma palavra pausa a leitura, e fechar o painel nao a retoma
+  // sozinha: quem parou para entender uma palavra decide quando voltar.
+  const wordOpen = word.touched !== null;
+
+  useEffect(() => {
+    if (wordOpen && stateRef.current.playing) togglePlay();
+  }, [wordOpen, togglePlay]);
+
+  /* --- voz alta ---------------------------------------------------------- */
+  const speech = useSpeech();
+  const narratingRef = useRef(false);
+
+  /**
+   * Liga e desliga a narracao.
+   *
+   * A fala conduz a posicao: o avanco automatico fica parado enquanto ela
+   * dura, senao dois relogios disputariam o mesmo indice. Pausar, avancar e
+   * voltar continuam valendo - a narracao recomeca da posicao nova.
+   */
+  const toggleSpeech = useCallback(() => {
+    if (speech.state === "falando") {
+      speech.stop();
+      narratingRef.current = false;
+      elapsedRef.current += startedAtRef.current ? Date.now() - startedAtRef.current : 0;
+      startedAtRef.current = null;
+      saveProgress(stateRef.current.index);
+      return;
+    }
+
+    if (stateRef.current.index >= total) return;
+    if (stateRef.current.playing) togglePlay();
+
+    // A contagem anda pela posicao anterior da propria narracao, nao pelo
+    // espelho de estado: ele so e atualizado por um efeito, e entre dois
+    // renders chegam dezenas de eventos de palavra - somar contra um indice
+    // defasado contava a mesma leitura varias vezes.
+    let narratedFrom = stateRef.current.index;
+
+    const began = speech.start({
+      from: narratedFrom,
+      wpm,
+      words,
+      onWord: (position) => {
+        wordsReadRef.current += Math.max(0, position - narratedFrom);
+        narratedFrom = position;
+        setIndex(position);
+      },
+      onEnd: () => {
+        narratingRef.current = false;
+        wordsReadRef.current += Math.max(0, total - narratedFrom);
+        setIndex(total);
+        setFinished(true);
+        saveProgress(total);
+        setSummary(flushSession(true, false, true));
+      },
+    });
+
+    if (began) {
+      narratingRef.current = true;
+      startedAtRef.current = Date.now();
+      setFinished(false);
+      const notice = rateNotice(wpm);
+      if (notice) notify(notice, "info");
+    }
+  }, [speech, total, wpm, words, togglePlay, saveProgress, flushSession, notify]);
+
+  /**
+   * Consulta a palavra que esta na tela no modo Foco.
+   *
+   * Ali nao ha o que tocar longamente: a palavra e uma so, e a frase em volta
+   * vem das palavras vizinhas em vez da posicao do dedo.
+   */
+  const lookupCurrent = useCallback(() => {
+    const current = normalizeWord(words[index]);
+    if (!current) {
+      togglePlay();
+      return;
+    }
+    const around = words.slice(Math.max(0, index - 12), index + 12).join(" ");
+    word.open({ word: current, context: trimContext(around) });
+  }, [words, index, word, togglePlay]);
 
   const jump = useCallback(
     (delta: number) => {
@@ -623,7 +722,12 @@ function Reader({
             onNext={() => void openNext()}
           />
         ) : mode === "rsvp" ? (
-          <RsvpStage chunk={chunk} onToggle={togglePlay} playing={playing} />
+          <RsvpStage
+            chunk={chunk}
+            onToggle={togglePlay}
+            playing={playing}
+            onLookup={lookupCurrent}
+          />
         ) : mode === "page" ? (
           <PageStage
             frameRef={frameRef}
@@ -634,6 +738,8 @@ function Reader({
             ready={pagesReady}
             loadingMore={loadingMore}
             marks={stored}
+            emphasis={emphasis}
+            touch={word.handlers}
             onTurn={turnPage}
             onOpenMark={setOpenMark}
           />
@@ -644,6 +750,8 @@ function Reader({
             index={index}
             chunkSize={chunkSize}
             marks={stored}
+            emphasis={emphasis}
+            touch={word.handlers}
             onToggle={togglePlay}
             onSeek={(position) => {
               setIndex(position);
@@ -653,6 +761,12 @@ function Reader({
           />
         )}
       </main>
+
+      {speech.error ? (
+        <div className="sticky bottom-0 z-30 px-4 pb-2">
+          <Alert>{speech.error}</Alert>
+        </div>
+      ) : null}
 
       {selection && !finished ? (
         <div className="pointer-events-none sticky bottom-0 z-30 flex justify-center px-4">
@@ -701,6 +815,20 @@ function Reader({
                 </ControlButton>
               )}
 
+              {/* A narracao acompanha o texto na tela, entao so faz sentido
+                  onde ele esta visivel. */}
+              {mode === "flow" ? (
+                <div className="absolute left-0">
+                  <ControlButton
+                    label={speech.state === "falando" ? "Parar a narracao" : "Ler em voz alta"}
+                    onClick={toggleSpeech}
+                    active={speech.state === "falando"}
+                  >
+                    <VoiceIcon className="size-5" />
+                  </ControlButton>
+                </div>
+              ) : null}
+
               {/* No modo Foco nao ha texto na tela para selecionar: a unidade
                   que da para apontar sem parar a leitura e a frase. Fica
                   absoluto na borda para nao tirar o botao de play do centro,
@@ -733,6 +861,16 @@ function Reader({
             </div>
           </div>
         </footer>
+      ) : null}
+
+      {word.touched ? (
+        <WordSheet
+          key={word.touched.word}
+          word={word.touched.word}
+          context={word.touched.context}
+          textId={text.id}
+          onClose={word.clear}
+        />
       ) : null}
 
       {openMark && marks.some((item) => item.id === openMark) ? (
@@ -813,10 +951,12 @@ function Reader({
 function ControlButton({
   label,
   onClick,
+  active,
   children,
 }: {
   label: string;
   onClick: () => void;
+  active?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -824,7 +964,12 @@ function ControlButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="flex size-12 items-center justify-center rounded-full border border-border text-muted transition-colors hover:text-ink active:scale-95"
+      aria-pressed={active}
+      className={`flex size-12 items-center justify-center rounded-full border transition-colors active:scale-95 ${
+        active
+          ? "border-accent bg-accent-soft text-accent"
+          : "border-border text-muted hover:text-ink"
+      }`}
     >
       {children}
     </button>
@@ -839,18 +984,22 @@ function RsvpStage({
   chunk,
   playing,
   onToggle,
+  onLookup,
 }: {
   chunk: string[];
   playing: boolean;
   onToggle: () => void;
+  onLookup: () => void;
 }) {
   const single = chunk.length === 1 ? chunk[0] : null;
 
   return (
     <button
       type="button"
-      onClick={onToggle}
-      aria-label={playing ? "Pausar" : "Iniciar leitura"}
+      // Parado, o toque na palavra consulta; correndo, ele pausa. Os dois
+      // gestos nao competem porque so um existe de cada vez.
+      onClick={playing ? onToggle : onLookup}
+      aria-label={playing ? "Pausar" : "Consultar a palavra"}
       className="flex flex-1 flex-col items-center justify-center px-4 text-center"
     >
       <div className="relative w-full max-w-2xl">
@@ -867,7 +1016,7 @@ function RsvpStage({
       </div>
 
       {!playing ? (
-        <span className="mt-6 text-sm text-faint">Toque para comecar</span>
+        <span className="mt-6 text-sm text-faint">Toque na palavra para consultar</span>
       ) : null}
     </button>
   );
@@ -898,6 +1047,44 @@ function OrpWord({ word }: { word: string }) {
  * largura e tipografia, quantas palavras cabem nela. Toque na metade direita
  * avanca, na esquerda volta - o mesmo gesto de um e-reader.
  */
+/**
+ * Uma palavra, com ou sem enfase no inicio.
+ *
+ * A arvore que sai daqui e a mesma que a regua de paginacao monta a mao em
+ * `use-paged-text.ts`: as duas passam por `splitEmphasis`, entao o negrito
+ * que muda a largura na tela tambem muda a largura medida.
+ */
+function Word({ word, emphasis }: { word: string; emphasis: boolean }) {
+  if (!emphasis) return <>{word}</>;
+
+  return (
+    <>
+      {splitEmphasis(word, true).map((part, index) =>
+        part.bold ? <b key={index}>{part.text}</b> : <span key={index}>{part.text}</span>
+      )}
+    </>
+  );
+}
+
+/** Uma sequencia de palavras, com o espaco entre elas. */
+function Words({ words, emphasis }: { words: string[]; emphasis: boolean }) {
+  if (!emphasis) return <>{words.join(" ")}</>;
+
+  return (
+    <>
+      {words.map((word, index) => (
+        <span key={index}>
+          {index > 0 ? " " : null}
+          <Word word={word} emphasis />
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** Os quatro manipuladores de ponteiro que o toque longo precisa. */
+type WordTouchHandlers = ReturnType<typeof useWordTouch>["handlers"];
+
 /** Posicao da palavra dentro do trecho destacado. */
 function edgeOf(position: number, mark: StoredHighlight): string {
   const first = position === mark.start;
@@ -918,24 +1105,30 @@ function edgeOf(position: number, mark: StoredHighlight): string {
 function MarkedText({
   paragraph,
   marks,
+  emphasis,
   onOpenMark,
 }: {
   paragraph: Paragraph;
   marks: StoredHighlight[];
+  emphasis: boolean;
   onOpenMark: (id: string) => void;
 }) {
   const end = paragraph.start + paragraph.words.length;
   const segments = segmentsOf(paragraph.start, end, marks);
 
   if (segments.length === 1 && segments[0]!.id === null) {
-    return <span data-start={paragraph.start}>{paragraph.words.join(" ")}</span>;
+    return (
+      <span data-start={paragraph.start}>
+        <Words words={paragraph.words} emphasis={emphasis} />
+      </span>
+    );
   }
 
   return (
     <>
       {segments.map((segment, position) => {
         const from = segment.start - paragraph.start;
-        const words = paragraph.words.slice(from, segment.end - paragraph.start).join(" ");
+        const words = paragraph.words.slice(from, segment.end - paragraph.start);
         // O espaco entre pedacos vive fora deles: dentro, entraria na contagem
         // de palavras do pedaco seguinte e deslocaria a selecao em um.
         const gap = segment.end < end ? " " : "";
@@ -943,7 +1136,7 @@ function MarkedText({
         if (!segment.id) {
           return (
             <span key={position} data-start={segment.start}>
-              {words}
+              <Words words={words} emphasis={emphasis} />
               {gap}
             </span>
           );
@@ -957,7 +1150,7 @@ function MarkedText({
               className="mark"
               onClick={() => onOpenMark(segment.id!)}
             >
-              {words}
+              <Words words={words} emphasis={emphasis} />
             </span>
             {gap}
           </span>
@@ -976,6 +1169,8 @@ function PageStage({
   ready,
   loadingMore,
   marks,
+  emphasis,
+  touch,
   onTurn,
   onOpenMark,
 }: {
@@ -987,6 +1182,8 @@ function PageStage({
   ready: boolean;
   loadingMore: boolean;
   marks: StoredHighlight[];
+  emphasis: boolean;
+  touch: WordTouchHandlers;
   onTurn: (direction: 1 | -1) => void;
   onOpenMark: (id: string) => void;
 }) {
@@ -1011,6 +1208,7 @@ function PageStage({
       className="relative flex flex-1 flex-col px-5 py-6"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
+      {...touch}
     >
       {/* A altura vem do flex, nao de height:100%: a altura do pai e definida
           por flex-grow e, para porcentagem, conta como indefinida - o frame
@@ -1023,7 +1221,12 @@ function PageStage({
           {ready
             ? sliceParagraphs(paragraphs, pageStart, pageEnd).map((paragraph) => (
                 <p key={paragraph.start}>
-                  <MarkedText paragraph={paragraph} marks={marks} onOpenMark={onOpenMark} />
+                  <MarkedText
+                    paragraph={paragraph}
+                    marks={marks}
+                    emphasis={emphasis}
+                    onOpenMark={onOpenMark}
+                  />
                 </p>
               ))
             : null}
@@ -1074,6 +1277,8 @@ function FlowStage({
   index,
   chunkSize,
   marks,
+  emphasis,
+  touch,
   onToggle,
   onSeek,
   onOpenMark,
@@ -1083,6 +1288,8 @@ function FlowStage({
   index: number;
   chunkSize: number;
   marks: StoredHighlight[];
+  emphasis: boolean;
+  touch: WordTouchHandlers;
   onToggle: () => void;
   onSeek: (position: number) => void;
   onOpenMark: (id: string) => void;
@@ -1133,7 +1340,7 @@ function FlowStage({
   }, [index]);
 
   return (
-    <div className="flex-1 px-5 py-8" onDoubleClick={onToggle}>
+    <div className="flex-1 px-5 py-8" onDoubleClick={onToggle} {...touch}>
       <div className="reader-prose mx-auto max-w-2xl">
         {visible.map((paragraph) => (
           <p key={paragraph.start}>
@@ -1164,7 +1371,7 @@ function FlowStage({
                   data-note={mark?.note && last ? "sim" : undefined}
                   onClick={() => (mark ? onOpenMark(mark.id) : onSeek(position))}
                 >
-                  {word}{" "}
+                  <Word word={word} emphasis={emphasis} />{" "}
                 </span>
               );
             })}

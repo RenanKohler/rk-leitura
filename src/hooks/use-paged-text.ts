@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { sliceParagraphs, type Paragraph } from "@/lib/reading";
+import { sliceParagraphs, splitEmphasis, type Paragraph } from "@/lib/reading";
 
 /** Teto de palavras testadas por pagina na busca binaria. */
 const MAX_WORDS_PER_PAGE = 800;
@@ -21,7 +21,7 @@ const MAX_WORDS_PER_PAGE = 800;
  * Cada pagina comeca no inicio de uma linha, entao o que foi medido e
  * exatamente o que aparece na tela.
  */
-export function usePagedText(paragraphs: Paragraph[], totalWords: number) {
+export function usePagedText(paragraphs: Paragraph[], totalWords: number, emphasis = false) {
   // Ref de callback em vez de objeto: o modo Paginas so monta depois que as
   // preferencias chegam do servidor, entao ao abrir o leitor direto pela URL o
   // efeito rodava com a referencia ainda vazia e nunca voltava a rodar - nenhuma
@@ -44,9 +44,9 @@ export function usePagedText(paragraphs: Paragraph[], totalWords: number) {
       return;
     }
 
-    setPages(computePageStarts(ruler, paragraphs, totalWords, height));
+    setPages(computePageStarts(ruler, paragraphs, totalWords, height, emphasis));
     setReady(true);
-  }, [frame, paragraphs, totalWords]);
+  }, [frame, paragraphs, totalWords, emphasis]);
 
   useEffect(() => {
     if (!frame) return;
@@ -76,13 +76,14 @@ function computePageStarts(
   ruler: HTMLElement,
   paragraphs: Paragraph[],
   totalWords: number,
-  height: number
+  height: number,
+  emphasis: boolean
 ): number[] {
   const starts = [0];
   let start = 0;
 
   while (start < totalWords) {
-    const fitting = wordsThatFit(ruler, paragraphs, totalWords, start, height);
+    const fitting = wordsThatFit(ruler, paragraphs, totalWords, start, height, emphasis);
     const next = start + fitting;
     if (next >= totalWords) break;
     starts.push(next);
@@ -99,7 +100,8 @@ function wordsThatFit(
   paragraphs: Paragraph[],
   totalWords: number,
   start: number,
-  height: number
+  height: number,
+  emphasis: boolean
 ): number {
   const remaining = totalWords - start;
   let low = 1;
@@ -108,7 +110,7 @@ function wordsThatFit(
 
   while (low <= high) {
     const middle = (low + high) >> 1;
-    fillRuler(ruler, paragraphs, start, middle);
+    fillRuler(ruler, paragraphs, start, middle, emphasis);
 
     if (ruler.scrollHeight <= height) {
       best = middle;
@@ -122,11 +124,38 @@ function wordsThatFit(
   return Math.max(1, best);
 }
 
-function fillRuler(ruler: HTMLElement, paragraphs: Paragraph[], start: number, count: number) {
+function fillRuler(
+  ruler: HTMLElement,
+  paragraphs: Paragraph[],
+  start: number,
+  count: number,
+  emphasis: boolean
+) {
   const nodes = sliceParagraphs(paragraphs, start, start + count).map((paragraph) => {
     const element = document.createElement("p");
-    // textContent, nunca innerHTML: o conteudo vem de uma pagina externa.
-    element.textContent = paragraph.words.join(" ");
+
+    if (!emphasis) {
+      // textContent, nunca innerHTML: o conteudo vem de uma pagina externa.
+      element.textContent = paragraph.words.join(" ");
+      return element;
+    }
+
+    // Com enfase, a regua monta a mesma arvore da pagina visivel: o negrito
+    // e mais largo que o texto normal, e medir texto corrido daria uma
+    // pagina que nao cabe na tela. As duas saem de `splitEmphasis`.
+    for (const [index, word] of paragraph.words.entries()) {
+      if (index > 0) element.append(document.createTextNode(" "));
+      for (const part of splitEmphasis(word, true)) {
+        if (part.bold) {
+          const strong = document.createElement("b");
+          strong.textContent = part.text;
+          element.append(strong);
+        } else {
+          element.append(document.createTextNode(part.text));
+        }
+      }
+    }
+
     return element;
   });
 

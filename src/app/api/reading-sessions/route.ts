@@ -42,6 +42,7 @@ export async function POST(request: Request) {
       wordsRead?: unknown;
       durationMs?: unknown;
       completed?: unknown;
+      narrated?: unknown;
     }>(request);
 
     const textId = asString(body?.textId);
@@ -77,6 +78,7 @@ export async function POST(request: Request) {
         wordsRead: clamp(wordsRead, 0, text.wordCount),
         durationMs,
         completed: body?.completed === true || body?.completed === 1,
+        narrated: body?.narrated === true,
       })
       .returning();
 
@@ -99,11 +101,14 @@ export async function POST(request: Request) {
  */
 async function recordTrainingDay(
   userId: string,
-  created: { id: string; wpm: number; wordsRead: number }
+  created: { id: string; wpm: number; wordsRead: number; narrated: boolean }
 ): Promise<ProgramStatus | null> {
   try {
     const status = await loadTraining(userId);
     if (!status || status.finished || status.doneToday) return status;
+    // A narracao nao cumpre o dia: o ritmo ali e o da voz do aparelho, nao o
+    // do olho de quem treina.
+    if (created.narrated) return status;
     if (!qualifies(created, status.targetWpm)) return status;
 
     const program = await activeProgram(userId);

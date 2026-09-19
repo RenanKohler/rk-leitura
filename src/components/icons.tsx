@@ -282,3 +282,12 @@ export const FileIcon = (props: IconProps) => (
     <path d="M13 3v6h6" />
   </Icon>
 );
+
+/** Leitura em voz alta. */
+export const VoiceIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 10v4h3l5 4V6l-5 4z" />
+    <path d="M16.5 8.5a5 5 0 0 1 0 7" />
+    <path d="M19 6a8.5 8.5 0 0 1 0 12" />
+  </Icon>
+);
