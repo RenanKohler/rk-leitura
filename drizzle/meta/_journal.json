@@ -50,6 +50,13 @@
       "when": 1789842754406,
       "tag": "0006_chilly_wiccan",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789844368908,
+      "tag": "0007_big_christian_walker",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAuth, useSettings } from "@/components/providers";
 import { ImportCard } from "@/components/import-card";
 import { useResource } from "@/hooks/use-resource";
@@ -9,6 +9,8 @@ import { Card, EmptyState, LinkButton, SectionTitle, Skeleton } from "@/componen
 import { ForwardIcon, LibraryIcon, PlayIcon, SpeedIcon, SparkIcon, WordsIcon } from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
 import { GoalCard } from "@/components/goal-card";
+import { PlacementTest } from "@/components/placement-test";
+import { apiSend } from "@/lib/client";
 import { WeeklySummaryCard } from "@/components/weekly-summary-card";
 import type {
   ContinueReading,
@@ -27,18 +29,20 @@ export function DashboardClient({
   initialTexts,
   goal,
   weekly,
+  offerPlacement,
 }: {
   initialOverview: Overview;
   initialTexts: RecentTexts;
   goal: GoalStatus;
   weekly: WeeklySummary | null;
+  offerPlacement: boolean;
 }) {
   const { user } = useAuth();
   const { settings } = useSettings();
   // Somas e a leitura em andamento vem prontas do servidor: a tela nao precisa
   // baixar o historico inteiro para calcular media e total.
   const overview = useResource<Overview>("/api/stats", initialOverview);
-  const texts = useResource<RecentTexts>("/api/texts?perPage=5", initialTexts);
+  const texts = useResource<RecentTexts>("/api/texts/recentes?perPage=5", initialTexts);
 
   const list = useMemo(() => texts.data?.texts ?? [], [texts.data]);
   const stats = overview.data?.stats;
@@ -46,6 +50,7 @@ export function DashboardClient({
   const loading = texts.loading || overview.loading;
 
   const firstName = user?.name?.split(" ")[0] ?? "";
+  const [dismissed, setDismissed] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -59,6 +64,18 @@ export function DashboardClient({
             : "Importe um artigo e comece a ler."}
         </p>
       </header>
+
+      {offerPlacement && !dismissed ? (
+        <PlacementTest
+          onApplied={() => setDismissed(true)}
+          onSkip={() => {
+            setDismissed(true);
+            // Pular grava a data de "ja oferecido": a tela inicial nao insiste
+            // a cada visita, e o teste continua disponivel em Treino.
+            void apiSend("/api/teste-de-leitura", "DELETE").catch(() => undefined);
+          }}
+        />
+      ) : null}
 
       {weekly ? <WeeklySummaryCard summary={weekly} /> : null}
 

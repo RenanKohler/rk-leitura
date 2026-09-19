@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useSettings, useTheme, useToast, type ThemePreference } from "@/components/providers";
-import { Card, SectionTitle, Segmented, Slider } from "@/components/ui";
+import { Button, Card, SectionTitle, Segmented, Slider } from "@/components/ui";
 import { AccountCard } from "@/components/account-card";
 import { ExportCard } from "@/components/export-card";
-import { MoonIcon, SettingsIcon, SunIcon } from "@/components/icons";
+import { MoonIcon, SettingsIcon, SpeedIcon, SunIcon } from "@/components/icons";
 import {
   MAX_CHUNK,
   MAX_FONT_SCALE,
@@ -204,6 +205,20 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+      </Card>
+
+      <Card className="space-y-3 p-5">
+        <SectionTitle>Treino</SectionTitle>
+        <p className="text-sm text-muted">
+          Meca sua velocidade em um teste curto, ou siga um programa progressivo de 14 ou 30
+          dias.
+        </p>
+        <Link href="/treino" className="block">
+          <Button variant="secondary" size="lg" full>
+            <SpeedIcon className="size-5" />
+            Abrir o treino
+          </Button>
+        </Link>
       </Card>
 
       <ExportCard />

@@ -125,6 +125,16 @@ export const speedSettings = pgTable(
     timezone: text("timezone").notNull().default("UTC"),
     /** Ultima segunda-feira em que o resumo da semana foi dispensado. */
     weeklySummarySeenOn: date("weekly_summary_seen_on"),
+    /**
+     * Resultado do teste de velocidade inicial (US-45), em ppm. Nulo enquanto
+     * o teste nao foi feito.
+     */
+    placementWpm: integer("placement_wpm"),
+    /**
+     * Quando o teste foi oferecido pela ultima vez - fazendo ou pulando. E o
+     * que impede a tela inicial de insistir a cada visita.
+     */
+    placementSeenAt: timestamp("placement_seen_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -256,6 +266,64 @@ export const textTags = pgTable(
   ]
 );
 
+/**
+ * Programa de treino de velocidade (US-47).
+ *
+ * Uma linha por programa, ativo ou nao. `previousWpm` guarda a velocidade de
+ * antes porque abandonar precisa devolver o leitor onde ele estava - o
+ * programa mexe na preferencia de velocidade enquanto dura.
+ */
+export const trainingPrograms = pgTable(
+  "training_programs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** 14 ou 30 dias. */
+    length: integer("length").notNull(),
+    /** Velocidade de partida, base de todos os alvos. */
+    startWpm: integer("start_wpm").notNull(),
+    /** Velocidade que volta a valer ao abandonar. */
+    previousWpm: integer("previous_wpm").notNull(),
+    startedOn: date("started_on").notNull(),
+    /** Preenchido ao abandonar ou ao concluir; nulo enquanto esta em curso. */
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("training_programs_user_idx").on(table.userId, table.createdAt.desc())]
+);
+
+/**
+ * Dias cumpridos de um programa.
+ *
+ * So existem linhas para os dias ja feitos: o alvo dos dias futuros e
+ * derivado, nao guardado. Guardar antecipadamente faria a regra da
+ * compreensao chegar tarde demais, porque o questionario costuma ser
+ * respondido depois de a sessao terminar.
+ */
+export const trainingDays = pgTable(
+  "training_days",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    programId: uuid("program_id")
+      .notNull()
+      .references(() => trainingPrograms.id, { onDelete: "cascade" }),
+    day: integer("day").notNull(),
+    /** Alvo que valia quando o dia foi cumprido. */
+    targetWpm: integer("target_wpm").notNull(),
+    /** Sessao que cumpriu o dia; e dela que vem a compreensao. */
+    sessionId: uuid("session_id").references(() => readingSessions.id, {
+      onDelete: "set null",
+    }),
+    wpm: integer("wpm").notNull(),
+    /** Dia de calendario no fuso do leitor: um por dia, no maximo. */
+    onDay: date("on_day").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("training_days_program_day_unique").on(table.programId, table.day)]
+);
+
 export type User = typeof users.$inferSelect;
 export type Text = typeof texts.$inferSelect;
 export type ReadingSession = typeof readingSessions.$inferSelect;
@@ -264,3 +332,4 @@ export type ReadingGoal = typeof readingGoals.$inferSelect;
 export type ComprehensionQuiz = typeof comprehensionQuizzes.$inferSelect;
 export type Highlight = typeof highlights.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
+export type TrainingProgram = typeof trainingPrograms.$inferSelect;

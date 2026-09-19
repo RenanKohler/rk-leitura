@@ -24,6 +24,8 @@ import {
   tags,
   texts,
   textTags,
+  trainingDays,
+  trainingPrograms,
   users,
 } from "@/db/schema";
 import { DEFAULT_PAGE_SIZE } from "@/lib/api";
@@ -31,6 +33,7 @@ import { asFontFamily, parseParagraphs } from "@/lib/reading";
 import { excerptOf } from "@/lib/highlights";
 import { tagKey } from "@/lib/tags";
 import { cleanTitle, nextChapterUrl } from "@/lib/series";
+import { asProgramLength, programStatus, type ProgramStatus } from "@/lib/training";
 import {
   asGoalKind,
   asTimezone,
@@ -87,6 +90,8 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   warmup: true,
   timezone: "UTC",
   weeklySummarySeenOn: null,
+  placementWpm: null,
+  placementSeen: false,
 };
 
 export interface Page<T> {
@@ -151,6 +156,8 @@ export const loadSettings = cache(async function loadSettings(
     warmup: row.settings.warmup,
     timezone: asTimezone(row.settings.timezone),
     weeklySummarySeenOn: row.settings.weeklySummarySeenOn,
+    placementWpm: row.settings.placementWpm,
+    placementSeen: row.settings.placementSeenAt !== null,
   };
 })
 
@@ -949,4 +956,65 @@ export async function loadQueue(userId: string): Promise<TextSummary[]> {
     .orderBy(asc(texts.queuePosition));
 
   return await decorate(rows);
+}
+
+/* --- treino -------------------------------------------------------------- */
+
+/**
+ * Programa de treino em curso, com os dias ja cumpridos.
+ *
+ * A compreensao vem da sessao que cumpriu cada dia, por juncao: responder o
+ * questionario depois muda o alvo de amanha sem precisar reescrever nada.
+ */
+export async function loadTraining(userId: string): Promise<ProgramStatus | null> {
+  const [program] = await db
+    .select()
+    .from(trainingPrograms)
+    .where(and(eq(trainingPrograms.userId, userId), isNull(trainingPrograms.endedAt)))
+    .orderBy(desc(trainingPrograms.createdAt))
+    .limit(1);
+
+  if (!program) return null;
+
+  const [rows, settings] = await Promise.all([
+    db
+      .select({
+        day: trainingDays.day,
+        targetWpm: trainingDays.targetWpm,
+        wpm: trainingDays.wpm,
+        onDay: trainingDays.onDay,
+        comprehension: readingSessions.comprehension,
+      })
+      .from(trainingDays)
+      .leftJoin(readingSessions, eq(readingSessions.id, trainingDays.sessionId))
+      .where(eq(trainingDays.programId, program.id))
+      .orderBy(asc(trainingDays.day)),
+    loadSettings(userId),
+  ]);
+
+  const length = asProgramLength(program.length);
+  if (!length) return null;
+
+  return programStatus(
+    {
+      length,
+      startWpm: program.startWpm,
+      previousWpm: program.previousWpm,
+      startedOn: program.startedOn,
+    },
+    rows,
+    todayIn(settings?.timezone ?? "UTC")
+  );
+}
+
+/** O programa em curso com o id, para as rotas que precisam escrever nele. */
+export async function activeProgram(userId: string) {
+  const [program] = await db
+    .select()
+    .from(trainingPrograms)
+    .where(and(eq(trainingPrograms.userId, userId), isNull(trainingPrograms.endedAt)))
+    .orderBy(desc(trainingPrograms.createdAt))
+    .limit(1);
+
+  return program ?? null;
 }

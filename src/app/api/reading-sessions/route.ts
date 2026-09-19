@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { readingSessions, texts } from "@/db/schema";
+import { readingSessions, speedSettings, texts, trainingDays } from "@/db/schema";
 import {
   asInteger,
   asString,
@@ -11,7 +11,9 @@ import {
   requireSession,
   serverError,
 } from "@/lib/api";
-import { loadSessions } from "@/lib/queries";
+import { activeProgram, loadSessions, loadSettings, loadTraining } from "@/lib/queries";
+import { todayIn } from "@/lib/goals";
+import { qualifies, type ProgramStatus } from "@/lib/training";
 import { clamp, MAX_WPM } from "@/lib/reading";
 
 export const dynamic = "force-dynamic";
@@ -78,8 +80,65 @@ export async function POST(request: Request) {
       })
       .returning();
 
-    return NextResponse.json({ session: created }, { status: 201 });
+    // Uma sessao no alvo cumpre o dia do programa. Fica aqui e nao na tela
+    // porque e o servidor que conhece o alvo e ja recalculou o ppm.
+    const training = created ? await recordTrainingDay(session.id, created) : null;
+
+    return NextResponse.json({ session: created, training }, { status: 201 });
   } catch (error) {
     return serverError("sessions/create", error);
+  }
+}
+
+/**
+ * Marca o dia do programa quando a sessao alcanca o alvo.
+ *
+ * Um dia de calendario, um dia de treino: sem isso, tres leituras rapidas em
+ * uma tarde varreriam metade do programa. Falhar aqui nao pode derrubar o
+ * registro da sessao, que ja aconteceu.
+ */
+async function recordTrainingDay(
+  userId: string,
+  created: { id: string; wpm: number; wordsRead: number }
+): Promise<ProgramStatus | null> {
+  try {
+    const status = await loadTraining(userId);
+    if (!status || status.finished || status.doneToday) return status;
+    if (!qualifies(created, status.targetWpm)) return status;
+
+    const program = await activeProgram(userId);
+    if (!program) return null;
+
+    const settings = await loadSettings(userId);
+    const today = todayIn(settings?.timezone ?? "UTC");
+
+    await db
+      .insert(trainingDays)
+      .values({
+        programId: program.id,
+        day: status.currentDay,
+        targetWpm: status.targetWpm,
+        sessionId: created.id,
+        wpm: created.wpm,
+        onDay: today,
+      })
+      // Duas sessoes gravadas ao mesmo tempo: a segunda nao duplica o dia.
+      .onConflictDoNothing();
+
+    const after = await loadTraining(userId);
+
+    // O alvo novo vira a velocidade do leitor: e o programa que conduz o
+    // ritmo enquanto dura, e por isso abandonar devolve a velocidade antiga.
+    if (after && !after.finished) {
+      await db
+        .update(speedSettings)
+        .set({ baseWpm: after.targetWpm, updatedAt: new Date() })
+        .where(eq(speedSettings.userId, userId));
+    }
+
+    return after;
+  } catch (error) {
+    console.error("[sessions/treino]", error);
+    return null;
   }
 }

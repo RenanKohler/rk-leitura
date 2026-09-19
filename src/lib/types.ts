@@ -132,6 +132,10 @@ export interface SettingsPayload {
   timezone: string;
   /** Segunda-feira da ultima semana em que o resumo foi dispensado. */
   weeklySummarySeenOn: string | null;
+  /** Velocidade medida no teste inicial; nulo enquanto ele nao foi feito. */
+  placementWpm: number | null;
+  /** Se o teste ja foi oferecido - feito ou pulado. */
+  placementSeen: boolean;
 }
 
 /** Resposta de GET/PUT /api/metas. */

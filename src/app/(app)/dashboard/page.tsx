@@ -36,6 +36,7 @@ export default async function DashboardPage() {
       initialTexts={{ texts: items, ...page }}
       goal={goal}
       weekly={weekly}
+      offerPlacement={!settings.placementSeen}
     />
   );
 }

@@ -71,7 +71,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
 | **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
 
-Status: 49 Implementadas, 10 Propostas, 2 Aguardando pendência.
+Status: 51 Implementadas, 8 Propostas, 2 Aguardando pendência.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -805,7 +805,8 @@ Como leitor, eu quero que a velocidade comece mais baixa e suba até a configura
 **Épico:** Treino de velocidade e compreensão
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/placement.ts`, `src/app/api/teste-de-leitura/route.ts`, `src/components/placement-test.tsx`
 
 Como leitor novo, eu quero fazer um teste de leitura, para que o app sugira uma velocidade adequada em vez de eu escolher no escuro.
 
@@ -841,7 +842,8 @@ Como estudante, eu quero responder perguntas sobre o texto que acabei de ler, pa
 **Épico:** Treino de velocidade e compreensão
 **Prioridade:** Could
 **Story points:** 8
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/training.ts`, `src/app/api/treino/route.ts`, `src/app/(app)/treino/`
 
 Como leitor, eu quero seguir um programa com metas progressivas de velocidade, para que eu aumente meu ritmo de forma estruturada.
 
@@ -851,7 +853,7 @@ Como leitor, eu quero seguir um programa com metas progressivas de velocidade, p
 3. Dado que a compreensão do dia fica abaixo de 60%, quando existir questionário (US-46), então o alvo do dia seguinte não aumenta.
 4. Dado que abandono o programa, quando confirmo, então as preferências voltam à velocidade anterior ao programa.
 
-**Notas técnicas:** depende de US-45. O critério 3 depende de US-46, que já está implementada, então ele deixa de ser opcional: a compreensão fica em `reading_sessions.comprehension`.
+**Notas técnicas:** o alvo de cada dia é derivado dos passos já conquistados, não gravado de antemão: responder o questionário depois da sessão ainda corrige o alvo de amanhã, e somar sobre um valor já arredondado faria o programa de 14 dias terminar 20 ppm abaixo do prometido. Os dois programas não chegam à mesma meta (+35% em 14 dias, +60% em 30), senão a escolha seria só ritmo disfarçado de destino.
 
 ---
 
@@ -1211,7 +1213,7 @@ Entregue até aqui, em ordem:
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
 | US-46 | 8 | Perguntas de compreensão ao concluir um texto |
 
-Restam 12 stories: 10 prontas para entrar em sprint (68 pontos) e 2 travadas
+Restam 10 stories: 8 prontas para entrar em sprint (55 pontos) e 2 travadas
 por decisão externa (10 pontos). A ordem abaixo agrupa por dependência, não por
 tema: cada faixa entrega algo utilizável e prepara a seguinte.
 
@@ -1221,7 +1223,7 @@ tema: cada faixa entrega algo utilizável e prepara a seguinte.
 | ~~2~~ | ~~US-41, US-42, US-48, US-49~~ | ~~14~~ | Concluída: meta diária, sequência, evolução e resumo semanal |
 | ~~3~~ | ~~US-51, US-52, US-53~~ | ~~11~~ | Concluída: destacar, anotar, revisar e exportar destaques |
 | ~~4~~ | ~~US-37, US-54, US-56~~ | ~~16~~ | Concluída: séries de capítulos, etiquetas e fila de leitura |
-| 5 | US-45, US-47 | 13 | Treino: medir a velocidade inicial e o programa progressivo. |
+| ~~5~~ | ~~US-45, US-47~~ | ~~13~~ | Concluída: teste de velocidade inicial e programa progressivo |
 | 6 | US-57, US-59, US-58 | 18 | Importação ampliada: PDF, favorito e EPUB. |
 | 7 | US-39, US-61, US-38 | 19 | Ferramentas de leitura: voz alta, ênfase no início das palavras e dicionário. |
 | 8 | US-40, US-43 | 18 | Offline e lembrete, que compartilham o service worker. |
@@ -1241,7 +1243,7 @@ Por que esta ordem e não a do documento de origem:
   de maior risco em produção, e entra por último, com a suíte de testes já
   montada.
 
-Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia as ordens 5
+Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia as ordens 6
 a 8: provedor de e-mail (US-05) e armazenamento do limitador (US-31). A terceira
 pendência, o provedor de modelo de linguagem da US-46, foi resolvida — a chave
 da Anthropic entrou como variável sensível na Vercel, sem teto mensal.
