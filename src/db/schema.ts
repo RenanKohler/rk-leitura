@@ -156,6 +156,13 @@ export const speedSettings = pgTable(
      * que impede a tela inicial de insistir a cada visita.
      */
     placementSeenAt: timestamp("placement_seen_at", { withTimezone: true }),
+    /**
+     * Hora local do lembrete diario (US-43), de 0 a 23. Nulo quando o leitor
+     * nao quer lembrete - que e o padrao.
+     */
+    reminderHour: integer("reminder_hour"),
+    /** Ultimo dia em que o lembrete foi enviado, no fuso do leitor. */
+    reminderSentOn: date("reminder_sent_on"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -379,6 +386,32 @@ export const savedWords = pgTable(
   ]
 );
 
+/**
+ * Inscricoes de notificacao push (US-43).
+ *
+ * Uma por navegador, nao por conta: a mesma pessoa pode querer o lembrete no
+ * celular e nao no computador. O endpoint e unico porque e ele que o servico
+ * de push usa como identidade.
+ */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    /** Chaves do navegador, usadas para cifrar a mensagem. */
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("push_subscriptions_endpoint_unique").on(table.endpoint),
+    index("push_subscriptions_user_idx").on(table.userId),
+  ]
+);
+
 export type User = typeof users.$inferSelect;
 export type Text = typeof texts.$inferSelect;
 export type ReadingSession = typeof readingSessions.$inferSelect;
@@ -389,3 +422,4 @@ export type Highlight = typeof highlights.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type TrainingProgram = typeof trainingPrograms.$inferSelect;
 export type SavedWord = typeof savedWords.$inferSelect;
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;

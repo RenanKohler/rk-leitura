@@ -91,6 +91,9 @@ export function AccountCard() {
     setDeleting(true);
     try {
       await apiSend("/api/auth/me", "DELETE", { password: deletePassword });
+      void navigator.serviceWorker?.ready
+        .then((registration) => registration.active?.postMessage({ type: "limpar" }))
+        .catch(() => undefined);
       // Navegacao de pagina inteira de proposito, e nao `router.push`: a
       // conta acabou de deixar de existir, e o que precisa ser descartado e
       // justamente o estado do cliente que a navegacao interna preservaria.

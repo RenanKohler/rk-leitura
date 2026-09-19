@@ -91,6 +91,31 @@ Trocar o `JWT_SECRET` invalida todas as sessoes ativas.
 | `JWT_SECRET` | sim | Chave de assinatura das sessoes, minimo 32 caracteres. |
 | `DATABASE_POOL_MAX` | nao | Tamanho maximo do pool (padrao 5). |
 | `NEXT_PUBLIC_DEMO_HINT` | nao | `true` mostra as credenciais de demo no login. |
+| `ANTHROPIC_API_KEY` | nao | Questionario de compreensao e dicionario. Sem ela, as duas telas dizem que a funcionalidade nao esta configurada. |
+| `NEXT_PUBLIC_VAPID_KEY` | nao | Chave publica do lembrete diario. |
+| `VAPID_PRIVATE_KEY` | nao | Chave privada do lembrete diario. |
+| `VAPID_SUBJECT` | nao | `mailto:` de contato exigido pelo protocolo de push. |
+| `CRON_SECRET` | nao | Separa o agendador de quem descobrir a rota do cron. |
+
+### Lembrete diario
+
+As tres variaveis do lembrete sao opcionais e andam juntas: sem elas, o cartao
+some dos Ajustes e a rota do agendador responde 401. O resto da aplicacao nao
+muda.
+
+O par VAPID e gerado localmente, sem contratar nada:
+
+```bash
+node -e "const k=require('web-push').generateVAPIDKeys();console.log('NEXT_PUBLIC_VAPID_KEY='+k.publicKey);console.log('VAPID_PRIVATE_KEY='+k.privateKey)"
+node -e "console.log('CRON_SECRET='+require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+Na Vercel, `VAPID_PRIVATE_KEY` e `CRON_SECRET` entram como variaveis
+*sensitive*; `NEXT_PUBLIC_VAPID_KEY` e publica por definicao, porque vai para o
+navegador. O agendamento esta em `vercel.json`, de hora em hora - e a regra de
+envio foi escrita para nao depender disso: ela pergunta "ja passou da hora
+escolhida, hoje, sem leitura?", entao funciona igual em um plano que dispara o
+cron uma vez por dia.
 
 ### Sobre o antigo `NEXT_PUBLIC_BASE_URL`
 

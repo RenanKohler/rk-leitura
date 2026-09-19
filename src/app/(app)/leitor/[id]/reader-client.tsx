@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import { pageOfWord, usePagedText } from "@/hooks/use-paged-text";
 import { useSettings, useToast } from "@/components/providers";
+import { useOffline } from "@/components/offline-provider";
+import { NEEDS_NETWORK } from "@/lib/offline";
 import { Alert, Button, Card, Segmented, Sheet, Slider, Spinner } from "@/components/ui";
 import {
   BackIcon,
@@ -109,6 +111,7 @@ function Reader({
 }) {
   const { settings, save } = useSettings();
   const notify = useToast();
+  const { online } = useOffline();
 
   // Em estado porque a busca da proxima parte faz o texto crescer durante a
   // leitura, sem recarregar a tela.
@@ -241,6 +244,11 @@ function Reader({
       return;
     }
 
+    if (!online) {
+      notify(NEEDS_NETWORK, "error");
+      return;
+    }
+
     setLoadingNext(true);
     try {
       const result = await apiSend<{ status: string; id?: string; message?: string }>(
@@ -255,7 +263,7 @@ function Reader({
     } finally {
       setLoadingNext(false);
     }
-  }, [nextUp, text.id, router, notify]);
+  }, [nextUp, text.id, online, router, notify]);
 
   /* --- dicionario -------------------------------------------------------- */
   // Toque longo so nos modos em que o texto esta na tela; no Foco a palavra e
@@ -279,7 +287,9 @@ function Reader({
       void fetch(`/api/texts/${text.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ progressIndex: position }),
+        // A hora do aparelho acompanha a posicao: o que ficou na fila offline
+        // pode chegar depois de outro aparelho ja ter gravado aqui.
+        body: JSON.stringify({ progressIndex: position, at: new Date().toISOString() }),
         keepalive: useKeepalive,
       }).catch(() => undefined);
     },
@@ -536,6 +546,12 @@ function Reader({
    */
   const continueFromSource = useCallback(async (): Promise<boolean> => {
     if (loadingMore) return false;
+    // Buscar a proxima parte depende de alcancar a origem: sem rede nao ha
+    // como, e fingir que da deixaria a tela esperando para sempre.
+    if (!online) {
+      notify(NEEDS_NETWORK, "error");
+      return false;
+    }
     setLoadingMore(true);
 
     try {
@@ -567,7 +583,7 @@ function Reader({
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, notify]);
+  }, [loadingMore, online, notify]);
 
   /** Vira a pagina no modo Paginas; nos outros, anda uma tela de texto. */
   const turnPage = useCallback(

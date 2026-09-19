@@ -238,6 +238,11 @@ function AuthProvider({
           await fetch("/api/auth/logout", { method: "POST" });
         } finally {
           setUser(null);
+          // O cache offline guarda o HTML do leitor, que traz o texto da
+          // pessoa dentro: sair da conta apaga.
+          void navigator.serviceWorker?.ready
+            .then((registration) => registration.active?.postMessage({ type: "limpar" }))
+            .catch(() => undefined);
           // Navegacao de pagina inteira de proposito, e nao `router.push`: o
           // cookie acabou de ser apagado, e so um carregamento novo faz o
           // middleware reavaliar a sessao com o estado do cliente zerado.

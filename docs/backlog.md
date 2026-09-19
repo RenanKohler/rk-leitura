@@ -71,7 +71,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
 | **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
 
-Status: 57 Implementadas, 2 Propostas, 2 Aguardando pendência.
+Status: 59 Implementadas, 2 Aguardando pendência.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -765,8 +765,9 @@ Como leitor, eu quero ver quantos dias seguidos atingi minha meta, para que eu t
 **Épico:** Hábito e metas
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Proposta
-**Decisão pendente:** a periodicidade do agendamento. O plano Hobby da Vercel limita a frequência dos cron jobs, o que define a granularidade possível do horário escolhido.
+**Status:** Implementada
+**Evidência:** `src/lib/reminder.ts`, `src/lib/push.ts`, `src/app/api/lembretes/`, `src/app/api/cron/lembretes/`, `vercel.json`
+**Decisão tomada:** a regra não depende da periodicidade. Em vez de comparar a hora exata, o disparo pergunta "já passou da hora escolhida, hoje, sem leitura?" — assim o lembrete sai no primeiro disparo após a hora e a marca do dia garante que saia uma vez só, tanto num agendador de hora em hora quanto num que roda uma vez por dia.
 
 Como leitor, eu quero receber um lembrete no horário que escolher quando ainda não li no dia, para que eu não quebre minha sequência por esquecimento.
 
@@ -776,7 +777,7 @@ Como leitor, eu quero receber um lembrete no horário que escolher quando ainda 
 3. Dado que nego a permissão ou o navegador não suporta notificações, quando tento ativar, então vejo orientação de como habilitar ou a indicação de que o recurso não está disponível.
 4. Dado que toco no lembrete, quando o app abre, então vou para o texto em andamento mais recente ou para a biblioteca, se não houver.
 
-**Notas técnicas:** Web Push com chaves VAPID, que são geradas localmente e não exigem contratar nada. Exige service worker — o mesmo da US-40, então vale entregar as duas próximas uma da outra. No iOS, notificação web só funciona com o app instalado na tela inicial, o que já é requisito do compartilhamento (US-33).
+**Notas técnicas:** Web Push com chaves VAPID, geradas localmente e sem contratar nada. Sem `NEXT_PUBLIC_VAPID_KEY`, `VAPID_PRIVATE_KEY` e `CRON_SECRET` no ambiente, o cartão some dos Ajustes e o agendador responde 401 — o resto da aplicação segue normal. No iOS, notificação web só funciona com o app instalado na tela inicial, o que já é requisito do compartilhamento (US-33).
 
 ---
 
@@ -1178,8 +1179,8 @@ Como leitor, eu quero que as primeiras letras de cada palavra fiquem em negrito,
 **Épico:** Leitura offline
 **Prioridade:** Should
 **Story points:** 13
-**Status:** Proposta
-**Evidência:** não há service worker no projeto; o manifest não prevê cache
+**Status:** Implementada
+**Evidência:** `public/sw.js`, `src/lib/offline.ts`, `src/components/offline-provider.tsx`, `src/app/offline/`
 
 Como leitor, eu quero continuar lendo textos já abertos sem internet, para que eu aproveite viagens e locais com sinal ruim.
 
@@ -1190,7 +1191,7 @@ Como leitor, eu quero continuar lendo textos já abertos sem internet, para que 
 4. Dado que tento importar ou continuar um texto offline, quando aciono a ação, então vejo aviso de que a ação exige conexão.
 5. Dado que publico uma versão nova, quando abro o app, então não fico preso a uma versão em cache.
 
-**Notas técnicas:** service worker com IndexedDB. É a maior story do backlog e a única que adiciona uma camada com risco de comportamento estranho em produção — o critério 5 existe por causa disso. O service worker passa a mediar chamadas autenticadas, o que exige cuidado com o cookie de sessão e com cache de resposta de API; hoje o `middleware.ts` valida a sessão no servidor, e a navegação offline precisa de uma casca de app em cache. As sessões usam o horário do dispositivo para contar na meta do dia correto (US-41). O mesmo service worker serve à US-43.
+**Notas técnicas:** o service worker não guarda resposta de API em cache — elas carregam dados da conta e dependem do cookie, e uma cópia sobreviveria à saída. O que fica guardado é a navegação: o HTML do leitor, que já traz o texto dentro. Sair da conta apaga os caches pelo mesmo motivo. O critério 5 é atendido por rede-primeiro com cache de reserva e nome de cache versionado. O critério 3 compara a data do dispositivo com a do servidor e mantém a mais recente, não a maior — um texto relido do início precisa voltar ao início.
 
 ---
 
@@ -1217,9 +1218,8 @@ Entregue até aqui, em ordem:
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
 | US-46 | 8 | Perguntas de compreensão ao concluir um texto |
 
-Restam 4 stories: 2 prontas para entrar em sprint (18 pontos) e 2 travadas
-por decisão externa (10 pontos). A ordem abaixo agrupa por dependência, não por
-tema: cada faixa entrega algo utilizável e prepara a seguinte.
+Restam 2 stories, as duas travadas por decisão externa (10 pontos). A ordem
+abaixo é o histórico do que foi entregue, agrupado por dependência.
 
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
@@ -1230,7 +1230,7 @@ tema: cada faixa entrega algo utilizável e prepara a seguinte.
 | ~~5~~ | ~~US-45, US-47~~ | ~~13~~ | Concluída: teste de velocidade inicial e programa progressivo |
 | ~~6~~ | ~~US-57, US-59, US-58~~ | ~~18~~ | Concluída: importação de PDF e EPUB, favorito e Atalho do iOS |
 | ~~7~~ | ~~US-39, US-61, US-38~~ | ~~19~~ | Concluída: voz alta, ênfase no início das palavras e dicionário |
-| 8 | US-40, US-43 | 18 | Offline e lembrete, que compartilham o service worker. |
+| ~~8~~ | ~~US-40, US-43~~ | ~~18~~ | Concluída: leitura offline e lembrete diário |
 | — | US-05, US-31 | 10 | Aguardando pendência: provedor de e-mail e armazenamento do limitador. |
 
 Por que esta ordem e não a do documento de origem:
@@ -1247,6 +1247,8 @@ Por que esta ordem e não a do documento de origem:
   de maior risco em produção, e entra por último, com a suíte de testes já
   montada.
 
-Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia a ordem 8: provedor de e-mail (US-05) e armazenamento do limitador (US-31). A terceira
-pendência, o provedor de modelo de linguagem da US-46, foi resolvida — a chave
-da Anthropic entrou como variável sensível na Vercel, sem teto mensal.
+Duas decisões pendentes travam 10 pontos: provedor de e-mail (US-05) e
+armazenamento do limitador (US-31). As outras três pendências do documento
+original foram resolvidas ao longo das entregas: o provedor de modelo de
+linguagem (US-46 e US-38), a fonte do dicionário e a periodicidade do
+agendamento do lembrete (US-43).

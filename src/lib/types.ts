@@ -155,6 +155,8 @@ export interface SettingsPayload {
   placementWpm: number | null;
   /** Se o teste ja foi oferecido - feito ou pulado. */
   placementSeen: boolean;
+  /** Hora local do lembrete diario; nulo quando nao ha lembrete. */
+  reminderHour: number | null;
 }
 
 /** Resposta de GET/PUT /api/metas. */

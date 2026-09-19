@@ -6,6 +6,7 @@ import { Button, Card, SectionTitle, Segmented, Slider } from "@/components/ui";
 import { AccountCard } from "@/components/account-card";
 import { ExportCard } from "@/components/export-card";
 import { BookmarkletCard } from "@/components/bookmarklet-card";
+import { ReminderCard } from "@/components/reminder-card";
 import { MoonIcon, SettingsIcon, SpeedIcon, SunIcon, WordsIcon } from "@/components/icons";
 import {
   MAX_CHUNK,
@@ -266,6 +267,8 @@ export default function SettingsPage() {
           </Button>
         </Link>
       </Card>
+
+      <ReminderCard />
 
       <BookmarkletCard />
 

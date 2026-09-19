@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers, themeBootstrapScript } from "@/components/providers";
+import { OfflineProvider } from "@/components/offline-provider";
 import { getSession } from "@/lib/auth";
 import { DEFAULT_SETTINGS, loadSettings } from "@/lib/queries";
 
@@ -62,7 +63,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           initialUser={settings ? session : null}
           initialSettings={settings ?? DEFAULT_SETTINGS}
         >
-          {children}
+          <OfflineProvider>{children}</OfflineProvider>
         </Providers>
       </body>
     </html>

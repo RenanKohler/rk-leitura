@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
+import { useOffline } from "@/components/offline-provider";
+import { NEEDS_NETWORK } from "@/lib/offline";
 import { Button, Card } from "@/components/ui";
 import { LinkIcon } from "@/components/icons";
 import type { ImportedText, TextDetail } from "@/lib/types";
@@ -17,12 +19,20 @@ export function ImportCard({ onImported }: { onImported?: () => void }) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const notify = useToast();
+  const { online } = useOffline();
   const router = useRouter();
 
   const handleImport = async (event: React.FormEvent) => {
     event.preventDefault();
     const trimmed = url.trim();
     if (!trimmed || busy) return;
+
+    // Importar depende de buscar uma pagina externa: sem rede nao ha o que
+    // tentar, e o aviso e melhor que um erro de rede sem explicacao.
+    if (!online) {
+      notify(NEEDS_NETWORK, "error");
+      return;
+    }
 
     setBusy(true);
     try {

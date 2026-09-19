@@ -96,6 +96,7 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   weeklySummarySeenOn: null,
   placementWpm: null,
   placementSeen: false,
+  reminderHour: null,
 };
 
 export interface Page<T> {
@@ -163,6 +164,7 @@ export const loadSettings = cache(async function loadSettings(
     weeklySummarySeenOn: row.settings.weeklySummarySeenOn,
     placementWpm: row.settings.placementWpm,
     placementSeen: row.settings.placementSeenAt !== null,
+    reminderHour: row.settings.reminderHour,
   };
 })
 

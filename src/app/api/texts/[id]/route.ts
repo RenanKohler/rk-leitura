@@ -15,6 +15,7 @@ import { normalizeTagList } from "@/lib/tags";
 import { applyTags } from "@/lib/text-tags";
 import { detectSeries } from "@/lib/series";
 import { clamp, countWords } from "@/lib/reading";
+import { newerPosition } from "@/lib/offline";
 
 export const dynamic = "force-dynamic";
 
@@ -145,17 +146,37 @@ export async function PATCH(request: Request, { params }: Params) {
     const { id } = await params;
     if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
 
-    const body = await readJson<{ progressIndex?: unknown }>(request);
+    const body = await readJson<{ progressIndex?: unknown; at?: unknown }>(request);
     const progressIndex = asInteger(body?.progressIndex);
     if (progressIndex === null) return jsonError("Posicao invalida.", 400);
 
     const [current] = await db
-      .select({ wordCount: texts.wordCount })
+      .select({
+        wordCount: texts.wordCount,
+        progressIndex: texts.progressIndex,
+        updatedAt: texts.updatedAt,
+      })
       .from(texts)
       .where(ownedText(id, session.id))
       .limit(1);
 
     if (!current) return jsonError("Texto nao encontrado.", 404);
+
+    // `at` chega de uma leitura que ficou offline: a posicao guardada pode
+    // ser mais antiga do que a que outro aparelho ja gravou aqui. Vence a
+    // mais recente, nao a maior - um texto relido do inicio precisa voltar
+    // ao inicio (US-40, criterio 3).
+    const decided = newerPosition(
+      { progressIndex, at: typeof body?.at === "string" ? body.at : null },
+      { progressIndex: current.progressIndex, at: current.updatedAt.toISOString() }
+    );
+
+    if (decided !== progressIndex) {
+      return NextResponse.json({
+        text: { id, progressIndex: current.progressIndex },
+        kept: "servidor",
+      });
+    }
 
     const position = clamp(progressIndex, 0, current.wordCount);
 
