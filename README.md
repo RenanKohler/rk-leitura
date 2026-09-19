@@ -119,6 +119,7 @@ existe mais. Nao ha nada a configurar no lugar.
 | `npm run dev` | Servidor de desenvolvimento. |
 | `npm run build` / `npm start` | Build e execucao em producao. |
 | `npm run lint` / `npm run typecheck` | ESLint e TypeScript. |
+| `npm test` / `npm run test:watch` | Testes das regras puras (Vitest). |
 | `npm run db:generate` | Gera migration a partir do schema. |
 | `npm run db:migrate` | Aplica as migrations pendentes. |
 | `npm run db:push` | Sincroniza o schema sem migration (so em desenvolvimento). |
@@ -141,6 +142,8 @@ src/
   lib/              auth, sessao, parser, leitura, rate limit, busca protegida
   middleware.ts     protecao de rotas no servidor
 drizzle/            migrations SQL versionadas
+docs/backlog.md     backlog de produto, com o status de cada story
+tests/              testes das regras puras
 ```
 
 ### Decisoes que valem registro
@@ -155,11 +158,11 @@ drizzle/            migrations SQL versionadas
   fixacao destacada; *Rolagem* mantem o texto corrido com o trecho atual em
   evidencia; *Paginas* apresenta uma tela cheia por vez, sem rolagem, com toque
   nas laterais ou arrasto para virar.
-- **Extracao do texto.** O corpo sai do container marcado com
-  `itemprop="articleBody"` (microdado schema.org) quando existe - e o caso do
-  Literotica, e com ele o bloco de anuncios que vinha antes do conto some por
-  completo. Sem esse marcador, tenta o `articleBody` de JSON-LD, depois
-  `<article>`, e so por ultimo o palpite pelo maior container. Quando o
+- **Extracao do texto.** A ordem e: `articleBody` declarado em JSON-LD,
+  depois o container marcado com `itemprop="articleBody"` (microdado
+  schema.org), depois `<article>` e `main`, e so por ultimo o palpite pelo
+  maior container. O microdado e o caminho usado no Literotica, e com ele o
+  bloco de anuncios que vinha antes do conto some por completo. Quando o
   container e exato, nenhum bloco e descartado por tamanho: em ficcao as falas
   de dialogo sao curtas e o filtro antigo apagava boa parte do texto.
 - **Paragrafos.** Preservados da extracao ate a tela. O conteudo guarda uma
@@ -212,6 +215,14 @@ drizzle/            migrations SQL versionadas
   hiberna e a primeira consulta depois disso demora.
 - **Diagnostico.** `GET /api/health` responde se o banco esta acessivel e
   quais variaveis estao presentes, sem expor nenhum valor.
+- **Testes.** Cobrem as regras puras: extracao, classificacao de endereco
+  publico ou interno, normalizacao de URL, continuacao e as contas de leitura.
+  Nada que dependa de rede ou banco entra na suite, porque o valor esta em
+  rodar em segundos a cada push. O recorte nao e arbitrario: e onde ja houve
+  regressao - acento apagado na tokenizacao, duracao de bloco dividida em vez
+  de multiplicada, filtro descartando falas curtas e forma IPv6 mapeada
+  escapando da checagem de rede interna. Cada um desses tem um teste que falha
+  se o defeito voltar.
 - **Interface.** Mobile-first, com barra inferior ao alcance do polegar, areas
   de toque de no minimo 44px, respeito as areas seguras do Android/iOS e temas
   claro e escuro.

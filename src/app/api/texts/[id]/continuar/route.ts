@@ -5,6 +5,7 @@ import { texts } from "@/db/schema";
 import { jsonError, requireSession, serverError } from "@/lib/api";
 import { extractTextFromHtml } from "@/lib/parser";
 import { fetchPublicHtml, SafeFetchError } from "@/lib/safe-fetch";
+import { alreadyPresent, buildPageUrl } from "@/lib/continuation";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { countWords } from "@/lib/reading";
 
@@ -151,17 +152,6 @@ export async function POST(request: Request, { params }: Params) {
   }
 }
 
-/** URL original com `page` trocado pelo numero pedido. */
-function buildPageUrl(sourceUrl: string, page: number): string | null {
-  try {
-    const url = new URL(sourceUrl);
-    url.searchParams.set("page", String(page));
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
 /**
  * 404 e 410 na proxima parte significam que o conto acabou, nao que algo
  * deu errado. Qualquer outra falha e indisponibilidade temporaria.
@@ -180,35 +170,4 @@ function endOrUnavailable(error: unknown, page: number) {
 
   console.error("[texts/continuar] falha inesperada na busca:", error);
   return { status: "unavailable", page, message: "Nao consegui buscar a proxima parte." };
-}
-
-function normalize(value: string): string {
-  return value.toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-/**
- * Mede a fracao de paragrafos da parte recebida que ja estao no texto.
- *
- * Comparar apenas a abertura falharia nos dois sentidos: uma origem que repete
- * o primeiro paragrafo em toda pagina seria lida como fim do conto, e uma que
- * muda so o inicio passaria como parte nova. Paragrafos curtos ficam de fora
- * da conta porque falas de dialogo se repetem naturalmente.
- */
-const REPEAT_THRESHOLD = 0.9;
-const MIN_COMPARABLE_CHARS = 40;
-
-function alreadyPresent(existing: string, incoming: string): boolean {
-  const known = new Set(comparableBlocks(existing));
-  const blocks = comparableBlocks(incoming);
-  if (blocks.length === 0) return false;
-
-  const repeated = blocks.filter((block) => known.has(block)).length;
-  return repeated / blocks.length >= REPEAT_THRESHOLD;
-}
-
-function comparableBlocks(content: string): string[] {
-  return content
-    .split(/\n+/)
-    .map(normalize)
-    .filter((block) => block.length >= MIN_COMPARABLE_CHARS);
 }

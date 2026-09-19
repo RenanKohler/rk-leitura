@@ -58,7 +58,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Produto: novas funcionalidades | 4 | 37 | 0 | 1 | 3 |
 | **Total** | **40** | **165** | **15 (38%)** | **16 (40%)** | **9 (22%)** |
 
-Status: 29 Implementadas, 1 Parcial, 8 Propostas, 2 Aguardando pendência.
+Status: 30 Implementadas, 1 Parcial, 7 Propostas, 2 Aguardando pendência.
 
 O épico "Produto: novas funcionalidades" reúne o que ainda não existe no código
 e não foi extraído dele: são propostas de produto, levantadas em conversa e
@@ -209,7 +209,7 @@ Como leitor, eu quero importar um artigo informando o endereço, para que eu lei
 5. Dado que fiz 20 importações nos últimos 10 minutos, quando importo de novo, então recebo "Muitas importacoes seguidas. Aguarde um pouco." (HTTP 429).
 6. Dado que o endereço traz parâmetros de rastreamento, fragmento ou barra final, quando importo, então a URL é normalizada antes da busca e é a forma normalizada que fica salva em `sourceUrl`.
 
-**Notas técnicas:** a extração prioriza `itemprop="articleBody"`, depois `articleBody` em JSON-LD, depois `<article>` e, por último, o maior container de texto. A busca e a extração vivem em `lib/import-text.ts`, compartilhadas com `POST /api/share` (US-33).
+**Notas técnicas:** a extração tenta, nesta ordem, `articleBody` declarado em JSON-LD, o microdado `itemprop="articleBody"`, `<article>` e `main` e, por último, o maior container de texto. O microdado é o caminho usado no Literotica. A busca e a extração vivem em `lib/import-text.ts`, compartilhadas com `POST /api/share` (US-33).
 
 ### US-09: Importar pelo painel sem prévia
 
@@ -685,8 +685,8 @@ Como mantenedor, eu quero que os limites de login, cadastro, importação e cont
 **Épico:** Plataforma e operação
 **Prioridade:** Should
 **Story points:** 8
-**Status:** Proposta
-**Evidência:** repositório sem arquivos de teste e sem script `test` em `package.json`
+**Status:** Implementada
+**Evidência:** `tests/` (67 testes em 5 arquivos), `vitest.config.mts`, `.github/workflows/ci.yml`, script `test` em `package.json`
 
 Como mantenedor, eu quero testes automatizados para extração, segurança de importação, normalização de endereço, continuação e cálculo de sessões, para que alterações não reintroduzam defeitos já corrigidos.
 
@@ -697,7 +697,9 @@ Como mantenedor, eu quero testes automatizados para extração, segurança de im
 4. Dado que os testes da continuação rodam, quando simulam 404, página repetida e `?page=` já presente na URL importada, então os status retornados correspondem à US-23.
 5. Dado que abro um pull request, quando o pipeline executa, então lint, typecheck e testes precisam passar para o merge.
 
-**Notas técnicas:** o README registra correções que merecem teste de regressão: acentos removidos na tokenização, duração de bloco dividida em vez de multiplicada e filtro que descartava falas curtas. Se necessário, dividir em duas stories: unidade (5) e pipeline de CI (3).
+**Notas técnicas:** a suíte cobre só regras puras, sem rede nem banco, para rodar em segundos a cada push. As funções de continuação saíram da rota para `lib/continuation.ts` — lógica pura dentro de um route handler não é verificável. A suíte foi conferida por mutação: inverter a conta de duração, comparar IPv6 por prefixo de texto e devolver o filtro de tamanho no container exato fazem 2, 1 e 1 teste falhar, respectivamente.
+
+**Descoberta durante a implementação:** a ordem de extração documentada no README estava invertida. O código tenta `articleBody` de JSON-LD **antes** do microdado `itemprop`, não depois. O README foi corrigido e o teste fixa a ordem real.
 
 ---
 
@@ -801,15 +803,15 @@ Restam quatro stories prontas para entrar em sprint e duas bloqueadas:
 
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
-| 1 | US-32 | 8 | Rede de segurança: testes das regras críticas e pipeline de CI |
-| 2 | US-26, US-14 | 5 | Concluir o destaque e dar busca e filtro à biblioteca |
-| 3 | US-07, US-06 | 6 | Conta: exclusão com eliminação de dados e edição de nome e senha |
-| 4 | US-37 | 8 | Produto: séries de capítulos, a de maior valor no uso atual |
-| 5 | US-39, US-38 | 16 | Produto: audiolivro e consulta ao toque |
-| 6 | US-40 | 13 | Produto: leitura offline |
+| ~~1~~ | ~~US-32~~ | ~~8~~ | Concluída: rede de testes e pipeline de CI |
+| 1 | US-26, US-14 | 5 | Concluir o destaque e dar busca e filtro à biblioteca |
+| 2 | US-07, US-06 | 6 | Conta: exclusão com eliminação de dados e edição de nome e senha |
+| 3 | US-37 | 8 | Produto: séries de capítulos, a de maior valor no uso atual |
+| 4 | US-39, US-38 | 16 | Produto: audiolivro e consulta ao toque |
+| 5 | US-40 | 13 | Produto: leitura offline |
 | — | US-05, US-31 | 10 | Aguardando pendência: provedor de e-mail e armazenamento do limitador |
 
-A US-32 vem primeiro porque não depende de nada externo e porque o histórico do
-projeto já registra três regressões que um teste teria pegado. O épico de
+A US-32 veio primeiro porque não dependia de nada externo e porque o histórico
+do projeto já registrava três regressões que um teste teria pegado. O épico de
 produto vem por último de propósito: cada uma das quatro é maior que tudo o que
 está acima somado por ordem, e entra com a rede de testes já montada.

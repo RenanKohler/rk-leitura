@@ -1,0 +1,46 @@
+# Portao de qualidade: as mesmas checagens que se roda localmente antes de um
+# push. Nao toca no banco nem na rede, entao nao precisa de segredo nenhum.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Um push novo cancela a execucao anterior do mesmo branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Mesma faixa de `engines` no package.json e do build na Vercel.
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Testes
+        run: npm test
+
+      - name: Build
+        # `next build` e nao `vercel-build`: as migrations exigem banco, e o
+        # objetivo aqui e provar que o codigo compila. Roda sem variavel
+        # nenhuma de proposito - a conexao e a leitura do segredo sao
+        # preguicosas justamente para o build nao depender delas.
+        run: npm run build
