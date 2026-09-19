@@ -33,7 +33,7 @@ export async function POST(_request: Request, { params }: Params) {
 
   // Geracao custa dinheiro por uso: o limite e contra laco acidental, nao
   // contra o usuario.
-  const limit = rateLimit(`quiz:${clientIp(_request)}`, 30, 60 * 60 * 1000);
+  const limit = await rateLimit(`quiz:${clientIp(_request)}`, 30, 60 * 60 * 1000);
   if (!limit.allowed) {
     return jsonError("Muitos questionarios seguidos. Aguarde um pouco.", 429, {
       retryAfter: limit.retryAfterSeconds,

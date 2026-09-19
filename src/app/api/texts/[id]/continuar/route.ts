@@ -70,7 +70,7 @@ export async function POST(request: Request, { params }: Params) {
       });
     }
 
-    const limit = rateLimit(`continuar:${clientIp(request)}`, 30, 10 * 60 * 1000);
+    const limit = await rateLimit(`continuar:${clientIp(request)}`, 30, 10 * 60 * 1000);
     if (!limit.allowed) {
       return NextResponse.json({
         status: "unavailable",

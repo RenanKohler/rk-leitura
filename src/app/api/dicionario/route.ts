@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   const session = await requireSession();
   if (session instanceof NextResponse) return session;
 
-  const limit = rateLimit(`dicionario:${clientIp(request)}`, 120, 60 * 60 * 1000);
+  const limit = await rateLimit(`dicionario:${clientIp(request)}`, 120, 60 * 60 * 1000);
   if (!limit.allowed) {
     return jsonError("Muitas consultas seguidas. Aguarde um pouco.", 429, {
       retryAfter: limit.retryAfterSeconds,

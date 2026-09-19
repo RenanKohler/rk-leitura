@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
   // Mesmo balde de `/api/import-url`: as duas fazem o servidor buscar uma URL
   // arbitraria, entao dividir o limite entre elas nao ajudaria em nada.
-  const limit = rateLimit(`import:${clientIp(request)}`, 20, 10 * 60 * 1000);
+  const limit = await rateLimit(`import:${clientIp(request)}`, 20, 10 * 60 * 1000);
   if (!limit.allowed) {
     return jsonError("Muitas importacoes seguidas. Aguarde um pouco.", 429, {
       retryAfter: limit.retryAfterSeconds,

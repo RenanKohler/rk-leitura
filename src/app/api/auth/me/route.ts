@@ -54,7 +54,7 @@ export async function PATCH(request: Request) {
 
   // Mesmo balde do login: confirmar a senha atual aqui e um oraculo de senha
   // tao util a forca bruta quanto a tela de entrada.
-  const limit = rateLimit(`account:${clientIp(request)}`, 10, 15 * 60 * 1000);
+  const limit = await rateLimit(`account:${clientIp(request)}`, 10, 15 * 60 * 1000);
   if (!limit.allowed) {
     return jsonError("Muitas tentativas. Aguarde alguns minutos.", 429, {
       retryAfter: limit.retryAfterSeconds,
@@ -119,7 +119,7 @@ export async function DELETE(request: Request) {
   const session = await requireSession();
   if (session instanceof NextResponse) return session;
 
-  const limit = rateLimit(`account:${clientIp(request)}`, 10, 15 * 60 * 1000);
+  const limit = await rateLimit(`account:${clientIp(request)}`, 10, 15 * 60 * 1000);
   if (!limit.allowed) {
     return jsonError("Muitas tentativas. Aguarde alguns minutos.", 429, {
       retryAfter: limit.retryAfterSeconds,

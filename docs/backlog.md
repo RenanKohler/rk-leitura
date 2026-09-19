@@ -71,7 +71,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
 | **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
 
-Status: 59 Implementadas, 2 Aguardando pendência.
+Status: 60 Implementadas, 1 Aguardando pendência.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -686,9 +686,9 @@ Como mantenedor, eu quero consultar um endpoint de diagnóstico, para que eu ide
 **Épico:** Plataforma e operação
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Aguardando pendência
-**Pendência:** exige um armazenamento externo com baixa latência a partir da Vercel (Upstash Redis ou equivalente). Sem a conta criada e as credenciais no ambiente, a story não pode começar.
-**Evidência:** `src/lib/rate-limit.ts` (contagem em memória por processo)
+**Status:** Implementada
+**Evidência:** `src/lib/rate-limit.ts`, tabela `rate_limits` em `src/db/schema.ts`
+**Decisão tomada:** o armazenamento é o Postgres que a aplicação já usa, na mesma região da função. Redis resolveria o mesmo problema ao custo de mais um serviço para manter, e a ida ao banco custa poucos milissegundos em operações que acontecem uma vez por login ou por importação.
 
 Como mantenedor, eu quero que os limites de login, cadastro, importação e continuação valham para todas as instâncias, para que a proteção contra força bruta e uso como proxy seja efetiva na Vercel.
 
@@ -697,7 +697,7 @@ Como mantenedor, eu quero que os limites de login, cadastro, importação e cont
 2. Dado que o armazenamento do limitador está indisponível, quando uma requisição chega, então o comportamento segue a política definida (bloquear ou liberar) e a falha é registrada em log.
 3. Dado que a troca foi feita, quando as rotas chamam `rateLimit`, então a assinatura da função permanece a mesma.
 
-**Notas técnicas:** em funções serverless cada instância mantém sua própria contagem, o que multiplica o limite efetivo. O próprio código já indica Redis ou Upstash como caminho. Observação, não defeito atual: `clientIp` lê `x-forwarded-for` e cai para `x-real-ip`; na Vercel o primeiro é reescrito pela plataforma, então o valor é confiável enquanto a aplicação estiver atrás desse proxy.
+**Notas técnicas:** a contagem sobe em um único comando atômico (`insert … on conflict do update`), então duas instâncias contando ao mesmo tempo somam em vez de sobrescrever uma à outra. Uma em cada cem chamadas varre as janelas vencidas, para a tabela ficar do tamanho do tráfego recente. Política na indisponibilidade: liberar, com a falha registrada — bloquear deixaria ninguém entrar quando o banco oscilasse, e sem banco a aplicação já não responde. O critério 3 vale com uma ressalva: nome, argumentos e formato do resultado são os mesmos, mas a função passou a ser assíncrona, porque uma ida ao banco não tem como ser síncrona. Observação, não defeito: `clientIp` lê `x-forwarded-for` e cai para `x-real-ip`; na Vercel o primeiro é reescrito pela plataforma, então o valor é confiável enquanto a aplicação estiver atrás desse proxy.
 
 ### US-32: Testes automatizados das regras críticas
 
@@ -1218,8 +1218,8 @@ Entregue até aqui, em ordem:
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
 | US-46 | 8 | Perguntas de compreensão ao concluir um texto |
 
-Restam 2 stories, as duas travadas por decisão externa (10 pontos). A ordem
-abaixo é o histórico do que foi entregue, agrupado por dependência.
+Resta 1 story, travada por decisão externa (5 pontos). A ordem abaixo é o
+histórico do que foi entregue, agrupado por dependência.
 
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
@@ -1231,7 +1231,8 @@ abaixo é o histórico do que foi entregue, agrupado por dependência.
 | ~~6~~ | ~~US-57, US-59, US-58~~ | ~~18~~ | Concluída: importação de PDF e EPUB, favorito e Atalho do iOS |
 | ~~7~~ | ~~US-39, US-61, US-38~~ | ~~19~~ | Concluída: voz alta, ênfase no início das palavras e dicionário |
 | ~~8~~ | ~~US-40, US-43~~ | ~~18~~ | Concluída: leitura offline e lembrete diário |
-| — | US-05, US-31 | 10 | Aguardando pendência: provedor de e-mail e armazenamento do limitador. |
+| ~~—~~ | ~~US-31~~ | ~~5~~ | Concluída: limite de requisições compartilhado, sobre o Postgres |
+| — | US-05 | 5 | Aguardando pendência: provedor de e-mail transacional. |
 
 Por que esta ordem e não a do documento de origem:
 
@@ -1247,8 +1248,13 @@ Por que esta ordem e não a do documento de origem:
   de maior risco em produção, e entra por último, com a suíte de testes já
   montada.
 
-Duas decisões pendentes travam 10 pontos: provedor de e-mail (US-05) e
-armazenamento do limitador (US-31). As outras três pendências do documento
-original foram resolvidas ao longo das entregas: o provedor de modelo de
-linguagem (US-46 e US-38), a fonte do dicionário e a periodicidade do
-agendamento do lembrete (US-43).
+Uma decisão pendente trava 5 pontos: o provedor de e-mail transacional da
+US-05. Ela é a única que não pode ser resolvida sem uma conta em um serviço
+externo e credenciais no ambiente — recuperação de senha por e-mail exige,
+antes de tudo, alguém que entregue o e-mail.
+
+As outras quatro pendências do documento original foram resolvidas ao longo
+das entregas: o provedor de modelo de linguagem (US-46), a fonte do dicionário
+(US-38), a periodicidade do agendamento do lembrete (US-43) e o armazenamento
+do limitador (US-31) — as três últimas sem contratar nada, reaproveitando o que
+a aplicação já tinha.

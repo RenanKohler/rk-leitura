@@ -412,6 +412,26 @@ export const pushSubscriptions = pgTable(
   ]
 );
 
+/**
+ * Contagem do limitador de taxa, compartilhada entre instancias.
+ *
+ * Em funcoes serverless cada instancia tem a propria memoria, entao dez
+ * tentativas espalhadas por dez instancias passavam como uma cada - o limite
+ * efetivo era o limite vezes o numero de instancias.
+ *
+ * O armazenamento e o Postgres que a aplicacao ja usa, na mesma regiao: uma
+ * ida e volta de poucos milissegundos em operacoes que acontecem uma vez por
+ * login ou por importacao. Redis resolveria o mesmo problema ao custo de mais
+ * um servico para manter.
+ */
+export const rateLimits = pgTable("rate_limits", {
+  /** Acao mais identidade de quem chama: `login:203.0.113.7`. */
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(0),
+  /** Quando a janela termina e a contagem recomeca. */
+  resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Text = typeof texts.$inferSelect;
 export type ReadingSession = typeof readingSessions.$inferSelect;

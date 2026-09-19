@@ -9,7 +9,7 @@ interface Body {
 }
 
 export async function POST(request: Request) {
-  const limit = rateLimit(`login:${clientIp(request)}`, 10, 15 * 60 * 1000);
+  const limit = await rateLimit(`login:${clientIp(request)}`, 10, 15 * 60 * 1000);
   if (!limit.allowed) {
     return jsonError("Muitas tentativas de login. Aguarde alguns minutos.", 429, {
       retryAfter: limit.retryAfterSeconds,

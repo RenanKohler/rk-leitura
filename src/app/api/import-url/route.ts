@@ -12,7 +12,7 @@ export async function POST(request: Request) {
 
   // A rota faz o servidor buscar uma URL arbitraria: limitar evita usar a
   // aplicacao como proxy de varredura.
-  const limit = rateLimit(`import:${clientIp(request)}`, 20, 10 * 60 * 1000);
+  const limit = await rateLimit(`import:${clientIp(request)}`, 20, 10 * 60 * 1000);
   if (!limit.allowed) {
     return jsonError("Muitas importacoes seguidas. Aguarde um pouco.", 429, {
       retryAfter: limit.retryAfterSeconds,

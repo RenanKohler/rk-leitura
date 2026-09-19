@@ -13,7 +13,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
 
 export async function POST(request: Request) {
-  const limit = rateLimit(`register:${clientIp(request)}`, 5, 60 * 60 * 1000);
+  const limit = await rateLimit(`register:${clientIp(request)}`, 5, 60 * 60 * 1000);
   if (!limit.allowed) {
     return jsonError("Muitas tentativas. Tente novamente mais tarde.", 429, {
       retryAfter: limit.retryAfterSeconds,
