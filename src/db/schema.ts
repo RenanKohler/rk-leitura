@@ -5,6 +5,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   real,
   text,
   timestamp,
@@ -49,10 +50,28 @@ export const texts = pgTable(
     // Nulo enquanto o texto esta na lista principal. Arquivar tira da lista
     // sem apagar: o historico de leitura continua contando.
     archivedAt: timestamp("archived_at", { withTimezone: true }),
+    /**
+     * Identidade da historia a que este capitulo pertence, quando o padrao de
+     * capitulo foi reconhecido (US-37). Nulo para texto solto, que e a
+     * maioria: a deteccao e heuristica e falhar nela nao pode virar erro.
+     */
+    seriesKey: text("series_key"),
+    /** Numero do capitulo dentro da serie. Nulo junto com `seriesKey`. */
+    chapter: integer("chapter"),
+    /**
+     * Posicao na fila de leitura (US-56). Nulo quando o texto nao esta na
+     * fila - que e o estado normal. Arquivar ou concluir tira da fila.
+     */
+    queuePosition: integer("queue_position"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("texts_user_created_idx").on(table.userId, table.createdAt.desc())]
+  (table) => [
+    index("texts_user_created_idx").on(table.userId, table.createdAt.desc()),
+    // A biblioteca agrupa por serie na propria consulta; sem o indice, cada
+    // pagina varreria a tabela inteira para montar os cartoes.
+    index("texts_user_series_idx").on(table.userId, table.seriesKey, table.chapter),
+  ]
 );
 
 export const readingSessions = pgTable(
@@ -195,6 +214,48 @@ export const highlights = pgTable(
   (table) => [index("highlights_text_start_idx").on(table.textId, table.startIndex)]
 );
 
+/**
+ * Etiquetas da conta.
+ *
+ * Unica por nome dobrado (sem acento, em minusculas): "Ficção" e "ficcao"
+ * seriam duas etiquetas que a tela mostraria lado a lado como se fossem
+ * diferentes.
+ */
+export const tags = pgTable(
+  "tags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("tags_user_name_unique").on(
+      table.userId,
+      sql`translate(lower(${table.name}), 'áàâãäåéèêëíìîïóòôõöøúùûüçñýÿ', 'aaaaaaeeeeiiiioooooouuuucnyy')`
+    ),
+  ]
+);
+
+/** Vinculo entre texto e etiqueta. */
+export const textTags = pgTable(
+  "text_tags",
+  {
+    textId: uuid("text_id")
+      .notNull()
+      .references(() => texts.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.textId, table.tagId] }),
+    index("text_tags_tag_idx").on(table.tagId),
+  ]
+);
+
 export type User = typeof users.$inferSelect;
 export type Text = typeof texts.$inferSelect;
 export type ReadingSession = typeof readingSessions.$inferSelect;
@@ -202,3 +263,4 @@ export type SpeedSettings = typeof speedSettings.$inferSelect;
 export type ReadingGoal = typeof readingGoals.$inferSelect;
 export type ComprehensionQuiz = typeof comprehensionQuizzes.$inferSelect;
 export type Highlight = typeof highlights.$inferSelect;
+export type Tag = typeof tags.$inferSelect;

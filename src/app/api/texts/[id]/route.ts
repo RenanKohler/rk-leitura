@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { highlights, texts } from "@/db/schema";
+import { highlights, tags, texts, textTags } from "@/db/schema";
 import {
   asInteger,
   asString,
@@ -11,6 +11,8 @@ import {
   serverError,
 } from "@/lib/api";
 import { loadText } from "@/lib/queries";
+import { normalizeTagList, tagKey } from "@/lib/tags";
+import { detectSeries } from "@/lib/series";
 import { clamp, countWords } from "@/lib/reading";
 
 export const dynamic = "force-dynamic";
@@ -53,10 +55,17 @@ export async function PUT(request: Request, { params }: Params) {
     const { id } = await params;
     if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
 
-    const body = await readJson<{ title?: unknown; sourceUrl?: unknown; content?: unknown }>(request);
+    const body = await readJson<{
+      title?: unknown;
+      sourceUrl?: unknown;
+      content?: unknown;
+      tags?: unknown;
+    }>(request);
     const title = asString(body?.title);
     const content = asString(body?.content);
     const sourceUrl = asString(body?.sourceUrl);
+    // `tags` ausente nao mexe nas etiquetas; lista vazia tira todas.
+    const tagNames = body?.tags === undefined ? null : normalizeTagList(body.tags);
 
     if (!title || !content) {
       return jsonError("Titulo e conteudo sao obrigatorios.", 400);
@@ -66,7 +75,7 @@ export async function PUT(request: Request, { params }: Params) {
     }
 
     const [current] = await db
-      .select({ content: texts.content })
+      .select({ content: texts.content, title: texts.title, seriesKey: texts.seriesKey })
       .from(texts)
       .where(ownedText(id, session.id))
       .limit(1);
@@ -79,6 +88,13 @@ export async function PUT(request: Request, { params }: Params) {
     const rewritten = current.content !== content;
     const wordCount = countWords(content);
 
+    // O titulo mudou: o capitulo pode ter passado a ser reconhecido, ou
+    // deixado de ser. Nao mexe em quem ja foi desvinculado a mao - o
+    // desvinculo (US-37, criterio 6) nao pode ser desfeito por uma edicao.
+    const retitled = current.title !== title;
+    const series =
+      retitled && current.seriesKey !== null ? detectSeries(title, sourceUrl) : null;
+
     const [updated, removed] = await db.transaction(async (tx) => {
       const [row] = await tx
         .update(texts)
@@ -88,6 +104,9 @@ export async function PUT(request: Request, { params }: Params) {
           content,
           wordCount,
           ...(rewritten ? { progressIndex: 0 } : {}),
+          ...(retitled && current.seriesKey !== null
+            ? { seriesKey: series?.key ?? null, chapter: series?.chapter ?? null }
+            : {}),
           updatedAt: new Date(),
         })
         .where(ownedText(id, session.id))
@@ -100,6 +119,8 @@ export async function PUT(request: Request, { params }: Params) {
             .returning({ id: highlights.id })
         : [];
 
+      if (tagNames) await applyTags(tx, session.id, id, tagNames);
+
       return [row, dropped.length] as const;
     });
 
@@ -107,6 +128,45 @@ export async function PUT(request: Request, { params }: Params) {
     return NextResponse.json({ text: updated, removedHighlights: removed });
   } catch (error) {
     return serverError("texts/update", error);
+  }
+}
+
+/**
+ * Deixa as etiquetas do texto exatamente como a lista pedida.
+ *
+ * Cria o que falta pelo nome, reaproveita o que ja existe e desfaz os
+ * vinculos que sobraram. A etiqueta em si nao e apagada: ela pode estar em
+ * outros textos, e some da conta apenas quando o leitor a exclui.
+ */
+async function applyTags(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  userId: string,
+  textId: string,
+  names: string[]
+) {
+  const existing = await tx.select().from(tags).where(eq(tags.userId, userId));
+  const byKey = new Map(existing.map((tag) => [tagKey(tag.name), tag]));
+
+  const missing = names.filter((name) => !byKey.has(tagKey(name)));
+  if (missing.length > 0) {
+    const created = await tx
+      .insert(tags)
+      .values(missing.map((name) => ({ userId, name })))
+      .onConflictDoNothing()
+      .returning();
+    for (const tag of created) byKey.set(tagKey(tag.name), tag);
+  }
+
+  const wanted = names
+    .map((name) => byKey.get(tagKey(name))?.id)
+    .filter((id): id is string => Boolean(id));
+
+  await tx.delete(textTags).where(eq(textTags.textId, textId));
+  if (wanted.length > 0) {
+    await tx
+      .insert(textTags)
+      .values(wanted.map((tagId) => ({ textId, tagId })))
+      .onConflictDoNothing();
   }
 }
 
@@ -152,9 +212,16 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 }
 
-/** Arquiva ao concluir, desarquiva ao reiniciar, e nada no meio do caminho. */
+/**
+ * Arquiva ao concluir, desarquiva ao reiniciar, e nada no meio do caminho.
+ *
+ * Arquivar tira da fila: um texto ja lido continuar sendo sugerido como
+ * proxima leitura seria a fila trabalhando contra quem a montou.
+ */
 function archiveOnProgress(position: number, wordCount: number) {
-  if (wordCount > 0 && position >= wordCount) return { archivedAt: new Date() };
+  if (wordCount > 0 && position >= wordCount) {
+    return { archivedAt: new Date(), queuePosition: null };
+  }
   if (position === 0) return { archivedAt: null };
   return {};
 }

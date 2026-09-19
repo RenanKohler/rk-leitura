@@ -35,7 +35,9 @@ async function setArchived(params: Params["params"], archivedAt: Date | null) {
 
     const [updated] = await db
       .update(texts)
-      .set({ archivedAt, updatedAt: new Date() })
+      // Arquivar tira da fila (US-56, criterio 3); desarquivar nao devolve,
+      // porque a posicao anterior nao existe mais.
+      .set({ archivedAt, updatedAt: new Date(), ...(archivedAt ? { queuePosition: null } : {}) })
       .where(and(eq(texts.id, id), eq(texts.userId, session.id)))
       .returning({ id: texts.id, archivedAt: texts.archivedAt });
 

@@ -3,10 +3,11 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { texts } from "@/db/schema";
 import { asString, jsonError, readJson, readPageParams, requireSession, serverError } from "@/lib/api";
-import { loadTexts } from "@/lib/queries";
+import { loadLibrary } from "@/lib/queries";
 import { asTextScope, asTextStatus, normalizeQuery } from "@/lib/text-filter";
 import { countWords } from "@/lib/reading";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
+import { detectSeries } from "@/lib/series";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +27,14 @@ export async function GET(request: Request) {
     const params = readPageParams(request);
     const search = new URL(request.url).searchParams;
 
-    const { items, ...page } = await loadTexts(session.id, params.page, params.limit, {
+    const { items, texts: count, ...page } = await loadLibrary(session.id, params.page, params.limit, {
       query: normalizeQuery(search.get("q")),
       status: asTextStatus(search.get("status")),
       scope: asTextScope(search.get("scope")),
+      tagId: search.get("etiqueta"),
     });
 
-    return NextResponse.json({ texts: items, ...page });
+    return NextResponse.json({ items, texts: count, ...page });
   } catch (error) {
     return serverError("texts/list", error);
   }
@@ -58,6 +60,10 @@ export async function POST(request: Request) {
       return jsonError("O texto e grande demais.", 413);
     }
 
+    // Capitulo reconhecido vira vinculo de serie; nao reconhecido fica solto,
+    // que e o comportamento de sempre e nao um erro.
+    const series = detectSeries(title, sourceUrl);
+
     const [created] = await db
       .insert(texts)
       .values({
@@ -68,6 +74,8 @@ export async function POST(request: Request) {
         // Calculado no servidor: o cliente nao decide a contagem.
         wordCount: countWords(content),
         sourcePage: pageFromUrl(sourceUrl),
+        seriesKey: series?.key ?? null,
+        chapter: series?.chapter ?? null,
       })
       .returning();
 

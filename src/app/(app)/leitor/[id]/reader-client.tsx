@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import { pageOfWord, usePagedText } from "@/hooks/use-paged-text";
 import { useSettings, useToast } from "@/components/providers";
@@ -50,7 +51,7 @@ import {
   type Span,
   type StoredHighlight,
 } from "@/lib/highlights";
-import type { ContinuationResult, HighlightItem, TextDetail } from "@/lib/types";
+import type { ContinuationResult, HighlightItem, NextUp, TextDetail } from "@/lib/types";
 
 export const MODE_HINTS: Record<ReadingMode, string> = {
   rsvp: "Uma palavra por vez no centro da tela, com a letra de fixacao destacada.",
@@ -70,22 +71,34 @@ export function ReaderClient({
   text,
   highlights,
   startAt,
+  nextUp,
 }: {
   text: TextDetail;
   highlights: HighlightItem[];
   startAt?: number;
+  nextUp: NextUp | null;
 }) {
-  return <Reader key={text.id} text={text} highlights={highlights} startAt={startAt} />;
+  return (
+    <Reader
+      key={text.id}
+      text={text}
+      highlights={highlights}
+      startAt={startAt}
+      nextUp={nextUp}
+    />
+  );
 }
 
 function Reader({
   text: initialText,
   highlights,
   startAt,
+  nextUp,
 }: {
   text: TextDetail;
   highlights: HighlightItem[];
   startAt?: number;
+  nextUp: NextUp | null;
 }) {
   const { settings, save } = useSettings();
   const notify = useToast();
@@ -196,6 +209,41 @@ function Reader({
     },
     [text.id]
   );
+
+  /* --- proxima leitura --------------------------------------------------- */
+  const [loadingNext, setLoadingNext] = useState(false);
+  const router = useRouter();
+
+  /**
+   * Abre o proximo capitulo ou o proximo da fila.
+   *
+   * Quando o capitulo seguinte ainda nao esta na biblioteca, a rota o importa
+   * da origem. Fim de serie nao e erro: a mensagem aparece e a tela de
+   * conclusao continua no lugar.
+   */
+  const openNext = useCallback(async () => {
+    if (!nextUp) return;
+
+    if (nextUp.textId) {
+      router.push(`/leitor/${nextUp.textId}`);
+      return;
+    }
+
+    setLoadingNext(true);
+    try {
+      const result = await apiSend<{ status: string; id?: string; message?: string }>(
+        `/api/texts/${text.id}/proximo`,
+        "POST"
+      );
+
+      if (result.id) router.push(`/leitor/${result.id}`);
+      else notify(result.message ?? "Esta e a ultima parte da serie.", "info");
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "Sem conexao para buscar.", "error");
+    } finally {
+      setLoadingNext(false);
+    }
+  }, [nextUp, text.id, router, notify]);
 
   /** Destaca a frase que contem a palavra atual, sem parar a leitura. */
   const markSentence = useCallback(() => {
@@ -570,6 +618,9 @@ function Reader({
             canQuiz={total >= MIN_WORDS_FOR_QUIZ}
             comprehension={comprehension}
             onQuiz={() => setQuizOpen(true)}
+            nextUp={nextUp}
+            loadingNext={loadingNext}
+            onNext={() => void openNext()}
           />
         ) : mode === "rsvp" ? (
           <RsvpStage chunk={chunk} onToggle={togglePlay} playing={playing} />
@@ -1145,6 +1196,9 @@ function Finished({
   canQuiz,
   comprehension,
   onQuiz,
+  nextUp,
+  loadingNext,
+  onNext,
 }: {
   total: number;
   durationMs: number;
@@ -1156,6 +1210,9 @@ function Finished({
   canQuiz: boolean;
   comprehension: number | null;
   onQuiz: () => void;
+  nextUp: NextUp | null;
+  loadingNext: boolean;
+  onNext: () => void;
 }) {
   const minutes = durationMs / 60_000;
   const wpm = minutes > 0 ? Math.round(wordsRead / minutes) : 0;
@@ -1192,6 +1249,23 @@ function Finished({
       </Card>
 
       <div className="flex w-full max-w-sm flex-col gap-2">
+        {/* Primeiro botao da tela: quem terminou um capitulo quer o proximo,
+            nao reler o que acabou de ler. */}
+        {nextUp ? (
+          <Button size="lg" full loading={loadingNext} onClick={onNext}>
+            <ForwardIcon className="size-5" />
+            {nextUp.source === "capitulo"
+              ? nextUp.textId
+                ? `Capitulo ${nextUp.chapter ?? ""}`.trim()
+                : `Buscar o capitulo ${nextUp.chapter ?? ""}`.trim()
+              : "Proximo da fila"}
+          </Button>
+        ) : null}
+
+        {nextUp?.title ? (
+          <p className="-mt-1 line-clamp-1 text-sm text-muted">{nextUp.title}</p>
+        ) : null}
+
         {canQuiz ? (
           <Button variant="secondary" size="lg" full onClick={onQuiz}>
             <SparkIcon className="size-5" />
@@ -1200,7 +1274,13 @@ function Finished({
         ) : null}
 
         {canContinue ? (
-          <Button size="lg" full loading={loadingMore} onClick={onContinue}>
+          <Button
+            variant={nextUp ? "secondary" : "primary"}
+            size="lg"
+            full
+            loading={loadingMore}
+            onClick={onContinue}
+          >
             <ForwardIcon className="size-5" />
             {loadingMore ? "Buscando" : "Buscar proxima parte"}
           </Button>

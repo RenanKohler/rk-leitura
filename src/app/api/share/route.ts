@@ -7,6 +7,7 @@ import { findTextBySourceUrl } from "@/lib/queries";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { countWords } from "@/lib/reading";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
+import { detectSeries } from "@/lib/series";
 import type { ShareResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
         content: imported.content,
         wordCount: countWords(imported.content),
         sourcePage: pageFromUrl(finalUrl),
+        ...seriesFields(imported.title, finalUrl),
       })
       .returning({ id: texts.id, title: texts.title });
 
@@ -70,6 +72,12 @@ export async function POST(request: Request) {
     if (error instanceof ImportError) return jsonError(error.message, error.status);
     return serverError("share", error);
   }
+}
+
+/** Vinculo de serie quando o padrao de capitulo e reconhecido. */
+function seriesFields(title: string, sourceUrl: string) {
+  const series = detectSeries(title, sourceUrl);
+  return { seriesKey: series?.key ?? null, chapter: series?.chapter ?? null };
 }
 
 function result(

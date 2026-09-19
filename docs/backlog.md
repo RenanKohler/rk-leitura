@@ -71,7 +71,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
 | **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
 
-Status: 46 Implementadas, 13 Propostas, 2 Aguardando pendência.
+Status: 49 Implementadas, 10 Propostas, 2 Aguardando pendência.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -968,8 +968,8 @@ Como estudante, eu quero ver todos os destaques de um texto em uma lista e expor
 **Épico:** Organização da biblioteca
 **Prioridade:** Should
 **Story points:** 8
-**Status:** Proposta
-**Evidência:** a continuação (US-23) avança `?page=` **dentro** de um capítulo; capítulos diferentes (`the-cabin-ch-01`, `-ch-02`) são textos soltos, sem vínculo, em `src/db/schema.ts`
+**Status:** Implementada
+**Evidência:** `src/lib/series.ts`, `loadLibrary`/`loadNextUp` em `src/lib/queries.ts`, `src/app/api/texts/[id]/proximo/route.ts`, `src/app/api/series/route.ts`
 
 Como leitor de ficção seriada, eu quero que os capítulos de uma mesma história fiquem agrupados e encadeados, para que eu acompanhe a série sem importar capítulo por capítulo e sem procurar o próximo na lista.
 
@@ -988,7 +988,8 @@ Como leitor de ficção seriada, eu quero que os capítulos de uma mesma histór
 **Épico:** Organização da biblioteca
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/tags.ts`, `src/app/api/etiquetas/`, `src/components/tag-picker.tsx`, `src/components/tag-manager-sheet.tsx`
 
 Como leitor, eu quero atribuir etiquetas aos textos e filtrar por elas, para que eu separe estudo, trabalho e lazer.
 
@@ -1022,7 +1023,8 @@ Como leitor, eu quero que textos concluídos saiam da lista principal sem serem 
 **Épico:** Organização da biblioteca
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/app/api/fila/route.ts`, `src/app/(app)/textos/fila/`
 
 Como leitor, eu quero ordenar os próximos textos em uma fila, para que o app sugira automaticamente o próximo ao terminar um.
 
@@ -1209,7 +1211,7 @@ Entregue até aqui, em ordem:
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
 | US-46 | 8 | Perguntas de compreensão ao concluir um texto |
 
-Restam 15 stories: 13 prontas para entrar em sprint (84 pontos) e 2 travadas
+Restam 12 stories: 10 prontas para entrar em sprint (68 pontos) e 2 travadas
 por decisão externa (10 pontos). A ordem abaixo agrupa por dependência, não por
 tema: cada faixa entrega algo utilizável e prepara a seguinte.
 
@@ -1218,7 +1220,7 @@ tema: cada faixa entrega algo utilizável e prepara a seguinte.
 | ~~1~~ | ~~US-50, US-55, US-60, US-44~~ | ~~10~~ | Concluída: exportar dados, arquivar, tipografia e aceleração gradual |
 | ~~2~~ | ~~US-41, US-42, US-48, US-49~~ | ~~14~~ | Concluída: meta diária, sequência, evolução e resumo semanal |
 | ~~3~~ | ~~US-51, US-52, US-53~~ | ~~11~~ | Concluída: destacar, anotar, revisar e exportar destaques |
-| 4 | US-37, US-54, US-56 | 16 | Organização: séries, etiquetas e fila. |
+| ~~4~~ | ~~US-37, US-54, US-56~~ | ~~16~~ | Concluída: séries de capítulos, etiquetas e fila de leitura |
 | 5 | US-45, US-47 | 13 | Treino: medir a velocidade inicial e o programa progressivo. |
 | 6 | US-57, US-59, US-58 | 18 | Importação ampliada: PDF, favorito e EPUB. |
 | 7 | US-39, US-61, US-38 | 19 | Ferramentas de leitura: voz alta, ênfase no início das palavras e dicionário. |
@@ -1239,7 +1241,7 @@ Por que esta ordem e não a do documento de origem:
   de maior risco em produção, e entra por último, com a suíte de testes já
   montada.
 
-Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia as ordens 4
+Duas decisões pendentes travam 10 pontos, e nenhuma delas bloqueia as ordens 5
 a 8: provedor de e-mail (US-05) e armazenamento do limitador (US-31). A terceira
 pendência, o provedor de modelo de linguagem da US-46, foi resolvida — a chave
 da Anthropic entrou como variável sensível na Vercel, sem teto mensal.

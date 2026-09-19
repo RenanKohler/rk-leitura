@@ -6,6 +6,8 @@ import { useResource } from "@/hooks/use-resource";
 import { apiGet, apiSend } from "@/lib/client";
 import { useSettings, useToast } from "@/components/providers";
 import { ImportCard } from "@/components/import-card";
+import { TagPicker } from "@/components/tag-picker";
+import { TagManagerSheet } from "@/components/tag-manager-sheet";
 import {
   Alert,
   Button,
@@ -23,11 +25,17 @@ import {
   ArchiveIcon,
   EditIcon,
   LibraryIcon,
+  ChevronIcon,
+  CheckIcon,
   MarkIcon,
+  QueueIcon,
   RestoreIcon,
+  SeriesIcon,
   TrashIcon,
 } from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
+import { sameTag } from "@/lib/tags";
+import { seriesProgress } from "@/lib/series";
 import {
   DEFAULT_SCOPE,
   DEFAULT_STATUS,
@@ -35,7 +43,14 @@ import {
   type TextScope,
   type TextStatus,
 } from "@/lib/text-filter";
-import type { Paginated, TextDetail, TextSummary } from "@/lib/types";
+import type {
+  LibraryItem,
+  Paginated,
+  SeriesSummary,
+  TagSummary,
+  TextDetail,
+  TextSummary,
+} from "@/lib/types";
 
 const STATUS_OPTIONS: { value: TextStatus; label: string }[] = [
   { value: "todos", label: "Todos" },
@@ -52,15 +67,24 @@ const SCOPE_OPTIONS: { value: TextScope; label: string }[] = [
 /** Espera entre a ultima tecla e a busca, para nao consultar a cada letra. */
 const DEBOUNCE_MS = 300;
 
-export type TextsPage = { texts: TextSummary[] } & Paginated;
+export type LibraryPage = { items: LibraryItem[]; texts: number } & Paginated;
 
-export function TextsClient({ initial }: { initial: TextsPage }) {
+export function TextsClient({
+  initial,
+  tags: initialTags,
+}: {
+  initial: LibraryPage;
+  tags: TagSummary[];
+}) {
   const { settings } = useSettings();
   const notify = useToast();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<TextStatus>(DEFAULT_STATUS);
   const [scope, setScope] = useState<TextScope>(DEFAULT_SCOPE);
+  const [tagId, setTagId] = useState<string | null>(null);
+  const [tags, setTags] = useState(initialTags);
+  const [managingTags, setManagingTags] = useState(false);
 
   // O termo so chega a consulta depois que a digitacao para.
   const [searched, setSearched] = useState("");
@@ -69,14 +93,15 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const filtering = searched.length > 0 || status !== DEFAULT_STATUS;
+  const filtering = searched.length > 0 || status !== DEFAULT_STATUS || tagId !== null;
   const archived = scope === "arquivados";
   const path =
     `/api/texts?page=${page}&status=${status}&scope=${scope}` +
-    (searched ? `&q=${encodeURIComponent(searched)}` : "");
+    (searched ? `&q=${encodeURIComponent(searched)}` : "") +
+    (tagId ? `&etiqueta=${tagId}` : "");
 
   // A primeira pagina da lista principal sem filtro ja veio no HTML.
-  const resource = useResource<TextsPage>(
+  const resource = useResource<LibraryPage>(
     path,
     page === 1 && !filtering && !archived ? initial : undefined
   );
@@ -93,7 +118,53 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
       setQuery("");
       setSearched("");
       setStatus(DEFAULT_STATUS);
+      setTagId(null);
     });
+
+  const refreshTags = async () => {
+    try {
+      const data = await apiGet<{ tags: TagSummary[] }>("/api/etiquetas");
+      setTags(data.tags);
+    } catch {
+      // A barra de etiquetas continua com o que ja tinha: nao e motivo de erro
+      // na tela, a lista de textos ja foi salva.
+    }
+  };
+
+  const tagIdByName = (name: string) =>
+    tags.find((tag) => sameTag(tag.name, name))?.id ?? null;
+
+  const unlinkSeries = async (key: string) => {
+    try {
+      await apiSend(`/api/series?serie=${encodeURIComponent(key)}`, "DELETE");
+      resource.reload();
+      notify("Serie desfeita. Os capitulos continuam na biblioteca.", "success");
+    } catch {
+      notify("Falha ao desfazer a serie.", "error");
+    }
+  };
+
+  const unlinkChapter = async (id: string) => {
+    try {
+      await apiSend(`/api/series?texto=${id}`, "DELETE");
+      resource.reload();
+      notify("Capitulo desvinculado.", "success");
+    } catch {
+      notify("Falha ao desvincular.", "error");
+    }
+  };
+
+  const toggleQueue = async (text: TextSummary) => {
+    const inQueue = text.queuePosition !== null;
+    try {
+      if (inQueue) await apiSend(`/api/fila?texto=${text.id}`, "DELETE");
+      else await apiSend("/api/fila", "POST", { textId: text.id });
+      resource.reload();
+      notify(inQueue ? "Saiu da fila." : "Entrou na fila.", "success");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Falha ao mudar a fila.", "error");
+    }
+  };
 
   const toggleArchive = async (text: TextSummary) => {
     const restoring = text.archivedAt !== null;
@@ -112,8 +183,11 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
   const [pendingDelete, setPendingDelete] = useState<TextSummary | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const texts = resource.data?.texts ?? [];
-  const total = resource.data?.total ?? texts.length;
+  const items = resource.data?.items ?? [];
+  // `total` conta itens da lista (uma serie e um so); `count`, textos. O
+  // rotulo fala de textos, a paginacao anda por itens.
+  const total = resource.data?.total ?? items.length;
+  const count = resource.data?.texts ?? items.length;
   const pageCount = resource.data?.pageCount ?? 1;
 
   const openEditor = async (text: TextSummary) => {
@@ -138,10 +212,14 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
           title: editing.title,
           sourceUrl: editing.sourceUrl,
           content: editing.content,
+          tags: editing.tags,
         }
       );
       setEditing(null);
       resource.reload();
+      // As etiquetas podem ter nascido agora: a barra de filtros precisa
+      // conhece-las para que o texto salvo seja filtravel no mesmo minuto.
+      void refreshTags();
       notify(
         removedHighlights > 0
           ? `Texto atualizado. ${removedHighlights === 1 ? "1 destaque removido" : `${removedHighlights} destaques removidos`}.`
@@ -164,7 +242,7 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
       notify("Texto removido.", "success");
       // Recarrega em vez de filtrar no cliente: a contagem total e o numero de
       // paginas mudaram, e a pagina atual pode ter ficado vazia.
-      if (texts.length === 1 && page > 1) setPage(page - 1);
+      if (items.length === 1 && page > 1) setPage(page - 1);
       else resource.reload();
     } catch {
       notify("Falha ao remover.", "error");
@@ -182,16 +260,26 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
             {resource.loading
               ? "Carregando"
               : filtering
-                ? `${total} ${total === 1 ? "resultado" : "resultados"}`
-                : `${total} ${total === 1 ? "texto" : "textos"} na biblioteca`}
+                ? `${count} ${count === 1 ? "resultado" : "resultados"}`
+                : `${count} ${count === 1 ? "texto" : "textos"} na biblioteca`}
           </p>
         </div>
-        {/* No celular o botao flutuante da barra inferior ja cobre esta acao. */}
-        <span className="hidden sm:block">
-          <LinkButton href="/textos/novo" variant="secondary">
-            Adicionar
-          </LinkButton>
-        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          <Link
+            href="/textos/fila"
+            aria-label="Fila de leitura"
+            title="Fila de leitura"
+            className="flex size-11 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
+          >
+            <QueueIcon className="size-5" />
+          </Link>
+          {/* No celular o botao flutuante da barra inferior ja cobre esta acao. */}
+          <span className="hidden sm:block">
+            <LinkButton href="/textos/novo" variant="secondary">
+              Adicionar
+            </LinkButton>
+          </span>
+        </div>
       </header>
 
       {/* Arquivar nao e um filtro somado aos outros: um texto esta na lista
@@ -226,6 +314,43 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
           onChange={(value) => changeFilter(() => setStatus(value))}
           options={STATUS_OPTIONS}
         />
+
+        {tags.length > 0 ? (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted">Etiquetas</p>
+              <button
+                type="button"
+                onClick={() => setManagingTags(true)}
+                className="text-sm font-medium text-accent"
+              >
+                Organizar
+              </button>
+            </div>
+            {/* Rolagem horizontal: com dez etiquetas, uma grade empurraria a
+                lista de textos para fora da primeira tela no celular. */}
+            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+              {tags.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  aria-pressed={tagId === tag.id}
+                  onClick={() =>
+                    changeFilter(() => setTagId(tagId === tag.id ? null : tag.id))
+                  }
+                  className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors ${
+                    tagId === tag.id
+                      ? "border-accent bg-accent-soft text-ink"
+                      : "border-border text-muted"
+                  }`}
+                >
+                  {tag.name}
+                  <span className="tabular text-xs text-faint">{tag.texts}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {resource.loading ? (
@@ -234,7 +359,7 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
             <Skeleton key={index} className="h-24 w-full rounded-card" />
           ))}
         </div>
-      ) : texts.length === 0 ? (
+      ) : items.length === 0 ? (
         <Card>
           {archived && !filtering ? (
             <EmptyState
@@ -265,17 +390,30 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
       ) : (
         <>
           <ul className="space-y-2">
-            {texts.map((text, index) => (
-              <TextCard
-                key={text.id}
-                text={text}
-                wpm={settings.baseWpm}
-                index={index}
-                onEdit={() => openEditor(text)}
-                onDelete={() => setPendingDelete(text)}
-                onToggleArchive={() => void toggleArchive(text)}
-              />
-            ))}
+            {items.map((item, index) =>
+              item.kind === "serie" ? (
+                <SeriesCard
+                  key={item.key}
+                  series={item}
+                  wpm={settings.baseWpm}
+                  index={index}
+                  onUnlink={() => void unlinkSeries(item.key)}
+                  onUnlinkChapter={(id: string) => void unlinkChapter(id)}
+                />
+              ) : (
+                <TextCard
+                  key={item.text.id}
+                  text={item.text}
+                  wpm={settings.baseWpm}
+                  index={index}
+                  onEdit={() => openEditor(item.text)}
+                  onDelete={() => setPendingDelete(item.text)}
+                  onToggleArchive={() => void toggleArchive(item.text)}
+                  onQueue={() => void toggleQueue(item.text)}
+                  onTag={(name) => changeFilter(() => setTagId(tagIdByName(name)))}
+                />
+              )
+            )}
           </ul>
           <Pagination
             page={resource.data?.page ?? page}
@@ -288,6 +426,19 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
           />
         </>
       )}
+
+      <TagManagerSheet
+        open={managingTags}
+        tags={tags}
+        onClose={() => setManagingTags(false)}
+        onChange={(next) => {
+          setTags(next);
+          // Filtrar por uma etiqueta que acabou de ser excluida devolveria uma
+          // lista vazia sem explicacao.
+          if (tagId && !next.some((tag) => tag.id === tagId)) changeFilter(() => setTagId(null));
+          else resource.reload();
+        }}
+      />
 
       <Sheet
         open={editing !== null}
@@ -327,6 +478,12 @@ export function TextsClient({ initial }: { initial: TextsPage }) {
               rows={12}
               value={editing.content}
               onChange={(event) => setEditing({ ...editing, content: event.target.value })}
+            />
+
+            <TagPicker
+              known={tags.map((tag) => tag.name)}
+              value={editing.tags}
+              onChange={(next) => setEditing({ ...editing, tags: next })}
             />
 
             {/* O aviso aparece antes de salvar, com o Cancelar ao lado do
@@ -375,6 +532,8 @@ function TextCard({
   onEdit,
   onDelete,
   onToggleArchive,
+  onQueue,
+  onTag,
 }: {
   text: TextSummary;
   wpm: number;
@@ -382,6 +541,8 @@ function TextCard({
   onEdit: () => void;
   onDelete: () => void;
   onToggleArchive: () => void;
+  onQueue?: () => void;
+  onTag?: (name: string) => void;
 }) {
   const archived = text.archivedAt !== null;
   const percent =
@@ -405,6 +566,15 @@ function TextCard({
           {/* Botoes sempre visiveis: a versao anterior os escondia atras de
               :hover, inalcancavel em tela de toque. */}
           <div className="flex shrink-0 gap-1">
+            {onQueue && !archived ? (
+              <IconButton
+                label={text.queuePosition === null ? "Adicionar a fila" : "Tirar da fila"}
+                onClick={onQueue}
+                active={text.queuePosition !== null}
+              >
+                <QueueIcon className="size-5" />
+              </IconButton>
+            ) : null}
             <IconButton
               label={archived ? "Voltar a biblioteca" : "Arquivar"}
               onClick={onToggleArchive}
@@ -419,6 +589,21 @@ function TextCard({
             </IconButton>
           </div>
         </div>
+
+        {text.tags.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {text.tags.map((name) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => onTag?.(name)}
+                className="flex min-h-8 items-center rounded-full bg-surface-2 px-2.5 text-xs font-medium text-muted"
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {/* Fora do <Link> do titulo: um link dentro de outro nao e valido, e
             o toque cairia no destino errado. */}
@@ -442,15 +627,106 @@ function TextCard({
   );
 }
 
+/**
+ * Cartao de uma serie: um item para todos os capitulos.
+ *
+ * Fechado ele mostra onde a leitura esta ("cap. 3 de 7") e abre no capitulo
+ * atual; aberto lista os capitulos e as acoes de desvinculo, que existem
+ * porque a deteccao e heuristica e erra.
+ */
+function SeriesCard({
+  series,
+  wpm,
+  index,
+  onUnlink,
+  onUnlinkChapter,
+}: {
+  series: SeriesSummary;
+  wpm: number;
+  index: number;
+  onUnlink: () => void;
+  onUnlinkChapter: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = series.chapters.find((item) => item.chapter === series.current);
+  const read = series.chapters.reduce((sum, item) => sum + item.progressIndex, 0);
+  const percent = series.wordCount > 0 ? Math.round((read / series.wordCount) * 100) : 0;
+
+  return (
+    <li className="animate-rise" style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}>
+      <Card className="p-4">
+        <div className="flex items-start gap-3">
+          <Link href={`/leitor/${current?.id ?? series.chapters[0]!.id}`} className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 font-medium leading-snug">
+              <SeriesIcon className="size-4 shrink-0 text-muted" />
+              <span className="truncate">{series.title}</span>
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              {`${seriesProgress(series.current, series.total)} · ${formatNumber(series.wordCount)} palavras · ~${estimatedMinutes(series.wordCount, wpm)} min`}
+            </p>
+          </Link>
+
+          <IconButton
+            label={open ? "Fechar capitulos" : "Ver capitulos"}
+            onClick={() => setOpen(!open)}
+          >
+            <ChevronIcon className={`size-5 transition-transform ${open ? "rotate-180" : ""}`} />
+          </IconButton>
+        </div>
+
+        {percent > 0 ? (
+          <div className="mt-3 h-1 overflow-hidden rounded-full bg-surface-2">
+            <div className="h-full rounded-full bg-accent" style={{ width: `${percent}%` }} />
+          </div>
+        ) : null}
+
+        {open ? (
+          <div className="mt-4 space-y-2 border-t border-border pt-3">
+            <ul className="space-y-1">
+              {series.chapters.map((chapter) => {
+                const done = chapter.wordCount > 0 && chapter.progressIndex >= chapter.wordCount;
+                return (
+                  <li key={chapter.id} className="flex items-center gap-2">
+                    <Link href={`/leitor/${chapter.id}`} className="min-w-0 flex-1 py-2">
+                      <span className="tabular mr-2 text-sm text-faint">{chapter.chapter}</span>
+                      <span className={`text-sm ${done ? "text-faint" : ""}`}>
+                        {chapter.title}
+                      </span>
+                    </Link>
+                    {done ? <CheckIcon className="size-4 shrink-0 text-positive" /> : null}
+                    <button
+                      type="button"
+                      onClick={() => onUnlinkChapter(chapter.id)}
+                      className="shrink-0 px-2 py-2 text-sm text-muted"
+                    >
+                      Desvincular
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <Button variant="secondary" full onClick={onUnlink}>
+              Desfazer a serie
+            </Button>
+          </div>
+        ) : null}
+      </Card>
+    </li>
+  );
+}
+
 function IconButton({
   label,
   onClick,
   danger,
+  active,
   children,
 }: {
   label: string;
   onClick: () => void;
   danger?: boolean;
+  active?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -458,9 +734,14 @@ function IconButton({
       type="button"
       onClick={onClick}
       aria-label={label}
+      aria-pressed={active}
       title={label}
       className={`flex size-11 items-center justify-center rounded-full transition-colors ${
-        danger ? "text-muted hover:bg-danger-soft hover:text-danger" : "text-muted hover:bg-surface-2 hover:text-ink"
+        danger
+          ? "text-muted hover:bg-danger-soft hover:text-danger"
+          : active
+            ? "bg-accent-soft text-accent"
+            : "text-muted hover:bg-surface-2 hover:text-ink"
       }`}
     >
       {children}

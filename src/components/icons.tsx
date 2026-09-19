@@ -244,3 +244,33 @@ export const DownloadIcon = (props: IconProps) => (
     <path d="M4 20h16" />
   </Icon>
 );
+
+/** Fila de leitura. */
+export const QueueIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 7h10M4 12h10M4 17h6" />
+    <path d="m17 9 3 3-3 3" />
+  </Icon>
+);
+
+/** Serie de capitulos. */
+export const SeriesIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="3" y="7" width="13" height="13" rx="2" />
+    <path d="M7 4h11a2 2 0 0 1 2 2v11" />
+  </Icon>
+);
+
+/** Abrir e fechar um bloco. */
+export const ChevronIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m7 10 5 5 5-5" />
+  </Icon>
+);
+
+/** Alca de arrastar. */
+export const DragIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01" strokeWidth={2.5} />
+  </Icon>
+);

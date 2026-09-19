@@ -43,6 +43,13 @@
       "when": 1789841247698,
       "tag": "0005_flawless_white_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789842754406,
+      "tag": "0006_chilly_wiccan",
+      "breakpoints": true
     }
   ]
 }

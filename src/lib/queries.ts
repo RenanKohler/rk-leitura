@@ -21,12 +21,16 @@ import {
   readingGoals,
   readingSessions,
   speedSettings,
+  tags,
   texts,
+  textTags,
   users,
 } from "@/db/schema";
 import { DEFAULT_PAGE_SIZE } from "@/lib/api";
 import { asFontFamily, parseParagraphs } from "@/lib/reading";
 import { excerptOf } from "@/lib/highlights";
+import { tagKey } from "@/lib/tags";
+import { cleanTitle, nextChapterUrl } from "@/lib/series";
 import {
   asGoalKind,
   asTimezone,
@@ -52,8 +56,11 @@ import type {
   DashboardStats,
   GoalStatus,
   HighlightItem,
+  LibraryItem,
+  NextUp,
   SessionSummary,
   SettingsPayload,
+  TagSummary,
   TextDetail,
   TextSummary,
   WeeklySummary,
@@ -152,6 +159,8 @@ export interface TextFilters {
   query?: string | null;
   status?: TextStatus;
   scope?: TextScope;
+  /** Id da etiqueta escolhida no filtro, ou null para nao filtrar. */
+  tagId?: string | null;
 }
 
 /**
@@ -179,7 +188,11 @@ function statusCondition(status: TextStatus): SQL | undefined {
   return undefined;
 }
 
-function textsWhere(userId: string, filters: TextFilters): SQL | undefined {
+function textsWhere(
+  userId: string,
+  filters: TextFilters,
+  { withScope = true }: { withScope?: boolean } = {}
+): SQL | undefined {
   const conditions: (SQL | undefined)[] = [eq(texts.userId, userId)];
 
   if (filters.query) {
@@ -188,12 +201,21 @@ function textsWhere(userId: string, filters: TextFilters): SQL | undefined {
   conditions.push(statusCondition(filters.status ?? DEFAULT_STATUS));
 
   // Arquivar e uma aba, nao um filtro somado aos outros: um texto esta na
-  // lista principal ou fora dela, nunca nas duas.
-  conditions.push(
-    (filters.scope ?? DEFAULT_SCOPE) === "arquivados"
-      ? isNotNull(texts.archivedAt)
-      : isNull(texts.archivedAt)
-  );
+  // lista principal ou fora dela, nunca nas duas. A biblioteca agrupada
+  // aplica a aba por grupo, nao por linha - dai o `withScope: false`.
+  if (withScope) {
+    conditions.push(
+      (filters.scope ?? DEFAULT_SCOPE) === "arquivados"
+        ? isNotNull(texts.archivedAt)
+        : isNull(texts.archivedAt)
+    );
+  }
+
+  if (filters.tagId) {
+    conditions.push(
+      sql`exists (select 1 from ${textTags} where ${textTags.textId} = ${texts.id} and ${textTags.tagId} = ${filters.tagId})`
+    );
+  }
 
   return and(...conditions.filter((condition): condition is SQL => condition !== undefined));
 }
@@ -211,16 +233,7 @@ export async function loadTexts(
     // Lista sem o campo content: uma biblioteca com 50 artigos traria
     // megabytes de texto que a tela nao usa.
     db
-      .select({
-        id: texts.id,
-        title: texts.title,
-        sourceUrl: texts.sourceUrl,
-        wordCount: texts.wordCount,
-        progressIndex: texts.progressIndex,
-        archivedAt: texts.archivedAt,
-        createdAt: texts.createdAt,
-        updatedAt: texts.updatedAt,
-      })
+      .select(summaryColumns)
       .from(texts)
       .where(where)
       .orderBy(desc(texts.createdAt))
@@ -229,18 +242,52 @@ export async function loadTexts(
     db.select({ value: count() }).from(texts).where(where),
   ]);
 
-  // Uma consulta so para a pagina inteira, em vez de uma por cartao.
-  const marks = await highlightCounts(items.map((item) => item.id));
+  const rows = await decorate(items);
+  return { items: rows, ...meta(totals?.value ?? 0, page, perPage) };
+}
 
-  const rows: TextSummary[] = items.map((item) => ({
+/** Colunas da listagem: tudo menos `content`, que a tela nao usa. */
+const summaryColumns = {
+  id: texts.id,
+  title: texts.title,
+  sourceUrl: texts.sourceUrl,
+  wordCount: texts.wordCount,
+  progressIndex: texts.progressIndex,
+  seriesKey: texts.seriesKey,
+  chapter: texts.chapter,
+  queuePosition: texts.queuePosition,
+  archivedAt: texts.archivedAt,
+  createdAt: texts.createdAt,
+  updatedAt: texts.updatedAt,
+};
+
+type SummaryRow = {
+  [K in keyof typeof summaryColumns]: K extends "archivedAt"
+    ? Date | null
+    : K extends "createdAt" | "updatedAt"
+      ? Date
+      : K extends "sourceUrl" | "seriesKey"
+        ? string | null
+        : K extends "chapter" | "queuePosition"
+          ? number | null
+          : K extends "id" | "title"
+            ? string
+            : number;
+};
+
+/** Acrescenta destaques e etiquetas em duas consultas para a pagina toda. */
+async function decorate(items: SummaryRow[]): Promise<TextSummary[]> {
+  const ids = items.map((item) => item.id);
+  const [marks, labels] = await Promise.all([highlightCounts(ids), tagsByText(ids)]);
+
+  return items.map((item) => ({
     ...item,
     highlights: marks.get(item.id) ?? 0,
+    tags: labels.get(item.id) ?? [],
     archivedAt: item.archivedAt ? isoDate(item.archivedAt) : null,
     createdAt: isoDate(item.createdAt),
     updatedAt: isoDate(item.updatedAt),
   }));
-
-  return { items: rows, ...meta(totals?.value ?? 0, page, perPage) };
 }
 
 export async function loadSessions(
@@ -577,7 +624,7 @@ function percentChange(before: number, after: number): number | null {
 }
 
 export async function loadText(userId: string, id: string): Promise<TextDetail | null> {
-  const [[text], [marks]] = await Promise.all([
+  const [[text], [marks], labels] = await Promise.all([
     db
       .select()
       .from(texts)
@@ -587,6 +634,7 @@ export async function loadText(userId: string, id: string): Promise<TextDetail |
       .select({ value: count() })
       .from(highlights)
       .where(and(eq(highlights.userId, userId), eq(highlights.textId, id))),
+    tagsByText([id]),
   ]);
 
   if (!text) return null;
@@ -600,6 +648,10 @@ export async function loadText(userId: string, id: string): Promise<TextDetail |
     progressIndex: text.progressIndex,
     sourcePage: text.sourcePage,
     highlights: marks?.value ?? 0,
+    tags: labels.get(id) ?? [],
+    seriesKey: text.seriesKey,
+    chapter: text.chapter,
+    queuePosition: text.queuePosition,
     archivedAt: text.archivedAt ? isoDate(text.archivedAt) : null,
     createdAt: isoDate(text.createdAt),
     updatedAt: isoDate(text.updatedAt),
@@ -654,4 +706,247 @@ export async function loadHighlights(
       createdAt: isoDate(row.createdAt),
     })),
   };
+}
+
+/* --- etiquetas ---------------------------------------------------------- */
+
+/** Nomes das etiquetas de cada texto, em uma consulta para a pagina toda. */
+async function tagsByText(textIds: string[]): Promise<Map<string, string[]>> {
+  if (textIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({ textId: textTags.textId, name: tags.name })
+    .from(textTags)
+    .innerJoin(tags, eq(tags.id, textTags.tagId))
+    .where(inArray(textTags.textId, textIds));
+
+  const byText = new Map<string, string[]>();
+  for (const row of rows) {
+    const list = byText.get(row.textId) ?? [];
+    list.push(row.name);
+    byText.set(row.textId, list);
+  }
+
+  for (const [id, list] of byText) {
+    byText.set(
+      id,
+      list.sort((a, b) => tagKey(a).localeCompare(tagKey(b)))
+    );
+  }
+
+  return byText;
+}
+
+/** Etiquetas da conta com quantos textos cada uma tem. */
+export async function loadTags(userId: string): Promise<TagSummary[]> {
+  const rows = await db
+    .select({
+      id: tags.id,
+      name: tags.name,
+      texts: sql<number>`count(${textTags.textId})::int`,
+    })
+    .from(tags)
+    .leftJoin(textTags, eq(textTags.tagId, tags.id))
+    .where(eq(tags.userId, userId))
+    .groupBy(tags.id, tags.name);
+
+  return rows.sort((a, b) => tagKey(a.name).localeCompare(tagKey(b.name)));
+}
+
+/* --- biblioteca agrupada por serie --------------------------------------- */
+
+/**
+ * A biblioteca como ela e mostrada: um item por texto solto e um por serie.
+ *
+ * A pagina conta grupos, nao linhas. Paginar por texto e agrupar depois faria
+ * uma pagina de dez virar quatro cartoes quando uma serie de sete capitulos
+ * caisse dentro dela.
+ */
+export async function loadLibrary(
+  userId: string,
+  page = 1,
+  perPage = DEFAULT_PAGE_SIZE,
+  filters: TextFilters = {}
+): Promise<Page<LibraryItem> & { texts: number }> {
+  const where = textsWhere(userId, filters, { withScope: false });
+  // Texto solto forma um grupo de um: o id serve de chave.
+  const groupKey = sql`coalesce(${texts.seriesKey}, ${texts.id}::text)`;
+
+  // A aba decide por grupo: uma serie so esta arquivada quando todos os
+  // capitulos estao. Sem isto, concluir o capitulo 1 faria a mesma serie
+  // aparecer nas duas abas ao mesmo tempo.
+  const scopeHaving =
+    (filters.scope ?? DEFAULT_SCOPE) === "arquivados"
+      ? sql`bool_and(${texts.archivedAt} is not null)`
+      : sql`bool_or(${texts.archivedAt} is null)`;
+
+  const [groups, [totals]] = await Promise.all([
+    db
+      .select({ key: sql<string>`${groupKey}`, recent: sql<Date>`max(${texts.createdAt})` })
+      .from(texts)
+      .where(where)
+      .groupBy(groupKey)
+      .having(scopeHaving)
+      .orderBy(desc(sql`max(${texts.createdAt})`))
+      .limit(perPage)
+      .offset((page - 1) * perPage),
+    // Dois numeros: grupos para a paginacao, textos para o rotulo. Um cartao
+    // de serie e um item da lista e varios textos da biblioteca.
+    db
+      .select({
+        value: sql<number>`count(*)::int`,
+        texts: sql<number>`coalesce(sum(n), 0)::int`,
+      })
+      .from(
+        sql`(select ${groupKey} as k, count(*) as n from ${texts} where ${where} group by 1 having ${scopeHaving}) as grupos`
+      ),
+  ]);
+
+  if (groups.length === 0) {
+    return { items: [], texts: 0, ...meta(totals?.value ?? 0, page, perPage) };
+  }
+
+  const keys = groups.map((group) => group.key);
+  // Os capitulos vem sem os filtros que escolheram o grupo, so com o dono.
+  // Concluir um capitulo o arquiva, e filtrar aqui de novo faria a serie
+  // perder justamente os capitulos ja lidos: "cap. 2 de 2" quando sao tres.
+  const rows = await db
+    .select(summaryColumns)
+    .from(texts)
+    .where(and(eq(texts.userId, userId), sql`${groupKey} in ${keys}`))
+    .orderBy(asc(texts.chapter), desc(texts.createdAt));
+
+  const decorated = await decorate(rows);
+  const byKey = new Map<string, TextSummary[]>();
+  for (const item of decorated) {
+    const key = item.seriesKey ?? item.id;
+    byKey.set(key, [...(byKey.get(key) ?? []), item]);
+  }
+
+  // A ordem dos grupos vem da consulta paginada, nao do Map.
+  const items = keys
+    .map((key) => toLibraryItem(byKey.get(key) ?? []))
+    .filter((item): item is LibraryItem => item !== null);
+
+  return { items, texts: totals?.texts ?? 0, ...meta(totals?.value ?? 0, page, perPage) };
+}
+
+/**
+ * Monta o item da biblioteca a partir dos textos de um grupo.
+ *
+ * Um capitulo sozinho ainda e um texto solto no cartao: "cap. 1 de 1" nao
+ * conta nada que o titulo ja nao diga.
+ */
+function toLibraryItem(chapters: TextSummary[]): LibraryItem | null {
+  if (chapters.length === 0) return null;
+  if (chapters.length === 1 || !chapters[0]!.seriesKey) {
+    return { kind: "texto", text: chapters[0]! };
+  }
+
+  const ordered = [...chapters].sort((a, b) => (a.chapter ?? 0) - (b.chapter ?? 0));
+  // O capitulo atual e o primeiro que ainda nao acabou; terminada a serie,
+  // e o ultimo - e onde a leitura parou de fato.
+  const pending = ordered.find(
+    (item) => item.wordCount === 0 || item.progressIndex < item.wordCount
+  );
+  const current = pending ?? ordered.at(-1)!;
+
+  return {
+    kind: "serie",
+    key: current.seriesKey!,
+    title: cleanTitle(ordered[0]!.title),
+    chapters: ordered,
+    current: current.chapter ?? 1,
+    total: ordered.length,
+    wordCount: ordered.reduce((sum, item) => sum + item.wordCount, 0),
+    updatedAt: ordered.reduce(
+      (latest, item) => (item.updatedAt > latest ? item.updatedAt : latest),
+      ordered[0]!.updatedAt
+    ),
+  };
+}
+
+/* --- proxima leitura ----------------------------------------------------- */
+
+/**
+ * O que oferecer ao terminar um texto.
+ *
+ * A serie tem prioridade sobre a fila: quem acabou o capitulo 3 de uma
+ * historia quer o 4, nao o proximo item de uma lista montada semana passada.
+ */
+export async function loadNextUp(userId: string, textId: string): Promise<NextUp | null> {
+  const [text] = await db
+    .select({
+      id: texts.id,
+      sourceUrl: texts.sourceUrl,
+      seriesKey: texts.seriesKey,
+      chapter: texts.chapter,
+      queuePosition: texts.queuePosition,
+    })
+    .from(texts)
+    .where(and(eq(texts.id, textId), eq(texts.userId, userId)))
+    .limit(1);
+
+  if (!text) return null;
+
+  if (text.seriesKey && text.chapter !== null) {
+    const [next] = await db
+      .select({ id: texts.id, title: texts.title, chapter: texts.chapter })
+      .from(texts)
+      .where(
+        and(
+          eq(texts.userId, userId),
+          eq(texts.seriesKey, text.seriesKey),
+          gt(texts.chapter, text.chapter)
+        )
+      )
+      .orderBy(asc(texts.chapter))
+      .limit(1);
+
+    if (next) {
+      return {
+        source: "capitulo",
+        textId: next.id,
+        title: next.title,
+        chapter: next.chapter ?? undefined,
+      };
+    }
+
+    const url = nextChapterUrl(text.sourceUrl, text.chapter);
+    if (url) return { source: "capitulo", importUrl: url, chapter: text.chapter + 1 };
+  }
+
+  return await nextInQueue(userId, textId);
+}
+
+/** Primeiro da fila que nao seja o texto recem-concluido. */
+async function nextInQueue(userId: string, exceptId: string): Promise<NextUp | null> {
+  const [next] = await db
+    .select({ id: texts.id, title: texts.title })
+    .from(texts)
+    .where(
+      and(
+        eq(texts.userId, userId),
+        isNotNull(texts.queuePosition),
+        isNull(texts.archivedAt),
+        sql`${texts.id} <> ${exceptId}`
+      )
+    )
+    .orderBy(asc(texts.queuePosition))
+    .limit(1);
+
+  return next ? { source: "fila", textId: next.id, title: next.title } : null;
+}
+
+/** A fila de leitura, na ordem em que foi montada. */
+export async function loadQueue(userId: string): Promise<TextSummary[]> {
+  const rows = await db
+    .select(summaryColumns)
+    .from(texts)
+    .where(
+      and(eq(texts.userId, userId), isNotNull(texts.queuePosition), isNull(texts.archivedAt))
+    )
+    .orderBy(asc(texts.queuePosition));
+
+  return await decorate(rows);
 }

@@ -39,6 +39,22 @@ export function serverError(scope: string, error: unknown) {
   return jsonError("Algo deu errado. Tente novamente.", 500);
 }
 
+/**
+ * Verdadeiro quando a falha e uma violacao de indice unico.
+ *
+ * O driver reporta o codigo `23505`, mas o Drizzle embrulha o erro antes de
+ * repassar: a checagem precisa olhar tambem a causa, senao um nome repetido
+ * chega a tela como "algo deu errado" em vez do aviso que explica o que fazer.
+ */
+export function isUniqueViolation(error: unknown): boolean {
+  for (let current = error, depth = 0; current && depth < 4; depth += 1) {
+    if (typeof current !== "object") break;
+    if ((current as { code?: unknown }).code === "23505") return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 export function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }

@@ -11,10 +11,56 @@ export interface TextSummary {
   progressIndex: number;
   /** Quantos trechos destacados o texto tem. */
   highlights: number;
+  /** Etiquetas do texto, em ordem alfabetica. */
+  tags: string[];
+  /** Identidade da serie, quando o capitulo foi reconhecido. */
+  seriesKey: string | null;
+  /** Numero do capitulo dentro da serie. */
+  chapter: number | null;
+  /** Posicao na fila de leitura; nulo quando o texto nao esta na fila. */
+  queuePosition: number | null;
   /** Nulo enquanto o texto esta na lista principal. */
   archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Etiqueta com quantos textos ela marca. */
+export interface TagSummary {
+  id: string;
+  name: string;
+  texts: number;
+}
+
+/** Um grupo de capitulos da mesma historia, como o cartao da biblioteca o ve. */
+export interface SeriesSummary {
+  kind: "serie";
+  key: string;
+  /** Titulo sem a marca de capitulo. */
+  title: string;
+  /** Capitulos em ordem. */
+  chapters: TextSummary[];
+  /** Numero do capitulo em que a leitura esta. */
+  current: number;
+  total: number;
+  /** Soma das palavras de todos os capitulos. */
+  wordCount: number;
+  updatedAt: string;
+}
+
+/** Item da biblioteca: um texto solto ou uma serie inteira. */
+export type LibraryItem = { kind: "texto"; text: TextSummary } | SeriesSummary;
+
+/** O que a tela de conclusao oferece como proxima leitura. */
+export interface NextUp {
+  /** "capitulo" segue a serie; "fila" segue a ordem montada a mao. */
+  source: "capitulo" | "fila";
+  /** Texto ja na biblioteca. */
+  textId?: string;
+  title?: string;
+  /** Endereco a importar, quando o capitulo seguinte ainda nao foi baixado. */
+  importUrl?: string;
+  chapter?: number;
 }
 
 export interface TextDetail extends TextSummary {

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { loadTexts } from "@/lib/queries";
+import { loadLibrary, loadTags } from "@/lib/queries";
 import { TextsClient } from "./texts-client";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,10 @@ export default async function TextsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const { items, ...page } = await loadTexts(session.id, 1);
+  const [{ items, texts, ...page }, tags] = await Promise.all([
+    loadLibrary(session.id, 1),
+    loadTags(session.id),
+  ]);
 
-  return <TextsClient initial={{ texts: items, ...page }} />;
+  return <TextsClient initial={{ items, texts, ...page }} tags={tags} />;
 }

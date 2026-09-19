@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { loadHighlights } from "@/lib/queries";
+import { loadHighlights, loadNextUp } from "@/lib/queries";
 import { ReaderClient } from "./reader-client";
 
 export const dynamic = "force-dynamic";
@@ -46,5 +46,16 @@ export default async function ReaderPage({
   const from = Number(query.de);
   const startAt = Number.isInteger(from) && from >= 0 ? from : undefined;
 
-  return <ReaderClient text={loaded.text} highlights={loaded.items} startAt={startAt} />;
+  // O que vem depois deste texto ja vai no HTML: a tela de conclusao nao
+  // precisa esperar uma consulta para oferecer o proximo capitulo ou a fila.
+  const nextUp = await loadNextUp(session.id, id);
+
+  return (
+    <ReaderClient
+      text={loaded.text}
+      highlights={loaded.items}
+      startAt={startAt}
+      nextUp={nextUp}
+    />
+  );
 }
