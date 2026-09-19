@@ -31,41 +31,20 @@ lido no momento do build).
 
 ## Banco de dados
 
-### Producao: Netlify DB (ja configurado)
+### Producao: Neon
 
-O projeto usa **Netlify DB** — Postgres gerenciado por Neon, incluido no plano
-gratuito da Netlify. Nao ha connection string para copiar: o pacote
-`@netlify/database` provisiona o banco no primeiro deploy e injeta a conexao no
-ambiente. `src/db/index.ts` resolve a origem nesta ordem:
+Postgres gerenciado, plano gratuito sem cartao. `src/db/index.ts` resolve a
+conexao nesta ordem:
 
-1. `DATABASE_URL`, quando definida (desenvolvimento local e outros hosts);
-2. Netlify DB, via `getConnectionString()`.
-
-Cada deploy preview recebe um branch isolado do banco, criado a partir de uma
-copia dos dados de producao. Somente os deploys de producao tocam o banco
-principal.
-
-As migrations sao aplicadas pelo Drizzle no inicio do build, conforme o
-`netlify.toml`:
-
-```toml
-[build]
-  command = "npm run db:migrate && next build"
-```
-
-### Outro provedor gratuito
-
-O codigo nao depende da Netlify. Para rodar em Vercel, Railway ou Neon direto,
-basta definir `DATABASE_URL` e aplicar as migrations:
-
-1. Crie o projeto em <https://neon.tech> (plano gratuito, sem cartao) e escolha
-   a regiao mais proxima (`sa-east-1` para o Brasil).
-2. Copie a **Pooled connection** — o host termina em `-pooler`. Em ambiente
-   serverless o endpoint direto esgota o limite de conexoes rapido.
-3. Defina `DATABASE_URL` mantendo `?sslmode=require` e rode `npm run db:migrate`.
+1. `DATABASE_URL`, quando definida — vale para desenvolvimento local e para
+   qualquer host;
+2. Netlify DB, via `getConnectionString()` — so funciona dentro da Netlify.
 
 O TLS e resolvido automaticamente: a verificacao de certificado liga quando o
 host nao e local, respeitando o `sslmode` da connection string.
+
+As migrations sao aplicadas antes do build (`vercel-build`), entao o schema
+acompanha o deploy sem passo manual.
 
 > Um banco gratuito hiberna apos alguns minutos sem uso. A primeira requisicao
 > depois disso leva alguns segundos, o que e esperado.
@@ -74,32 +53,38 @@ host nao e local, respeitando o `sslmode` da connection string.
 
 ## Deploy
 
-### Netlify (configuracao atual)
+### Vercel (destino atual)
 
-O projeto `rk-leitura` esta no ar em <https://rk-leitura.netlify.app>, com o
-Netlify DB provisionado, as migrations aplicadas e `JWT_SECRET` definido.
+O projeto `rk-leitura` existe no time da Vercel, ligado a este repositorio, com
+`JWT_SECRET` definido e as funcoes na regiao `gru1` (Sao Paulo) - perto de quem
+usa e do banco. Cada push na `main` gera um deploy.
 
-Para que cada push na `main` gere um deploy, ligue o repositorio do GitHub ao
-projeto em **Project configuration > Build & deploy > Continuous deployment**.
-Enquanto isso nao for feito, os deploys sao manuais.
+Falta apenas `DATABASE_URL`, a connection string do Neon. Com ela definida, o
+script `vercel-build` aplica as migrations antes de compilar, entao o schema
+sobe sozinho no primeiro deploy.
 
-Duas coisas que valem atencao:
+Para criar o banco: projeto novo em <https://neon.tech> (gratuito, sem cartao),
+regiao `sa-east-1`, e copie a **Pooled connection** - o host termina em
+`-pooler`. Em ambiente serverless cada requisicao pode abrir uma conexao nova, e
+o endpoint direto esgota o limite rapido.
+
+### Netlify (hospedagem anterior)
+
+Continua no ar em <https://rk-leitura.netlify.app> enquanto a mudanca acontece,
+com o Netlify DB provisionado. O codigo ainda sabe conversar com os dois: a
+conexao vem de `DATABASE_URL` quando definida e, na falta dela, do Netlify DB.
+Depois que a Vercel estiver confirmada, da para remover `netlify.toml`, a pasta
+`netlify/` e a dependencia `@netlify/database`.
+
+Dois detalhes que valem para qualquer um dos dois:
 
 - **Variaveis de ambiente novas so valem no proximo deploy.** Defini-las nao
   afeta o deploy que ja esta publicado.
 - **Deploy manual por upload envia o diretorio inteiro, inclusive arquivos
   ignorados pelo git.** Um `.env.local` presente vai junto e sobrescreve a
-  conexao do Netlify DB com a do seu Postgres local. Se `GET /api/health`
-  responder `pointsToLocalhost: true`, foi isso. O deploy ligado ao GitHub nao
-  tem esse problema, porque parte do que esta versionado.
-
-### Vercel
-
-1. Importe o repositorio em <https://vercel.com/new>.
-2. Defina `DATABASE_URL` (connection string do Neon) e `JWT_SECRET`
-   (saida de `npm run secret`).
-3. Faca o deploy. O script `vercel-build` aplica as migrations antes de
-   compilar.
+  conexao de producao com a do seu Postgres local. Se `GET /api/health`
+  responder `pointsToLocalhost: true`, foi isso. O deploy ligado ao git nao tem
+  esse problema, porque parte do que esta versionado.
 
 Trocar o `JWT_SECRET` invalida todas as sessoes ativas.
 
