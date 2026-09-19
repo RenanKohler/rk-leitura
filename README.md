@@ -183,6 +183,21 @@ drizzle/            migrations SQL versionadas
   banco, em vez de baixar o historico inteiro para somar no cliente.
 - **Importacao de URL.** Toda busca passa por `lib/safe-fetch.ts`, que resolve o
   DNS e recusa enderecos de rede interna, revalidando cada redirecionamento.
+- **Compartilhar do navegador.** O manifest declara um `share_target`, entao o
+  app instalado aparece na folha de compartilhamento do sistema: tocar em
+  Compartilhar no navegador manda o link para `/compartilhar`, que importa e
+  abre o leitor. Um endereco que ja esta na biblioteca nao e buscado de novo -
+  a leitura abre onde parou, e `lib/source-url.ts` cuida para que rastreamento,
+  barra final e fragmento nao facam o mesmo conto virar duas entradas. Quando a
+  origem manda uma selecao em vez de um link, o texto cai no formulario de
+  texto colado.
+- **Importacao disparada de fora.** O `share_target` usa GET, entao a navegacao
+  em si nao grava nada: a importacao sai de `POST /api/share`. E ela so comeca
+  sozinha quando o cabecalho `Sec-Fetch-Site` indica que a navegacao nao veio de
+  outro site. O cookie de sessao e `SameSite=Lax` e acompanha navegacao de topo,
+  entao sem essa checagem qualquer pagina poderia apontar para `/compartilhar` e
+  fazer o servidor buscar um endereco escolhido por ela. Vindo de fora, a tela
+  espera um toque.
 - **Migrations.** `drizzle/` e a unica fonte, aplicada por `npm run db:migrate`
   — localmente a mao e, no deploy, pelo `vercel-build` antes do `next build`.
 - **Carga de dados.** As telas autenticadas sao componentes de servidor: a

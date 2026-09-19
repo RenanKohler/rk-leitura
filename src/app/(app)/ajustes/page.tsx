@@ -102,6 +102,18 @@ export default function SettingsPage() {
         />
       </Card>
 
+      <Card className="space-y-3 p-5">
+        <SectionTitle>Compartilhar do navegador</SectionTitle>
+        <p className="text-sm text-muted">
+          Com o app instalado na tela inicial, Leitura passa a aparecer na lista de
+          compartilhamento do celular. No navegador, toque em Compartilhar, escolha Leitura e o
+          texto entra na biblioteca ja aberto no leitor.
+        </p>
+        <p className="text-sm text-muted">
+          No Chrome do Android: menu de tres pontos, &ldquo;Adicionar a tela inicial&rdquo;.
+        </p>
+      </Card>
+
       <Card className="space-y-4 p-5">
         <SectionTitle>Conta</SectionTitle>
         <div className="flex items-center gap-3">

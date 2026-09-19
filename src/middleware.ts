@@ -9,7 +9,14 @@ import { SESSION_COOKIE, verifyToken } from "@/lib/session-token";
  * impedia nada de fato. O middleware decide antes de qualquer HTML sair.
  */
 
-const PROTECTED_PREFIXES = ["/dashboard", "/textos", "/leitor", "/historico", "/ajustes"];
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/textos",
+  "/leitor",
+  "/historico",
+  "/ajustes",
+  "/compartilhar",
+];
 const GUEST_ONLY = ["/login", "/cadastro"];
 
 export async function middleware(request: NextRequest) {
@@ -24,8 +31,12 @@ export async function middleware(request: NextRequest) {
   if (isProtected && !session) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    // Preserva o destino para voltar depois do login.
-    url.searchParams.set("next", pathname);
+    // Preserva o destino para voltar depois do login, com a query junto: no
+    // compartilhamento do sistema ela nao e detalhe, e o proprio conteudo -
+    // perde-la significaria cair na biblioteca vazia em vez de importar.
+    const target = `${pathname}${request.nextUrl.search}`;
+    url.search = "";
+    url.searchParams.set("next", target);
     return NextResponse.redirect(url);
   }
 
@@ -55,5 +66,6 @@ export const config = {
     "/leitor/:path*",
     "/historico/:path*",
     "/ajustes/:path*",
+    "/compartilhar/:path*",
   ],
 };

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, count, desc, eq, gt, lt, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { readingSessions, speedSettings, texts } from "@/db/schema";
 import { DEFAULT_PAGE_SIZE } from "@/lib/api";
@@ -196,6 +196,30 @@ export async function loadOverview(
     },
     continueReading: continueReading ?? null,
   };
+}
+
+/**
+ * Texto ja salvo cuja origem bate com alguma das URLs informadas.
+ *
+ * O compartilhamento do navegador e facil de disparar duas vezes na mesma
+ * pagina. Sem esta consulta, o segundo toque criaria uma copia com o progresso
+ * zerado em vez de abrir a leitura onde ela parou.
+ */
+export async function findTextBySourceUrl(
+  userId: string,
+  urls: string[]
+): Promise<{ id: string; title: string } | null> {
+  const candidates = [...new Set(urls.filter((url) => url.length > 0))];
+  if (candidates.length === 0) return null;
+
+  const [found] = await db
+    .select({ id: texts.id, title: texts.title })
+    .from(texts)
+    .where(and(eq(texts.userId, userId), inArray(texts.sourceUrl, candidates)))
+    .orderBy(desc(texts.createdAt))
+    .limit(1);
+
+  return found ?? null;
 }
 
 export async function loadText(userId: string, id: string): Promise<TextDetail | null> {

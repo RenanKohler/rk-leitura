@@ -28,9 +28,11 @@ function LoginForm() {
       return;
     }
 
-    // Volta para onde o middleware interrompeu, se houver.
+    // Volta para onde o middleware interrompeu, se houver. A barra dupla e
+    // recusada junto: "//outro-site" comeca com "/" e ainda assim sai daqui.
     const next = searchParams.get("next");
-    router.replace(next && next.startsWith("/") ? next : "/dashboard");
+    const safe = next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+    router.replace(safe);
     router.refresh();
   };
 

@@ -45,6 +45,13 @@ export interface ImportedText {
   sourceUrl: string;
 }
 
+/** Resposta de POST /api/share: o texto ja existia ou acabou de ser criado. */
+export interface ShareResult {
+  status: "created" | "existing";
+  id: string;
+  title: string;
+}
+
 export interface SettingsPayload {
   baseWpm: number;
   wordsPerChunk: number;

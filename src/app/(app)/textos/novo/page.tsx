@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
-import { Alert, Button, Card, Field, Segmented, TextArea } from "@/components/ui";
+import { Button, Card, Field, Segmented } from "@/components/ui";
 import { BackIcon, LinkIcon, TextIcon } from "@/components/icons";
-import { countWords, formatNumber } from "@/lib/reading";
+import { PasteForm } from "@/components/paste-form";
+import { formatNumber } from "@/lib/reading";
 import type { ImportedText, TextDetail } from "@/lib/types";
 import Link from "next/link";
 
@@ -38,7 +39,7 @@ export default function NewTextPage() {
         ]}
       />
 
-      {source === "link" ? <FromLink /> : <FromPaste />}
+      {source === "link" ? <FromLink /> : <PasteForm />}
     </div>
   );
 }
@@ -144,69 +145,5 @@ function FromLink() {
         </Card>
       ) : null}
     </div>
-  );
-}
-
-function FromPaste() {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const router = useRouter();
-  const notify = useToast();
-
-  const wordCount = countWords(content);
-
-  const handleSave = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    if (wordCount < 10) {
-      setError("Cole um texto com pelo menos 10 palavras.");
-      return;
-    }
-
-    setError("");
-    setSaving(true);
-    try {
-      const { text } = await apiSend<{ text: TextDetail }>("/api/texts", "POST", {
-        title: title.trim() || content.trim().split(/\s+/).slice(0, 6).join(" "),
-        content: content.trim(),
-      });
-      notify("Texto salvo.", "success");
-      router.replace(`/leitor/${text.id}`);
-    } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Falha ao salvar.", "error");
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Card className="p-4">
-      <form onSubmit={handleSave} className="space-y-4">
-        {error ? <Alert>{error}</Alert> : null}
-
-        <Field
-          label="Titulo"
-          name="title"
-          placeholder="Opcional - usamos o inicio do texto se ficar vazio"
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-        />
-
-        <TextArea
-          label="Texto"
-          name="content"
-          rows={12}
-          placeholder="Cole aqui o conteudo que quer ler."
-          hint={wordCount > 0 ? `${formatNumber(wordCount)} palavras` : undefined}
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-        />
-
-        <Button type="submit" size="lg" full loading={saving} disabled={wordCount === 0}>
-          Salvar e ler
-        </Button>
-      </form>
-    </Card>
   );
 }
