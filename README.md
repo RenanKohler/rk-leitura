@@ -112,10 +112,31 @@ node -e "console.log('CRON_SECRET='+require('crypto').randomBytes(32).toString('
 
 Na Vercel, `VAPID_PRIVATE_KEY` e `CRON_SECRET` entram como variaveis
 *sensitive*; `NEXT_PUBLIC_VAPID_KEY` e publica por definicao, porque vai para o
-navegador. O agendamento esta em `vercel.json`, de hora em hora - e a regra de
-envio foi escrita para nao depender disso: ela pergunta "ja passou da hora
-escolhida, hoje, sem leitura?", entao funciona igual em um plano que dispara o
-cron uma vez por dia.
+navegador.
+
+#### Quem chama a rota do cron
+
+O plano Hobby da Vercel aceita **um disparo por dia** por cron - um
+`vercel.json` com expressao mais frequente que isso faz a API recusar o deploy
+inteiro com `cron_jobs_limits_reached`, e nao so ignorar o agendamento. Por
+isso `vercel.json` marca `0 2 * * *` (02:00 UTC, 23:00 em Brasilia).
+
+Um disparo por dia entrega o lembrete sempre no mesmo horario, nao no que a
+pessoa escolheu. Quem cobre a diferenca e
+`.github/workflows/lembretes.yml`: bate na mesma rota de hora em hora, sem
+custo. Para ativar, cadastre `CRON_SECRET` em *Settings > Secrets and variables
+> Actions* do repositorio, com o mesmo valor que esta na Vercel. Sem o segredo o
+fluxo termina sem fazer nada; o cron diario da Vercel continua valendo como
+rede de seguranca.
+
+Os dois chamando a mesma rota nao duplicam nada. A regra de envio pergunta "ja
+passou da hora escolhida, hoje, sem leitura?" e marca o dia ao enviar, entao o
+lembrete sai uma vez so - e sai correto tanto de hora em hora quanto uma vez
+por dia.
+
+O agendamento do GitHub tem duas limitacoes conhecidas, ambas aceitaveis aqui:
+execucao agendada pode atrasar alguns minutos quando a fila esta cheia, e o
+GitHub desativa fluxos agendados em repositorio sem commit ha 60 dias.
 
 ### Sobre o antigo `NEXT_PUBLIC_BASE_URL`
 

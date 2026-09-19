@@ -120,8 +120,8 @@ export function ReminderCard() {
       <SectionTitle>Lembrete diario</SectionTitle>
 
       <p className="text-sm text-muted">
-        Um aviso no horario que voce escolher, nos dias em que ainda nao leu. Se ja cumpriu a
-        meta do dia, nada chega.
+        Um aviso a partir do horario que voce escolher, nos dias em que ainda nao leu. Se ja
+        cumpriu a meta do dia, nada chega.
       </p>
 
       {error ? <Alert>{error}</Alert> : null}

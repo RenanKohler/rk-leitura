@@ -1,0 +1,61 @@
+# Disparo de hora em hora do lembrete de leitura.
+#
+# O agendador da Vercel no plano Hobby so aceita uma execucao por dia, e uma
+# execucao por dia faz o lembrete chegar sempre no mesmo horario, nao no que a
+# pessoa escolheu. Este fluxo cobre a diferenca: bate na mesma rota de hora em
+# hora, de graca, e a rota e a mesma que a Vercel chama uma vez por dia.
+#
+# Chamar duas vezes nao duplica nada: a rota so envia quando ja passou da hora
+# escolhida e ainda nao saiu lembrete hoje, e marca o dia ao enviar.
+#
+# Para ativar: Settings > Secrets and variables > Actions, e cadastre
+# CRON_SECRET com o mesmo valor que esta na Vercel. Sem o segredo o fluxo
+# termina sem fazer nada, em vez de falhar toda hora.
+name: Lembretes
+
+on:
+  schedule:
+    # Minuto 5 em vez de 0: no comeco da hora a fila do GitHub e maior, e
+    # execucao agendada atrasada e perdida quando a fila passa do limite.
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+# Uma execucao por vez: se uma atrasar, a seguinte nao roda em paralelo.
+concurrency:
+  group: lembretes
+  cancel-in-progress: false
+
+jobs:
+  disparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Chamar a rota de lembretes
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://rk-leitura.vercel.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET nao cadastrado: nada a fazer."
+            exit 0
+          fi
+
+          status=$(curl --silent --show-error --location \
+            --max-time 60 \
+            --output resposta.json \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/lembretes")
+
+          echo "HTTP $status"
+          cat resposta.json
+          echo
+
+          # 401 aqui significa segredo diferente do que esta na Vercel: e uma
+          # falha de configuracao, e ficar silencioso esconderia o lembrete
+          # parado por semanas.
+          if [ "$status" != "200" ]; then
+            echo "::error::A rota respondeu $status."
+            exit 1
+          fi
