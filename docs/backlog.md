@@ -31,6 +31,18 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 - O fuso horário do usuário não é armazenado hoje. É o pré-requisito comum de
   US-41, US-42, US-48 e US-49, e deve ser a primeira entrega do épico de
   hábito.
+- As épicas de US-62 a US-76 foram propostas sobre o commit `e87339b`, depois
+  de todas as anteriores entregues. Cada uma cita no campo Evidência o trecho
+  do código que mostra a lacuna. As estimativas são previsões.
+- As épicas de US-77 a US-88 vieram de uma rodada de ideação com cinco
+  pontos de vista independentes (design de jogos, biologia, inversão, remoção
+  de premissas e speedrun). Entraram as quatro ideias da lista curta; as
+  descartadas como armadilha estão no Won't Have.
+- A US-87 é a única Parcial: o ajuste de tempo por pontuação e palavra longa
+  já existe no leitor, e a story trata o que falta.
+- Os limites numéricos dessas stories (20 questionários e 200 consultas por
+  dia, 10 séries acompanhadas, 5 feeds, intervalos de revisão) são pontos de
+  partida para validar com o uso real, não requisitos fechados.
 - Velocidade de referência para planejamento: 20 a 25 pontos por sprint de 2
   semanas.
 
@@ -69,9 +81,27 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Importação ampliada | 3 | 18 | 0 | 2 | 1 |
 | Ferramentas de leitura | 4 | 22 | 1 | 1 | 2 |
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
-| **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
+| Segurança de sessão | 2 | 7 | 1 | 1 | 0 |
+| Vocabulário | 3 | 13 | 1 | 1 | 1 |
+| Textos em outros idiomas | 3 | 11 | 1 | 2 | 0 |
+| Acompanhamento de conteúdo | 2 | 13 | 0 | 1 | 1 |
+| Custos e observabilidade | 3 | 16 | 2 | 1 | 0 |
+| Acessibilidade | 2 | 8 | 1 | 0 | 1 |
+| Retomada da leitura | 2 | 8 | 1 | 0 | 1 |
+| Desistência consciente | 4 | 13 | 1 | 3 | 0 |
+| Leitura sob medida para o tempo | 4 | 13 | 2 | 1 | 1 |
+| Ritmo adaptativo | 2 | 8 | 1 | 0 | 1 |
+| **Total** | **88** | **365** | **36 (41%)** | **35 (40%)** | **17 (19%)** |
 
-Status: 60 Implementadas, 1 Aguardando pendência.
+Status: 60 Implementadas, 1 Parcial, 1 Aguardando pendência, 26 Propostas.
+
+As seis épicas acrescentadas por último (Segurança de sessão em diante, US-62 a
+US-76) partem de lacunas encontradas no código no commit `e87339b`. Somam 68
+pontos: 6 Must, 6 Should e 3 Could.
+
+As quatro épicas finais (Retomada da leitura em diante, US-77 a US-88) vieram
+de uma rodada de ideação divergente sobre o produto e somam 42 pontos: 5 Must,
+4 Should e 3 Could.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -1195,11 +1225,546 @@ Como leitor, eu quero continuar lendo textos já abertos sem internet, para que 
 
 ---
 
+## Épico: Segurança de sessão
+
+### US-62: Encerrar as outras sessões ao trocar a senha
+
+**Épico:** Segurança de sessão
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `PATCH` em `src/app/api/auth/me/route.ts` reemite o token só no aparelho atual; `src/lib/session-token.ts` emite JWT de 7 dias sem versão
+
+Como leitor, eu quero que trocar a senha desconecte os outros aparelhos, para que alguém que conhecia a senha antiga perca o acesso na hora, e não sete dias depois.
+
+**Critérios de aceitação**
+1. Dado que troco a senha no aparelho A, quando o aparelho B faz a próxima requisição, então recebe 401 e é levado ao login.
+2. Dado que troco a senha no aparelho A, quando continuo usando o aparelho A, então permaneço conectado sem precisar entrar de novo.
+3. Dado que informo a senha atual incorreta, quando confirmo, então a senha não muda e nenhuma sessão é encerrada.
+4. Dado que altero apenas o nome, quando salvo, então as sessões dos outros aparelhos continuam válidas.
+
+**Notas técnicas:** acrescentar `session_version` inteiro em `users`, gravado no token e incrementado na troca de senha. O middleware roda no Edge e não consulta banco, então a comparação fica em `requireSession` e em `loadSettings`, o mesmo caminho que já trata a conta excluída (US-07). Tokens emitidos antes da migration não têm versão e devem ser tratados como versão 0.
+
+### US-63: Sair de todos os aparelhos
+
+**Épico:** Segurança de sessão
+**Prioridade:** Should
+**Story points:** 2
+**Status:** Proposta
+**Evidência:** `src/components/account-card.tsx` e `src/app/api/auth/logout/route.ts` encerram apenas a sessão atual
+
+Como leitor, eu quero encerrar a sessão em todos os aparelhos de uma vez, para que eu recupere o controle da conta depois de usar um computador compartilhado ou perder o celular.
+
+**Critérios de aceitação**
+1. Dado que estou em Ajustes, quando aciono "Sair de todos os aparelhos" e confirmo, então todas as sessões, inclusive a atual, são encerradas e vou para o login.
+2. Dado que abro a confirmação, quando cancelo, então nenhuma sessão é encerrada.
+3. Dado que o aparelho B estava com um texto aberto, quando tenta salvar o progresso, então recebe 401 e o progresso pendente não é gravado em nome da conta.
+4. Dado que a ação foi concluída, quando o aparelho B reabre o app instalado, então os caches offline da conta são apagados como em uma saída comum (US-40).
+
+**Notas técnicas:** depende de US-62; reaproveita o incremento de `session_version`. Aplicar o mesmo limite de `account:` já usado em `/api/auth/me`.
+
+---
+
+## Épico: Vocabulário
+
+### US-64: Revisar palavras salvas com repetição espaçada
+
+**Épico:** Vocabulário
+**Prioridade:** Must
+**Story points:** 8
+**Status:** Proposta
+**Evidência:** `savedWords` em `src/db/schema.ts` e `src/app/(app)/palavras/` apenas listam as consultas, sem revisão
+
+Como leitor, eu quero revisar as palavras que consultei em intervalos crescentes, para que eu fixe o vocabulário novo em vez de consultar a mesma palavra de novo.
+
+**Critérios de aceitação**
+1. Dado que tenho palavras com revisão vencida hoje, quando abro "Revisar" em Palavras, então vejo uma palavra por vez com a frase em que ela apareceu, e a definição só aparece quando toco em "Mostrar".
+2. Dado que marco "Lembrei", quando a palavra volta para a fila, então o próximo intervalo avança na sequência 1, 3, 7, 14 e 30 dias.
+3. Dado que marco "Não lembrei", quando a palavra volta para a fila, então o intervalo retorna a 1 dia.
+4. Dado que não há palavras vencidas, quando abro "Revisar", então vejo "Nenhuma palavra para revisar hoje" e a data da próxima revisão, ou o convite a consultar palavras quando a lista está vazia.
+5. Dado que uma sessão de revisão tem mais de 20 palavras vencidas, quando começo, então são apresentadas no máximo 20, as mais atrasadas primeiro.
+
+**Notas técnicas:** acrescentar `next_review_on` (date) e `interval_step` em `saved_words`. "Hoje" é calculado no fuso do usuário (`speedSettings.timezone`), a mesma regra de meta e sequência (US-41, US-42). Regra de intervalo em função pura em `src/lib/`, com teste em `tests/`.
+
+### US-65: Exportar a lista de palavras
+
+**Épico:** Vocabulário
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `src/app/api/exportar/route.ts` exporta sessões e textos; palavras salvas não entram
+
+Como leitor, eu quero exportar minhas palavras salvas em um arquivo, para que eu as estude em um aplicativo de cartões de memorização.
+
+**Critérios de aceitação**
+1. Dado que tenho palavras salvas, quando aciono "Exportar" em Palavras, então baixo um CSV UTF-8 com as colunas palavra, forma base, classe, definição, frase de origem e título do texto.
+2. Dado que o texto de origem foi apagado, quando exporto, então a linha sai com o título vazio, sem erro.
+3. Dado que a definição contém vírgula, aspas ou quebra de linha, quando abro o arquivo em uma planilha, então cada palavra ocupa exatamente uma linha.
+4. Dado que não tenho palavras salvas, quando abro a tela, então o botão "Exportar" fica desabilitado.
+
+### US-66: Marcar uma palavra como aprendida
+
+**Épico:** Vocabulário
+**Prioridade:** Could
+**Story points:** 2
+**Status:** Proposta
+**Evidência:** `src/app/(app)/palavras/words-client.tsx` não distingue palavras aprendidas
+
+Como leitor, eu quero marcar uma palavra como aprendida, para que ela saia da revisão sem que eu perca o registro de que a consultei.
+
+**Critérios de aceitação**
+1. Dado que marco uma palavra como aprendida, quando abro a revisão, então ela não é apresentada.
+2. Dado que filtro por "Aprendidas", quando a lista carrega, então vejo apenas as palavras marcadas.
+3. Dado que desmarco uma palavra aprendida, quando salvo, então ela volta à revisão com intervalo de 1 dia.
+
+**Notas técnicas:** depende de US-64.
+
+---
+
+## Épico: Textos em outros idiomas
+
+### US-67: Registrar o idioma de cada texto
+
+**Épico:** Textos em outros idiomas
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `texts` em `src/db/schema.ts` não tem idioma; `useSpeech` em `src/hooks/use-speech.ts` assume `pt-BR`
+
+Como leitor que lê em mais de um idioma, eu quero que cada texto tenha seu idioma registrado, para que voz, dicionário e questionário tratem o texto no idioma certo.
+
+**Critérios de aceitação**
+1. Dado que importo uma página com atributo `lang` no HTML, quando salvo, então o texto recebe esse idioma.
+2. Dado que importo um EPUB com `dc:language`, quando salvo, então os capítulos recebem esse idioma.
+3. Dado que a origem não declara idioma ou o texto foi colado, quando salvo, então o idioma é `pt-BR`.
+4. Dado que edito o texto, quando escolho outro idioma na lista (português, inglês, espanhol, francês, italiano, alemão), então a mudança é salva.
+5. Dado que a origem declara um idioma fora da lista, quando salvo, então o texto recebe `pt-BR` e a edição permite corrigir.
+
+**Notas técnicas:** coluna `language` em `texts` com padrão `pt-BR`, o que cobre os registros existentes sem backfill. A leitura do atributo entra em `src/lib/parser.ts` e `src/lib/epub-text.ts`, com teste.
+
+### US-68: Narrar o texto na voz do idioma dele
+
+**Épico:** Textos em outros idiomas
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `pickVoice` em `src/lib/speech.ts` recebe `pt-BR` como padrão em todas as chamadas
+
+Como leitor, eu quero que a leitura em voz alta use uma voz do idioma do texto, para que a pronúncia de um artigo em inglês não saia com fonética portuguesa.
+
+**Critérios de aceitação**
+1. Dado que o texto está em inglês, quando ativo a voz, então é escolhida uma voz `en`, com preferência pela variante exata quando existir.
+2. Dado que o aparelho não tem voz no idioma do texto, quando ativo, então vejo a mensagem atual com o nome do idioma do texto, e a narração não começa com voz de outro idioma.
+3. Dado que troco o idioma do texto na edição, quando volto ao leitor, então a próxima narração usa o novo idioma.
+
+**Notas técnicas:** depende de US-67. Muda apenas o argumento passado a `useSpeech`; a seleção de voz já trata variante exata e idioma base.
+
+### US-69: Consultar palavras e responder o questionário em textos estrangeiros
+
+**Épico:** Textos em outros idiomas
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `src/lib/dictionary.ts` e `src/lib/quiz-generator.ts` montam o pedido ao modelo sem informar o idioma do texto
+
+Como leitor que estuda outro idioma, eu quero consultar uma palavra de um texto estrangeiro e receber a definição em português, para que eu entenda o sentido sem sair da leitura.
+
+**Critérios de aceitação**
+1. Dado que consulto uma palavra em um texto em inglês, quando o painel abre, então vejo a palavra original, a tradução e a definição em português.
+2. Dado que a palavra consultada está flexionada, quando a consulta é feita, então a forma base é a do idioma do texto, não uma forma portuguesa.
+3. Dado que concluo um texto em espanhol, quando abro o questionário, então as perguntas são em português e as citações do texto aparecem no original.
+4. Dado que o questionário de um texto já foi gerado e o idioma do texto muda, quando abro de novo, então um questionário novo é gerado.
+
+**Notas técnicas:** depende de US-67. O idioma entra na `contentKey` do questionário para cumprir o critério 4. Palavras salvas passam a guardar o idioma, para que a revisão (US-64) mostre a tradução.
+
+---
+
+## Épico: Acompanhamento de conteúdo
+
+### US-70: Receber aviso quando sair um novo capítulo de uma série
+
+**Épico:** Acompanhamento de conteúdo
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `src/lib/series.ts` e `/api/texts/[id]/proximo` só buscam o capítulo seguinte quando o leitor pede; `src/app/api/cron/lembretes/route.ts` já roda de hora em hora
+
+Como leitor que acompanha histórias em andamento, eu quero ser avisado quando o próximo capítulo for publicado, para que eu não precise voltar à origem para verificar.
+
+**Critérios de aceitação**
+1. Dado que ativo "Acompanhar" em uma série da biblioteca, quando a verificação periódica encontra o capítulo seguinte ao último importado, então ele é importado para a biblioteca e recebo uma notificação com o título.
+2. Dado que o capítulo seguinte ainda não existe, quando a verificação roda, então nada é importado e nenhuma notificação é enviada.
+3. Dado que a origem falha em 3 verificações seguidas, quando isso acontece, então o acompanhamento é pausado e a série mostra "Acompanhamento pausado: a origem não respondeu".
+4. Dado que já acompanho 10 séries, quando tento acompanhar outra, então vejo a mensagem de limite e a ação não é aplicada.
+5. Dado que não permiti notificações, quando um capítulo novo é importado, então ele aparece na biblioteca com a marca "Novo".
+
+**Notas técnicas:** reaproveitar o agendamento horário do lembrete (US-43) e a busca protegida de `safe-fetch`. Verificar cada série no máximo uma vez a cada 6 horas, para não sobrecarregar a origem. O limite de 10 séries protege o tempo de execução da função.
+
+### US-71: Assinar um feed RSS
+
+**Épico:** Acompanhamento de conteúdo
+**Prioridade:** Could
+**Story points:** 8
+**Status:** Proposta
+**Evidência:** não há leitura de RSS ou Atom no código; `src/lib/source-url.ts` já normaliza endereços para detectar duplicatas
+
+Como leitor, eu quero assinar o feed de um site, para que os artigos novos entrem na minha biblioteca sem que eu importe um por um.
+
+**Critérios de aceitação**
+1. Dado que informo o endereço de um feed RSS ou Atom válido, quando salvo, então a assinatura aparece em Ajustes com o nome do feed.
+2. Dado que o endereço não é um feed, quando salvo, então vejo "Esse endereco nao e um feed RSS ou Atom." e nada é salvo.
+3. Dado que o feed publicou itens novos, quando a verificação roda, então no máximo 5 itens por feed são importados e recebem uma etiqueta com o nome do feed.
+4. Dado que um item já está na biblioteca pelo mesmo endereço normalizado, quando a verificação roda, então ele não é importado de novo.
+5. Dado que tenho 5 feeds assinados, quando tento assinar outro, então vejo a mensagem de limite.
+
+**Notas técnicas:** depende da mesma infraestrutura de verificação periódica de US-70; entregar junto evita duas rotinas agendadas. A importação de cada item passa por `importFromUrl`, com as mesmas proteções de tamanho e rede interna.
+
+---
+
+## Épico: Custos e observabilidade
+
+### US-72: Limitar por conta o uso das funções com custo
+
+**Épico:** Custos e observabilidade
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `rateLimit` em `/api/dicionario` e `/api/texts/[id]/questionario` usa como chave apenas `clientIp(request)`
+
+Como mantenedor, eu quero um teto diário por conta para questionário e dicionário, para que uma única conta, trocando de rede, não gere uma conta de modelo de linguagem fora do previsto.
+
+**Critérios de aceitação**
+1. Dado que uma conta gerou 20 questionários novos no dia, quando pede o 21º, então recebe HTTP 429 com "Limite diario de questionarios atingido. Volta a valer amanha."
+2. Dado que uma conta fez 200 consultas ao dicionário no dia, quando faz a 201ª, então recebe HTTP 429 com mensagem equivalente.
+3. Dado que o questionário do texto já estava gerado, quando a conta o abre de novo, então a abertura não conta para o limite.
+4. Dado que virou o dia no fuso do usuário, quando ele volta a usar, então o contador recomeça.
+5. Dado que a conta troca de endereço IP, quando continua usando, então o contador da conta é o mesmo.
+
+**Notas técnicas:** o limite por IP continua valendo, somado ao da conta. O limitador sobre Postgres de US-31 aceita qualquer chave; basta `quiz-dia:<userId>:<data>`. Valores em constantes, fáceis de ajustar depois de medir o uso.
+
+### US-73: Registrar erros do servidor com código de referência
+
+**Épico:** Custos e observabilidade
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `serverError` em `src/lib/api.ts` faz `console.error` e responde uma mensagem genérica; `src/app/error.tsx` não informa referência
+
+Como mantenedor, eu quero que cada erro do servidor gere um registro estruturado com um código que o leitor também vê, para que eu encontre a causa quando alguém relatar um problema.
+
+**Critérios de aceitação**
+1. Dado que uma rota responde 500, quando o leitor vê a mensagem de erro, então ela traz um código de referência de 8 caracteres.
+2. Dado que o erro foi registrado, quando busco o código nos logs da hospedagem, então encontro uma linha JSON com código, rota, id do usuário, mensagem e pilha.
+3. Dado que o erro envolve um texto, quando o registro é gravado, então o conteúdo do texto, o e-mail e a senha não aparecem nele.
+4. Dado que a tela quebra no navegador, quando `error.tsx` é exibido, então o erro é enviado a `POST /api/erros` com o mesmo formato, limitado a 10 envios por IP a cada 10 minutos.
+
+**Notas técnicas:** sem serviço externo nesta story; os logs da Vercel já retêm as linhas. Alertas por e-mail ficam para depois da decisão de provedor de US-05.
+
+### US-74: Testar de ponta a ponta o fluxo principal
+
+**Épico:** Custos e observabilidade
+**Prioridade:** Should
+**Story points:** 8
+**Status:** Proposta
+**Evidência:** `tests/` cobre apenas regras puras (README, seção Testes); `.github/workflows/ci.yml` não sobe navegador nem banco
+
+Como mantenedor, eu quero uma suíte de testes no navegador para o fluxo principal, para que uma mudança que quebre a leitura seja barrada antes do deploy.
+
+**Critérios de aceitação**
+1. Dado um banco vazio na CI, quando a suíte roda, então percorre cadastro, texto colado, leitura no modo Foco até o fim e a sessão registrada no histórico.
+2. Dado que a suíte roda, quando lê no modo Páginas, então vira a página por toque lateral e a posição salva é a da página exibida.
+3. Dado que qualquer passo falha, quando a CI termina, então o job fica vermelho e guarda captura de tela e registro do passo que falhou.
+4. Dado que a suíte roda em um push, quando termina, então leva no máximo 5 minutos.
+
+**Notas técnicas:** Playwright com Chromium e um serviço Postgres no workflow. Nada que dependa de rede externa: a importação por URL usa uma página servida pela própria suíte. Pré-requisito de US-75.
+
+---
+
+## Épico: Acessibilidade
+
+### US-75: Usar o app com leitor de tela e teclado
+
+**Épico:** Acessibilidade
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** atributos `aria-` presentes em 18 arquivos, sem verificação automatizada; folhas em `src/components/ui.tsx` controlam foco manualmente
+
+Como leitor com deficiência visual, eu quero navegar pela biblioteca, pelo leitor e pelos Ajustes com leitor de tela e teclado, para que eu use o app sem depender da visão.
+
+**Critérios de aceitação**
+1. Dado que navego com Tab, quando percorro qualquer tela autenticada, então todo controle recebe foco visível, na ordem da leitura da tela.
+2. Dado que abro uma folha (destaque, palavra, etiquetas), quando ela abre, então o foco vai para ela, fica preso nela e volta ao controle de origem ao fechar.
+3. Dado que uso um leitor de tela, quando chego a um botão com apenas ícone, então ouço um rótulo que descreve a ação.
+4. Dado que a verificação automatizada roda nas telas de biblioteca, leitor, estatísticas e Ajustes, quando termina, então não há violação de gravidade séria ou crítica, nos temas claro e escuro.
+
+**Notas técnicas:** a verificação do critério 4 entra na suíte de US-74 (axe sobre Playwright). O modo Foco troca a palavra várias vezes por segundo; anunciar cada troca tornaria o leitor de tela inutilizável, então a região do texto não deve ser `aria-live`.
+
+### US-76: Escolher um tema de alto contraste
+
+**Épico:** Acessibilidade
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `theme` em `speedSettings` aceita `system`, `light` e `dark`; não há variante de contraste reforçado
+
+Como leitor com baixa visão, eu quero um tema de alto contraste, para que texto, destaque e controles fiquem legíveis sem ampliar a tela.
+
+**Critérios de aceitação**
+1. Dado que escolho "Alto contraste" em Ajustes, quando o tema é aplicado, então texto e controles atingem contraste mínimo de 7:1 com o fundo.
+2. Dado que leio no modo Rolagem com o tema ativo, quando o trecho atual é destacado, então o destaque é indicado também por sublinhado, não apenas por cor.
+3. Dado que o sistema solicita contraste aumentado (`prefers-contrast: more`) e o tema está em "Sistema", quando abro o app, então o tema de alto contraste é aplicado.
+
+**Notas técnicas:** os tokens de cor já ficam em variáveis CSS em `globals.css`; a mudança é um conjunto novo de valores. A intensidade do destaque (US-26) deve continuar ajustável dentro do limite de contraste.
+
+---
+
+## Épico: Retomada da leitura
+
+### US-77: Recapitular o contexto ao retomar um texto parado
+
+**Épico:** Retomada da leitura
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `loadText` em `src/lib/queries.ts` não informa quando o texto foi lido pela última vez; `reader-client.tsx` retoma direto em `progressIndex`
+
+Como leitor, eu quero rever rapidamente o trecho que li por último ao voltar a um texto parado há dias, para que eu retome com o contexto na cabeça em vez de largar o texto por não lembrar onde estava.
+
+**Critérios de aceitação**
+1. Dado que a última sessão do texto terminou há mais de 48 horas e estou além da palavra 40, quando abro o leitor, então vejo o cartão "Recapitular o contexto" com as opções Recapitular e Pular.
+2. Dado que aciono Recapitular, quando a recapitulação roda, então as 40 palavras anteriores à posição salva são exibidas no modo Foco, começando no início da frase, e a leitura segue da posição salva sem pausa.
+3. Dado que a recapitulação está em andamento, quando ela termina ou é interrompida, então a posição salva no servidor nunca fica antes da posição anterior à recapitulação e nenhuma sessão de leitura é registrada para esse trecho.
+4. Dado que a última sessão terminou há menos de 48 horas, ou abri o texto por um link com posição (`?de=`), quando o leitor carrega, então o cartão não aparece.
+5. Dado que estou offline, quando abro um texto guardado que cumpre a regra do critério 1, então o cartão aparece da mesma forma.
+
+**Notas técnicas:** o sinal de "parado" é o fim da última sessão em `readingSessions`, não `texts.updatedAt` — este muda ao editar título, etiquetas ou arquivar, e o recap apareceria fora de hora. A regra fica em uma função pura `recapWindow()` em `src/lib/reading.ts`, com teste. A recapitulação não passa pela aceleração gradual (US-44): ela mesma é o aquecimento.
+
+### US-78: Recapitular pelos destaques
+
+**Épico:** Retomada da leitura
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `highlights` em `src/db/schema.ts` guarda `startIndex`, `endIndex` e nota de cada trecho
+
+Como leitor que destaca o que considera importante, eu quero que a recapitulação mostre meus destaques anteriores à posição atual, para que eu recupere o fio do texto pelo que eu mesmo marquei.
+
+**Critérios de aceitação**
+1. Dado que o texto tem destaques antes da posição salva, quando aciono Recapitular, então vejo os trechos destacados em ordem, cada um com sua nota abaixo, antes das últimas 40 palavras.
+2. Dado que há mais de 5 destaques antes da posição, quando a recapitulação roda, então são exibidos os 5 mais próximos da posição salva.
+3. Dado que o texto não tem destaques antes da posição, quando aciono Recapitular, então a recapitulação segue a regra da US-77 sem etapa de destaques.
+
+**Notas técnicas:** depende de US-77.
+
+---
+
+## Épico: Desistência consciente
+
+### US-79: Largar um texto no meio sem perder o que foi lido
+
+**Épico:** Desistência consciente
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `statusCondition` em `src/lib/queries.ts` classifica só pela posição; `archiveOnProgress` em `src/app/api/texts/[id]/route.ts` desarquiva quando a posição volta a 0
+
+Como leitor, eu quero marcar um texto como largado, para que ele saia da minha biblioteca e da fila sem que eu precise fingir que o terminei ou deixá-lo parado para sempre.
+
+**Critérios de aceitação**
+1. Dado que estou lendo um texto, quando aciono "Largar texto" e confirmo, então o texto sai da lista principal e da fila e aparece no filtro "Largados" da biblioteca.
+2. Dado que larguei um texto com 40% lido, quando filtro por "Em andamento", então ele não aparece.
+3. Dado que larguei um texto, quando consulto o histórico e a meta do dia, então as palavras lidas antes de largar continuam contando e a sequência não é afetada.
+4. Dado que abro um texto largado e aciono "Retomar", quando confirmo, então ele volta à lista principal na posição em que parei.
+5. Dado que o texto já está concluído, quando abro o menu do texto, então a opção "Largar texto" não aparece.
+
+**Notas técnicas:** migration com `abandoned_at` e `abandoned_words` (palavras restantes no momento do abandono) em `texts`. `statusCondition` ganha o status `largados` e os demais passam a excluir textos largados. `archiveOnProgress` limpa os dois campos só quando o leitor retoma explicitamente, não por qualquer posição 0 recebida da sincronização offline.
+
+### US-80: Perguntar se o texto ainda vale a pena
+
+**Épico:** Desistência consciente
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `reader-client.tsx` salva o progresso continuamente, sem marcos de decisão
+
+Como leitor, eu quero que o app me pergunte em alguns pontos se o texto ainda vale a pena, para que eu não gaste meia hora em um texto que deixou de me interessar no primeiro quarto.
+
+**Critérios de aceitação**
+1. Dado que ativei "Perguntar durante a leitura" em Ajustes, quando passo de 25%, 50% ou 75% do texto, então a leitura pausa e vejo "Isso ainda vale?" com as opções Continuar e Largar.
+2. Dado que respondi Continuar em um marco, quando reabro o texto e passo pelo mesmo marco, então a pergunta não se repete.
+3. Dado que respondo Largar, quando confirmo, então o texto é largado como na US-79.
+4. Dado que a opção está desativada (padrão), quando leio, então nenhuma pergunta aparece.
+5. Dado que o texto tem menos de 800 palavras, quando leio, então nenhuma pergunta aparece.
+
+**Notas técnicas:** depende de US-79. Os marcos já respondidos ficam no servidor (por texto), para valer entre aparelhos. Desativado por padrão: aparecer sem pedido ensinaria o leitor a largar textos que ele terminaria.
+
+### US-81: Ver o tempo economizado ao largar textos
+
+**Épico:** Desistência consciente
+**Prioridade:** Should
+**Story points:** 2
+**Status:** Proposta
+**Evidência:** `loadWeeklySummary` em `src/lib/queries.ts` e `src/components/weekly-summary-card.tsx` somam só o que foi lido
+
+Como leitor, eu quero ver quanto tempo economizei ao largar textos, para que desistir de um texto fraco conte como decisão acertada e não como fracasso.
+
+**Critérios de aceitação**
+1. Dado que larguei textos na semana, quando abro o resumo semanal, então vejo "X min economizados", calculado pelas palavras restantes dividido pelo meu ritmo médio da semana.
+2. Dado que não larguei textos na semana, quando abro o resumo, então a linha não aparece.
+3. Dado que retomei e concluí um texto largado, quando abro o resumo, então as palavras dele deixam de contar como economizadas.
+4. Dado que não tenho sessões na semana para calcular o ritmo, quando abro o resumo, então o cálculo usa a velocidade configurada em Ajustes.
+
+**Notas técnicas:** depende de US-79. O valor é calculado na consulta, não gravado, para acompanhar retomadas (critério 3).
+
+### US-82: Declarar falência da fila
+
+**Épico:** Desistência consciente
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `loadQueue` em `src/lib/queries.ts` e `src/app/(app)/textos/fila/` não distinguem textos parados
+
+Como leitor com uma fila acumulada, eu quero largar de uma vez os textos parados há muito tempo, para que a fila volte a refletir o que eu de fato pretendo ler.
+
+**Critérios de aceitação**
+1. Dado que tenho textos na fila sem sessão há mais de 30 dias, quando abro a fila, então vejo "N textos parados há mais de 30 dias" e a ação "Revisar e largar".
+2. Dado que abro "Revisar e largar", quando confirmo, então todos os textos marcados são largados como na US-79 e posso desmarcar qualquer um antes.
+3. Dado que confirmei a falência, quando toco em "Desfazer" em até 10 segundos, então todos voltam à fila na posição original.
+4. Dado que nenhum texto da fila está parado há mais de 30 dias, quando abro a fila, então o aviso não aparece.
+
+**Notas técnicas:** depende de US-79. A mesma operação em lote serve a US-81, que passa a contar esses textos como tempo economizado.
+
+---
+
+## Épico: Leitura sob medida para o tempo
+
+### US-83: Estimar o meu ritmo real de leitura
+
+**Épico:** Leitura sob medida para o tempo
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `POST /api/reading-sessions` calcula `wpm` a partir de palavras e duração de cada sessão; nenhum ponto do app agrega esse valor como previsão
+
+Como leitor, eu quero que o app conheça meu ritmo real, e não só a velocidade que configurei, para que as estimativas de tempo que ele me mostra sejam confiáveis.
+
+**Critérios de aceitação**
+1. Dado que tenho ao menos 3 sessões com 200 palavras ou mais nos últimos 30 dias, quando o ritmo é calculado, então o valor é a mediana dessas sessões, até as 10 mais recentes.
+2. Dado que uma sessão foi narrada (US-39), quando o ritmo é calculado, então ela é ignorada.
+3. Dado que tenho menos de 3 sessões válidas, quando o ritmo é calculado, então é usada a velocidade configurada em Ajustes, e a tela que exibe a estimativa indica "estimativa pela velocidade configurada".
+4. Dado que uma sessão tem ritmo abaixo de 50 ppm ou igual ao teto aplicado pelo servidor (`MAX_WPM`), quando o ritmo é calculado, então ela é descartada.
+
+**Notas técnicas:** função pura `effectiveWpm()` em `src/lib/reading.ts`, com teste. Base de US-84 a US-86.
+
+### US-84: Escolher uma leitura que caiba no tempo livre
+
+**Épico:** Leitura sob medida para o tempo
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `src/app/(app)/dashboard/` e `src/app/(app)/textos/fila/` não relacionam tamanho do texto com tempo disponível
+
+Como leitor com poucos minutos livres, eu quero informar quanto tempo tenho e receber uma leitura que caiba nele, para que eu use a janela sem começar um texto que não vou conseguir avançar.
+
+**Critérios de aceitação**
+1. Dado que estou no painel, quando toco em 5, 10 ou 20 minutos, então vejo até 3 sugestões com título, trecho previsto (do ponto atual até o fim de um parágrafo) e tempo estimado pelo meu ritmo (US-83).
+2. Dado que há textos na fila, quando as sugestões são montadas, então a fila vem antes da biblioteca e, entre elas, primeiro os textos que terminam dentro do tempo.
+3. Dado que nenhum parágrafo inteiro cabe no tempo escolhido, quando as sugestões são montadas, então o texto não é sugerido.
+4. Dado que a biblioteca e a fila estão vazias ou só têm textos concluídos, quando toco em um tempo, então vejo "Nenhum texto para sugerir" e o atalho para importar.
+5. Dado que escolho uma sugestão, quando o leitor abre, então ele começa na posição salva do texto.
+
+**Notas técnicas:** depende de US-83. O cálculo inclui a aceleração gradual (US-44) no início do trecho. Limitar os candidatos à fila e aos 20 textos mais recentes, para não percorrer o conteúdo da biblioteca inteira a cada toque.
+
+### US-85: Parar no ponto previsto e comparar com o tempo real
+
+**Épico:** Leitura sob medida para o tempo
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** o leitor (`reader-client.tsx`) não aceita um ponto de parada
+
+Como leitor, eu quero que a leitura pare no fim do trecho que cabia no meu tempo e me mostre se a previsão acertou, para que eu confie na sugestão da próxima vez.
+
+**Critérios de aceitação**
+1. Dado que abri o texto por uma sugestão da US-84, quando chego ao fim do trecho previsto, então a leitura pausa e vejo o tempo previsto e o tempo real.
+2. Dado que a leitura pausou no ponto previsto, quando toco em Continuar, então a leitura segue normalmente até o fim do texto.
+3. Dado que alterei a velocidade durante o trecho, quando chego ao fim, então a comparação mostra a observação "velocidade alterada durante a leitura".
+4. Dado que abri o texto pela biblioteca, sem sugestão, quando leio, então não há ponto de parada.
+
+**Notas técnicas:** depende de US-84. O ponto de parada viaja na URL (`?ate=<índice>`); o previsto e o real ficam na sessão, para calibrar a US-83 depois.
+
+### US-86: Fechar a meta do dia com o tempo que tenho
+
+**Épico:** Leitura sob medida para o tempo
+**Prioridade:** Could
+**Story points:** 2
+**Status:** Proposta
+**Evidência:** `src/components/goal-card.tsx` mostra o que falta da meta, sem sugerir leitura
+
+Como leitor com meta diária, eu quero uma sugestão que complete exatamente o que falta da meta, para que eu feche o dia sem calcular quanto preciso ler.
+
+**Critérios de aceitação**
+1. Dado que falta parte da meta do dia, quando abro o cartão da meta, então vejo "Faltam X min" e o botão "Sugerir leitura", que abre as sugestões da US-84 com esse tempo.
+2. Dado que a meta é em palavras, quando toco em "Sugerir leitura", então o tempo é convertido pelo meu ritmo (US-83).
+3. Dado que a meta do dia já foi cumprida ou não há meta ativa, quando abro o cartão, então o botão não aparece.
+
+**Notas técnicas:** depende de US-84.
+
+---
+
+## Épico: Ritmo adaptativo
+
+### US-87: Ajustar a velocidade à densidade do trecho no modo Foco
+
+**Épico:** Ritmo adaptativo
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Parcial
+**Evidência:** `pauseFactor` em `src/app/(app)/leitor/[id]/reader-client.tsx` (linha 1531) já acrescenta tempo em fim de frase, vírgula e palavras com mais de 12 letras; não reduz tempo em palavra curta, não trata números e nomes próprios e não compensa o tempo acrescentado
+
+Como leitor no modo Foco, eu quero que palavras curtas passem mais rápido e números e nomes próprios fiquem mais tempo na tela, sem que a velocidade média do texto mude, para que eu mantenha a compreensão nos trechos densos lendo no ritmo que escolhi.
+
+**O que já existe:** pausa adicional de 60% em fim de frase, de 30% em vírgula, ponto e vírgula e dois-pontos, e de 25% em blocos com palavra acima de 12 letras. Como o ajuste só acrescenta tempo, a velocidade média efetiva fica abaixo da configurada.
+
+**Critérios de aceitação**
+1. Dado que leio no modo Foco, quando aparecem palavras de até 3 letras sem pontuação, então elas recebem tempo menor que o de uma palavra de 6 letras.
+2. Dado que leio no modo Foco, quando aparece um número ou um nome próprio no meio da frase, então ele recebe tempo maior que uma palavra comum do mesmo comprimento.
+3. Dado que leio um texto inteiro no modo Foco sem alterar a velocidade, quando a sessão termina, então a média de palavras por minuto fica a até 5% da velocidade configurada.
+4. Dado que desativo "Ritmo adaptativo" em Ajustes, quando leio, então todos os blocos recebem a mesma duração, sem as pausas de pontuação.
+5. Dado que uso blocos de mais de uma palavra, quando o ajuste é aplicado, então o peso do bloco considera todas as palavras, e não só a última.
+
+**Notas técnicas:** regra local, sem modelo de linguagem. Mover `pauseFactor` para `src/lib/reading.ts` como função pura com teste, acrescentar os pesos novos e normalizar pela média dos pesos do texto, o que cumpre o critério 3. O padrão da opção é ativado, para manter o comportamento atual de pausa em pontuação. Não se aplica à leitura em voz alta, cujo ritmo é o da voz.
+
+### US-88: Dar mais tempo às palavras que já me travaram
+
+**Épico:** Ritmo adaptativo
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `savedWords` em `src/db/schema.ts` registra as palavras consultadas no dicionário (US-38)
+
+Como leitor, eu quero que as palavras que já consultei no dicionário fiquem um pouco mais na tela quando reaparecem em outros textos, para que eu as reconheça sem precisar parar a leitura.
+
+**Critérios de aceitação**
+1. Dado que o ritmo adaptativo está ativo e consultei uma palavra antes, quando a mesma forma base aparece no modo Foco, então ela recebe 50% a mais de tempo do que receberia pela regra da US-87.
+2. Dado que marquei a palavra como aprendida (US-66), quando ela aparece, então recebe o tempo normal.
+3. Dado que não tenho palavras salvas, quando leio, então o ritmo é o da US-87 sem alteração.
+
+**Notas técnicas:** depende de US-87. A comparação é pela forma base guardada em `savedWords.base`, carregada uma vez na abertura do leitor; formas flexionadas não reconhecidas simplesmente recebem o tempo normal. O critério 2 depende de US-66; sem ela, vale só o critério 1.
+
+---
+
 ## Fora do escopo (Won't Have)
 
 - **Compartilhamento de textos e destaques entre usuários:** todas as consultas são restritas ao dono; compartilhar mudaria o modelo de privacidade. Não confundir com o épico Compartilhamento, que trata de trazer conteúdo de fora para dentro.
 - **Resumo automático do texto antes da leitura:** seria uma segunda dependência de modelo de linguagem, com custo próprio. Reavaliar depois de medir uso e custo do questionário (US-46).
 - **Aplicativos nativos:** o PWA com Share Target (US-33) e o modo offline (US-40) cobrem os principais casos de uso móvel.
+- **Tradução automática do texto inteiro:** multiplicaria o custo de modelo de linguagem por texto. A consulta pontual de palavras em outro idioma (US-69) cobre o caso de estudo com custo controlado.
+- **Ajuste automático das preferências por testes alternados:** com um único leitor, a amostra é pequena e a nota do questionário oscila demais para servir de critério; o app mudaria configurações sem motivo real.
+- **Sugestão de leitura pelo horário de melhor desempenho:** exige meses de dados de uma só pessoa para separar o efeito do horário do efeito do texto.
+- **Mapa das partes mal compreendidas:** as perguntas do questionário não estão ligadas a posições no texto, então o mapa não teria base.
+- **Modo só de áudio controlado pelo fone:** o controle de mídia na web é limitado e a narração com a tela bloqueada já é instável (US-39).
 - **Ranking e competição entre leitores:** depende de dados compartilhados e não se alinha ao objetivo de treino individual.
 
 ## Sugestão de MVP e próximos passos
@@ -1233,6 +1798,56 @@ histórico do que foi entregue, agrupado por dependência.
 | ~~8~~ | ~~US-40, US-43~~ | ~~18~~ | Concluída: leitura offline e lembrete diário |
 | ~~—~~ | ~~US-31~~ | ~~5~~ | Concluída: limite de requisições compartilhado, sobre o Postgres |
 | — | US-05 | 5 | Aguardando pendência: provedor de e-mail transacional. |
+
+### Próximas entregas: épicas US-62 a US-76
+
+| Ordem | Stories | Pontos | Objetivo |
+| --- | --- | --- | --- |
+| 9 | US-62, US-63, US-72, US-73 | 15 | Sessões revogáveis, teto de custo por conta e erros rastreáveis |
+| 10 | US-74, US-75 | 13 | Testes no navegador e acessibilidade verificada na CI |
+| 11 | US-67, US-68, US-69 | 11 | Textos em outros idiomas |
+| 12 | US-64, US-65, US-66 | 13 | Revisão e exportação de vocabulário |
+| 13 | US-70, US-71 | 13 | Acompanhamento de séries e feeds |
+| 14 | US-76 | 3 | Tema de alto contraste |
+
+### Próximas entregas: épicas US-77 a US-88
+
+| Ordem | Stories | Pontos | Objetivo |
+| --- | --- | --- | --- |
+| 15 | US-77, US-83, US-84, US-85 | 16 | Retomar com contexto e ler no tempo disponível |
+| 16 | US-79, US-80, US-81, US-82 | 13 | Largar textos com critério e ver o tempo economizado |
+| 17 | US-87, US-86, US-78 | 10 | Ritmo pela densidade, meta pelo tempo e recapitulação por destaques |
+| 18 | US-88 | 3 | Mais tempo às palavras já consultadas |
+
+Critérios desta ordem:
+
+- **US-83 antes de tudo que estima tempo.** US-84, US-85, US-86 e o cálculo
+  de tempo economizado da US-81 dependem do mesmo ritmo real; uma regra só,
+  com teste, evita quatro contas diferentes.
+- **US-79 é a base do épico de desistência.** Ela corrige a classificação
+  por status antes que qualquer tela ofereça "largar"; sem isso, um texto
+  largado continuaria aparecendo como em andamento.
+- **US-87 antes de US-88.** A US-88 é um peso a mais na mesma função; a
+  ordem inversa exigiria reescrevê-la.
+- **As ordens 15 a 18 podem vir antes das 9 a 14,** exceto pelas
+  dependências explícitas: US-88 usa a US-66 no critério 2, e nenhuma delas
+  depende de segurança ou observabilidade.
+
+Critérios desta ordem:
+
+- **Segurança e custo antes de funcionalidade nova.** US-62 e US-72 corrigem
+  exposições que já existem em produção: a senha trocada não derruba outros
+  aparelhos, e o teto das rotas com custo pode ser contornado trocando de rede.
+  US-73 vem junto porque as entregas seguintes precisam de erros rastreáveis.
+- **US-74 antes de US-75.** A verificação de acessibilidade roda dentro da
+  suíte de navegador; montar a suíte primeiro evita uma segunda
+  infraestrutura de teste.
+- **Idioma antes de vocabulário.** US-69 faz a palavra salva guardar o
+  idioma, e a revisão de US-64 usa essa informação para mostrar a tradução.
+  Na ordem inversa, a tabela de palavras mudaria duas vezes.
+- **US-70 e US-71 juntas.** Compartilham a rotina de verificação periódica;
+  separadas, seriam duas rotinas agendadas sobre o mesmo limite de execução
+  do plano Hobby.
 
 Por que esta ordem e não a do documento de origem:
 
