@@ -52,7 +52,11 @@ export async function importFromUrl(url: string): Promise<ImportedDocument> {
     };
   } catch (error) {
     if (error instanceof ImportError) throw error;
-    if (error instanceof SafeFetchError) throw new ImportError(error.message, 400);
+    // 404 da origem passa adiante: para quem busca o capitulo seguinte, e o
+    // sinal de que ele ainda nao foi publicado, e nao uma falha.
+    if (error instanceof SafeFetchError) {
+      throw new ImportError(error.message, error.status === 404 ? 404 : 400);
+    }
     if (error instanceof Error && error.name === "TimeoutError") {
       throw new ImportError("A pagina demorou demais para responder.", 504);
     }

@@ -21,6 +21,7 @@ import {
   readingGoals,
   readingSessions,
   savedWords,
+  seriesFollows,
   speedSettings,
   tags,
   texts,
@@ -291,12 +292,13 @@ const summaryColumns = {
   chapter: texts.chapter,
   queuePosition: texts.queuePosition,
   archivedAt: texts.archivedAt,
+  autoImportedAt: texts.autoImportedAt,
   createdAt: texts.createdAt,
   updatedAt: texts.updatedAt,
 };
 
 type SummaryRow = {
-  [K in keyof typeof summaryColumns]: K extends "archivedAt"
+  [K in keyof typeof summaryColumns]: K extends "archivedAt" | "autoImportedAt"
     ? Date | null
     : K extends "createdAt" | "updatedAt"
       ? Date
@@ -314,8 +316,10 @@ async function decorate(items: SummaryRow[]): Promise<TextSummary[]> {
   const ids = items.map((item) => item.id);
   const [marks, labels] = await Promise.all([highlightCounts(ids), tagsByText(ids)]);
 
-  return items.map((item) => ({
+  return items.map(({ autoImportedAt, ...item }) => ({
     ...item,
+    // "Novo" ate a leitura comecar: e a posicao que diz que ele foi lido.
+    fresh: autoImportedAt !== null && item.progressIndex === 0,
     highlights: marks.get(item.id) ?? 0,
     tags: labels.get(item.id) ?? [],
     archivedAt: item.archivedAt ? isoDate(item.archivedAt) : null,
@@ -690,6 +694,7 @@ export async function loadText(userId: string, id: string): Promise<TextDetail |
     chapter: text.chapter,
     queuePosition: text.queuePosition,
     archivedAt: text.archivedAt ? isoDate(text.archivedAt) : null,
+    fresh: text.autoImportedAt !== null && text.progressIndex === 0,
     createdAt: isoDate(text.createdAt),
     updatedAt: isoDate(text.updatedAt),
   };
@@ -853,7 +858,14 @@ export async function loadLibrary(
     .where(and(eq(texts.userId, userId), sql`${groupKey} in ${keys}`))
     .orderBy(asc(texts.chapter), desc(texts.createdAt));
 
-  const decorated = await decorate(rows);
+  const [decorated, followed] = await Promise.all([
+    decorate(rows),
+    db
+      .select({ seriesKey: seriesFollows.seriesKey, pausedAt: seriesFollows.pausedAt })
+      .from(seriesFollows)
+      .where(and(eq(seriesFollows.userId, userId), inArray(seriesFollows.seriesKey, keys))),
+  ]);
+  const follows = new Map(followed.map((row) => [row.seriesKey, row.pausedAt !== null]));
   const byKey = new Map<string, TextSummary[]>();
   for (const item of decorated) {
     const key = item.seriesKey ?? item.id;
@@ -862,7 +874,7 @@ export async function loadLibrary(
 
   // A ordem dos grupos vem da consulta paginada, nao do Map.
   const items = keys
-    .map((key) => toLibraryItem(byKey.get(key) ?? []))
+    .map((key) => toLibraryItem(byKey.get(key) ?? [], follows))
     .filter((item): item is LibraryItem => item !== null);
 
   return { items, texts: totals?.texts ?? 0, ...meta(totals?.value ?? 0, page, perPage) };
@@ -874,7 +886,10 @@ export async function loadLibrary(
  * Um capitulo sozinho ainda e um texto solto no cartao: "cap. 1 de 1" nao
  * conta nada que o titulo ja nao diga.
  */
-function toLibraryItem(chapters: TextSummary[]): LibraryItem | null {
+function toLibraryItem(
+  chapters: TextSummary[],
+  follows: Map<string, boolean> = new Map()
+): LibraryItem | null {
   if (chapters.length === 0) return null;
   if (chapters.length === 1 || !chapters[0]!.seriesKey) {
     return { kind: "texto", text: chapters[0]! };
@@ -902,6 +917,7 @@ function toLibraryItem(chapters: TextSummary[]): LibraryItem | null {
       (latest, item) => (item.updatedAt > latest ? item.updatedAt : latest),
       ordered[0]!.updatedAt
     ),
+    follow: follows.has(current.seriesKey!) ? { paused: follows.get(current.seriesKey!)! } : null,
   };
 }
 

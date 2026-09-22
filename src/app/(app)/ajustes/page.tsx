@@ -6,6 +6,7 @@ import { Button, Card, SectionTitle, Segmented, Slider } from "@/components/ui";
 import { AccountCard } from "@/components/account-card";
 import { ExportCard } from "@/components/export-card";
 import { BookmarkletCard } from "@/components/bookmarklet-card";
+import { FeedsCard } from "@/components/feeds-card";
 import { ReminderCard } from "@/components/reminder-card";
 import { MoonIcon, SettingsIcon, SpeedIcon, SunIcon, WordsIcon } from "@/components/icons";
 import {
@@ -269,6 +270,8 @@ export default function SettingsPage() {
       </Card>
 
       <ReminderCard />
+
+      <FeedsCard />
 
       <BookmarkletCard />
 

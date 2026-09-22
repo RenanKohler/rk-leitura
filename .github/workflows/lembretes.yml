@@ -1,4 +1,5 @@
-# Disparo de hora em hora do lembrete de leitura.
+# Disparo de hora em hora do lembrete de leitura e da verificacao de series
+# acompanhadas e feeds.
 #
 # O agendador da Vercel no plano Hobby so aceita uma execucao por dia, e uma
 # execucao por dia faz o lembrete chegar sempre no mesmo horario, nao no que a
@@ -55,6 +56,37 @@ jobs:
           # 401 aqui significa segredo diferente do que esta na Vercel: e uma
           # falha de configuracao, e ficar silencioso esconderia o lembrete
           # parado por semanas.
+          if [ "$status" != "200" ]; then
+            echo "::error::A rota respondeu $status."
+            exit 1
+          fi
+
+      - name: Verificar series acompanhadas e feeds
+        # Roda mesmo se o lembrete falhar: sao rotinas independentes.
+        if: ${{ !cancelled() }}
+        # Mesma rotina de hora em hora (US-70, US-71). Cada origem e
+        # consultada no maximo a cada 6 horas, entao a frequencia daqui nao
+        # sobrecarrega os sites.
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL || 'https://rk-leitura.vercel.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET nao cadastrado: nada a fazer."
+            exit 0
+          fi
+
+          status=$(curl --silent --show-error --location \
+            --max-time 70 \
+            --output resposta.json \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/acompanhamento")
+
+          echo "HTTP $status"
+          cat resposta.json
+          echo
+
           if [ "$status" != "200" ]; then
             echo "::error::A rota respondeu $status."
             exit 1

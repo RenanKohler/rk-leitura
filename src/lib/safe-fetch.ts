@@ -207,6 +207,27 @@ async function readCapped(response: Response): Promise<string> {
 }
 
 export async function fetchPublicHtml(rawUrl: string): Promise<{ html: string; finalUrl: string }> {
+  return fetchPublic(rawUrl, {
+    accept: "text/html,application/xhtml+xml",
+    types: /text\/html|application\/xhtml|text\/plain/i,
+  });
+}
+
+/**
+ * Feed RSS ou Atom (US-71), com as mesmas protecoes da pagina: rede interna
+ * recusada a cada redirecionamento, tamanho e tempo limitados.
+ */
+export async function fetchPublicFeed(rawUrl: string): Promise<{ html: string; finalUrl: string }> {
+  return fetchPublic(rawUrl, {
+    accept: "application/rss+xml,application/atom+xml,application/xml,text/xml",
+    types: /xml|rss|atom|text\/plain|text\/html/i,
+  });
+}
+
+async function fetchPublic(
+  rawUrl: string,
+  { accept, types }: { accept: string; types: RegExp }
+): Promise<{ html: string; finalUrl: string }> {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -221,7 +242,7 @@ export async function fetchPublicHtml(rawUrl: string): Promise<{ html: string; f
       redirect: "manual",
       headers: {
         "User-Agent": "rk-leitura/1.0 (+leitor de artigos)",
-        Accept: "text/html,application/xhtml+xml",
+        Accept: accept,
       },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
@@ -239,7 +260,7 @@ export async function fetchPublicHtml(rawUrl: string): Promise<{ html: string; f
     }
 
     const contentType = response.headers.get("content-type") ?? "";
-    if (contentType && !/text\/html|application\/xhtml|text\/plain/i.test(contentType)) {
+    if (contentType && !types.test(contentType)) {
       throw new SafeFetchError("O endereco nao devolveu uma pagina de texto.");
     }
 

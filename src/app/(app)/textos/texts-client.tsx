@@ -22,6 +22,7 @@ import {
   Skeleton,
   TextArea,
 } from "@/components/ui";
+import { PAUSED_MESSAGE } from "@/lib/follow";
 import { LANGUAGES } from "@/lib/language";
 import {
   ArchiveIcon,
@@ -143,6 +144,24 @@ export function TextsClient({
       notify("Serie desfeita. Os capitulos continuam na biblioteca.", "success");
     } catch {
       notify("Falha ao desfazer a serie.", "error");
+    }
+  };
+
+  /**
+   * Liga ou desliga o acompanhamento (US-70). Ligar de novo uma serie pausada
+   * a reativa.
+   */
+  const followSeries = async (key: string, follow: boolean) => {
+    try {
+      if (follow) await apiSend("/api/series/acompanhar", "POST", { seriesKey: key });
+      else await apiSend(`/api/series/acompanhar?serie=${encodeURIComponent(key)}`, "DELETE");
+      resource.reload();
+      notify(
+        follow ? "Voce sera avisado quando sair um capitulo novo." : "Serie nao e mais acompanhada.",
+        "success"
+      );
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "Falha ao salvar.", "error");
     }
   };
 
@@ -401,6 +420,7 @@ export function TextsClient({
                   wpm={settings.baseWpm}
                   index={index}
                   onUnlink={() => void unlinkSeries(item.key)}
+                  onFollow={(follow: boolean) => void followSeries(item.key, follow)}
                   onUnlinkChapter={(id: string) => void unlinkChapter(id)}
                 />
               ) : (
@@ -568,7 +588,10 @@ function TextCard({
       <Card className="p-4">
         <div className="flex items-start gap-3">
           <Link href={`/leitor/${text.id}`} className="min-w-0 flex-1">
-            <p className="font-medium leading-snug">{text.title}</p>
+            <p className="font-medium leading-snug">
+              {text.fresh ? <NewBadge /> : null}
+              {text.title}
+            </p>
             <p className="mt-1 text-sm text-muted">
               {`${formatNumber(text.wordCount)} palavras · ~${estimatedMinutes(text.wordCount, wpm)} min`}
               {percent > 0 ? ` · ${percent}% lido` : ""}
@@ -655,13 +678,16 @@ function SeriesCard({
   index,
   onUnlink,
   onUnlinkChapter,
+  onFollow,
 }: {
   series: SeriesSummary;
   wpm: number;
   index: number;
   onUnlink: () => void;
   onUnlinkChapter: (id: string) => void;
+  onFollow: (follow: boolean) => void;
 }) {
+  const fresh = series.chapters.some((chapter) => chapter.fresh);
   const [open, setOpen] = useState(false);
   const current = series.chapters.find((item) => item.chapter === series.current);
   const read = series.chapters.reduce((sum, item) => sum + item.progressIndex, 0);
@@ -674,8 +700,12 @@ function SeriesCard({
           <Link href={`/leitor/${current?.id ?? series.chapters[0]!.id}`} className="min-w-0 flex-1">
             <p className="flex items-center gap-1.5 font-medium leading-snug">
               <SeriesIcon className="size-4 shrink-0 text-muted" />
+              {fresh ? <NewBadge /> : null}
               <span className="truncate">{series.title}</span>
             </p>
+            {series.follow?.paused ? (
+              <p className="mt-1 text-sm text-danger">{PAUSED_MESSAGE}</p>
+            ) : null}
             <p className="mt-1 text-sm text-muted">
               {`${seriesProgress(series.current, series.total)} · ${formatNumber(series.wordCount)} palavras · ~${estimatedMinutes(series.wordCount, wpm)} min`}
             </p>
@@ -705,6 +735,7 @@ function SeriesCard({
                     <Link href={`/leitor/${chapter.id}`} className="min-w-0 flex-1 py-2">
                       <span className="tabular mr-2 text-sm text-faint">{chapter.chapter}</span>
                       <span className={`text-sm ${done ? "text-faint" : ""}`}>
+                        {chapter.fresh ? <NewBadge /> : null}
                         {chapter.title}
                       </span>
                     </Link>
@@ -721,6 +752,26 @@ function SeriesCard({
               })}
             </ul>
 
+            {series.follow?.paused ? (
+              <Button full onClick={() => onFollow(true)}>
+                Tentar acompanhar de novo
+              </Button>
+            ) : (
+              <Button
+                variant={series.follow ? "secondary" : "primary"}
+                full
+                aria-pressed={series.follow !== null}
+                onClick={() => onFollow(series.follow === null)}
+              >
+                {series.follow ? "Deixar de acompanhar" : "Acompanhar novos capitulos"}
+              </Button>
+            )}
+            {series.follow?.paused ? (
+              <Button variant="ghost" full onClick={() => onFollow(false)}>
+                Deixar de acompanhar
+              </Button>
+            ) : null}
+
             <Button variant="secondary" full onClick={onUnlink}>
               Desfazer a serie
             </Button>
@@ -728,6 +779,15 @@ function SeriesCard({
         ) : null}
       </Card>
     </li>
+  );
+}
+
+/** Marca de texto importado sozinho e ainda nao lido (US-70, US-71). */
+function NewBadge() {
+  return (
+    <span className="mr-1.5 inline-flex rounded-full bg-accent-soft px-2 py-0.5 align-middle text-xs font-semibold text-accent">
+      Novo
+    </span>
   );
 }
 

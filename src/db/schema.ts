@@ -77,6 +77,9 @@ export const texts = pgTable(
      * fila - que e o estado normal. Arquivar ou concluir tira da fila.
      */
     queuePosition: integer("queue_position"),
+    // Importado sem pedido do leitor, por serie acompanhada ou feed (US-70,
+    // US-71). Enquanto a leitura nao comecar, a biblioteca o marca como "Novo".
+    autoImportedAt: timestamp("auto_imported_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -463,3 +466,50 @@ export type Tag = typeof tags.$inferSelect;
 export type TrainingProgram = typeof trainingPrograms.$inferSelect;
 export type SavedWord = typeof savedWords.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+
+/**
+ * Series acompanhadas (US-70).
+ *
+ * A verificacao periodica procura o capitulo seguinte ao ultimo importado.
+ * Tres falhas seguidas da origem pausam o acompanhamento, para nao insistir
+ * para sempre num site fora do ar.
+ */
+export const seriesFollows = pgTable(
+  "series_follows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    seriesKey: text("series_key").notNull(),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    failures: integer("failures").notNull().default(0),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("series_follows_user_series_unique").on(table.userId, table.seriesKey)]
+);
+
+/**
+ * Feeds RSS ou Atom assinados (US-71).
+ *
+ * `seenUntil` e a data do item mais novo ja visto: a verificacao so importa o
+ * que veio depois, e a primeira nao despeja o arquivo inteiro do site.
+ */
+export const feeds = pgTable(
+  "feeds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    title: text("title").notNull(),
+    seenUntil: timestamp("seen_until", { withTimezone: true }),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    failures: integer("failures").notNull().default(0),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("feeds_user_url_unique").on(table.userId, table.url)]
+);

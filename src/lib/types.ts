@@ -23,6 +23,8 @@ export interface TextSummary {
   queuePosition: number | null;
   /** Nulo enquanto o texto esta na lista principal. */
   archivedAt: string | null;
+  /** Importado sozinho (serie acompanhada ou feed) e ainda nao aberto. */
+  fresh: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -91,6 +93,8 @@ export interface SeriesSummary {
   /** Soma das palavras de todos os capitulos. */
   wordCount: number;
   updatedAt: string;
+  /** Acompanhamento da serie (US-70); nulo quando nao e acompanhada. */
+  follow: { paused: boolean } | null;
 }
 
 /** Item da biblioteca: um texto solto ou uma serie inteira. */
@@ -256,4 +260,13 @@ export interface Paginated {
   page: number;
   perPage: number;
   pageCount: number;
+}
+
+/** Feed assinado, como Ajustes o mostra (US-71). */
+export interface FeedSummary {
+  id: string;
+  url: string;
+  title: string;
+  /** Mensagem de pausa quando a origem falhou; nula quando ativo. */
+  status: string | null;
 }
