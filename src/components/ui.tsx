@@ -4,6 +4,7 @@ import {
   forwardRef,
   useEffect,
   useId,
+  useRef,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -337,11 +338,34 @@ export function Sheet({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+
+  // Foco (US-75): entra na folha ao abrir, fica preso nela enquanto aberta e
+  // volta ao controle que a abriu ao fechar. Sem isso, quem navega por
+  // teclado ou leitor de tela continuava andando pela tela de tras.
+  useEffect(() => {
+    if (!open) return;
+
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    const first = dialog ? focusableIn(dialog)[0] : undefined;
+    (first ?? dialog)?.focus();
+
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key === "Tab" && dialogRef.current) trapTab(event, dialogRef.current);
     };
 
     // Trava o scroll do fundo enquanto a folha esta aberta.
@@ -370,13 +394,17 @@ export function Sheet({
         className="absolute inset-0 bg-ink/40 backdrop-blur-sm animate-fade"
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
-        className="animate-rise relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl border border-border bg-surface shadow-float sm:max-w-lg sm:rounded-3xl"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="animate-rise relative focus:outline-none flex max-h-[92dvh] w-full flex-col rounded-t-3xl border border-border bg-surface shadow-float sm:max-w-lg sm:rounded-3xl"
       >
         <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+          <h2 id={titleId} className="text-base font-semibold tracking-tight">
+            {title}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -393,6 +421,37 @@ export function Sheet({
       </div>
     </div>
   );
+}
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusableIn(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    (element) => element.getClientRects().length > 0
+  );
+}
+
+/** Tab e Shift+Tab dao a volta dentro da folha em vez de sair dela. */
+function trapTab(event: KeyboardEvent, root: HTMLElement) {
+  const items = focusableIn(root);
+  if (items.length === 0) {
+    event.preventDefault();
+    root.focus();
+    return;
+  }
+
+  const first = items[0]!;
+  const last = items[items.length - 1]!;
+  const active = document.activeElement;
+
+  if (event.shiftKey && (active === first || !root.contains(active))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && (active === last || !root.contains(active))) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 /* -------------------------------------------------------------------------- */

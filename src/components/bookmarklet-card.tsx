@@ -92,7 +92,7 @@ export function BookmarkletCard() {
           className="break-anywhere w-full rounded-xl bg-surface-2 p-3 text-left font-mono text-xs"
         >
           {origin ? `${origin}/compartilhar?url=` : "…"}
-          <span className="text-faint">[Entrada do Atalho]</span>
+          <span className="text-muted">[Entrada do Atalho]</span>
         </button>
         <p className="text-sm text-faint">
           Depois, em qualquer pagina do Safari: Compartilhar, e escolha o atalho.

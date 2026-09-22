@@ -14,9 +14,11 @@
   --color-border-strong: #cfcbc1;
   --color-ink: #191817;
   --color-muted: #6b6862;
-  --color-faint: #96928a;
-  --color-accent: #d4451f;
-  --color-accent-hover: #b93a18;
+  /* Texto secundario: 4,5:1 sobre o fundo e a superficie (WCAG AA, US-75). */
+  --color-faint: #706c65;
+  /* Acento como texto tambem precisa de 4,5:1, inclusive sobre surface-2. */
+  --color-accent: #bf3d1a;
+  --color-accent-hover: #a8361a;
   --color-accent-ink: #ffffff;
   --color-accent-soft: #fbe9e3;
   --color-positive: #1f7a4d;
@@ -55,7 +57,7 @@
     --color-border-strong: #3a3f47;
     --color-ink: #e9e7e2;
     --color-muted: #9a978f;
-    --color-faint: #6f6c66;
+    --color-faint: #8f8c85;
     --color-accent: #ff6b3d;
     --color-accent-hover: #ff8257;
     --color-accent-ink: #1a0d07;
