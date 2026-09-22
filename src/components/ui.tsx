@@ -38,6 +38,11 @@ const SIZES: Record<Size, string> = {
 const BASE =
   "inline-flex items-center justify-center rounded-full font-medium transition-colors duration-150 disabled:opacity-45 disabled:pointer-events-none select-none";
 
+/** Classes de botao para elementos que nao sao `<button>`, como um link de download. */
+export function buttonClasses(variant: Variant = "primary", size: Size = "md"): string {
+  return `${BASE} ${VARIANTS[variant]} ${SIZES[size]}`;
+}
+
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;

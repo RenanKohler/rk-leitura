@@ -35,6 +35,7 @@ import { excerptOf } from "@/lib/highlights";
 import { MAX_SAVED_WORDS } from "@/lib/dictionary";
 import { tagKey } from "@/lib/tags";
 import { cleanTitle, nextChapterUrl } from "@/lib/series";
+import { REVIEW_SESSION_SIZE } from "@/lib/vocabulary";
 import { asProgramLength, programStatus, type ProgramStatus } from "@/lib/training";
 import {
   asGoalKind,
@@ -63,6 +64,7 @@ import type {
   HighlightItem,
   LibraryItem,
   NextUp,
+  ReviewSession,
   SavedWordItem,
   SessionSummary,
   SettingsPayload,
@@ -1062,6 +1064,8 @@ export async function loadSavedWords(userId: string): Promise<SavedWordItem[]> {
       definition: savedWords.definition,
       translation: savedWords.translation,
       language: savedWords.language,
+      context: savedWords.context,
+      learnedAt: savedWords.learnedAt,
       textId: savedWords.textId,
       textTitle: texts.title,
       createdAt: savedWords.createdAt,
@@ -1072,5 +1076,57 @@ export async function loadSavedWords(userId: string): Promise<SavedWordItem[]> {
     .orderBy(desc(savedWords.updatedAt))
     .limit(MAX_SAVED_WORDS);
 
-  return rows.map((row) => ({ ...row, createdAt: isoDate(row.createdAt) }));
+  return rows.map(({ learnedAt, ...row }) => ({
+    ...row,
+    learned: learnedAt !== null,
+    createdAt: isoDate(row.createdAt),
+  }));
+}
+
+/**
+ * Sessao de revisao do dia (US-64): as vencidas, as mais atrasadas primeiro.
+ *
+ * Sem data de revisao conta como vencida - sao as palavras salvas antes da
+ * revisao existir - e vem antes das demais, por serem as mais antigas.
+ */
+export async function loadReview(userId: string): Promise<ReviewSession> {
+  const timezone = (await loadSettings(userId))?.timezone ?? "UTC";
+  const today = todayIn(timezone);
+  const pending = and(eq(savedWords.userId, userId), isNull(savedWords.learnedAt));
+  const due = and(
+    pending,
+    sql`(${savedWords.nextReviewOn} is null or ${savedWords.nextReviewOn} <= ${today})`
+  );
+
+  const [cards, [dueCount], [upcoming], [all]] = await Promise.all([
+    db
+      .select({
+        id: savedWords.id,
+        word: savedWords.word,
+        base: savedWords.base,
+        kind: savedWords.kind,
+        definition: savedWords.definition,
+        translation: savedWords.translation,
+        context: savedWords.context,
+        textTitle: texts.title,
+      })
+      .from(savedWords)
+      .leftJoin(texts, eq(texts.id, savedWords.textId))
+      .where(due)
+      .orderBy(sql`${savedWords.nextReviewOn} asc nulls first`, asc(savedWords.createdAt))
+      .limit(REVIEW_SESSION_SIZE),
+    db.select({ value: count() }).from(savedWords).where(due),
+    db
+      .select({ day: sql<string | null>`min(${savedWords.nextReviewOn})` })
+      .from(savedWords)
+      .where(and(pending, gt(savedWords.nextReviewOn, today))),
+    db.select({ value: count() }).from(savedWords).where(eq(savedWords.userId, userId)),
+  ]);
+
+  return {
+    cards,
+    due: dueCount?.value ?? 0,
+    nextReviewOn: upcoming?.day ?? null,
+    totalWords: all?.value ?? 0,
+  };
 }

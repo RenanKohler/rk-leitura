@@ -38,10 +38,36 @@ export interface SavedWordItem {
   translation: string | null;
   /** Idioma da palavra. */
   language: string;
+  /** Frase em que a palavra apareceu; nula nas salvas antes de existir. */
+  context: string | null;
+  /** Marcada como aprendida: fora da revisao (US-66). */
+  learned: boolean;
   /** Texto em que ela foi encontrada; nulo quando o texto foi apagado. */
   textId: string | null;
   textTitle: string | null;
   createdAt: string;
+}
+
+/** Uma palavra na sessao de revisao. */
+export interface ReviewCard {
+  id: string;
+  word: string;
+  base: string;
+  kind: string;
+  definition: string;
+  translation: string | null;
+  context: string | null;
+  textTitle: string | null;
+}
+
+/** O que a tela de revisao precisa para abrir (US-64). */
+export interface ReviewSession {
+  cards: ReviewCard[];
+  /** Quantas estao vencidas hoje, alem das que cabem nesta sessao. */
+  due: number;
+  /** Proxima data com revisao, quando nao ha nada vencido. */
+  nextReviewOn: string | null;
+  totalWords: number;
 }
 
 /** Etiqueta com quantos textos ela marca. */

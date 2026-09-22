@@ -382,6 +382,14 @@ export const savedWords = pgTable(
     language: text("language").notNull().default("pt-BR"),
     /** Traducao para o portugues, quando a palavra e de outro idioma (US-69). */
     translation: text("translation"),
+    /** Frase em que a palavra apareceu, mostrada na revisao (US-64). */
+    context: text("context"),
+    /** Proxima revisao, no fuso do usuario; nula nas salvas antes da revisao. */
+    nextReviewOn: date("next_review_on"),
+    /** Etapa na sequencia de intervalos de `lib/vocabulary.ts`. */
+    reviewStep: integer("review_step").notNull().default(0),
+    /** Marcada como aprendida: sai da revisao, continua na lista (US-66). */
+    learnedAt: timestamp("learned_at", { withTimezone: true }),
     /** Texto em que a palavra foi encontrada; nulo se ele for apagado. */
     textId: uuid("text_id").references(() => texts.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
