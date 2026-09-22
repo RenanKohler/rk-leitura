@@ -38,8 +38,12 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
   pontos de vista independentes (design de jogos, biologia, inversão, remoção
   de premissas e speedrun). Entraram as quatro ideias da lista curta; as
   descartadas como armadilha estão no Won't Have.
-- A US-87 é a única Parcial: o ajuste de tempo por pontuação e palavra longa
-  já existe no leitor, e a story trata o que falta.
+- A US-87 partiu de um ajuste que já existia no leitor (pausa em pontuação e
+  palavra longa); a story tratou o que faltava e o substituiu.
+- As 27 stories de US-62 a US-88 foram implementadas na branch
+  `claude/user-story-generator-rk-leitura-sgyhal`. O campo Evidência de cada
+  uma aponta o código entregue, e as notas registram onde a implementação se
+  afastou da proposta.
 - Os limites numéricos dessas stories (20 questionários e 200 consultas por
   dia, 10 séries acompanhadas, 5 feeds, intervalos de revisão) são pontos de
   partida para validar com o uso real, não requisitos fechados.
@@ -93,15 +97,15 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Ritmo adaptativo | 2 | 8 | 1 | 0 | 1 |
 | **Total** | **88** | **365** | **36 (41%)** | **35 (40%)** | **17 (19%)** |
 
-Status: 60 Implementadas, 1 Parcial, 1 Aguardando pendência, 26 Propostas.
+Status: 87 Implementadas, 1 Aguardando pendência.
 
 As seis épicas acrescentadas por último (Segurança de sessão em diante, US-62 a
 US-76) partem de lacunas encontradas no código no commit `e87339b`. Somam 68
-pontos: 6 Must, 6 Should e 3 Could.
+pontos: 6 Must, 6 Should e 3 Could. Todas implementadas.
 
 As quatro épicas finais (Retomada da leitura em diante, US-77 a US-88) vieram
 de uma rodada de ideação divergente sobre o produto e somam 42 pontos: 5 Must,
-4 Should e 3 Could.
+4 Should e 3 Could. Todas implementadas.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -1232,8 +1236,8 @@ Como leitor, eu quero continuar lendo textos já abertos sem internet, para que 
 **Épico:** Segurança de sessão
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `PATCH` em `src/app/api/auth/me/route.ts` reemite o token só no aparelho atual; `src/lib/session-token.ts` emite JWT de 7 dias sem versão
+**Status:** Implementada
+**Evidência:** `users.session_version` (drizzle/0014), versao no token em `src/lib/session-token.ts`, conferencia em `requireSession` (`src/lib/api.ts`) e no layout autenticado, `PATCH /api/auth/me`
 
 Como leitor, eu quero que trocar a senha desconecte os outros aparelhos, para que alguém que conhecia a senha antiga perca o acesso na hora, e não sete dias depois.
 
@@ -1250,8 +1254,8 @@ Como leitor, eu quero que trocar a senha desconecte os outros aparelhos, para qu
 **Épico:** Segurança de sessão
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `src/components/account-card.tsx` e `src/app/api/auth/logout/route.ts` encerram apenas a sessão atual
+**Status:** Implementada
+**Evidência:** `POST /api/auth/logout/todos`, `src/components/account-card.tsx`, `/sair` apaga os caches offline
 
 Como leitor, eu quero encerrar a sessão em todos os aparelhos de uma vez, para que eu recupere o controle da conta depois de usar um computador compartilhado ou perder o celular.
 
@@ -1272,8 +1276,8 @@ Como leitor, eu quero encerrar a sessão em todos os aparelhos de uma vez, para 
 **Épico:** Vocabulário
 **Prioridade:** Must
 **Story points:** 8
-**Status:** Proposta
-**Evidência:** `savedWords` em `src/db/schema.ts` e `src/app/(app)/palavras/` apenas listam as consultas, sem revisão
+**Status:** Implementada
+**Evidência:** `src/lib/vocabulary.ts`, `loadReview` em `src/lib/queries.ts`, `/api/palavras/revisao`, `src/app/(app)/palavras/revisar/`
 
 Como leitor, eu quero revisar as palavras que consultei em intervalos crescentes, para que eu fixe o vocabulário novo em vez de consultar a mesma palavra de novo.
 
@@ -1286,13 +1290,15 @@ Como leitor, eu quero revisar as palavras que consultei em intervalos crescentes
 
 **Notas técnicas:** acrescentar `next_review_on` (date) e `interval_step` em `saved_words`. "Hoje" é calculado no fuso do usuário (`speedSettings.timezone`), a mesma regra de meta e sequência (US-41, US-42). Regra de intervalo em função pura em `src/lib/`, com teste em `tests/`.
 
+**Implementação:** palavras salvas antes da revisão existir não têm data e entram como vencidas, antes das demais. A frase de origem passou a ser guardada na consulta; as palavras antigas aparecem sem ela.
+
 ### US-65: Exportar a lista de palavras
 
 **Épico:** Vocabulário
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `src/app/api/exportar/route.ts` exporta sessões e textos; palavras salvas não entram
+**Status:** Implementada
+**Evidência:** `wordsCsv` em `src/lib/vocabulary.ts`, `GET /api/palavras/exportar`, botao Exportar em `words-client.tsx`
 
 Como leitor, eu quero exportar minhas palavras salvas em um arquivo, para que eu as estude em um aplicativo de cartões de memorização.
 
@@ -1307,8 +1313,8 @@ Como leitor, eu quero exportar minhas palavras salvas em um arquivo, para que eu
 **Épico:** Vocabulário
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `src/app/(app)/palavras/words-client.tsx` não distingue palavras aprendidas
+**Status:** Implementada
+**Evidência:** `saved_words.learned_at`, `PATCH /api/palavras/[id]`, filtro Aprendidas em `words-client.tsx`
 
 Como leitor, eu quero marcar uma palavra como aprendida, para que ela saia da revisão sem que eu perca o registro de que a consultei.
 
@@ -1328,8 +1334,8 @@ Como leitor, eu quero marcar uma palavra como aprendida, para que ela saia da re
 **Épico:** Textos em outros idiomas
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `texts` em `src/db/schema.ts` não tem idioma; `useSpeech` em `src/hooks/use-speech.ts` assume `pt-BR`
+**Status:** Implementada
+**Evidência:** `src/lib/language.ts`, `texts.language` (drizzle/0015), `extractLanguage` em `src/lib/parser.ts`, `dc:language` em `parseOpf`, campo na edicao do texto
 
 Como leitor que lê em mais de um idioma, eu quero que cada texto tenha seu idioma registrado, para que voz, dicionário e questionário tratem o texto no idioma certo.
 
@@ -1347,8 +1353,8 @@ Como leitor que lê em mais de um idioma, eu quero que cada texto tenha seu idio
 **Épico:** Textos em outros idiomas
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `pickVoice` em `src/lib/speech.ts` recebe `pt-BR` como padrão em todas as chamadas
+**Status:** Implementada
+**Evidência:** `useSpeech(text.language)` em `src/hooks/use-speech.ts` e `reader-client.tsx`
 
 Como leitor, eu quero que a leitura em voz alta use uma voz do idioma do texto, para que a pronúncia de um artigo em inglês não saia com fonética portuguesa.
 
@@ -1364,8 +1370,8 @@ Como leitor, eu quero que a leitura em voz alta use uma voz do idioma do texto, 
 **Épico:** Textos em outros idiomas
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `src/lib/dictionary.ts` e `src/lib/quiz-generator.ts` montam o pedido ao modelo sem informar o idioma do texto
+**Status:** Implementada
+**Evidência:** `lookupWord(..., language)` em `src/lib/word-lookup.ts`, `generateQuiz(..., language)`, `quizKey` em `src/lib/quiz.ts`, `saved_words.language` e `translation`
 
 Como leitor que estuda outro idioma, eu quero consultar uma palavra de um texto estrangeiro e receber a definição em português, para que eu entenda o sentido sem sair da leitura.
 
@@ -1386,8 +1392,8 @@ Como leitor que estuda outro idioma, eu quero consultar uma palavra de um texto 
 **Épico:** Acompanhamento de conteúdo
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `src/lib/series.ts` e `/api/texts/[id]/proximo` só buscam o capítulo seguinte quando o leitor pede; `src/app/api/cron/lembretes/route.ts` já roda de hora em hora
+**Status:** Implementada
+**Evidência:** `series_follows` (drizzle/0017), `src/lib/follow.ts`, `src/lib/follow-runner.ts`, `src/lib/chapter-import.ts`, `/api/series/acompanhar`, `/api/cron/acompanhamento`
 
 Como leitor que acompanha histórias em andamento, eu quero ser avisado quando o próximo capítulo for publicado, para que eu não precise voltar à origem para verificar.
 
@@ -1400,13 +1406,15 @@ Como leitor que acompanha histórias em andamento, eu quero ser avisado quando o
 
 **Notas técnicas:** reaproveitar o agendamento horário do lembrete (US-43) e a busca protegida de `safe-fetch`. Verificar cada série no máximo uma vez a cada 6 horas, para não sobrecarregar a origem. O limite de 10 séries protege o tempo de execução da função.
 
+**Implementação:** a rotina roda em `/api/cron/acompanhamento`, chamada de hora em hora por um passo novo em `.github/workflows/lembretes.yml`. O `vercel.json` não mudou: o plano Hobby recusa o deploy com cron mais frequente que diário.
+
 ### US-71: Assinar um feed RSS
 
 **Épico:** Acompanhamento de conteúdo
 **Prioridade:** Could
 **Story points:** 8
-**Status:** Proposta
-**Evidência:** não há leitura de RSS ou Atom no código; `src/lib/source-url.ts` já normaliza endereços para detectar duplicatas
+**Status:** Implementada
+**Evidência:** `feeds` (drizzle/0017), `src/lib/feed.ts`, `fetchPublicFeed` em `src/lib/safe-fetch.ts`, `/api/feeds`, `src/components/feeds-card.tsx`
 
 Como leitor, eu quero assinar o feed de um site, para que os artigos novos entrem na minha biblioteca sem que eu importe um por um.
 
@@ -1419,6 +1427,8 @@ Como leitor, eu quero assinar o feed de um site, para que os artigos novos entre
 
 **Notas técnicas:** depende da mesma infraestrutura de verificação periódica de US-70; entregar junto evita duas rotinas agendadas. A importação de cada item passa por `importFromUrl`, com as mesmas proteções de tamanho e rede interna.
 
+**Implementação:** a assinatura guarda a data do item mais novo, e só o que for publicado depois entra. Uma verificação em que todos os itens novos são recusados pela origem (403, por exemplo) conta como falha, e três seguidas pausam a assinatura.
+
 ---
 
 ## Épico: Custos e observabilidade
@@ -1428,8 +1438,8 @@ Como leitor, eu quero assinar o feed de um site, para que os artigos novos entre
 **Épico:** Custos e observabilidade
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `rateLimit` em `/api/dicionario` e `/api/texts/[id]/questionario` usa como chave apenas `clientIp(request)`
+**Status:** Implementada
+**Evidência:** `src/lib/quota.ts`, `src/lib/daily-quota.ts`, rotas do questionario e do dicionario
 
 Como mantenedor, eu quero um teto diário por conta para questionário e dicionário, para que uma única conta, trocando de rede, não gere uma conta de modelo de linguagem fora do previsto.
 
@@ -1447,8 +1457,8 @@ Como mantenedor, eu quero um teto diário por conta para questionário e dicion�
 **Épico:** Custos e observabilidade
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `serverError` em `src/lib/api.ts` faz `console.error` e responde uma mensagem genérica; `src/app/error.tsx` não informa referência
+**Status:** Implementada
+**Evidência:** `src/lib/error-log.ts`, `serverError` em `src/lib/api.ts`, `POST /api/erros`, `src/app/error.tsx`
 
 Como mantenedor, eu quero que cada erro do servidor gere um registro estruturado com um código que o leitor também vê, para que eu encontre a causa quando alguém relatar um problema.
 
@@ -1465,8 +1475,8 @@ Como mantenedor, eu quero que cada erro do servidor gere um registro estruturado
 **Épico:** Custos e observabilidade
 **Prioridade:** Should
 **Story points:** 8
-**Status:** Proposta
-**Evidência:** `tests/` cobre apenas regras puras (README, seção Testes); `.github/workflows/ci.yml` não sobe navegador nem banco
+**Status:** Implementada
+**Evidência:** `playwright.config.ts`, `e2e/`, job `navegador` em `.github/workflows/ci.yml`
 
 Como mantenedor, eu quero uma suíte de testes no navegador para o fluxo principal, para que uma mudança que quebre a leitura seja barrada antes do deploy.
 
@@ -1476,7 +1486,7 @@ Como mantenedor, eu quero uma suíte de testes no navegador para o fluxo princip
 3. Dado que qualquer passo falha, quando a CI termina, então o job fica vermelho e guarda captura de tela e registro do passo que falhou.
 4. Dado que a suíte roda em um push, quando termina, então leva no máximo 5 minutos.
 
-**Notas técnicas:** Playwright com Chromium e um serviço Postgres no workflow. Nada que dependa de rede externa: a importação por URL usa uma página servida pela própria suíte. Pré-requisito de US-75.
+**Notas técnicas:** Playwright com Chromium e um serviço Postgres no workflow. Nada depende de rede externa. A importação por URL ficou fora da suíte: a proteção anti-SSRF recusa `localhost`, e abrir exceção para os testes criaria um caminho de desvio na própria proteção. Cada teste se apresenta com um IP próprio em `x-forwarded-for`, para o limite de cadastros por IP não barrar a suíte. Pré-requisito de US-75.
 
 ---
 
@@ -1487,8 +1497,8 @@ Como mantenedor, eu quero uma suíte de testes no navegador para o fluxo princip
 **Épico:** Acessibilidade
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** atributos `aria-` presentes em 18 arquivos, sem verificação automatizada; folhas em `src/components/ui.tsx` controlam foco manualmente
+**Status:** Implementada
+**Evidência:** `e2e/acessibilidade.spec.ts`, foco em `Sheet` (`src/components/ui.tsx`), tokens `faint` e `accent` em `globals.css`
 
 Como leitor com deficiência visual, eu quero navegar pela biblioteca, pelo leitor e pelos Ajustes com leitor de tela e teclado, para que eu use o app sem depender da visão.
 
@@ -1505,8 +1515,8 @@ Como leitor com deficiência visual, eu quero navegar pela biblioteca, pelo leit
 **Épico:** Acessibilidade
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `theme` em `speedSettings` aceita `system`, `light` e `dark`; não há variante de contraste reforçado
+**Status:** Implementada
+**Evidência:** `:root[data-theme="contrast"]` em `globals.css`, `resolveTheme` em `src/components/providers.tsx`, opcao Contraste em Ajustes
 
 Como leitor com baixa visão, eu quero um tema de alto contraste, para que texto, destaque e controles fiquem legíveis sem ampliar a tela.
 
@@ -1526,8 +1536,8 @@ Como leitor com baixa visão, eu quero um tema de alto contraste, para que texto
 **Épico:** Retomada da leitura
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `loadText` em `src/lib/queries.ts` não informa quando o texto foi lido pela última vez; `reader-client.tsx` retoma direto em `progressIndex`
+**Status:** Implementada
+**Evidência:** `recapWindow` em `src/lib/pacing.ts`, `lastReadAt` em `loadText`, `RecapPlayer` em `reader-client.tsx`
 
 Como leitor, eu quero rever rapidamente o trecho que li por último ao voltar a um texto parado há dias, para que eu retome com o contexto na cabeça em vez de largar o texto por não lembrar onde estava.
 
@@ -1545,8 +1555,8 @@ Como leitor, eu quero rever rapidamente o trecho que li por último ao voltar a 
 **Épico:** Retomada da leitura
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `highlights` em `src/db/schema.ts` guarda `startIndex`, `endIndex` e nota de cada trecho
+**Status:** Implementada
+**Evidência:** `highlightsBefore` em `src/lib/pacing.ts`, `recapMarks` em `reader-client.tsx`
 
 Como leitor que destaca o que considera importante, eu quero que a recapitulação mostre meus destaques anteriores à posição atual, para que eu recupere o fio do texto pelo que eu mesmo marquei.
 
@@ -1566,8 +1576,8 @@ Como leitor que destaca o que considera importante, eu quero que a recapitulaç�
 **Épico:** Desistência consciente
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `statusCondition` em `src/lib/queries.ts` classifica só pela posição; `archiveOnProgress` em `src/app/api/texts/[id]/route.ts` desarquiva quando a posição volta a 0
+**Status:** Implementada
+**Evidência:** `texts.abandoned_at` e `abandoned_words` (drizzle/0018), `/api/texts/[id]/largar`, status `largados` em `statusCondition`
 
 Como leitor, eu quero marcar um texto como largado, para que ele saia da minha biblioteca e da fila sem que eu precise fingir que o terminei ou deixá-lo parado para sempre.
 
@@ -1585,8 +1595,8 @@ Como leitor, eu quero marcar um texto como largado, para que ele saia da minha b
 **Épico:** Desistência consciente
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `reader-client.tsx` salva o progresso continuamente, sem marcos de decisão
+**Status:** Implementada
+**Evidência:** `speed_settings.ask_checkpoints`, `texts.checkpoint_answered`, `checkpointCrossed` em `src/lib/pacing.ts`, `/api/texts/[id]/marco`
 
 Como leitor, eu quero que o app me pergunte em alguns pontos se o texto ainda vale a pena, para que eu não gaste meia hora em um texto que deixou de me interessar no primeiro quarto.
 
@@ -1604,8 +1614,8 @@ Como leitor, eu quero que o app me pergunte em alguns pontos se o texto ainda va
 **Épico:** Desistência consciente
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `loadWeeklySummary` em `src/lib/queries.ts` e `src/components/weekly-summary-card.tsx` somam só o que foi lido
+**Status:** Implementada
+**Evidência:** `savedMinutes` em `loadWeeklySummary`, `src/components/weekly-summary-card.tsx`
 
 Como leitor, eu quero ver quanto tempo economizei ao largar textos, para que desistir de um texto fraco conte como decisão acertada e não como fracasso.
 
@@ -1622,8 +1632,8 @@ Como leitor, eu quero ver quanto tempo economizei ao largar textos, para que des
 **Épico:** Desistência consciente
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `loadQueue` em `src/lib/queries.ts` e `src/app/(app)/textos/fila/` não distinguem textos parados
+**Status:** Implementada
+**Evidência:** `loadStaleQueue`, `/api/fila/largar`, `/api/fila/retomar`, `queue-client.tsx`
 
 Como leitor com uma fila acumulada, eu quero largar de uma vez os textos parados há muito tempo, para que a fila volte a refletir o que eu de fato pretendo ler.
 
@@ -1644,8 +1654,8 @@ Como leitor com uma fila acumulada, eu quero largar de uma vez os textos parados
 **Épico:** Leitura sob medida para o tempo
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `POST /api/reading-sessions` calcula `wpm` a partir de palavras e duração de cada sessão; nenhum ponto do app agrega esse valor como previsão
+**Status:** Implementada
+**Evidência:** `effectiveWpm` em `src/lib/pacing.ts`, `loadPace` em `src/lib/queries.ts`
 
 Como leitor, eu quero que o app conheça meu ritmo real, e não só a velocidade que configurei, para que as estimativas de tempo que ele me mostra sejam confiáveis.
 
@@ -1662,8 +1672,8 @@ Como leitor, eu quero que o app conheça meu ritmo real, e não só a velocidade
 **Épico:** Leitura sob medida para o tempo
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `src/app/(app)/dashboard/` e `src/app/(app)/textos/fila/` não relacionam tamanho do texto com tempo disponível
+**Status:** Implementada
+**Evidência:** `fitParagraphEnd` em `src/lib/pacing.ts`, `loadTimeWindow`, `/api/tempo-livre`, `src/components/free-time-card.tsx`
 
 Como leitor com poucos minutos livres, eu quero informar quanto tempo tenho e receber uma leitura que caiba nele, para que eu use a janela sem começar um texto que não vou conseguir avançar.
 
@@ -1681,8 +1691,8 @@ Como leitor com poucos minutos livres, eu quero informar quanto tempo tenho e re
 **Épico:** Leitura sob medida para o tempo
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** o leitor (`reader-client.tsx`) não aceita um ponto de parada
+**Status:** Implementada
+**Evidência:** `?ate=` e `?previsto=` no leitor, `reading_sessions.planned_ms` (drizzle/0018), folha "Fim do trecho previsto" em `reader-client.tsx`
 
 Como leitor, eu quero que a leitura pare no fim do trecho que cabia no meu tempo e me mostre se a previsão acertou, para que eu confie na sugestão da próxima vez.
 
@@ -1699,8 +1709,8 @@ Como leitor, eu quero que a leitura pare no fim do trecho que cabia no meu tempo
 **Épico:** Leitura sob medida para o tempo
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `src/components/goal-card.tsx` mostra o que falta da meta, sem sugerir leitura
+**Status:** Implementada
+**Evidência:** "Faltam X min" e "Sugerir leitura" em `src/components/goal-card.tsx`
 
 Como leitor com meta diária, eu quero uma sugestão que complete exatamente o que falta da meta, para que eu feche o dia sem calcular quanto preciso ler.
 
@@ -1720,12 +1730,12 @@ Como leitor com meta diária, eu quero uma sugestão que complete exatamente o q
 **Épico:** Ritmo adaptativo
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Parcial
-**Evidência:** `pauseFactor` em `src/app/(app)/leitor/[id]/reader-client.tsx` (linha 1531) já acrescenta tempo em fim de frase, vírgula e palavras com mais de 12 letras; não reduz tempo em palavra curta, não trata números e nomes próprios e não compensa o tempo acrescentado
+**Status:** Implementada
+**Evidência:** `wordWeight`, `normalizedWeights` e `chunkFactor` em `src/lib/pacing.ts`; `speed_settings.adaptive_rhythm`
 
 Como leitor no modo Foco, eu quero que palavras curtas passem mais rápido e números e nomes próprios fiquem mais tempo na tela, sem que a velocidade média do texto mude, para que eu mantenha a compreensão nos trechos densos lendo no ritmo que escolhi.
 
-**O que já existe:** pausa adicional de 60% em fim de frase, de 30% em vírgula, ponto e vírgula e dois-pontos, e de 25% em blocos com palavra acima de 12 letras. Como o ajuste só acrescenta tempo, a velocidade média efetiva fica abaixo da configurada.
+**Antes desta story:** pausa adicional de 60% em fim de frase, de 30% em vírgula, ponto e vírgula e dois-pontos, e de 25% em blocos com palavra acima de 12 letras. Como o ajuste só acrescenta tempo, a velocidade média efetiva fica abaixo da configurada.
 
 **Critérios de aceitação**
 1. Dado que leio no modo Foco, quando aparecem palavras de até 3 letras sem pontuação, então elas recebem tempo menor que o de uma palavra de 6 letras.
@@ -1736,13 +1746,15 @@ Como leitor no modo Foco, eu quero que palavras curtas passem mais rápido e nú
 
 **Notas técnicas:** regra local, sem modelo de linguagem. Mover `pauseFactor` para `src/lib/reading.ts` como função pura com teste, acrescentar os pesos novos e normalizar pela média dos pesos do texto, o que cumpre o critério 3. O padrão da opção é ativado, para manter o comportamento atual de pausa em pontuação. Não se aplica à leitura em voz alta, cujo ritmo é o da voz.
 
+**Implementação:** a opção fica em Ajustes como "Ritmo no modo Foco" (Adaptativo ou Uniforme), ligada por padrão para manter a pausa em pontuação que já existia.
+
 ### US-88: Dar mais tempo às palavras que já me travaram
 
 **Épico:** Ritmo adaptativo
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `savedWords` em `src/db/schema.ts` registra as palavras consultadas no dicionário (US-38)
+**Status:** Implementada
+**Evidência:** `loadKnownWords` em `src/lib/queries.ts`, `KNOWN_WORD_BOOST` em `src/lib/pacing.ts`
 
 Como leitor, eu quero que as palavras que já consultei no dicionário fiquem um pouco mais na tela quando reaparecem em outros textos, para que eu as reconheça sem precisar parar a leitura.
 
@@ -1783,7 +1795,7 @@ Entregue até aqui, em ordem:
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
 | US-46 | 8 | Perguntas de compreensão ao concluir um texto |
 
-Resta 1 story, travada por decisão externa (5 pontos). A ordem abaixo é o
+Resta 1 story, travada por decisão externa (5 pontos). As épicas de US-62 a US-88 estão concluídas, nas ordens 9 a 18 abaixo. A ordem abaixo é o
 histórico do que foi entregue, agrupado por dependência.
 
 | Ordem | Stories | Pontos | Objetivo |
@@ -1799,25 +1811,25 @@ histórico do que foi entregue, agrupado por dependência.
 | ~~—~~ | ~~US-31~~ | ~~5~~ | Concluída: limite de requisições compartilhado, sobre o Postgres |
 | — | US-05 | 5 | Aguardando pendência: provedor de e-mail transacional. |
 
-### Próximas entregas: épicas US-62 a US-76
+### Entregas: épicas US-62 a US-76
 
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
-| 9 | US-62, US-63, US-72, US-73 | 15 | Sessões revogáveis, teto de custo por conta e erros rastreáveis |
-| 10 | US-74, US-75 | 13 | Testes no navegador e acessibilidade verificada na CI |
-| 11 | US-67, US-68, US-69 | 11 | Textos em outros idiomas |
-| 12 | US-64, US-65, US-66 | 13 | Revisão e exportação de vocabulário |
-| 13 | US-70, US-71 | 13 | Acompanhamento de séries e feeds |
-| 14 | US-76 | 3 | Tema de alto contraste |
+| ~~9~~ | ~~US-62, US-63, US-72, US-73~~ | ~~15~~ | Concluída: sessões revogáveis, teto de custo por conta e erros rastreáveis |
+| ~~10~~ | ~~US-74, US-75~~ | ~~13~~ | Concluída: testes no navegador e acessibilidade verificada na CI |
+| ~~11~~ | ~~US-67, US-68, US-69~~ | ~~11~~ | Concluída: textos em outros idiomas |
+| ~~12~~ | ~~US-64, US-65, US-66~~ | ~~13~~ | Concluída: revisão e exportação de vocabulário |
+| ~~13~~ | ~~US-70, US-71~~ | ~~13~~ | Concluída: acompanhamento de séries e feeds |
+| ~~14~~ | ~~US-76~~ | ~~3~~ | Concluída: tema de alto contraste |
 
-### Próximas entregas: épicas US-77 a US-88
+### Entregas: épicas US-77 a US-88
 
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
-| 15 | US-77, US-83, US-84, US-85 | 16 | Retomar com contexto e ler no tempo disponível |
-| 16 | US-79, US-80, US-81, US-82 | 13 | Largar textos com critério e ver o tempo economizado |
-| 17 | US-87, US-86, US-78 | 10 | Ritmo pela densidade, meta pelo tempo e recapitulação por destaques |
-| 18 | US-88 | 3 | Mais tempo às palavras já consultadas |
+| ~~15~~ | ~~US-77, US-83, US-84, US-85~~ | ~~16~~ | Concluída: retomar com contexto e ler no tempo disponível |
+| ~~16~~ | ~~US-79, US-80, US-81, US-82~~ | ~~13~~ | Concluída: largar textos com critério e ver o tempo economizado |
+| ~~17~~ | ~~US-87, US-86, US-78~~ | ~~10~~ | Concluída: ritmo pela densidade, meta pelo tempo e recapitulação por destaques |
+| ~~18~~ | ~~US-88~~ | ~~3~~ | Concluída: mais tempo às palavras já consultadas |
 
 Critérios desta ordem:
 
