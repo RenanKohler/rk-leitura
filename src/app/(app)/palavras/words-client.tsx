@@ -113,6 +113,9 @@ export function WordsClient({ initial }: { initial: SavedWordItem[] }) {
                     </Button>
                   </div>
 
+                  {item.translation ? (
+                    <p className="mt-1.5 text-sm font-medium">{item.translation}</p>
+                  ) : null}
                   <p className="mt-1.5 text-sm leading-relaxed">{item.definition}</p>
 
                   <p className="mt-2 text-xs text-faint">

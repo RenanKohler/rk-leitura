@@ -10,6 +10,7 @@ import {
   requireSession,
   serverError,
 } from "@/lib/api";
+import { normalizeLanguage } from "@/lib/language";
 import { loadText } from "@/lib/queries";
 import { normalizeTagList } from "@/lib/tags";
 import { applyTags } from "@/lib/text-tags";
@@ -62,12 +63,18 @@ export async function PUT(request: Request, { params }: Params) {
       sourceUrl?: unknown;
       content?: unknown;
       tags?: unknown;
+      language?: unknown;
     }>(request);
     const title = asString(body?.title);
     const content = asString(body?.content);
     const sourceUrl = asString(body?.sourceUrl);
     // `tags` ausente nao mexe nas etiquetas; lista vazia tira todas.
     const tagNames = body?.tags === undefined ? null : normalizeTagList(body.tags);
+    // Idioma ausente nao muda o salvo; fora da lista, e recusado.
+    const language = body?.language === undefined ? null : normalizeLanguage(body.language);
+    if (body?.language !== undefined && !language) {
+      return jsonError("Idioma nao suportado.", 400);
+    }
 
     if (!title || !content) {
       return jsonError("Titulo e conteudo sao obrigatorios.", 400);
@@ -105,6 +112,7 @@ export async function PUT(request: Request, { params }: Params) {
           sourceUrl,
           content,
           wordCount,
+          ...(language ? { language } : {}),
           ...(rewritten ? { progressIndex: 0 } : {}),
           ...(retitled && current.seriesKey !== null
             ? {

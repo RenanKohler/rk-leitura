@@ -54,6 +54,13 @@ export function WordSheet({
               <p className="text-lg font-semibold tracking-tight">{entry.base}</p>
               {entry.kind ? <p className="text-sm text-faint">{entry.kind}</p> : null}
             </div>
+            {/* Palavra de outro idioma: a traducao vem antes da definicao. */}
+            {entry.translation ? (
+              <p className="font-medium">
+                <span className="text-sm text-muted">Traducao: </span>
+                {entry.translation}
+              </p>
+            ) : null}
             <p className="leading-relaxed">{entry.definition}</p>
             <p className="text-sm text-faint">
               Guardada em Palavras salvas, junto com o texto de origem.

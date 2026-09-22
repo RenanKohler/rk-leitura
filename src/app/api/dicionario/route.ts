@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { savedWords, texts } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { consumeDailyQuota } from "@/lib/daily-quota";
+import { DEFAULT_LANGUAGE } from "@/lib/language";
 import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { MAX_SAVED_WORDS, normalizeWord, trimContext, wordKey } from "@/lib/dictionary";
@@ -27,6 +28,8 @@ export async function GET() {
         base: savedWords.base,
         kind: savedWords.kind,
         definition: savedWords.definition,
+        translation: savedWords.translation,
+        language: savedWords.language,
         textId: savedWords.textId,
         textTitle: texts.title,
         createdAt: savedWords.createdAt,
@@ -72,8 +75,20 @@ export async function POST(request: Request) {
     if (!word) return jsonError("Toque em uma palavra para consultar.", 400);
 
     const context = trimContext(body?.context);
-    const textId =
+    const requestedTextId =
       typeof body?.textId === "string" && UUID_PATTERN.test(body.textId) ? body.textId : null;
+
+    // O idioma vem do texto no banco, nao do cliente (US-69). Texto de outra
+    // conta ou apagado nao conta: a consulta segue em portugues, sem vinculo.
+    const [source] = requestedTextId
+      ? await db
+          .select({ id: texts.id, language: texts.language })
+          .from(texts)
+          .where(and(eq(texts.id, requestedTextId), eq(texts.userId, session.id)))
+          .limit(1)
+      : [];
+    const textId = source?.id ?? null;
+    const language = source?.language ?? DEFAULT_LANGUAGE;
 
     const folded = wordKey(word);
     const [known] = await db
@@ -82,6 +97,7 @@ export async function POST(request: Request) {
       .where(
         and(
           eq(savedWords.userId, session.id),
+          eq(savedWords.language, language),
           sql`translate(lower(${savedWords.word}), 'áàâãäåéèêëíìîïóòôõöøúùûüçñýÿ', 'aaaaaaeeeeiiiioooooouuuucnyy') = ${folded}`
         )
       )
@@ -94,6 +110,7 @@ export async function POST(request: Request) {
           base: known.base,
           kind: known.kind,
           definition: known.definition,
+          translation: known.translation,
         },
         cached: true,
       });
@@ -105,7 +122,7 @@ export async function POST(request: Request) {
       return jsonError(QUOTA_MESSAGES.dicionario, 429, { retryAfter: quota.retryAfterSeconds });
     }
 
-    const entry = await lookupWord(word, context);
+    const entry = await lookupWord(word, context, language);
 
     await db
       .insert(savedWords)
@@ -115,6 +132,8 @@ export async function POST(request: Request) {
         base: entry.base,
         kind: entry.kind,
         definition: entry.definition,
+        translation: entry.translation ?? null,
+        language,
         textId,
       })
       .onConflictDoNothing();

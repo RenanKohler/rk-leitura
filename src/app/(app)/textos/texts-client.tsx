@@ -17,10 +17,12 @@ import {
   LinkButton,
   Pagination,
   Segmented,
+  SelectField,
   Sheet,
   Skeleton,
   TextArea,
 } from "@/components/ui";
+import { LANGUAGES } from "@/lib/language";
 import {
   ArchiveIcon,
   EditIcon,
@@ -213,6 +215,7 @@ export function TextsClient({
           sourceUrl: editing.sourceUrl,
           content: editing.content,
           tags: editing.tags,
+          language: editing.language,
         }
       );
       setEditing(null);
@@ -478,6 +481,18 @@ export function TextsClient({
               rows={12}
               value={editing.content}
               onChange={(event) => setEditing({ ...editing, content: event.target.value })}
+            />
+
+            <SelectField
+              label="Idioma do texto"
+              name="language"
+              hint="Define a voz da leitura em voz alta, o dicionario e o questionario."
+              value={editing.language}
+              options={LANGUAGES.map((language) => ({
+                value: language.code,
+                label: language.name,
+              }))}
+              onChange={(event) => setEditing({ ...editing, language: event.target.value })}
             />
 
             <TagPicker

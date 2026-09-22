@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { texts } from "@/db/schema";
 import { asString, jsonError, readJson, readPageParams, requireSession, serverError } from "@/lib/api";
+import { asLanguage } from "@/lib/language";
 import { loadLibrary } from "@/lib/queries";
 import { asTextScope, asTextStatus, normalizeQuery } from "@/lib/text-filter";
 import { countWords } from "@/lib/reading";
@@ -22,6 +23,8 @@ interface Body {
   tags?: unknown;
   /** Sequencia conhecida de antemao, como na importacao de EPUB. */
   series?: unknown;
+  /** Idioma declarado pela origem; sem ele, ou fora da lista, portugues. */
+  language?: unknown;
 }
 
 export async function GET(request: Request) {
@@ -87,6 +90,7 @@ export async function POST(request: Request) {
           seriesKey: series?.key ?? null,
           seriesTitle: series?.title ?? null,
           chapter: series?.chapter ?? null,
+          language: asLanguage(body?.language),
         })
         .returning();
 

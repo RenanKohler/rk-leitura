@@ -44,6 +44,8 @@ export const texts = pgTable(
     // Nulo quando o texto foi colado manualmente em vez de importado.
     sourceUrl: text("source_url"),
     content: text("content").notNull(),
+    // Idioma do texto (US-67): decide voz, dicionario e questionario.
+    language: text("language").notNull().default("pt-BR"),
     wordCount: integer("word_count").notNull().default(0),
     // Posicao salva para retomar a leitura de onde parou.
     progressIndex: integer("progress_index").notNull().default(0),
@@ -376,14 +378,21 @@ export const savedWords = pgTable(
     /** Classe gramatical no uso daquela frase. */
     kind: text("kind").notNull().default(""),
     definition: text("definition").notNull(),
+    /** Idioma da palavra: o mesmo que o do texto em que ela apareceu. */
+    language: text("language").notNull().default("pt-BR"),
+    /** Traducao para o portugues, quando a palavra e de outro idioma (US-69). */
+    translation: text("translation"),
     /** Texto em que a palavra foi encontrada; nulo se ele for apagado. */
     textId: uuid("text_id").references(() => texts.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("saved_words_user_word_unique").on(
+    // O idioma entra na chave: "pan" em espanhol e em ingles sao palavras
+    // diferentes, com definicoes diferentes.
+    uniqueIndex("saved_words_user_language_word_unique").on(
       table.userId,
+      table.language,
       sql`translate(lower(${table.word}), 'áàâãäåéèêëíìîïóòôõöøúùûüçñýÿ', 'aaaaaaeeeeiiiioooooouuuucnyy')`
     ),
   ]

@@ -8,6 +8,7 @@ import {
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
+  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
 import Link from "next/link";
@@ -196,6 +197,33 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(function 
     </div>
   );
 });
+
+interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
+  label: string;
+  hint?: string;
+  options: readonly { value: string; label: string }[];
+}
+
+/** Lista de escolha com o mesmo rotulo e acabamento dos outros campos. */
+export function SelectField({ label, hint, options, id, className = "", ...props }: SelectFieldProps) {
+  const generated = useId();
+  const inputId = id ?? props.name ?? generated;
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={inputId} className="block text-sm font-medium text-muted">
+        {label}
+      </label>
+      <select id={inputId} className={`${FIELD_BASE} min-h-13 ${className}`} {...props}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {hint ? <p className="text-sm text-faint">{hint}</p> : null}
+    </div>
+  );
+}
 
 export function Alert({ tone = "danger", children }: { tone?: "danger" | "positive"; children: ReactNode }) {
   const styles =

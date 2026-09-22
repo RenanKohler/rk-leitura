@@ -41,6 +41,7 @@ export function ImportCard({ onImported }: { onImported?: () => void }) {
         title: imported.title,
         sourceUrl: imported.sourceUrl,
         content: imported.content,
+        language: imported.language,
       });
 
       setUrl("");

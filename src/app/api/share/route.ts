@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { texts } from "@/db/schema";
 import { asString, jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { ImportError, importFromUrl } from "@/lib/import-text";
+import { asLanguage } from "@/lib/language";
 import { findTextBySourceUrl } from "@/lib/queries";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { countWords } from "@/lib/reading";
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
         content: imported.content,
         wordCount: countWords(imported.content),
         sourcePage: pageFromUrl(finalUrl),
+        language: asLanguage(imported.language),
         ...seriesFields(imported.title, finalUrl),
       })
       .returning({ id: texts.id, title: texts.title });

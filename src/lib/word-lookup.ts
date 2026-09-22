@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { parseEntry, type WordEntry } from "@/lib/dictionary";
+import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
 
 /**
  * Definicao de uma palavra, no sentido em que ela foi usada.
@@ -32,6 +33,11 @@ const EntrySchema = z.object({
   definition: z
     .string()
     .describe("Definicao curta, em uma ou duas frases, no sentido usado no trecho."),
+  translation: z
+    .string()
+    .describe(
+      "Traducao para o portugues no sentido do trecho; vazia quando a palavra ja e portuguesa."
+    ),
 });
 
 const SYSTEM = [
@@ -50,7 +56,26 @@ function client(): Anthropic {
   return new Anthropic({ apiKey });
 }
 
-export async function lookupWord(word: string, context: string): Promise<WordEntry> {
+/**
+ * Pedido ao modelo. Em texto de outro idioma (US-69) a forma de dicionario e a
+ * daquele idioma - "running" vira "run", nao "correr" - e a traducao vem a
+ * parte, com a definicao em portugues.
+ */
+function prompt(word: string, context: string, language: string): string {
+  const base = context
+    ? `Palavra: ${word}\n\nTrecho em que ela aparece: ${context}`
+    : `Palavra: ${word}`;
+  if (language === DEFAULT_LANGUAGE) return base;
+
+  const name = languageName(language).toLowerCase();
+  return `${base}\n\nO texto esta em ${name}. Devolva a forma de dicionario em ${name}, a traducao para o portugues e a definicao em portugues.`;
+}
+
+export async function lookupWord(
+  word: string,
+  context: string,
+  language: string = DEFAULT_LANGUAGE
+): Promise<WordEntry> {
   let response;
   try {
     response = await client().messages.parse({
@@ -58,14 +83,7 @@ export async function lookupWord(word: string, context: string): Promise<WordEnt
       max_tokens: 1000,
       system: SYSTEM,
       output_config: { format: zodOutputFormat(EntrySchema) },
-      messages: [
-        {
-          role: "user",
-          content: context
-            ? `Palavra: ${word}\n\nTrecho em que ela aparece: ${context}`
-            : `Palavra: ${word}`,
-        },
-      ],
+      messages: [{ role: "user", content: prompt(word, context, language) }],
     });
   } catch (error) {
     if (error instanceof LookupUnavailable) throw error;
@@ -86,5 +104,6 @@ export async function lookupWord(word: string, context: string): Promise<WordEnt
   const entry = parseEntry(response.parsed_output, word);
   if (!entry) throw new LookupUnavailable("Nao encontrei esta palavra.");
 
-  return entry;
+  // Palavra portuguesa nao tem traducao a mostrar.
+  return language === DEFAULT_LANGUAGE ? { ...entry, translation: null } : entry;
 }

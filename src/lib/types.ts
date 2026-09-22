@@ -34,6 +34,10 @@ export interface SavedWordItem {
   base: string;
   kind: string;
   definition: string;
+  /** Traducao para o portugues; nula em palavra portuguesa (US-69). */
+  translation: string | null;
+  /** Idioma da palavra. */
+  language: string;
   /** Texto em que ela foi encontrada; nulo quando o texto foi apagado. */
   textId: string | null;
   textTitle: string | null;
@@ -80,6 +84,8 @@ export interface NextUp {
 
 export interface TextDetail extends TextSummary {
   content: string;
+  /** Idioma do texto (US-67), um dos codigos de `lib/language.ts`. */
+  language: string;
   /** Ultima pagina ja trazida da origem; a importacao inicial e a 1. */
   sourcePage: number;
 }
@@ -113,6 +119,7 @@ export interface ImportedText {
   content: string;
   wordCount: number;
   sourceUrl: string;
+  language: string | null;
 }
 
 /** Resposta de POST /api/share: o texto ja existia ou acabou de ser criado. */

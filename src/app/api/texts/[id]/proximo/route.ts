@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { texts } from "@/db/schema";
 import { jsonError, requireSession, serverError } from "@/lib/api";
 import { ImportError, importFromUrl } from "@/lib/import-text";
+import { asLanguage } from "@/lib/language";
 import { findTextBySourceUrl, loadNextUp } from "@/lib/queries";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { countWords } from "@/lib/reading";
@@ -84,6 +85,8 @@ export async function POST(request: Request, { params }: Params) {
         seriesKey: series?.key ?? owner.seriesKey,
         seriesTitle: series?.title ?? owner.seriesTitle,
         chapter: series?.chapter ?? next.chapter ?? null,
+        // A pagina do capitulo pode nao declarar idioma; o da serie vale.
+        language: imported.language ?? asLanguage(owner.language),
       })
       .returning({ id: texts.id, title: texts.title });
 
@@ -107,9 +110,18 @@ export async function POST(request: Request, { params }: Params) {
 async function seriesOf(
   userId: string,
   textId: string
-): Promise<{ found: boolean; seriesKey: string | null; seriesTitle: string | null }> {
+): Promise<{
+  found: boolean;
+  seriesKey: string | null;
+  seriesTitle: string | null;
+  language: string | null;
+}> {
   const [row] = await db
-    .select({ seriesKey: texts.seriesKey, seriesTitle: texts.seriesTitle })
+    .select({
+      seriesKey: texts.seriesKey,
+      seriesTitle: texts.seriesTitle,
+      language: texts.language,
+    })
     .from(texts)
     .where(and(eq(texts.id, textId), eq(texts.userId, userId)))
     .limit(1);
@@ -118,5 +130,6 @@ async function seriesOf(
     found: Boolean(row),
     seriesKey: row?.seriesKey ?? null,
     seriesTitle: row?.seriesTitle ?? null,
+    language: row?.language ?? null,
   };
 }

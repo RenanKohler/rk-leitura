@@ -457,7 +457,8 @@ function Reader({
   }, [wordOpen, togglePlay]);
 
   /* --- voz alta ---------------------------------------------------------- */
-  const speech = useSpeech();
+  // A voz e a do idioma do texto, nao a da interface (US-68).
+  const speech = useSpeech(text.language);
   const narratingRef = useRef(false);
 
   /**
