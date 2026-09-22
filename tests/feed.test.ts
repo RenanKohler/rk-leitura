@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { newestDate, parseFeed, unseenItems } from "@/lib/feed";
+import { advanceWatermark, newestDate, parseFeed, unseenItems } from "@/lib/feed";
 import { afterCheck, MAX_FAILURES, shouldCheck } from "@/lib/follow";
 
 const rss = `<?xml version="1.0"?>
@@ -74,5 +74,30 @@ describe("regras do acompanhamento", () => {
     expect(state.paused).toBe(false);
     expect(afterCheck(state.failures, "nada")).toEqual({ failures: 0, paused: false });
     expect(afterCheck(state.failures, "falha").paused).toBe(true);
+  });
+});
+
+describe("marco do feed com falhas", () => {
+  const d = (day: number) => new Date(`2026-09-${String(day).padStart(2, "0")}T10:00:00Z`);
+
+  it("para antes da primeira falha passageira", () => {
+    const marco = advanceWatermark(d(1), [
+      { published: d(2), retry: false },
+      { published: d(3), retry: true },
+      { published: d(4), retry: false },
+    ]);
+    expect(marco).toEqual(d(2));
+  });
+
+  it("falha definitiva nao segura o marco", () => {
+    const marco = advanceWatermark(d(1), [
+      { published: d(2), retry: false },
+      { published: d(3), retry: false },
+    ]);
+    expect(marco).toEqual(d(3));
+  });
+
+  it("falha passageira no primeiro item mantem o marco anterior", () => {
+    expect(advanceWatermark(d(1), [{ published: d(2), retry: true }])).toEqual(d(1));
   });
 });

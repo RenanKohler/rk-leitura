@@ -103,6 +103,28 @@ export function unseenItems(items: FeedItem[], seenUntil: Date | null, limit: nu
     .slice(0, limit);
 }
 
+/**
+ * Novo marco depois de processar os itens `fresh`, em ordem de publicacao.
+ *
+ * Avanca ate o ultimo item resolvido antes da primeira falha passageira: o
+ * que falhou por a origem estar fora do ar, e o que vem depois dele, volta na
+ * proxima verificacao. Falha definitiva (403, pagina sem texto) conta como
+ * resolvida - tentar de novo daria o mesmo resultado e travaria o feed. Os
+ * ja importados depois da falha nao duplicam: a importacao confere o
+ * endereco antes.
+ */
+export function advanceWatermark(
+  prior: Date | null,
+  processed: { published: Date | null; retry: boolean }[]
+): Date | null {
+  let watermark = prior;
+  for (const item of processed) {
+    if (item.retry) break;
+    if (item.published && (!watermark || item.published > watermark)) watermark = item.published;
+  }
+  return watermark;
+}
+
 /** Data do item mais novo, para a proxima verificacao partir dela. */
 export function newestDate(items: FeedItem[], fallback: Date | null): Date | null {
   return items.reduce<Date | null>(

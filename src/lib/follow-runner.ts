@@ -4,7 +4,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { feeds, seriesFollows, texts } from "@/db/schema";
 import { importNextChapter } from "@/lib/chapter-import";
-import { newestDate, parseFeed, unseenItems } from "@/lib/feed";
+import { advanceWatermark, newestDate, parseFeed, unseenItems } from "@/lib/feed";
 import { afterCheck, MAX_FEED_ITEMS_PER_CHECK, shouldCheck, type CheckOutcome } from "@/lib/follow";
 import { ImportError, importFromUrl } from "@/lib/import-text";
 import { asLanguage } from "@/lib/language";
@@ -134,15 +134,13 @@ async function checkFeed(
   if (!parsed) return { outcome: "falha", seenUntil: feed.seenUntil };
 
   const fresh = unseenItems(parsed.items, feed.seenUntil, MAX_FEED_ITEMS_PER_CHECK);
-  // O limite por verificacao pode deixar itens para a proxima: o marco avanca
-  // so ate o ultimo importado, nao ate o mais novo do feed.
-  const seenUntil =
-    fresh.length > 0 ? newestDate(fresh, feed.seenUntil) : newestDate(parsed.items, feed.seenUntil);
 
   let imported = 0;
   let failed = 0;
+  const processed: { published: Date | null; retry: boolean }[] = [];
   for (const item of fresh) {
     const url = normalizeSourceUrl(item.link);
+    processed.push({ published: item.published, retry: false });
     if (await findTextBySourceUrl(feed.userId, [url])) continue;
 
     try {
@@ -172,11 +170,23 @@ async function checkFeed(
       });
       imported += 1;
     } catch (error) {
-      // Um item que nao importa nao derruba o feed inteiro.
-      if (!(error instanceof ImportError)) throw error;
+      // Um item que nao importa nao derruba o feed inteiro. Falha passageira
+      // (ou inesperada, como queda de rede) segura o marco para tentar de novo.
       failed += 1;
+      const retry = !(error instanceof ImportError) || error.retryable;
+      processed[processed.length - 1]!.retry = retry;
+      if (!(error instanceof ImportError)) {
+        console.error("[acompanhamento] falha no item:", error instanceof Error ? error.message : error);
+      }
     }
   }
+
+  // Sem itens novos, o marco vai ao mais novo do feed; com itens, so ate onde
+  // a importacao resolveu (o limite por verificacao deixa o resto para depois).
+  const seenUntil =
+    fresh.length > 0
+      ? advanceWatermark(feed.seenUntil, processed)
+      : newestDate(parsed.items, feed.seenUntil);
 
   if (imported > 0) {
     report.imported += imported;

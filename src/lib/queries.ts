@@ -934,7 +934,7 @@ export async function loadLibrary(
  * Um capitulo sozinho ainda e um texto solto no cartao: "cap. 1 de 1" nao
  * conta nada que o titulo ja nao diga.
  */
-function toLibraryItem(
+export function toLibraryItem(
   chapters: TextSummary[],
   follows: Map<string, boolean> = new Map()
 ): LibraryItem | null {
@@ -946,10 +946,11 @@ function toLibraryItem(
   const ordered = [...chapters].sort((a, b) => (a.chapter ?? 0) - (b.chapter ?? 0));
   // O capitulo atual e o primeiro que ainda nao acabou; terminada a serie,
   // e o ultimo - e onde a leitura parou de fato.
+  // Capitulo largado (US-79) nao e o atual: o cartao leva ao proximo ativo.
   const pending = ordered.find(
-    (item) => item.wordCount === 0 || item.progressIndex < item.wordCount
+    (item) => !item.abandoned && (item.wordCount === 0 || item.progressIndex < item.wordCount)
   );
-  const current = pending ?? ordered.at(-1)!;
+  const current = pending ?? ordered.filter((item) => !item.abandoned).at(-1) ?? ordered.at(-1)!;
 
   return {
     kind: "serie",

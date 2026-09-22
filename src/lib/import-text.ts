@@ -27,7 +27,9 @@ export interface ImportedDocument {
 export class ImportError extends Error {
   constructor(
     message: string,
-    readonly status: number
+    readonly status: number,
+    /** Falha passageira da origem (5xx, 429, tempo esgotado): vale tentar de novo. */
+    readonly retryable = false
   ) {
     super(message);
     this.name = "ImportError";
@@ -55,10 +57,11 @@ export async function importFromUrl(url: string): Promise<ImportedDocument> {
     // 404 da origem passa adiante: para quem busca o capitulo seguinte, e o
     // sinal de que ele ainda nao foi publicado, e nao uma falha.
     if (error instanceof SafeFetchError) {
-      throw new ImportError(error.message, error.status === 404 ? 404 : 400);
+      const passing = error.status !== undefined && (error.status >= 500 || error.status === 429);
+      throw new ImportError(error.message, error.status === 404 ? 404 : 400, passing);
     }
     if (error instanceof Error && error.name === "TimeoutError") {
-      throw new ImportError("A pagina demorou demais para responder.", 504);
+      throw new ImportError("A pagina demorou demais para responder.", 504, true);
     }
     throw error;
   }
