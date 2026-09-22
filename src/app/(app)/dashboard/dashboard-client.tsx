@@ -9,6 +9,7 @@ import { Card, EmptyState, LinkButton, SectionTitle, Skeleton } from "@/componen
 import { ForwardIcon, LibraryIcon, PlayIcon, SpeedIcon, SparkIcon, WordsIcon } from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
 import { GoalCard } from "@/components/goal-card";
+import { FreeTimeCard } from "@/components/free-time-card";
 import { PlacementTest } from "@/components/placement-test";
 import { apiSend } from "@/lib/client";
 import { WeeklySummaryCard } from "@/components/weekly-summary-card";
@@ -30,12 +31,14 @@ export function DashboardClient({
   goal,
   weekly,
   offerPlacement,
+  pace,
 }: {
   initialOverview: Overview;
   initialTexts: RecentTexts;
   goal: GoalStatus;
   weekly: WeeklySummary | null;
   offerPlacement: boolean;
+  pace: { wpm: number; fromSettings: boolean };
 }) {
   const { user } = useAuth();
   const { settings } = useSettings();
@@ -51,6 +54,7 @@ export function DashboardClient({
 
   const firstName = user?.name?.split(" ")[0] ?? "";
   const [dismissed, setDismissed] = useState(false);
+  const [freeMinutes, setFreeMinutes] = useState<number | null>(null);
 
   return (
     <div className="space-y-6">
@@ -79,7 +83,16 @@ export function DashboardClient({
 
       {weekly ? <WeeklySummaryCard summary={weekly} /> : null}
 
-      <GoalCard initial={goal} />
+      <GoalCard
+        initial={goal}
+        paceWpm={pace.wpm}
+        onSuggest={(minutes) => {
+          setFreeMinutes(minutes);
+          document.getElementById("tempo-livre")?.scrollIntoView({ behavior: "smooth" });
+        }}
+      />
+
+      <FreeTimeCard minutes={freeMinutes} onChoose={setFreeMinutes} />
 
       {inProgress ? <ContinueCard text={inProgress} wpm={settings.baseWpm} /> : null}
 

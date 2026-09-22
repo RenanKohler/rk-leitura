@@ -289,6 +289,8 @@ export interface ReadingSettings {
   lineHeightStep: number;
   warmup: boolean;
   wordEmphasis: boolean;
+  adaptiveRhythm: boolean;
+  askCheckpoints: boolean;
   timezone: string;
   weeklySummarySeenOn: string | null;
   readingMode: ReadingMode;
@@ -304,6 +306,8 @@ export const FALLBACK_SETTINGS: ReadingSettings = {
   lineHeightStep: 2,
   warmup: true,
   wordEmphasis: false,
+  adaptiveRhythm: true,
+  askCheckpoints: false,
   timezone: "UTC",
   weeklySummarySeenOn: null,
   readingMode: "rsvp",

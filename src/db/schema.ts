@@ -80,6 +80,12 @@ export const texts = pgTable(
     // Importado sem pedido do leitor, por serie acompanhada ou feed (US-70,
     // US-71). Enquanto a leitura nao comecar, a biblioteca o marca como "Novo".
     autoImportedAt: timestamp("auto_imported_at", { withTimezone: true }),
+    // Largado no meio (US-79): sai da biblioteca e da fila, as sessoes ficam.
+    abandonedAt: timestamp("abandoned_at", { withTimezone: true }),
+    // Palavras que faltavam ao largar: a base do tempo economizado (US-81).
+    abandonedWords: integer("abandoned_words"),
+    // Maior marco (25, 50, 75) ja respondido em "isso ainda vale?" (US-80).
+    checkpointAnswered: integer("checkpoint_answered").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -114,6 +120,9 @@ export const readingSessions = pgTable(
      * programa de treino: o ritmo ali e o da voz, nao o do olho.
      */
     narrated: boolean("narrated").notNull().default(false),
+    // Tempo previsto quando a leitura veio de uma sugestao por tempo livre
+    // (US-85); a duracao real ao lado dela mede o acerto da previsao.
+    plannedMs: integer("planned_ms"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("reading_sessions_user_created_idx").on(table.userId, table.createdAt.desc())]
@@ -144,6 +153,11 @@ export const speedSettings = pgTable(
      * padrao: o apoio ajuda alguns leitores e atrapalha outros.
      */
     wordEmphasis: boolean("word_emphasis").notNull().default(false),
+    // Ritmo pela densidade do trecho no modo Foco (US-87). Ligado por padrao
+    // porque inclui a pausa em pontuacao que o leitor ja tinha.
+    adaptiveRhythm: boolean("adaptive_rhythm").notNull().default(true),
+    // "Isso ainda vale?" a 25, 50 e 75% do texto (US-80). Desligado por padrao.
+    askCheckpoints: boolean("ask_checkpoints").notNull().default(false),
     /**
      * Fuso do usuario, no formato IANA ("America/Sao_Paulo").
      *

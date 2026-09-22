@@ -60,6 +60,7 @@ const STATUS_OPTIONS: { value: TextStatus; label: string }[] = [
   { value: "nao-iniciados", label: "Nao lidos" },
   { value: "em-andamento", label: "Lendo" },
   { value: "concluidos", label: "Lidos" },
+  { value: "largados", label: "Largados" },
 ];
 
 const SCOPE_OPTIONS: { value: TextScope; label: string }[] = [
@@ -195,6 +196,16 @@ export function TextsClient({
       resource.reload();
     } catch {
       notify(restoring ? "Falha ao desarquivar." : "Falha ao arquivar.", "error");
+    }
+  };
+  /** Retoma um texto largado (US-79): volta a lista na posicao em que parou. */
+  const resumeText = async (text: TextSummary) => {
+    try {
+      await apiSend(`/api/texts/${text.id}/largar`, "DELETE");
+      notify("Texto de volta a biblioteca.", "success");
+      resource.reload();
+    } catch {
+      notify("Falha ao retomar.", "error");
     }
   };
   const [editing, setEditing] = useState<TextDetail | null>(null);
@@ -432,6 +443,7 @@ export function TextsClient({
                   onEdit={() => openEditor(item.text)}
                   onDelete={() => setPendingDelete(item.text)}
                   onToggleArchive={() => void toggleArchive(item.text)}
+                  onResume={() => void resumeText(item.text)}
                   onQueue={() => void toggleQueue(item.text)}
                   onTag={(name) => changeFilter(() => setTagId(tagIdByName(name)))}
                 />
@@ -569,6 +581,7 @@ function TextCard({
   onToggleArchive,
   onQueue,
   onTag,
+  onResume,
 }: {
   text: TextSummary;
   wpm: number;
@@ -578,6 +591,7 @@ function TextCard({
   onToggleArchive: () => void;
   onQueue?: () => void;
   onTag?: (name: string) => void;
+  onResume?: () => void;
 }) {
   const archived = text.archivedAt !== null;
   const percent =
@@ -604,7 +618,12 @@ function TextCard({
           {/* Botoes sempre visiveis: a versao anterior os escondia atras de
               :hover, inalcancavel em tela de toque. */}
           <div className="flex shrink-0 gap-1">
-            {onQueue && !archived ? (
+            {text.abandoned && onResume ? (
+              <IconButton label="Retomar" onClick={onResume}>
+                <RestoreIcon className="size-5" />
+              </IconButton>
+            ) : null}
+            {onQueue && !archived && !text.abandoned ? (
               <IconButton
                 label={text.queuePosition === null ? "Adicionar a fila" : "Tirar da fila"}
                 onClick={onQueue}

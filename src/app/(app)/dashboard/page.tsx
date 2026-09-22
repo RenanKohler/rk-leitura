@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import {
   loadGoalStatus,
   loadOverview,
+  loadPace,
   loadSettings,
   loadTexts,
   loadWeeklySummary,
@@ -23,11 +24,12 @@ export default async function DashboardPage() {
 
   const today = todayIn(settings.timezone);
 
-  const [overview, { items, ...page }, goal, weekly] = await Promise.all([
+  const [overview, { items, ...page }, goal, weekly, pace] = await Promise.all([
     loadOverview(session.id),
     loadTexts(session.id, 1, RECENT_LIMIT),
     loadGoalStatus(session.id),
     loadWeeklySummary(session.id, settings.timezone, today, settings.weeklySummarySeenOn),
+    loadPace(session.id),
   ]);
 
   return (
@@ -37,6 +39,7 @@ export default async function DashboardPage() {
       goal={goal}
       weekly={weekly}
       offerPlacement={!settings.placementSeen}
+      pace={pace}
     />
   );
 }

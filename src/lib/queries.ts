@@ -37,6 +37,14 @@ import { MAX_SAVED_WORDS } from "@/lib/dictionary";
 import { tagKey } from "@/lib/tags";
 import { cleanTitle, nextChapterUrl } from "@/lib/series";
 import { REVIEW_SESSION_SIZE } from "@/lib/vocabulary";
+import {
+  effectiveWpm,
+  fitParagraphEnd,
+  PACE_WINDOW_DAYS,
+  savedMinutes,
+  STALE_QUEUE_DAYS,
+  type Pace,
+} from "@/lib/pacing";
 import { asProgramLength, programStatus, type ProgramStatus } from "@/lib/training";
 import {
   asGoalKind,
@@ -66,6 +74,8 @@ import type {
   LibraryItem,
   NextUp,
   ReviewSession,
+  TimeSuggestion,
+  TimeWindow,
   SavedWordItem,
   SessionSummary,
   SettingsPayload,
@@ -95,6 +105,8 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   lineHeightStep: 2,
   warmup: true,
   wordEmphasis: false,
+  adaptiveRhythm: true,
+  askCheckpoints: false,
   timezone: "UTC",
   weeklySummarySeenOn: null,
   placementWpm: null,
@@ -180,6 +192,8 @@ function settingsFrom(row: typeof speedSettings.$inferSelect | null): SettingsPa
     lineHeightStep: row.lineHeightStep,
     warmup: row.warmup,
     wordEmphasis: row.wordEmphasis,
+    adaptiveRhythm: row.adaptiveRhythm,
+    askCheckpoints: row.askCheckpoints,
     timezone: asTimezone(row.timezone),
     weeklySummarySeenOn: row.weeklySummarySeenOn,
     placementWpm: row.placementWpm,
@@ -210,16 +224,21 @@ const foldedTitle = sql`translate(lower(${texts.title}), ${ACCENTED}, ${UNACCENT
  * Um texto esta em andamento quando saiu do inicio e ainda nao chegou ao fim;
  * concluido quando a posicao alcancou a contagem de palavras. O texto vazio
  * nunca conta como concluido - nao ha o que ler nele.
+ *
+ * Texto largado (US-79) so aparece no filtro proprio: pela posicao ele seria
+ * "em andamento", e e justamente isso que largar quer deixar de dizer.
  */
 function statusCondition(status: TextStatus): SQL | undefined {
-  if (status === "nao-iniciados") return eq(texts.progressIndex, 0);
+  if (status === "largados") return isNotNull(texts.abandonedAt);
+  const active = isNull(texts.abandonedAt);
+  if (status === "nao-iniciados") return and(active, eq(texts.progressIndex, 0));
   if (status === "em-andamento") {
-    return and(gt(texts.progressIndex, 0), lt(texts.progressIndex, texts.wordCount));
+    return and(active, gt(texts.progressIndex, 0), lt(texts.progressIndex, texts.wordCount));
   }
   if (status === "concluidos") {
-    return and(gt(texts.wordCount, 0), sql`${texts.progressIndex} >= ${texts.wordCount}`);
+    return and(active, gt(texts.wordCount, 0), sql`${texts.progressIndex} >= ${texts.wordCount}`);
   }
-  return undefined;
+  return active;
 }
 
 function textsWhere(
@@ -293,12 +312,13 @@ const summaryColumns = {
   queuePosition: texts.queuePosition,
   archivedAt: texts.archivedAt,
   autoImportedAt: texts.autoImportedAt,
+  abandonedAt: texts.abandonedAt,
   createdAt: texts.createdAt,
   updatedAt: texts.updatedAt,
 };
 
 type SummaryRow = {
-  [K in keyof typeof summaryColumns]: K extends "archivedAt" | "autoImportedAt"
+  [K in keyof typeof summaryColumns]: K extends "archivedAt" | "autoImportedAt" | "abandonedAt"
     ? Date | null
     : K extends "createdAt" | "updatedAt"
       ? Date
@@ -316,8 +336,9 @@ async function decorate(items: SummaryRow[]): Promise<TextSummary[]> {
   const ids = items.map((item) => item.id);
   const [marks, labels] = await Promise.all([highlightCounts(ids), tagsByText(ids)]);
 
-  return items.map(({ autoImportedAt, ...item }) => ({
+  return items.map(({ autoImportedAt, abandonedAt, ...item }) => ({
     ...item,
+    abandoned: abandonedAt !== null,
     // "Novo" ate a leitura comecar: e a posicao que diz que ele foi lido.
     fresh: autoImportedAt !== null && item.progressIndex === 0,
     highlights: marks.get(item.id) ?? 0,
@@ -399,6 +420,7 @@ export async function loadOverview(
       .where(
         and(
           eq(texts.userId, userId),
+          isNull(texts.abandonedAt),
           gt(texts.progressIndex, 0),
           lt(texts.progressIndex, texts.wordCount)
         )
@@ -645,12 +667,28 @@ export async function loadWeeklySummary(
       )
     );
 
+  // Tempo economizado (US-81): palavras que faltavam nos textos largados na
+  // semana, no ritmo dela. Retomar o texto limpa a marca e ele sai da conta.
+  const [abandoned] = await db
+    .select({ words: sql<number>`coalesce(sum(${texts.abandonedWords}), 0)::int` })
+    .from(texts)
+    .where(
+      and(
+        eq(texts.userId, userId),
+        isNotNull(texts.abandonedAt),
+        sql`to_char(${texts.abandonedAt} at time zone ${timezone}, 'YYYY-MM-DD') >= ${lastMonday}`,
+        sql`to_char(${texts.abandonedAt} at time zone ${timezone}, 'YYYY-MM-DD') < ${thisMonday}`
+      )
+    );
+  const savedWpm = last.wpm > 0 ? last.wpm : ((await loadSettings(userId))?.baseWpm ?? 0);
+
   return {
     monday: lastMonday,
     minutes: last.minutes,
     words: last.words,
     wpm: last.wpm,
     texts: finished?.value ?? 0,
+    savedMinutes: savedMinutes(abandoned?.words ?? 0, savedWpm),
     minutesChange: percentChange(prior.minutes, last.minutes),
     wpmChange: percentChange(prior.wpm, last.wpm),
   };
@@ -663,7 +701,7 @@ function percentChange(before: number, after: number): number | null {
 }
 
 export async function loadText(userId: string, id: string): Promise<TextDetail | null> {
-  const [[text], [marks], labels] = await Promise.all([
+  const [[text], [marks], labels, [lastSession]] = await Promise.all([
     db
       .select()
       .from(texts)
@@ -674,6 +712,13 @@ export async function loadText(userId: string, id: string): Promise<TextDetail |
       .from(highlights)
       .where(and(eq(highlights.userId, userId), eq(highlights.textId, id))),
     tagsByText([id]),
+    // A sessao e gravada ao fim da leitura: o horario dela e quando o texto
+    // foi lido pela ultima vez. `updatedAt` do texto nao serve - muda ao
+    // editar titulo ou etiquetas (US-77).
+    db
+      .select({ at: sql<Date | null>`max(${readingSessions.createdAt})` })
+      .from(readingSessions)
+      .where(and(eq(readingSessions.userId, userId), eq(readingSessions.textId, id))),
   ]);
 
   if (!text) return null;
@@ -695,6 +740,9 @@ export async function loadText(userId: string, id: string): Promise<TextDetail |
     queuePosition: text.queuePosition,
     archivedAt: text.archivedAt ? isoDate(text.archivedAt) : null,
     fresh: text.autoImportedAt !== null && text.progressIndex === 0,
+    abandoned: text.abandonedAt !== null,
+    lastReadAt: lastSession?.at ? isoDate(lastSession.at) : null,
+    checkpointAnswered: text.checkpointAnswered,
     createdAt: isoDate(text.createdAt),
     updatedAt: isoDate(text.updatedAt),
   };
@@ -984,6 +1032,7 @@ async function nextInQueue(userId: string, exceptId: string): Promise<NextUp | n
         eq(texts.userId, userId),
         isNotNull(texts.queuePosition),
         isNull(texts.archivedAt),
+        isNull(texts.abandonedAt),
         sql`${texts.id} <> ${exceptId}`
       )
     )
@@ -999,7 +1048,12 @@ export async function loadQueue(userId: string): Promise<TextSummary[]> {
     .select(summaryColumns)
     .from(texts)
     .where(
-      and(eq(texts.userId, userId), isNotNull(texts.queuePosition), isNull(texts.archivedAt))
+      and(
+        eq(texts.userId, userId),
+        isNotNull(texts.queuePosition),
+        isNull(texts.archivedAt),
+        isNull(texts.abandonedAt)
+      )
     )
     .orderBy(asc(texts.queuePosition));
 
@@ -1145,4 +1199,145 @@ export async function loadReview(userId: string): Promise<ReviewSession> {
     nextReviewOn: upcoming?.day ?? null,
     totalWords: all?.value ?? 0,
   };
+}
+
+/* --- ritmo real e tempo livre (US-83 a US-86) ---------------------------- */
+
+/** Ritmo real do leitor, a partir das sessoes dos ultimos 30 dias (US-83). */
+export async function loadPace(userId: string): Promise<Pace> {
+  const since = new Date(Date.now() - PACE_WINDOW_DAYS * 86_400_000);
+  const [settings, samples] = await Promise.all([
+    loadSettings(userId),
+    db
+      .select({
+        wpm: readingSessions.wpm,
+        wordsRead: readingSessions.wordsRead,
+        narrated: readingSessions.narrated,
+        createdAt: readingSessions.createdAt,
+      })
+      .from(readingSessions)
+      .where(and(eq(readingSessions.userId, userId), gt(readingSessions.createdAt, since)))
+      .orderBy(desc(readingSessions.createdAt))
+      .limit(60),
+  ]);
+  return effectiveWpm(samples, settings?.baseWpm ?? DEFAULT_SETTINGS.baseWpm);
+}
+
+/** Candidatos alem da fila: os textos mais recentes da biblioteca. */
+const WINDOW_RECENT = 20;
+const WINDOW_SUGGESTIONS = 3;
+
+/**
+ * Leituras que cabem no tempo informado (US-84).
+ *
+ * A fila vem antes da biblioteca e, em cada uma, primeiro o que termina
+ * dentro do tempo. O trecho sempre acaba no fim de um paragrafo; texto em que
+ * nem o paragrafo atual cabe nao e sugerido.
+ */
+export async function loadTimeWindow(userId: string, minutes: number): Promise<TimeWindow> {
+  const [pace, settings] = await Promise.all([loadPace(userId), loadSettings(userId)]);
+  const warmup = settings?.warmup ?? true;
+  const budget = minutes * 60_000;
+
+  const readable = and(
+    eq(texts.userId, userId),
+    isNull(texts.archivedAt),
+    isNull(texts.abandonedAt),
+    gt(texts.wordCount, 0),
+    lt(texts.progressIndex, texts.wordCount)
+  );
+  const columns = {
+    id: texts.id,
+    title: texts.title,
+    content: texts.content,
+    progressIndex: texts.progressIndex,
+    wordCount: texts.wordCount,
+    queuePosition: texts.queuePosition,
+  };
+
+  const [queued, recent] = await Promise.all([
+    db
+      .select(columns)
+      .from(texts)
+      .where(and(readable, isNotNull(texts.queuePosition)))
+      .orderBy(asc(texts.queuePosition)),
+    db
+      .select(columns)
+      .from(texts)
+      .where(and(readable, isNull(texts.queuePosition)))
+      .orderBy(desc(texts.updatedAt))
+      .limit(WINDOW_RECENT),
+  ]);
+
+  const fit = (rows: typeof queued, source: TimeSuggestion["source"]): TimeSuggestion[] =>
+    rows.flatMap((row) => {
+      const { paragraphs } = parseParagraphs(row.content);
+      const slice = fitParagraphEnd(paragraphs, row.progressIndex, budget, pace.wpm, warmup);
+      if (!slice) return [];
+      return [
+        {
+          textId: row.id,
+          title: row.title,
+          source,
+          from: row.progressIndex,
+          end: slice.end,
+          predictedMs: Math.round(slice.predictedMs),
+          finishes: slice.end >= row.wordCount,
+        },
+      ];
+    });
+
+  const byFinish = (list: TimeSuggestion[]) =>
+    [...list].sort((a, b) => Number(b.finishes) - Number(a.finishes));
+
+  return {
+    pace,
+    minutes,
+    suggestions: [...byFinish(fit(queued, "fila")), ...byFinish(fit(recent, "biblioteca"))].slice(
+      0,
+      WINDOW_SUGGESTIONS
+    ),
+  };
+}
+
+/**
+ * Palavras que o leitor ja consultou e ainda nao marcou como aprendidas, no
+ * idioma do texto: o modo Foco da mais tempo a elas (US-88).
+ */
+export async function loadKnownWords(userId: string, language: string): Promise<string[]> {
+  const rows = await db
+    .select({ word: savedWords.word, base: savedWords.base })
+    .from(savedWords)
+    .where(
+      and(
+        eq(savedWords.userId, userId),
+        eq(savedWords.language, language),
+        isNull(savedWords.learnedAt)
+      )
+    )
+    .limit(MAX_SAVED_WORDS);
+  return [...new Set(rows.flatMap((row) => [row.word, row.base]))];
+}
+
+/* --- fila parada (US-82) -------------------------------------------------- */
+
+/**
+ * Textos da fila sem leitura ha mais de 30 dias. Sem sessao nenhuma, conta a
+ * data em que entrou na biblioteca.
+ */
+export async function loadStaleQueue(userId: string): Promise<string[]> {
+  const cutoff = new Date(Date.now() - STALE_QUEUE_DAYS * 86_400_000);
+  const rows = await db
+    .select({ id: texts.id })
+    .from(texts)
+    .where(
+      and(
+        eq(texts.userId, userId),
+        isNotNull(texts.queuePosition),
+        isNull(texts.archivedAt),
+        isNull(texts.abandonedAt),
+        sql`coalesce((select max(${readingSessions.createdAt}) from ${readingSessions} where ${readingSessions.textId} = ${texts.id}), ${texts.createdAt}) < ${cutoff}`
+      )
+    );
+  return rows.map((row) => row.id);
 }

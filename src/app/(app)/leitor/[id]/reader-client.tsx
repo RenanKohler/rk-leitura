@@ -61,6 +61,14 @@ import {
   type StoredHighlight,
 } from "@/lib/highlights";
 import type { ContinuationResult, HighlightItem, NextUp, TextDetail } from "@/lib/types";
+import {
+  checkpointCrossed,
+  chunkFactor,
+  highlightsBefore,
+  normalizedWeights,
+  recapWindow,
+  wordKeyForPace,
+} from "@/lib/pacing";
 
 export const MODE_HINTS: Record<ReadingMode, string> = {
   rsvp: "Uma palavra por vez no centro da tela, com a letra de fixacao destacada.",
@@ -76,26 +84,21 @@ const SCREENFUL_WORDS = 110;
 /** Abaixo disso, retomar nao reinicia a rampa de aquecimento. */
 const SHORT_PAUSE_MS = 3000;
 
-export function ReaderClient({
-  text,
-  highlights,
-  startAt,
-  nextUp,
-}: {
+interface ReaderProps {
   text: TextDetail;
   highlights: HighlightItem[];
   startAt?: number;
   nextUp: NextUp | null;
-}) {
-  return (
-    <Reader
-      key={text.id}
-      text={text}
-      highlights={highlights}
-      startAt={startAt}
-      nextUp={nextUp}
-    />
-  );
+  /** Fim do trecho sugerido por tempo livre (US-85). */
+  stopAt?: number;
+  /** Tempo previsto para o trecho sugerido. */
+  plannedMs?: number;
+  /** Palavras ja consultadas, que ganham tempo no modo Foco (US-88). */
+  knownWords?: string[];
+}
+
+export function ReaderClient(props: ReaderProps) {
+  return <Reader key={props.text.id} {...props} />;
 }
 
 function Reader({
@@ -103,12 +106,10 @@ function Reader({
   highlights,
   startAt,
   nextUp,
-}: {
-  text: TextDetail;
-  highlights: HighlightItem[];
-  startAt?: number;
-  nextUp: NextUp | null;
-}) {
+  stopAt,
+  plannedMs,
+  knownWords = [],
+}: ReaderProps) {
   const { settings, save } = useSettings();
   const notify = useToast();
   const { online } = useOffline();
@@ -122,6 +123,16 @@ function Reader({
   // paragrafos dao a forma na tela.
   const { words, paragraphs } = useMemo(() => parseParagraphs(text.content), [text.content]);
   const total = words.length;
+
+  // Ritmo adaptativo (US-87, US-88): o peso de cada palavra, normalizado para
+  // a media do texto continuar na velocidade escolhida. Desligado, todo bloco
+  // dura o mesmo.
+  const adaptive = settings.adaptiveRhythm;
+  const weights = useMemo(() => {
+    if (!adaptive) return null;
+    const known = new Set(knownWords.map(wordKeyForPace));
+    return normalizedWeights(words, known);
+  }, [adaptive, words, knownWords]);
 
   // `startAt` vem da lista de destaques: abrir um destaque posiciona a
   // leitura nele, em vez de onde a leitura tinha parado.
@@ -138,6 +149,19 @@ function Reader({
   const pausedAtRef = useRef(0);
   const [showSettings, setShowSettings] = useState(false);
   const [finished, setFinished] = useState(false);
+
+  // Recapitulacao ao retomar um texto parado (US-77). Decidida uma vez, na
+  // abertura: e o intervalo desde a ultima leitura que conta, nao o de agora.
+  const [recap, setRecap] = useState<{ from: number; to: number } | null>(() =>
+    recapWindow(
+      words,
+      text.progressIndex,
+      text.lastReadAt ? new Date(text.lastReadAt) : null,
+      new Date(),
+      startAt !== undefined
+    )
+  );
+  const [recapPlaying, setRecapPlaying] = useState(false);
 
   const wpm = settings.baseWpm;
   const chunkSize = settings.wordsPerChunk;
@@ -296,6 +320,12 @@ function Reader({
     [text.id]
   );
 
+  /**
+   * Tempo previsto do trecho sugerido (US-85). Vai so na primeira sessao
+   * gravada: a que cobre o trecho; o que se le depois dele nao foi previsto.
+   */
+  const plannedRef = useRef(plannedMs);
+
   /** Grava a sessao e zera os acumuladores. Devolve o que foi contabilizado. */
   const flushSession = useCallback(
     (completed: boolean, useKeepalive = false, narrated = false) => {
@@ -310,6 +340,9 @@ function Reader({
         return { durationMs: duration, wordsRead };
       }
 
+      const planned = plannedRef.current;
+      plannedRef.current = undefined;
+
       void fetch("/api/reading-sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -319,6 +352,7 @@ function Reader({
           durationMs: duration,
           completed,
           narrated,
+          plannedMs: planned,
         }),
         keepalive: useKeepalive,
       }).catch(() => undefined);
@@ -327,6 +361,18 @@ function Reader({
     },
     [text.id, elapsedMs]
   );
+
+  /* --- paradas no meio da leitura ---------------------------------------- */
+  // Fim do trecho sugerido por tempo livre (US-85) e "isso ainda vale?"
+  // (US-80). As duas pausam a leitura e abrem uma folha.
+  const initialWpmRef = useRef(wpm);
+  const stopReachedRef = useRef(false);
+  const [stopInfo, setStopInfo] = useState<{ realMs: number; speedChanged: boolean } | null>(
+    null
+  );
+  const answeredRef = useRef(text.checkpointAnswered);
+  const [checkpoint, setCheckpoint] = useState<number | null>(null);
+  const askCheckpoints = settings.askCheckpoints && !text.abandoned;
 
   /* --- motor de avanco --------------------------------------------------- */
   useEffect(() => {
@@ -350,7 +396,8 @@ function Reader({
     const delay =
       mode === "page"
         ? (60_000 / wpm) * step
-        : chunkDurationMs(wpm, chunkSize, factor) * pauseFactor(chunk);
+        : chunkDurationMs(wpm, chunkSize, factor) *
+          (weights ? chunkFactor(weights, index, chunk.length) : 1);
 
     const timer = setTimeout(() => {
       wordsReadRef.current += Math.min(step, total - index);
@@ -366,6 +413,30 @@ function Reader({
         setSummary(flushSession(true));
       } else {
         setIndex(next);
+
+        if (stopAt !== undefined && !stopReachedRef.current && next >= stopAt) {
+          // O real e o tempo lido desde a abertura, antes de o flush zera-lo.
+          stopReachedRef.current = true;
+          const realMs = elapsedMs();
+          pausedAtRef.current = Date.now();
+          setPlaying(false);
+          saveProgress(next);
+          flushSession(false);
+          setStopInfo({ realMs, speedChanged: wpm !== initialWpmRef.current });
+          return;
+        }
+
+        const marker = askCheckpoints
+          ? checkpointCrossed(next, total, answeredRef.current)
+          : null;
+        if (marker !== null) {
+          elapsedRef.current += startedAtRef.current ? Date.now() - startedAtRef.current : 0;
+          startedAtRef.current = null;
+          pausedAtRef.current = Date.now();
+          setPlaying(false);
+          saveProgress(next);
+          setCheckpoint(marker);
+        }
       }
     }, delay);
 
@@ -380,6 +451,10 @@ function Reader({
     mode,
     pageEnd,
     warmup,
+    weights,
+    stopAt,
+    askCheckpoints,
+    elapsedMs,
     saveProgress,
     flushSession,
   ]);
@@ -619,6 +694,68 @@ function Reader({
     saveProgress(0);
   }, [saveProgress]);
 
+  /* --- recapitulacao, desistencia e parada prevista ------------------------ */
+  const recapMarks = useMemo(
+    () =>
+      highlightsBefore(marks, text.progressIndex).map((mark) => ({
+        text: words.slice(mark.start, mark.end).join(" "),
+        note: mark.note,
+      })),
+    [marks, text.progressIndex, words]
+  );
+
+  /** Fim da recapitulacao: segue da posicao salva, sem a rampa de inicio. */
+  const endRecap = useCallback(
+    (continueReading: boolean) => {
+      setRecap(null);
+      setRecapPlaying(false);
+      if (!continueReading) return;
+      pausedAtRef.current = Date.now();
+      warmupOriginRef.current = stateRef.current.index - WARMUP_WORDS;
+      togglePlay();
+    },
+    [togglePlay]
+  );
+
+  const [abandoning, setAbandoning] = useState(false);
+  const [confirmAbandon, setConfirmAbandon] = useState(false);
+  const concluded = text.wordCount > 0 && text.progressIndex >= text.wordCount;
+
+  /** Larga o texto (US-79): sai da biblioteca e da fila, volta a lista. */
+  const abandon = useCallback(async () => {
+    setAbandoning(true);
+    saveProgress(stateRef.current.index);
+    try {
+      await apiSend(`/api/texts/${text.id}/largar`, "POST");
+      notify("Texto largado. Ele fica no filtro Largados da biblioteca.", "success");
+      router.push("/textos");
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "Nao consegui largar.", "error");
+      setAbandoning(false);
+    }
+  }, [text.id, saveProgress, notify, router]);
+
+  const [resumed, setResumed] = useState(false);
+  const resume = useCallback(async () => {
+    try {
+      await apiSend(`/api/texts/${text.id}/largar`, "DELETE");
+      setResumed(true);
+      notify("Texto de volta a biblioteca.", "success");
+    } catch {
+      notify("Nao consegui retomar.", "error");
+    }
+  }, [text.id, notify]);
+
+  /** "Continuar" num marco: grava para nao perguntar de novo e retoma. */
+  const keepReading = useCallback(() => {
+    const marker = checkpoint;
+    setCheckpoint(null);
+    if (marker === null) return;
+    answeredRef.current = Math.max(answeredRef.current, marker);
+    void apiSend(`/api/texts/${text.id}/marco`, "POST", { marker }).catch(() => undefined);
+    togglePlay();
+  }, [checkpoint, text.id, togglePlay]);
+
   /* --- teclado (desktop) -------------------------------------------------- */
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -722,7 +859,15 @@ function Reader({
       </header>
 
       <main className="flex flex-1 flex-col">
-        {finished ? (
+        {recapPlaying && recap ? (
+          <RecapPlayer
+            marks={recapMarks}
+            words={words.slice(recap.from, recap.to)}
+            wpm={wpm}
+            onDone={() => endRecap(true)}
+            onSkip={() => endRecap(true)}
+          />
+        ) : finished ? (
           <Finished
             total={total}
             durationMs={summary?.durationMs ?? 0}
@@ -779,6 +924,36 @@ function Reader({
         )}
       </main>
 
+      {text.abandoned && !resumed ? (
+        <div className="sticky bottom-0 z-30 px-4 pb-2">
+          <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-float">
+            <p className="flex-1 text-sm">Voce largou este texto. Ele esta fora da biblioteca.</p>
+            <Button size="sm" onClick={() => void resume()}>
+              Retomar
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {recap && !recapPlaying && !playing && !finished ? (
+        <div className="sticky bottom-0 z-30 px-4 pb-2">
+          <div className="mx-auto max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
+            <div>
+              <p className="font-medium">Recapitular o contexto</p>
+              <p className="text-sm text-muted">
+                Faz tempo desde a ultima leitura. Reveja o trecho anterior antes de continuar.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => endRecap(false)}>
+                Pular
+              </Button>
+              <Button onClick={() => setRecapPlaying(true)}>Recapitular</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {speech.error ? (
         <div className="sticky bottom-0 z-30 px-4 pb-2">
           <Alert>{speech.error}</Alert>
@@ -799,7 +974,7 @@ function Reader({
         </div>
       ) : null}
 
-      {!finished ? (
+      {!finished && !recapPlaying ? (
         <footer className="pb-safe sticky bottom-0 border-t border-border bg-bg/95 backdrop-blur">
           <div className="mx-auto w-full max-w-3xl px-4 py-3">
             <div className="relative flex items-center justify-center gap-3">
@@ -957,7 +1132,105 @@ function Reader({
             <RestartIcon className="size-5" />
             Comecar do inicio
           </Button>
+
+          {/* Concluido nao se larga; largado ja esta fora da lista. */}
+          {!concluded && !finished && !text.abandoned ? (
+            <Button
+              variant="ghost"
+              full
+              onClick={() => {
+                setShowSettings(false);
+                setConfirmAbandon(true);
+              }}
+            >
+              Largar texto
+            </Button>
+          ) : null}
         </div>
+      </Sheet>
+
+      <Sheet
+        open={confirmAbandon}
+        onClose={() => setConfirmAbandon(false)}
+        title="Largar este texto?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted">
+            Ele sai da biblioteca e da fila e fica no filtro Largados. O que voce ja leu continua
+            contando na meta e no historico, e da para retomar depois.
+          </p>
+          <Button variant="danger" size="lg" full loading={abandoning} onClick={() => void abandon()}>
+            Largar texto
+          </Button>
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={checkpoint !== null}
+        onClose={keepReading}
+        title="Isso ainda vale?"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted">
+            {`Voce leu ${checkpoint ?? 0}% de "${text.title}". Se o texto deixou de interessar, largar agora economiza o resto do tempo.`}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="secondary"
+              size="lg"
+              onClick={() => {
+                setCheckpoint(null);
+                setConfirmAbandon(true);
+              }}
+            >
+              Largar
+            </Button>
+            <Button size="lg" onClick={keepReading}>
+              Continuar
+            </Button>
+          </div>
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={stopInfo !== null}
+        onClose={() => setStopInfo(null)}
+        title="Fim do trecho previsto"
+      >
+        {stopInfo ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <Card className="p-3">
+                <p className="tabular text-xl font-semibold">{formatClock(plannedMs ?? 0)}</p>
+                <p className="text-sm text-muted">previsto</p>
+              </Card>
+              <Card className="p-3">
+                <p className="tabular text-xl font-semibold">{formatClock(stopInfo.realMs)}</p>
+                <p className="text-sm text-muted">real</p>
+              </Card>
+            </div>
+            {stopInfo.speedChanged ? (
+              <p className="text-sm text-muted">Velocidade alterada durante a leitura.</p>
+            ) : null}
+            <div className="grid grid-cols-2 gap-2">
+              <Link
+                href="/textos"
+                className="inline-flex min-h-13 items-center justify-center rounded-full border border-border font-medium text-muted"
+              >
+                Parar aqui
+              </Link>
+              <Button
+                size="lg"
+                onClick={() => {
+                  setStopInfo(null);
+                  togglePlay();
+                }}
+              >
+                Continuar
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Sheet>
     </div>
   );
@@ -1526,18 +1799,63 @@ function Finished({
 }
 
 /**
- * Pontuacao e palavras longas ganham um respiro extra: sem isso o fim de frase
- * passa no mesmo ritmo do meio dela e a compreensao cai.
+ * Recapitulacao (US-77, US-78): os destaques anteriores, cada um com a nota,
+ * e depois as ultimas palavras lidas, uma por vez.
+ *
+ * Componente proprio de proposito: nao toca na posicao nem no cronometro do
+ * leitor, entao nada do que passa aqui e gravado como progresso ou sessao.
  */
-function pauseFactor(chunk: string[]): number {
-  if (chunk.length === 0) return 1;
-  const last = chunk[chunk.length - 1]!;
-  const longest = Math.max(...chunk.map((word) => word.length));
+function RecapPlayer({
+  marks,
+  words,
+  wpm,
+  onDone,
+  onSkip,
+}: {
+  marks: { text: string; note: string | null }[];
+  words: string[];
+  wpm: number;
+  onDone: () => void;
+  onSkip: () => void;
+}) {
+  const [step, setStep] = useState(0);
+  const total = marks.length + words.length;
+  const mark = step < marks.length ? marks[step] : null;
+  const word = mark ? null : words[step - marks.length];
 
-  let factor = 1;
-  if (/[.!?]["')\]]?$/.test(last)) factor += 0.6;
-  else if (/[,;:]["')\]]?$/.test(last)) factor += 0.3;
-  if (longest > 12) factor += 0.25;
+  useEffect(() => {
+    if (step >= total) {
+      onDone();
+      return;
+    }
+    // Destaque fica o tempo de ser lido, com um minimo para a nota; a palavra,
+    // o tempo do ritmo sem a rampa - a recapitulacao ja e o aquecimento.
+    const perWord = 60_000 / Math.max(wpm, 1);
+    const delay = mark
+      ? Math.max(2_000, mark.text.split(/\s+/).length * perWord)
+      : perWord;
+    const timer = setTimeout(() => setStep((current) => current + 1), delay);
+    return () => clearTimeout(timer);
+  }, [step, total, mark, wpm, onDone]);
 
-  return factor;
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 text-center">
+      <p className="text-sm font-medium text-muted">
+        {mark ? "Seus destaques ate aqui" : "Onde voce parou"}
+      </p>
+      {mark ? (
+        <div className="w-full max-w-2xl space-y-3">
+          <p className="reader-prose text-left">&ldquo;{mark.text}&rdquo;</p>
+          {mark.note ? <p className="text-left text-sm text-muted">{mark.note}</p> : null}
+        </div>
+      ) : (
+        <p className="reader-word flex min-h-[4.5rem] items-center justify-center py-6 text-[clamp(2rem,11vw,4rem)] font-semibold">
+          {word ? <OrpWord word={word} /> : null}
+        </p>
+      )}
+      <Button variant="ghost" onClick={onSkip}>
+        Pular a recapitulacao
+      </Button>
+    </div>
+  );
 }

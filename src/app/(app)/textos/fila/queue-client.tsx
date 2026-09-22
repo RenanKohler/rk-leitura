@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { apiSend } from "@/lib/client";
 import { useSettings, useToast } from "@/components/providers";
-import { Button, Card, EmptyState, LinkButton } from "@/components/ui";
+import { Button, Card, EmptyState, LinkButton, Sheet } from "@/components/ui";
 import { BackIcon, DragIcon, QueueIcon, TrashIcon } from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
+import { STALE_QUEUE_DAYS } from "@/lib/pacing";
 import type { TextSummary } from "@/lib/types";
 
 /**
@@ -17,10 +18,70 @@ import type { TextSummary } from "@/lib/types";
  * de mover o item. Os botoes de subir e descer ficam ao lado: teclado e
  * leitor de tela nao tem como arrastar.
  */
-export function QueueClient({ initial }: { initial: TextSummary[] }) {
+/** Quanto tempo o "Desfazer" da falencia fica disponivel (US-82). */
+const UNDO_MS = 10_000;
+
+export function QueueClient({ initial, stale = [] }: { initial: TextSummary[]; stale?: string[] }) {
   const { settings } = useSettings();
   const notify = useToast();
   const [items, setItems] = useState(initial);
+
+  // Falencia da fila (US-82): os parados ha mais de 30 dias, revisados e
+  // largados de uma vez, com um "Desfazer" por alguns segundos.
+  const [staleIds, setStaleIds] = useState(stale);
+  const staleItems = items.filter((item) => staleIds.includes(item.id));
+  const [reviewing, setReviewing] = useState(false);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [bankrupting, setBankrupting] = useState(false);
+  const [undo, setUndo] = useState<{
+    restore: { id: string; queuePosition: number }[];
+    before: TextSummary[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!undo) return;
+    const timer = setTimeout(() => setUndo(null), UNDO_MS);
+    return () => clearTimeout(timer);
+  }, [undo]);
+
+  const openReview = () => {
+    setChosen(staleItems.map((item) => item.id));
+    setReviewing(true);
+  };
+
+  const bankrupt = async () => {
+    if (chosen.length === 0 || bankrupting) return;
+    setBankrupting(true);
+    const before = orderRef.current;
+    try {
+      const result = await apiSend<{
+        abandoned: number;
+        restore: { id: string; queuePosition: number }[];
+      }>("/api/fila/largar", "POST", { ids: chosen });
+      apply(before.filter((item) => !chosen.includes(item.id)));
+      setStaleIds((current) => current.filter((id) => !chosen.includes(id)));
+      setUndo({ restore: result.restore, before });
+      setReviewing(false);
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "Nao consegui largar.", "error");
+    } finally {
+      setBankrupting(false);
+    }
+  };
+
+  const undoBankrupt = async () => {
+    if (!undo) return;
+    const snapshot = undo;
+    setUndo(null);
+    try {
+      await apiSend("/api/fila/retomar", "POST", { restore: snapshot.restore });
+      apply(snapshot.before);
+      setStaleIds(stale);
+      notify("Textos de volta a fila.", "success");
+    } catch {
+      notify("Nao consegui desfazer.", "error");
+    }
+  };
   const [dragging, setDragging] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -123,6 +184,77 @@ export function QueueClient({ initial }: { initial: TextSummary[] }) {
           </p>
         </div>
       </header>
+
+      {undo ? (
+        <Card className="flex items-center gap-3 p-3">
+          <p className="flex-1 text-sm" role="status">
+            {undo.restore.length === 1
+              ? "1 texto largado."
+              : `${undo.restore.length} textos largados.`}
+          </p>
+          <Button size="sm" variant="secondary" onClick={() => void undoBankrupt()}>
+            Desfazer
+          </Button>
+        </Card>
+      ) : null}
+
+      {staleItems.length > 0 ? (
+        <Card className="space-y-3 p-4">
+          <p className="text-sm">
+            {staleItems.length === 1
+              ? `1 texto parado ha mais de ${STALE_QUEUE_DAYS} dias.`
+              : `${staleItems.length} textos parados ha mais de ${STALE_QUEUE_DAYS} dias.`}
+          </p>
+          <Button variant="secondary" full onClick={openReview}>
+            Revisar e largar
+          </Button>
+        </Card>
+      ) : null}
+
+      <Sheet
+        open={reviewing}
+        onClose={() => setReviewing(false)}
+        title="Largar textos parados"
+        footer={
+          <Button
+            variant="danger"
+            size="lg"
+            full
+            loading={bankrupting}
+            disabled={chosen.length === 0}
+            onClick={() => void bankrupt()}
+          >
+            {chosen.length === 1 ? "Largar 1 texto" : `Largar ${chosen.length} textos`}
+          </Button>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-muted">
+            Saem da fila e da biblioteca e ficam no filtro Largados. Desmarque o que ainda quer ler.
+          </p>
+          <ul className="space-y-1">
+            {staleItems.map((item) => (
+              <li key={item.id}>
+                <label className="flex min-h-11 items-center gap-3">
+                  <input
+                    type="checkbox"
+                    className="size-5 accent-[var(--color-accent)]"
+                    checked={chosen.includes(item.id)}
+                    onChange={(event) =>
+                      setChosen((current) =>
+                        event.target.checked
+                          ? [...current, item.id]
+                          : current.filter((id) => id !== item.id)
+                      )
+                    }
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm">{item.title}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Sheet>
 
       {items.length === 0 ? (
         <Card>

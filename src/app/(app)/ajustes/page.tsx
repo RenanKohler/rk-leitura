@@ -148,6 +148,36 @@ export default function SettingsPage() {
             : "A leitura comeca direto na velocidade configurada."}
         </p>
 
+        <Segmented<"adaptativo" | "uniforme">
+          label="Ritmo no modo Foco"
+          value={settings.adaptiveRhythm ? "adaptativo" : "uniforme"}
+          onChange={(value) => void update({ adaptiveRhythm: value === "adaptativo" })}
+          options={[
+            { value: "adaptativo", label: "Adaptativo" },
+            { value: "uniforme", label: "Uniforme" },
+          ]}
+        />
+        <p className="text-sm text-faint">
+          {settings.adaptiveRhythm
+            ? "Palavras curtas passam mais rapido; numeros, nomes, palavras longas e fins de frase ficam mais tempo. A velocidade media nao muda."
+            : "Todas as palavras ficam o mesmo tempo na tela, sem pausa em pontuacao."}
+        </p>
+
+        <Segmented<"perguntar" | "nao">
+          label="Perguntar se o texto ainda vale"
+          value={settings.askCheckpoints ? "perguntar" : "nao"}
+          onChange={(value) => void update({ askCheckpoints: value === "perguntar" })}
+          options={[
+            { value: "nao", label: "Nao perguntar" },
+            { value: "perguntar", label: "Perguntar" },
+          ]}
+        />
+        <p className="text-sm text-faint">
+          {settings.askCheckpoints
+            ? "Em textos longos, a leitura pausa a 25, 50 e 75% e pergunta se vale continuar."
+            : "A leitura segue ate o fim sem perguntar."}
+        </p>
+
         <Segmented<"normal" | "enfase">
           label="Enfase no inicio das palavras"
           value={settings.wordEmphasis ? "enfase" : "normal"}

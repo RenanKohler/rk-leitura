@@ -25,6 +25,8 @@ export interface TextSummary {
   archivedAt: string | null;
   /** Importado sozinho (serie acompanhada ou feed) e ainda nao aberto. */
   fresh: boolean;
+  /** Largado no meio (US-79): fora da lista principal e da fila. */
+  abandoned: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -114,6 +116,10 @@ export interface NextUp {
 
 export interface TextDetail extends TextSummary {
   content: string;
+  /** Fim da ultima sessao de leitura deste texto; nulo se nunca lido (US-77). */
+  lastReadAt: string | null;
+  /** Maior marco de "isso ainda vale?" ja respondido: 0, 25, 50 ou 75 (US-80). */
+  checkpointAnswered: number;
   /** Idioma do texto (US-67), um dos codigos de `lib/language.ts`. */
   language: string;
   /** Ultima pagina ja trazida da origem; a importacao inicial e a 1. */
@@ -184,6 +190,10 @@ export interface SettingsPayload {
   warmup: boolean;
   /** Enfase nas primeiras letras de cada palavra. */
   wordEmphasis: boolean;
+  /** Ritmo pela densidade do trecho no modo Foco (US-87). */
+  adaptiveRhythm: boolean;
+  /** Perguntar "isso ainda vale?" a 25, 50 e 75% do texto (US-80). */
+  askCheckpoints: boolean;
   /** Fuso IANA usado para decidir o que e "hoje". */
   timezone: string;
   /** Segunda-feira da ultima semana em que o resumo foi dispensado. */
@@ -234,6 +244,8 @@ export interface WeeklySummary {
   words: number;
   wpm: number;
   texts: number;
+  /** Minutos economizados ao largar textos na semana (US-81). */
+  savedMinutes: number;
   /** Variacao percentual contra a semana anterior; null quando nao ha base. */
   minutesChange: number | null;
   wpmChange: number | null;
@@ -269,4 +281,24 @@ export interface FeedSummary {
   title: string;
   /** Mensagem de pausa quando a origem falhou; nula quando ativo. */
   status: string | null;
+}
+
+/** Uma leitura que cabe no tempo livre (US-84). */
+export interface TimeSuggestion {
+  textId: string;
+  title: string;
+  source: "fila" | "biblioteca";
+  /** Posicao de onde a leitura retoma. */
+  from: number;
+  /** Fim do paragrafo em que a leitura para. */
+  end: number;
+  predictedMs: number;
+  /** O trecho vai ate o fim do texto. */
+  finishes: boolean;
+}
+
+export interface TimeWindow {
+  pace: { wpm: number; fromSettings: boolean };
+  minutes: number;
+  suggestions: TimeSuggestion[];
 }

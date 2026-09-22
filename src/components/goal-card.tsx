@@ -25,7 +25,17 @@ const STEP: Record<GoalKind, number> = { minutos: 5, palavras: 500 };
  * quem le a noite ver a leitura cair no dia seguinte e a sequencia quebrar
  * sozinha.
  */
-export function GoalCard({ initial }: { initial: GoalStatus }) {
+export function GoalCard({
+  initial,
+  paceWpm,
+  onSuggest,
+}: {
+  initial: GoalStatus;
+  /** Ritmo real (US-83), para converter meta em palavras em minutos. */
+  paceWpm?: number;
+  /** Pede sugestoes de leitura para o tempo que falta (US-86). */
+  onSuggest?: (minutes: number) => void;
+}) {
   const goal = useResource<{ goal: GoalStatus }>("/api/metas", { goal: initial });
   const status = goal.data?.goal ?? initial;
 
@@ -79,6 +89,17 @@ export function GoalCard({ initial }: { initial: GoalStatus }) {
 
   const limits = GOAL_LIMITS[kind];
 
+  // Quanto falta, em minutos, para a meta de hoje (US-86). Meta em palavras
+  // vira minutos pelo ritmo real.
+  const remaining =
+    status.defined && status.progress < status.target
+      ? status.kind === "minutos"
+        ? status.target - status.progress
+        : paceWpm && paceWpm > 0
+          ? Math.ceil((status.target - status.progress) / paceWpm)
+          : null
+      : null;
+
   return (
     <>
       <Card className="space-y-4 p-5">
@@ -127,6 +148,15 @@ export function GoalCard({ initial }: { initial: GoalStatus }) {
                   } · melhor: ${status.bestStreak}`
                 : "Cumpra a meta hoje para comecar uma sequencia."}
             </div>
+
+            {remaining !== null && remaining > 0 && onSuggest ? (
+              <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+                <p className="text-sm text-muted">{`Faltam ${remaining} min`}</p>
+                <Button size="sm" variant="secondary" onClick={() => onSuggest(remaining)}>
+                  Sugerir leitura
+                </Button>
+              </div>
+            ) : null}
           </>
         ) : (
           <p className="text-sm text-muted">
