@@ -58,6 +58,8 @@ export function resolvePath(base: string, href: string): string {
 export interface EpubIndex {
   title: string;
   author: string | null;
+  /** `dc:language` do livro, como declarado; a normalizacao fica com quem salva. */
+  language: string | null;
   /** Caminhos dos capitulos, na ordem de leitura. */
   spine: string[];
   /** Titulo por caminho, quando o sumario traz um. */
@@ -77,6 +79,7 @@ export function parseOpf(opfXml: string, base: string): EpubIndex {
 
   const title = text(/<dc:title[^>]*>([\s\S]*?)<\/dc:title>/i.exec(opfXml)?.[1]) ?? "Livro";
   const author = text(/<dc:creator[^>]*>([\s\S]*?)<\/dc:creator>/i.exec(opfXml)?.[1]);
+  const language = text(/<dc:language[^>]*>([\s\S]*?)<\/dc:language>/i.exec(opfXml)?.[1]);
 
   // manifest: id -> href
   const manifest = new Map<string, string>();
@@ -99,7 +102,7 @@ export function parseOpf(opfXml: string, base: string): EpubIndex {
     throw new EpubError("Nao encontrei capitulos neste EPUB.");
   }
 
-  return { title, author, spine, titles: new Map() };
+  return { title, author, language, spine, titles: new Map() };
 }
 
 /** Titulos do sumario, por caminho de arquivo. */

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { languageName, speechLanguage } from "@/lib/language";
 import { pickVoice, rateFor, speechChunks, wordAtCharIndex } from "@/lib/speech";
 
 export type SpeechState = "parada" | "falando" | "indisponivel";
@@ -20,8 +21,12 @@ interface StartOptions {
  * Por isso a fala e quebrada em frases curtas: quando o evento existe, a
  * posicao anda palavra a palavra; quando nao existe, ela anda a cada frase
  * terminada - que ainda e sincronia suficiente para acompanhar na tela.
+ *
+ * `language` e o idioma do texto (US-68): a voz escolhida e a desse idioma, e
+ * sem voz instalada para ele a narracao nao comeca com a voz de outro.
  */
-export function useSpeech(lang = "pt-BR") {
+export function useSpeech(language = "pt-BR") {
+  const lang = speechLanguage(language);
   const [state, setState] = useState<SpeechState>("parada");
   const [error, setError] = useState("");
 
@@ -48,7 +53,7 @@ export function useSpeech(lang = "pt-BR") {
       if (!voice) {
         setState("indisponivel");
         setError(
-          `Este aparelho nao tem voz instalada para ${lang}. Instale uma nas configuracoes do sistema.`
+          `Este aparelho nao tem voz instalada para ${languageName(language)}. Instale uma nas configuracoes do sistema.`
         );
         return false;
       }
@@ -109,7 +114,7 @@ export function useSpeech(lang = "pt-BR") {
       speak();
       return true;
     },
-    [lang]
+    [lang, language]
   );
 
   // Sair da tela no meio da fala deixaria a voz tocando em alguns sistemas.

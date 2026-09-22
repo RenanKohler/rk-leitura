@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { loadHighlights, loadNextUp } from "@/lib/queries";
+import { loadHighlights, loadKnownWords, loadNextUp } from "@/lib/queries";
 import { ReaderClient } from "./reader-client";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ export default async function ReaderPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ de?: string }>;
+  searchParams: Promise<{ de?: string; ate?: string; previsto?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -46,9 +46,20 @@ export default async function ReaderPage({
   const from = Number(query.de);
   const startAt = Number.isInteger(from) && from >= 0 ? from : undefined;
 
+  // `?ate=` e `?previsto=` vem da sugestao por tempo livre (US-85): onde a
+  // leitura para e quanto ela deveria levar.
+  const until = Number(query.ate);
+  const stopAt =
+    Number.isInteger(until) && until > loaded.text.progressIndex ? until : undefined;
+  const planned = Number(query.previsto);
+  const plannedMs = stopAt && Number.isFinite(planned) && planned > 0 ? planned : undefined;
+
   // O que vem depois deste texto ja vai no HTML: a tela de conclusao nao
   // precisa esperar uma consulta para oferecer o proximo capitulo ou a fila.
-  const nextUp = await loadNextUp(session.id, id);
+  const [nextUp, knownWords] = await Promise.all([
+    loadNextUp(session.id, id),
+    loadKnownWords(session.id, loaded.text.language),
+  ]);
 
   return (
     <ReaderClient
@@ -56,6 +67,9 @@ export default async function ReaderPage({
       highlights={loaded.items}
       startAt={startAt}
       nextUp={nextUp}
+      stopAt={stopAt}
+      plannedMs={plannedMs}
+      knownWords={knownWords}
     />
   );
 }

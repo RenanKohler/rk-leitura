@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { comprehensionQuizzes, readingSessions } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { loadText } from "@/lib/queries";
-import { contentKey, parseQuiz, scoreQuiz } from "@/lib/quiz";
+import { parseQuiz, quizKey, scoreQuiz } from "@/lib/quiz";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +40,7 @@ export async function POST(request: Request, { params }: Params) {
       .where(
         and(
           eq(comprehensionQuizzes.textId, id),
-          eq(comprehensionQuizzes.contentKey, contentKey(text.content))
+          eq(comprehensionQuizzes.contentKey, quizKey(text.content, text.language))
         )
       )
       .limit(1);

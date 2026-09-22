@@ -44,3 +44,65 @@ jobs:
         # nenhuma de proposito - a conexao e a leitura do segredo sao
         # preguicosas justamente para o build nao depender delas.
         run: npm run build
+
+  # Fluxo principal e acessibilidade no navegador (US-74, US-75). Job proprio
+  # porque precisa de banco; o de cima continua sem segredo nem rede.
+  navegador:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: leitura
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/leitura
+      CI: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Segredo de sessao descartavel
+        # Gerado a cada execucao: o banco tambem e descartavel.
+        run: echo "JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))")" >> "$GITHUB_ENV"
+
+      - name: Migrations
+        run: npm run db:migrate
+
+      - name: Build
+        run: npm run build
+
+      - name: Navegador
+        run: npx playwright install --with-deps chromium
+
+      - name: Testes no navegador
+        run: npm run test:e2e
+
+      - name: Guardar capturas e registros da falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

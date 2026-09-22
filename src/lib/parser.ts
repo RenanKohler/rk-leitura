@@ -1,10 +1,13 @@
 import * as cheerio from "cheerio";
+import { normalizeLanguage, type Language } from "@/lib/language";
 import { countWords } from "@/lib/reading";
 
 export interface ParsedText {
   title: string;
   content: string;
   wordCount: number;
+  /** Idioma declarado pela pagina, ou null quando ela nao declara (US-67). */
+  language: Language | null;
 }
 
 const NOISE_SELECTORS = [
@@ -70,11 +73,12 @@ export function extractTextFromHtml(html: string): ParsedText {
   const $ = cheerio.load(html);
 
   const title = extractTitle($);
+  const language = extractLanguage($);
 
   // Corpo declarado em JSON-LD, quando o site publica o texto ali.
   const structured = structuredArticleBody($);
   if (structured) {
-    return { title, content: structured, wordCount: countWords(structured) };
+    return { title, content: structured, wordCount: countWords(structured), language };
   }
 
   $(NOISE_SELECTORS).remove();
@@ -86,14 +90,31 @@ export function extractTextFromHtml(html: string): ParsedText {
     // parte do texto.
     const content = collectBlocks($, exact, 0);
     if (countWords(content) >= 20) {
-      return { title, content, wordCount: countWords(content) };
+      return { title, content, wordCount: countWords(content), language };
     }
   }
 
   const guessed = pickContainer($, FALLBACK_SELECTORS) ?? ($("body") as cheerio.Cheerio<never>);
   const content = collectBlocks($, guessed, MIN_FALLBACK_BLOCK_CHARS);
 
-  return { title, content, wordCount: countWords(content) };
+  return { title, content, wordCount: countWords(content), language };
+}
+
+/**
+ * Idioma declarado pela pagina: o `lang` da raiz, e na falta dele os
+ * metadados que alguns sites usam no lugar.
+ */
+function extractLanguage($: cheerio.CheerioAPI): Language | null {
+  const candidates = [
+    $("html").attr("lang"),
+    $("meta[http-equiv='content-language' i]").attr("content"),
+    $("meta[property='og:locale']").attr("content"),
+  ];
+  for (const candidate of candidates) {
+    const language = normalizeLanguage(candidate);
+    if (language) return language;
+  }
+  return null;
 }
 
 /** Maior container entre os seletores dados, pelo volume de texto. */

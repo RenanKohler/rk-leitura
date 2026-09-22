@@ -47,6 +47,13 @@ export function WeeklySummaryCard({ summary }: { summary: WeeklySummary }) {
         />
       </div>
 
+      {/* Largar um texto fraco conta como ganho, nao como fracasso (US-81). */}
+      {summary.savedMinutes > 0 ? (
+        <p className="text-sm text-muted">
+          {`${formatNumber(summary.savedMinutes)} min economizados ao largar textos que nao valiam a leitura.`}
+        </p>
+      ) : null}
+
       <Button variant="ghost" full onClick={dismiss}>
         Entendi
       </Button>

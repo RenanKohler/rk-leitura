@@ -24,6 +24,8 @@ export interface WordEntry {
   kind: string;
   /** Definicao curta, no sentido em que a palavra foi usada. */
   definition: string;
+  /** Traducao para o portugues, quando a palavra e de outro idioma (US-69). */
+  translation?: string | null;
 }
 
 /**
@@ -105,6 +107,7 @@ export function parseEntry(raw: unknown, word: string): WordEntry | null {
     base: asText(item.base) ?? word,
     kind: asText(item.kind) ?? "",
     definition,
+    translation: asText(item.translation),
   };
 }
 

@@ -20,6 +20,9 @@ export const users = pgTable(
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
     name: text("name").notNull().default("Leitor"),
+    // Versao das sessoes emitidas. Trocar a senha ou "sair de todos os
+    // aparelhos" incrementa, e todo token com versao anterior deixa de valer.
+    sessionVersion: integer("session_version").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -41,6 +44,8 @@ export const texts = pgTable(
     // Nulo quando o texto foi colado manualmente em vez de importado.
     sourceUrl: text("source_url"),
     content: text("content").notNull(),
+    // Idioma do texto (US-67): decide voz, dicionario e questionario.
+    language: text("language").notNull().default("pt-BR"),
     wordCount: integer("word_count").notNull().default(0),
     // Posicao salva para retomar a leitura de onde parou.
     progressIndex: integer("progress_index").notNull().default(0),
@@ -72,6 +77,15 @@ export const texts = pgTable(
      * fila - que e o estado normal. Arquivar ou concluir tira da fila.
      */
     queuePosition: integer("queue_position"),
+    // Importado sem pedido do leitor, por serie acompanhada ou feed (US-70,
+    // US-71). Enquanto a leitura nao comecar, a biblioteca o marca como "Novo".
+    autoImportedAt: timestamp("auto_imported_at", { withTimezone: true }),
+    // Largado no meio (US-79): sai da biblioteca e da fila, as sessoes ficam.
+    abandonedAt: timestamp("abandoned_at", { withTimezone: true }),
+    // Palavras que faltavam ao largar: a base do tempo economizado (US-81).
+    abandonedWords: integer("abandoned_words"),
+    // Maior marco (25, 50, 75) ja respondido em "isso ainda vale?" (US-80).
+    checkpointAnswered: integer("checkpoint_answered").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -106,6 +120,9 @@ export const readingSessions = pgTable(
      * programa de treino: o ritmo ali e o da voz, nao o do olho.
      */
     narrated: boolean("narrated").notNull().default(false),
+    // Tempo previsto quando a leitura veio de uma sugestao por tempo livre
+    // (US-85); a duracao real ao lado dela mede o acerto da previsao.
+    plannedMs: integer("planned_ms"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("reading_sessions_user_created_idx").on(table.userId, table.createdAt.desc())]
@@ -136,6 +153,11 @@ export const speedSettings = pgTable(
      * padrao: o apoio ajuda alguns leitores e atrapalha outros.
      */
     wordEmphasis: boolean("word_emphasis").notNull().default(false),
+    // Ritmo pela densidade do trecho no modo Foco (US-87). Ligado por padrao
+    // porque inclui a pausa em pontuacao que o leitor ja tinha.
+    adaptiveRhythm: boolean("adaptive_rhythm").notNull().default(true),
+    // "Isso ainda vale?" a 25, 50 e 75% do texto (US-80). Desligado por padrao.
+    askCheckpoints: boolean("ask_checkpoints").notNull().default(false),
     /**
      * Fuso do usuario, no formato IANA ("America/Sao_Paulo").
      *
@@ -373,14 +395,29 @@ export const savedWords = pgTable(
     /** Classe gramatical no uso daquela frase. */
     kind: text("kind").notNull().default(""),
     definition: text("definition").notNull(),
+    /** Idioma da palavra: o mesmo que o do texto em que ela apareceu. */
+    language: text("language").notNull().default("pt-BR"),
+    /** Traducao para o portugues, quando a palavra e de outro idioma (US-69). */
+    translation: text("translation"),
+    /** Frase em que a palavra apareceu, mostrada na revisao (US-64). */
+    context: text("context"),
+    /** Proxima revisao, no fuso do usuario; nula nas salvas antes da revisao. */
+    nextReviewOn: date("next_review_on"),
+    /** Etapa na sequencia de intervalos de `lib/vocabulary.ts`. */
+    reviewStep: integer("review_step").notNull().default(0),
+    /** Marcada como aprendida: sai da revisao, continua na lista (US-66). */
+    learnedAt: timestamp("learned_at", { withTimezone: true }),
     /** Texto em que a palavra foi encontrada; nulo se ele for apagado. */
     textId: uuid("text_id").references(() => texts.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("saved_words_user_word_unique").on(
+    // O idioma entra na chave: "pan" em espanhol e em ingles sao palavras
+    // diferentes, com definicoes diferentes.
+    uniqueIndex("saved_words_user_language_word_unique").on(
       table.userId,
+      table.language,
       sql`translate(lower(${table.word}), 'áàâãäåéèêëíìîïóòôõöøúùûüçñýÿ', 'aaaaaaeeeeiiiioooooouuuucnyy')`
     ),
   ]
@@ -443,3 +480,50 @@ export type Tag = typeof tags.$inferSelect;
 export type TrainingProgram = typeof trainingPrograms.$inferSelect;
 export type SavedWord = typeof savedWords.$inferSelect;
 export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+
+/**
+ * Series acompanhadas (US-70).
+ *
+ * A verificacao periodica procura o capitulo seguinte ao ultimo importado.
+ * Tres falhas seguidas da origem pausam o acompanhamento, para nao insistir
+ * para sempre num site fora do ar.
+ */
+export const seriesFollows = pgTable(
+  "series_follows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    seriesKey: text("series_key").notNull(),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    failures: integer("failures").notNull().default(0),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("series_follows_user_series_unique").on(table.userId, table.seriesKey)]
+);
+
+/**
+ * Feeds RSS ou Atom assinados (US-71).
+ *
+ * `seenUntil` e a data do item mais novo ja visto: a verificacao so importa o
+ * que veio depois, e a primeira nao despeja o arquivo inteiro do site.
+ */
+export const feeds = pgTable(
+  "feeds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    title: text("title").notNull(),
+    seenUntil: timestamp("seen_until", { withTimezone: true }),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    failures: integer("failures").notNull().default(0),
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("feeds_user_url_unique").on(table.userId, table.url)]
+);

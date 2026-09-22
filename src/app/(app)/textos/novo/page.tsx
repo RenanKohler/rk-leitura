@@ -86,6 +86,7 @@ function FromLink() {
         title: title.trim(),
         sourceUrl: preview.sourceUrl,
         content: preview.content,
+        language: preview.language,
       });
       notify("Texto salvo.", "success");
       router.replace(`/leitor/${text.id}`);

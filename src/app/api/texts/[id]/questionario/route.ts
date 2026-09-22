@@ -4,8 +4,10 @@ import { db } from "@/db";
 import { comprehensionQuizzes } from "@/db/schema";
 import { jsonError, requireSession, serverError } from "@/lib/api";
 import { loadText } from "@/lib/queries";
+import { consumeDailyQuota } from "@/lib/daily-quota";
+import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { contentKey, MIN_WORDS_FOR_QUIZ, parseQuiz, type Quiz } from "@/lib/quiz";
+import { MIN_WORDS_FOR_QUIZ, parseQuiz, quizKey, type Quiz } from "@/lib/quiz";
 import { generateQuiz, QuizUnavailable } from "@/lib/quiz-generator";
 
 export const dynamic = "force-dynamic";
@@ -54,8 +56,18 @@ export async function POST(_request: Request, { params }: Params) {
       );
     }
 
-    const key = contentKey(text.content);
-    const quiz = (await cached(id, key)) ?? (await generateAndStore(id, key, text.title, text.content));
+    const key = quizKey(text.content, text.language);
+    let quiz = await cached(id, key);
+    if (!quiz) {
+      // So a geracao nova conta para o teto diario da conta.
+      const quota = await consumeDailyQuota("questionario", session.id);
+      if (!quota.allowed) {
+        return jsonError(QUOTA_MESSAGES.questionario, 429, {
+          retryAfter: quota.retryAfterSeconds,
+        });
+      }
+      quiz = await generateAndStore(id, key, text.title, text.content, text.language);
+    }
 
     return NextResponse.json({ quiz: withoutAnswers(quiz), questions: quiz.questions.length });
   } catch (error) {
@@ -80,9 +92,10 @@ async function generateAndStore(
   textId: string,
   key: string,
   title: string,
-  content: string
+  content: string,
+  language: string
 ): Promise<Quiz> {
-  const quiz = await generateQuiz(title, content);
+  const quiz = await generateQuiz(title, content, language);
 
   await db
     .insert(comprehensionQuizzes)

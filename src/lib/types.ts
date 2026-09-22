@@ -23,6 +23,10 @@ export interface TextSummary {
   queuePosition: number | null;
   /** Nulo enquanto o texto esta na lista principal. */
   archivedAt: string | null;
+  /** Importado sozinho (serie acompanhada ou feed) e ainda nao aberto. */
+  fresh: boolean;
+  /** Largado no meio (US-79): fora da lista principal e da fila. */
+  abandoned: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,10 +38,40 @@ export interface SavedWordItem {
   base: string;
   kind: string;
   definition: string;
+  /** Traducao para o portugues; nula em palavra portuguesa (US-69). */
+  translation: string | null;
+  /** Idioma da palavra. */
+  language: string;
+  /** Frase em que a palavra apareceu; nula nas salvas antes de existir. */
+  context: string | null;
+  /** Marcada como aprendida: fora da revisao (US-66). */
+  learned: boolean;
   /** Texto em que ela foi encontrada; nulo quando o texto foi apagado. */
   textId: string | null;
   textTitle: string | null;
   createdAt: string;
+}
+
+/** Uma palavra na sessao de revisao. */
+export interface ReviewCard {
+  id: string;
+  word: string;
+  base: string;
+  kind: string;
+  definition: string;
+  translation: string | null;
+  context: string | null;
+  textTitle: string | null;
+}
+
+/** O que a tela de revisao precisa para abrir (US-64). */
+export interface ReviewSession {
+  cards: ReviewCard[];
+  /** Quantas estao vencidas hoje, alem das que cabem nesta sessao. */
+  due: number;
+  /** Proxima data com revisao, quando nao ha nada vencido. */
+  nextReviewOn: string | null;
+  totalWords: number;
 }
 
 /** Etiqueta com quantos textos ela marca. */
@@ -61,6 +95,8 @@ export interface SeriesSummary {
   /** Soma das palavras de todos os capitulos. */
   wordCount: number;
   updatedAt: string;
+  /** Acompanhamento da serie (US-70); nulo quando nao e acompanhada. */
+  follow: { paused: boolean } | null;
 }
 
 /** Item da biblioteca: um texto solto ou uma serie inteira. */
@@ -80,6 +116,12 @@ export interface NextUp {
 
 export interface TextDetail extends TextSummary {
   content: string;
+  /** Fim da ultima sessao de leitura deste texto; nulo se nunca lido (US-77). */
+  lastReadAt: string | null;
+  /** Maior marco de "isso ainda vale?" ja respondido: 0, 25, 50 ou 75 (US-80). */
+  checkpointAnswered: number;
+  /** Idioma do texto (US-67), um dos codigos de `lib/language.ts`. */
+  language: string;
   /** Ultima pagina ja trazida da origem; a importacao inicial e a 1. */
   sourcePage: number;
 }
@@ -113,6 +155,7 @@ export interface ImportedText {
   content: string;
   wordCount: number;
   sourceUrl: string;
+  language: string | null;
 }
 
 /** Resposta de POST /api/share: o texto ja existia ou acabou de ser criado. */
@@ -140,13 +183,17 @@ export interface SettingsPayload {
   wordsPerChunk: number;
   highlightOpacity: number;
   readingMode: ReadingMode;
-  theme: "system" | "light" | "dark";
+  theme: "system" | "light" | "dark" | "contrast";
   fontScale: number;
   fontFamily: FontFamily;
   lineHeightStep: number;
   warmup: boolean;
   /** Enfase nas primeiras letras de cada palavra. */
   wordEmphasis: boolean;
+  /** Ritmo pela densidade do trecho no modo Foco (US-87). */
+  adaptiveRhythm: boolean;
+  /** Perguntar "isso ainda vale?" a 25, 50 e 75% do texto (US-80). */
+  askCheckpoints: boolean;
   /** Fuso IANA usado para decidir o que e "hoje". */
   timezone: string;
   /** Segunda-feira da ultima semana em que o resumo foi dispensado. */
@@ -197,6 +244,8 @@ export interface WeeklySummary {
   words: number;
   wpm: number;
   texts: number;
+  /** Minutos economizados ao largar textos na semana (US-81). */
+  savedMinutes: number;
   /** Variacao percentual contra a semana anterior; null quando nao ha base. */
   minutesChange: number | null;
   wpmChange: number | null;
@@ -223,4 +272,33 @@ export interface Paginated {
   page: number;
   perPage: number;
   pageCount: number;
+}
+
+/** Feed assinado, como Ajustes o mostra (US-71). */
+export interface FeedSummary {
+  id: string;
+  url: string;
+  title: string;
+  /** Mensagem de pausa quando a origem falhou; nula quando ativo. */
+  status: string | null;
+}
+
+/** Uma leitura que cabe no tempo livre (US-84). */
+export interface TimeSuggestion {
+  textId: string;
+  title: string;
+  source: "fila" | "biblioteca";
+  /** Posicao de onde a leitura retoma. */
+  from: number;
+  /** Fim do paragrafo em que a leitura para. */
+  end: number;
+  predictedMs: number;
+  /** O trecho vai ate o fim do texto. */
+  finishes: boolean;
+}
+
+export interface TimeWindow {
+  pace: { wpm: number; fromSettings: boolean };
+  minutes: number;
+  suggestions: TimeSuggestion[];
 }

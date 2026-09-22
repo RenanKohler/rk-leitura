@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { savedWords, texts } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
+import { consumeDailyQuota } from "@/lib/daily-quota";
+import { DEFAULT_LANGUAGE } from "@/lib/language";
+import { todayIn } from "@/lib/goals";
+import { loadSavedWords, loadSettings } from "@/lib/queries";
+import { firstReview } from "@/lib/vocabulary";
+import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { MAX_SAVED_WORDS, normalizeWord, trimContext, wordKey } from "@/lib/dictionary";
+import { normalizeWord, trimContext, wordKey } from "@/lib/dictionary";
 import { lookupWord, LookupUnavailable } from "@/lib/word-lookup";
 
 export const dynamic = "force-dynamic";
@@ -18,26 +24,7 @@ export async function GET() {
   if (session instanceof NextResponse) return session;
 
   try {
-    const rows = await db
-      .select({
-        id: savedWords.id,
-        word: savedWords.word,
-        base: savedWords.base,
-        kind: savedWords.kind,
-        definition: savedWords.definition,
-        textId: savedWords.textId,
-        textTitle: texts.title,
-        createdAt: savedWords.createdAt,
-      })
-      .from(savedWords)
-      .leftJoin(texts, eq(texts.id, savedWords.textId))
-      .where(eq(savedWords.userId, session.id))
-      .orderBy(desc(savedWords.updatedAt))
-      .limit(MAX_SAVED_WORDS);
-
-    return NextResponse.json({
-      words: rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
-    });
+    return NextResponse.json({ words: await loadSavedWords(session.id) });
   } catch (error) {
     return serverError("dicionario/list", error);
   }
@@ -70,8 +57,20 @@ export async function POST(request: Request) {
     if (!word) return jsonError("Toque em uma palavra para consultar.", 400);
 
     const context = trimContext(body?.context);
-    const textId =
+    const requestedTextId =
       typeof body?.textId === "string" && UUID_PATTERN.test(body.textId) ? body.textId : null;
+
+    // O idioma vem do texto no banco, nao do cliente (US-69). Texto de outra
+    // conta ou apagado nao conta: a consulta segue em portugues, sem vinculo.
+    const [source] = requestedTextId
+      ? await db
+          .select({ id: texts.id, language: texts.language })
+          .from(texts)
+          .where(and(eq(texts.id, requestedTextId), eq(texts.userId, session.id)))
+          .limit(1)
+      : [];
+    const textId = source?.id ?? null;
+    const language = source?.language ?? DEFAULT_LANGUAGE;
 
     const folded = wordKey(word);
     const [known] = await db
@@ -80,6 +79,7 @@ export async function POST(request: Request) {
       .where(
         and(
           eq(savedWords.userId, session.id),
+          eq(savedWords.language, language),
           sql`translate(lower(${savedWords.word}), 'áàâãäåéèêëíìîïóòôõöøúùûüçñýÿ', 'aaaaaaeeeeiiiioooooouuuucnyy') = ${folded}`
         )
       )
@@ -92,12 +92,19 @@ export async function POST(request: Request) {
           base: known.base,
           kind: known.kind,
           definition: known.definition,
+          translation: known.translation,
         },
         cached: true,
       });
     }
 
-    const entry = await lookupWord(word, context);
+    // Palavra ja consultada voltou acima sem gastar cota; so a chamada nova conta.
+    const quota = await consumeDailyQuota("dicionario", session.id);
+    if (!quota.allowed) {
+      return jsonError(QUOTA_MESSAGES.dicionario, 429, { retryAfter: quota.retryAfterSeconds });
+    }
+
+    const entry = await lookupWord(word, context, language);
 
     await db
       .insert(savedWords)
@@ -107,7 +114,13 @@ export async function POST(request: Request) {
         base: entry.base,
         kind: entry.kind,
         definition: entry.definition,
+        translation: entry.translation ?? null,
+        language,
         textId,
+        // A frase volta na revisao (US-64); a primeira e no dia seguinte.
+        context: context || null,
+        nextReviewOn: firstReview(todayIn((await loadSettings(session.id))?.timezone ?? "UTC"))
+          .nextReviewOn,
       })
       .onConflictDoNothing();
 

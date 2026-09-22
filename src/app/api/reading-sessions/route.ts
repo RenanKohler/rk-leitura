@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       durationMs?: unknown;
       completed?: unknown;
       narrated?: unknown;
+      plannedMs?: unknown;
     }>(request);
 
     const textId = asString(body?.textId);
@@ -79,6 +80,11 @@ export async function POST(request: Request) {
         durationMs,
         completed: body?.completed === true || body?.completed === 1,
         narrated: body?.narrated === true,
+        // Previsto pela sugestao de tempo livre (US-85); fora da faixa, ignorado.
+        plannedMs: (() => {
+          const planned = asInteger(body?.plannedMs);
+          return planned !== null && planned > 0 && planned <= 24 * 3_600_000 ? planned : null;
+        })(),
       })
       .returning();
 

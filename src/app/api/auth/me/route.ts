@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { asString, jsonError, readJson, requireSession, serverError } from "@/lib/api";
@@ -9,6 +9,8 @@ import {
   getSession,
   getUserById,
   hashPassword,
+  publicUser,
+  sessionIsCurrent,
   setSessionCookie,
   verifyPassword,
 } from "@/lib/auth";
@@ -24,11 +26,14 @@ export async function GET() {
     const session = await getSession();
     if (!session) return NextResponse.json({ user: null });
 
-    // Revalida contra o banco: a conta pode ter sido apagada depois do token.
+    // Revalida contra o banco: a conta pode ter sido apagada, ou a sessao
+    // revogada por troca de senha, depois do token.
     const user = await getUserById(session.id);
-    if (!user) return NextResponse.json({ user: null });
+    if (!user || !sessionIsCurrent(session, user.sessionVersion)) {
+      return NextResponse.json({ user: null });
+    }
 
-    return NextResponse.json({ user: { id: user.id, email: user.email, name: user.name } });
+    return NextResponse.json({ user: publicUser(user) });
   } catch (error) {
     console.error("[auth/me]", error);
     return NextResponse.json({ user: null });
@@ -91,19 +96,31 @@ export async function PATCH(request: Request) {
       .update(users)
       .set({
         ...(name !== null ? { name } : {}),
-        ...(newPassword !== null ? { passwordHash: await hashPassword(newPassword) } : {}),
+        // Senha nova derruba as sessoes dos outros aparelhos: quem conhecia a
+        // senha antiga perde o acesso agora, e nao quando o token expirar.
+        ...(newPassword !== null
+          ? {
+              passwordHash: await hashPassword(newPassword),
+              sessionVersion: sql`${users.sessionVersion} + 1`,
+            }
+          : {}),
         updatedAt: new Date(),
       })
       .where(eq(users.id, session.id))
-      .returning({ id: users.id, email: users.email, name: users.name });
+      .returning({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        version: users.sessionVersion,
+      });
 
     if (!updated) return jsonError("Sessao expirada. Entre novamente.", 401);
 
-    // O nome vive dentro do token: sem reemitir, a navegacao continuaria
-    // mostrando o nome antigo ate a sessao expirar, dias depois.
+    // Reemitido sempre: o nome vive dentro do token, e a troca de senha muda a
+    // versao - sem o token novo, este aparelho cairia junto com os outros.
     await setSessionCookie(await createToken(updated));
 
-    return NextResponse.json({ user: updated });
+    return NextResponse.json({ user: publicUser(updated) });
   } catch (error) {
     return serverError("auth/update", error);
   }

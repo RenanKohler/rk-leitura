@@ -47,7 +47,14 @@ export async function POST(request: Request) {
     }
 
     const user = await createUser(email, password, name);
-    await setSessionCookie(await createToken({ id: user.id, email: user.email, name: user.name }));
+    await setSessionCookie(
+      await createToken({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        version: user.sessionVersion,
+      })
+    );
 
     return NextResponse.json({ user: { id: user.id, email: user.email, name: user.name } });
   } catch (error) {

@@ -1,7 +1,13 @@
 import "server-only";
 
-import { NextResponse } from "next/server";
-import { getSession, userExists, type SessionUser } from "@/lib/auth";
+import { after, NextResponse } from "next/server";
+import {
+  currentSessionVersion,
+  getSession,
+  sessionIsCurrent,
+  type SessionUser,
+} from "@/lib/auth";
+import { errorEntry, newRefCode, summarizeError, userMessage } from "@/lib/error-log";
 
 export function jsonError(message: string, status: number, extra?: Record<string, unknown>) {
   return NextResponse.json({ error: message, ...extra }, { status });
@@ -22,7 +28,11 @@ export const unauthorized = () => jsonError("Sessao expirada. Entre novamente.",
 export async function requireSession(): Promise<SessionUser | NextResponse> {
   const session = await getSession();
   if (!session) return unauthorized();
-  return (await userExists(session.id)) ? session : unauthorized();
+  // A versao cobre tambem a troca de senha e o "sair de todos os aparelhos":
+  // o token continua assinado, mas foi revogado (US-62, US-63).
+  return sessionIsCurrent(session, await currentSessionVersion(session.id))
+    ? session
+    : unauthorized();
 }
 
 export async function readJson<T>(request: Request): Promise<T | null> {
@@ -33,10 +43,32 @@ export async function readJson<T>(request: Request): Promise<T | null> {
   }
 }
 
-/** Log no servidor, mensagem generica para o cliente. */
+/**
+ * Registro estruturado no servidor, mensagem generica para o cliente - com o
+ * codigo que liga uma a outra (US-73).
+ *
+ * O id do usuario sai do cookie depois da resposta, via `after`: assim as
+ * dezenas de rotas que chamam isto continuam sincronas. Fora de uma
+ * requisicao `after` recusa, e a linha e gravada na hora, sem o usuario.
+ */
 export function serverError(scope: string, error: unknown) {
-  console.error(`[${scope}]`, error);
-  return jsonError("Algo deu errado. Tente novamente.", 500);
+  const ref = newRefCode();
+  const summary = summarizeError(error);
+  const write = (userId: string | null) =>
+    console.error(
+      JSON.stringify(errorEntry({ ref, scope, source: "servidor", userId, error: summary }))
+    );
+
+  try {
+    after(async () => {
+      const session = await getSession().catch(() => null);
+      write(session?.id ?? null);
+    });
+  } catch {
+    write(null);
+  }
+
+  return jsonError(userMessage(ref), 500, { ref });
 }
 
 /**

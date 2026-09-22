@@ -18,7 +18,8 @@ import type { FontFamily, ReadingMode } from "@/lib/reading";
 /* Tema                                                                        */
 /* -------------------------------------------------------------------------- */
 
-export type ThemePreference = "system" | "light" | "dark";
+export type ThemePreference = "system" | "light" | "dark" | "contrast";
+type ResolvedTheme = "light" | "dark" | "contrast";
 
 const THEME_STORAGE_KEY = "rk-leitura:theme";
 
@@ -31,11 +32,12 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 /**
  * Script inline executado antes da primeira pintura. Sem ele a pagina aparece
- * clara por um quadro antes do tema escuro ser aplicado.
+ * clara por um quadro antes do tema escuro ser aplicado. Repete a regra de
+ * `resolveTheme`, que nao pode ser importada por um script em texto.
  */
 export const themeBootstrapScript = `(function(){try{var p=localStorage.getItem(${JSON.stringify(
   THEME_STORAGE_KEY
-)})||"system";var d=p==="dark"||(p==="system"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";}catch(e){}})();`;
+)})||"system";var m=function(q){return window.matchMedia(q).matches};var t=p==="contrast"||(p==="system"&&m("(prefers-contrast: more)"))?"contrast":p==="dark"||(p==="system"&&m("(prefers-color-scheme: dark)"))?"dark":"light";document.documentElement.dataset.theme=t;}catch(e){}})();`;
 
 /**
  * A preferencia vive no localStorage, fora do React. useSyncExternalStore e a
@@ -78,9 +80,14 @@ const themeStore = {
   },
 };
 
-function resolveTheme(preference: ThemePreference): "light" | "dark" {
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  return preference === "dark" || (preference === "system" && prefersDark) ? "dark" : "light";
+/**
+ * Tema aplicado. Em "Sistema", o pedido de contraste aumentado do sistema
+ * vence o de cor: quem precisa de contraste precisa dele no claro e no escuro.
+ */
+function resolveTheme(preference: ThemePreference): ResolvedTheme {
+  if (preference !== "system") return preference;
+  if (window.matchMedia("(prefers-contrast: more)").matches) return "contrast";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function ThemeProvider({ children }: { children: ReactNode }) {
@@ -97,12 +104,17 @@ function ThemeProvider({ children }: { children: ReactNode }) {
 
     if (preference !== "system") return;
 
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const queries = [
+      window.matchMedia("(prefers-color-scheme: dark)"),
+      window.matchMedia("(prefers-contrast: more)"),
+    ];
     const onChange = () => {
       document.documentElement.dataset.theme = resolveTheme("system");
     };
-    media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
+    for (const media of queries) media.addEventListener("change", onChange);
+    return () => {
+      for (const media of queries) media.removeEventListener("change", onChange);
+    };
   }, [preference]);
 
   const value = useMemo(
@@ -277,6 +289,8 @@ export interface ReadingSettings {
   lineHeightStep: number;
   warmup: boolean;
   wordEmphasis: boolean;
+  adaptiveRhythm: boolean;
+  askCheckpoints: boolean;
   timezone: string;
   weeklySummarySeenOn: string | null;
   readingMode: ReadingMode;
@@ -292,6 +306,8 @@ export const FALLBACK_SETTINGS: ReadingSettings = {
   lineHeightStep: 2,
   warmup: true,
   wordEmphasis: false,
+  adaptiveRhythm: true,
+  askCheckpoints: false,
   timezone: "UTC",
   weeklySummarySeenOn: null,
   readingMode: "rsvp",

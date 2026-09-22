@@ -56,6 +56,8 @@ export function FileImport() {
   const [truncated, setTruncated] = useState(false);
   const [chapters, setChapters] = useState<Chapter[] | null>(null);
   const [bookTitle, setBookTitle] = useState("");
+  // `dc:language` do livro, repassado a cada capitulo salvo (US-67).
+  const [bookLanguage, setBookLanguage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const reset = () => {
@@ -65,6 +67,7 @@ export function FileImport() {
     setTruncated(false);
     setChapters(null);
     setBookTitle("");
+    setBookLanguage(null);
   };
 
   const onPick = async (file: File | undefined) => {
@@ -173,6 +176,7 @@ export function FileImport() {
     }
 
     setBookTitle(index.title);
+    setBookLanguage(index.language);
     setChapters(found);
   };
 
@@ -211,6 +215,7 @@ export function FileImport() {
           content: chapter.content,
           tags: [bookTitle.slice(0, 30)],
           series: { title: bookTitle, chapter: position + 1 },
+          language: bookLanguage,
         });
         first ??= text.id;
       }

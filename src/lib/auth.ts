@@ -59,10 +59,27 @@ export async function findUserByEmail(email: string) {
   return user ?? null;
 }
 
-/** Consulta de existencia: so a chave primaria, sem trazer a linha inteira. */
-export async function userExists(id: string): Promise<boolean> {
-  const [row] = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
-  return row !== undefined;
+/**
+ * Versao atual das sessoes da conta, ou null quando a conta nao existe mais.
+ * So uma coluna: e a consulta que toda rota autenticada faz.
+ */
+export async function currentSessionVersion(id: string): Promise<number | null> {
+  const [row] = await db
+    .select({ version: users.sessionVersion })
+    .from(users)
+    .where(eq(users.id, id))
+    .limit(1);
+  return row?.version ?? null;
+}
+
+/** O token ainda vale: a conta existe e nenhuma troca de senha o revogou. */
+export function sessionIsCurrent(session: SessionUser, version: number | null): boolean {
+  return version !== null && version === session.version;
+}
+
+/** Os dados da sessao que podem ir para o cliente. */
+export function publicUser(user: { id: string; email: string; name: string }) {
+  return { id: user.id, email: user.email, name: user.name };
 }
 
 export async function getUserById(id: string) {

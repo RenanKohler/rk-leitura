@@ -44,6 +44,16 @@ export function contentKey(content: string): string {
 }
 
 /**
+ * Chave do questionario em cache: o conteudo e, fora do portugues, o idioma
+ * (US-69). Trocar o idioma do texto gera perguntas novas; os questionarios ja
+ * gerados para textos em portugues continuam valendo com a chave de antes.
+ */
+export function quizKey(content: string, language: string): string {
+  const key = contentKey(content);
+  return language === "pt-BR" ? key : `${key}:${language}`;
+}
+
+/**
  * Aceita apenas o que a tela consegue exibir sem quebrar.
  *
  * Uma pergunta com indice fora das alternativas, ou com menos alternativas do

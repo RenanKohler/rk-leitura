@@ -5,7 +5,13 @@
  * digitado e na coluna consultada, senao "coracao" nao acha "coração".
  */
 
-export const TEXT_STATUSES = ["todos", "nao-iniciados", "em-andamento", "concluidos"] as const;
+export const TEXT_STATUSES = [
+  "todos",
+  "nao-iniciados",
+  "em-andamento",
+  "concluidos",
+  "largados",
+] as const;
 
 export type TextStatus = (typeof TEXT_STATUSES)[number];
 

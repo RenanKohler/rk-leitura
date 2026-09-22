@@ -95,7 +95,7 @@ Trocar o `JWT_SECRET` invalida todas as sessoes ativas.
 | `NEXT_PUBLIC_VAPID_KEY` | nao | Chave publica do lembrete diario. |
 | `VAPID_PRIVATE_KEY` | nao | Chave privada do lembrete diario. |
 | `VAPID_SUBJECT` | nao | `mailto:` de contato exigido pelo protocolo de push. |
-| `CRON_SECRET` | nao | Separa o agendador de quem descobrir a rota do cron. |
+| `CRON_SECRET` | nao | Separa o agendador de quem descobrir as rotas do cron (lembrete e acompanhamento de series e feeds). |
 
 ### Lembrete diario
 
@@ -134,6 +134,13 @@ passou da hora escolhida, hoje, sem leitura?" e marca o dia ao enviar, entao o
 lembrete sai uma vez so - e sai correto tanto de hora em hora quanto uma vez
 por dia.
 
+O mesmo fluxo chama, em um segundo passo, `/api/cron/acompanhamento`: a
+verificacao das series acompanhadas e dos feeds assinados. Cada origem e
+consultada no maximo a cada 6 horas, entao a frequencia horaria nao
+sobrecarrega os sites. Essa rota nao esta no `vercel.json`, pelo mesmo limite
+de um disparo por dia do plano Hobby; sem `CRON_SECRET` no GitHub, series e
+feeds simplesmente nao sao verificados.
+
 O agendamento do GitHub tem duas limitacoes conhecidas, ambas aceitaveis aqui:
 execucao agendada pode atrasar alguns minutos quando a fila esta cheia, e o
 GitHub desativa fluxos agendados em repositorio sem commit ha 60 dias.
@@ -166,6 +173,7 @@ existe mais. Nao ha nada a configurar no lugar.
 | `npm run build` / `npm start` | Build e execucao em producao. |
 | `npm run lint` / `npm run typecheck` | ESLint e TypeScript. |
 | `npm test` / `npm run test:watch` | Testes das regras puras (Vitest). |
+| `npm run test:e2e` | Testes no navegador (Playwright), contra a aplicacao com banco. |
 | `npm run db:generate` | Gera migration a partir do schema. |
 | `npm run db:migrate` | Aplica as migrations pendentes. |
 | `npm run db:push` | Sincroniza o schema sem migration (so em desenvolvimento). |
@@ -190,6 +198,7 @@ src/
 drizzle/            migrations SQL versionadas
 docs/backlog.md     backlog de produto, com o status de cada story
 tests/              testes das regras puras
+e2e/                testes no navegador: fluxo principal e acessibilidade
 ```
 
 ### Decisoes que valem registro
@@ -269,6 +278,28 @@ tests/              testes das regras puras
   de multiplicada, filtro descartando falas curtas e forma IPv6 mapeada
   escapando da checagem de rede interna. Cada um desses tem um teste que falha
   se o defeito voltar.
+- **Testes no navegador.** `e2e/` percorre o fluxo principal (cadastro, texto
+  colado, leitura ate o fim, historico), o modo Paginas, a leitura guiada por
+  tempo livre e a verificacao de acessibilidade com axe nos temas claro,
+  escuro e de alto contraste. Roda na CI em um job proprio, com Postgres de
+  servico. Localmente, `npm run test:e2e` reaproveita o servidor que estiver
+  na porta 3200 (ou `E2E_PORT`); `PW_CHROMIUM_PATH` aponta um Chromium ja
+  instalado. Cada teste se apresenta com um IP proprio em `x-forwarded-for`,
+  para o limite de cadastros por IP nao barrar a suite.
+- **Sessoes revogaveis.** O token carrega a versao da sessao da conta. Trocar
+  a senha ou "sair de todos os aparelhos" incrementa a versao, e todo token
+  anterior deixa de valer na proxima requisicao. O middleware roda no Edge e
+  nao consulta banco, entao a conferencia fica em `requireSession` e no
+  layout autenticado.
+- **Erros rastreaveis.** Todo erro 500 grava uma linha JSON com um codigo de
+  8 caracteres, que a mensagem ao leitor tambem mostra. Parametros de
+  consulta, linha do Postgres e e-mails sao removidos antes da gravacao. A
+  tela de erro do navegador relata em `POST /api/erros`.
+- **Custo por conta.** Questionario e dicionario tem teto diario por conta
+  (20 e 200), alem do limite por IP. So geracao nova conta.
+- **Idioma do texto.** Lido do `lang` da pagina ou do `dc:language` do EPUB,
+  portugues quando ausente. Decide a voz da narracao e o pedido ao modelo no
+  dicionario e no questionario.
 - **Interface.** Mobile-first, com barra inferior ao alcance do polegar, areas
   de toque de no minimo 44px, respeito as areas seguras do Android/iOS e temas
   claro e escuro.

@@ -6,8 +6,16 @@ import { Button, Card, SectionTitle, Segmented, Slider } from "@/components/ui";
 import { AccountCard } from "@/components/account-card";
 import { ExportCard } from "@/components/export-card";
 import { BookmarkletCard } from "@/components/bookmarklet-card";
+import { FeedsCard } from "@/components/feeds-card";
 import { ReminderCard } from "@/components/reminder-card";
-import { MoonIcon, SettingsIcon, SpeedIcon, SunIcon, WordsIcon } from "@/components/icons";
+import {
+  ContrastIcon,
+  MoonIcon,
+  SettingsIcon,
+  SpeedIcon,
+  SunIcon,
+  WordsIcon,
+} from "@/components/icons";
 import {
   MAX_CHUNK,
   MAX_FONT_SCALE,
@@ -140,6 +148,36 @@ export default function SettingsPage() {
             : "A leitura comeca direto na velocidade configurada."}
         </p>
 
+        <Segmented<"adaptativo" | "uniforme">
+          label="Ritmo no modo Foco"
+          value={settings.adaptiveRhythm ? "adaptativo" : "uniforme"}
+          onChange={(value) => void update({ adaptiveRhythm: value === "adaptativo" })}
+          options={[
+            { value: "adaptativo", label: "Adaptativo" },
+            { value: "uniforme", label: "Uniforme" },
+          ]}
+        />
+        <p className="text-sm text-faint">
+          {settings.adaptiveRhythm
+            ? "Palavras curtas passam mais rapido; numeros, nomes, palavras longas e fins de frase ficam mais tempo. A velocidade media nao muda."
+            : "Todas as palavras ficam o mesmo tempo na tela, sem pausa em pontuacao."}
+        </p>
+
+        <Segmented<"perguntar" | "nao">
+          label="Perguntar se o texto ainda vale"
+          value={settings.askCheckpoints ? "perguntar" : "nao"}
+          onChange={(value) => void update({ askCheckpoints: value === "perguntar" })}
+          options={[
+            { value: "nao", label: "Nao perguntar" },
+            { value: "perguntar", label: "Perguntar" },
+          ]}
+        />
+        <p className="text-sm text-faint">
+          {settings.askCheckpoints
+            ? "Em textos longos, a leitura pausa a 25, 50 e 75% e pergunta se vale continuar."
+            : "A leitura segue ate o fim sem perguntar."}
+        </p>
+
         <Segmented<"normal" | "enfase">
           label="Enfase no inicio das palavras"
           value={settings.wordEmphasis ? "enfase" : "normal"}
@@ -172,9 +210,17 @@ export default function SettingsPage() {
           options={[
             { value: "light", label: "Claro", icon: <SunIcon className="size-4" /> },
             { value: "dark", label: "Escuro", icon: <MoonIcon className="size-4" /> },
+            { value: "contrast", label: "Contraste", icon: <ContrastIcon className="size-4" /> },
             { value: "system", label: "Sistema", icon: <SettingsIcon className="size-4" /> },
           ]}
         />
+        {preference === "contrast" || preference === "system" ? (
+          <p className="text-sm text-faint">
+            {preference === "contrast"
+              ? "Alto contraste: texto e controles com contraste reforcado, e o trecho atual sublinhado."
+              : "Segue o sistema, inclusive o pedido de contraste aumentado."}
+          </p>
+        ) : null}
       </Card>
 
       <Card className="space-y-6 p-5">
@@ -269,6 +315,8 @@ export default function SettingsPage() {
       </Card>
 
       <ReminderCard />
+
+      <FeedsCard />
 
       <BookmarkletCard />
 

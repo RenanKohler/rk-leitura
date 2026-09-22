@@ -14,10 +14,15 @@ export interface SessionUser {
   id: string;
   email: string;
   name: string;
+  /**
+   * Versao da sessao gravada no token. Comparada com `users.session_version`
+   * fora do Edge; tokens emitidos antes da coluna existir valem como 0.
+   */
+  version: number;
 }
 
 export function createToken(user: SessionUser): Promise<string> {
-  return new SignJWT({ email: user.email, name: user.name })
+  return new SignJWT({ email: user.email, name: user.name, sv: user.version })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
     .setIssuedAt()
@@ -31,7 +36,8 @@ export async function verifyToken(token: string): Promise<SessionUser | null> {
     if (!payload.sub || typeof payload.email !== "string" || typeof payload.name !== "string") {
       return null;
     }
-    return { id: payload.sub, email: payload.email, name: payload.name };
+    const version = typeof payload.sv === "number" && Number.isInteger(payload.sv) ? payload.sv : 0;
+    return { id: payload.sub, email: payload.email, name: payload.name, version };
   } catch {
     return null;
   }

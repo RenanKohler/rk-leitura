@@ -3,6 +3,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
+import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
 import {
   CHOICES_PER_QUESTION,
   MAX_QUESTIONS,
@@ -66,8 +67,17 @@ function client(): Anthropic {
   return new Anthropic({ apiKey });
 }
 
-export async function generateQuiz(title: string, content: string): Promise<Quiz> {
+export async function generateQuiz(
+  title: string,
+  content: string,
+  language: string = DEFAULT_LANGUAGE
+): Promise<Quiz> {
   const excerpt = content.slice(0, MAX_CHARS);
+  // Texto em outro idioma (US-69): perguntas em portugues, citacoes no original.
+  const languageNote =
+    language === DEFAULT_LANGUAGE
+      ? ""
+      : `\n\nO texto esta em ${languageName(language).toLowerCase()}. Escreva perguntas e alternativas em portugues do Brasil; quando citar o texto, inclusive na evidencia, mantenha a citacao no idioma original.`;
 
   let response;
   try {
@@ -79,7 +89,7 @@ export async function generateQuiz(title: string, content: string): Promise<Quiz
       messages: [
         {
           role: "user",
-          content: `Titulo: ${title}\n\nTexto:\n${excerpt}\n\nEscreva de ${MIN_QUESTIONS} a ${MAX_QUESTIONS} perguntas de compreensao sobre este texto.`,
+          content: `Titulo: ${title}\n\nTexto:\n${excerpt}\n\nEscreva de ${MIN_QUESTIONS} a ${MAX_QUESTIONS} perguntas de compreensao sobre este texto.${languageNote}`,
         },
       ],
     });

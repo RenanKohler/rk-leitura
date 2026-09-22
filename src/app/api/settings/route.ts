@@ -23,7 +23,7 @@ import { asTimezone } from "@/lib/goals";
 export const dynamic = "force-dynamic";
 
 const READING_MODES = new Set(["rsvp", "flow", "page"]);
-const THEMES = new Set(["system", "light", "dark"]);
+const THEMES = new Set(["system", "light", "dark", "contrast"]);
 
 export async function GET() {
   const session = await requireSession();
@@ -61,6 +61,9 @@ export async function PUT(request: Request) {
       ),
       warmup: body?.warmup !== false,
       wordEmphasis: body?.wordEmphasis === true,
+      // Padrao ligado: so um `false` explicito desliga.
+      adaptiveRhythm: body?.adaptiveRhythm !== false,
+      askCheckpoints: body?.askCheckpoints === true,
       timezone: asTimezone(body?.timezone),
     };
 

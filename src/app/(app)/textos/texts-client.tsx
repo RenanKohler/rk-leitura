@@ -17,10 +17,13 @@ import {
   LinkButton,
   Pagination,
   Segmented,
+  SelectField,
   Sheet,
   Skeleton,
   TextArea,
 } from "@/components/ui";
+import { PAUSED_MESSAGE } from "@/lib/follow";
+import { LANGUAGES } from "@/lib/language";
 import {
   ArchiveIcon,
   EditIcon,
@@ -57,6 +60,7 @@ const STATUS_OPTIONS: { value: TextStatus; label: string }[] = [
   { value: "nao-iniciados", label: "Nao lidos" },
   { value: "em-andamento", label: "Lendo" },
   { value: "concluidos", label: "Lidos" },
+  { value: "largados", label: "Largados" },
 ];
 
 const SCOPE_OPTIONS: { value: TextScope; label: string }[] = [
@@ -144,6 +148,24 @@ export function TextsClient({
     }
   };
 
+  /**
+   * Liga ou desliga o acompanhamento (US-70). Ligar de novo uma serie pausada
+   * a reativa.
+   */
+  const followSeries = async (key: string, follow: boolean) => {
+    try {
+      if (follow) await apiSend("/api/series/acompanhar", "POST", { seriesKey: key });
+      else await apiSend(`/api/series/acompanhar?serie=${encodeURIComponent(key)}`, "DELETE");
+      resource.reload();
+      notify(
+        follow ? "Voce sera avisado quando sair um capitulo novo." : "Serie nao e mais acompanhada.",
+        "success"
+      );
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "Falha ao salvar.", "error");
+    }
+  };
+
   const unlinkChapter = async (id: string) => {
     try {
       await apiSend(`/api/series?texto=${id}`, "DELETE");
@@ -174,6 +196,16 @@ export function TextsClient({
       resource.reload();
     } catch {
       notify(restoring ? "Falha ao desarquivar." : "Falha ao arquivar.", "error");
+    }
+  };
+  /** Retoma um texto largado (US-79): volta a lista na posicao em que parou. */
+  const resumeText = async (text: TextSummary) => {
+    try {
+      await apiSend(`/api/texts/${text.id}/largar`, "DELETE");
+      notify("Texto de volta a biblioteca.", "success");
+      resource.reload();
+    } catch {
+      notify("Falha ao retomar.", "error");
     }
   };
   const [editing, setEditing] = useState<TextDetail | null>(null);
@@ -213,6 +245,7 @@ export function TextsClient({
           sourceUrl: editing.sourceUrl,
           content: editing.content,
           tags: editing.tags,
+          language: editing.language,
         }
       );
       setEditing(null);
@@ -398,6 +431,7 @@ export function TextsClient({
                   wpm={settings.baseWpm}
                   index={index}
                   onUnlink={() => void unlinkSeries(item.key)}
+                  onFollow={(follow: boolean) => void followSeries(item.key, follow)}
                   onUnlinkChapter={(id: string) => void unlinkChapter(id)}
                 />
               ) : (
@@ -409,6 +443,7 @@ export function TextsClient({
                   onEdit={() => openEditor(item.text)}
                   onDelete={() => setPendingDelete(item.text)}
                   onToggleArchive={() => void toggleArchive(item.text)}
+                  onResume={() => void resumeText(item.text)}
                   onQueue={() => void toggleQueue(item.text)}
                   onTag={(name) => changeFilter(() => setTagId(tagIdByName(name)))}
                 />
@@ -480,6 +515,18 @@ export function TextsClient({
               onChange={(event) => setEditing({ ...editing, content: event.target.value })}
             />
 
+            <SelectField
+              label="Idioma do texto"
+              name="language"
+              hint="Define a voz da leitura em voz alta, o dicionario e o questionario."
+              value={editing.language}
+              options={LANGUAGES.map((language) => ({
+                value: language.code,
+                label: language.name,
+              }))}
+              onChange={(event) => setEditing({ ...editing, language: event.target.value })}
+            />
+
             <TagPicker
               known={tags.map((tag) => tag.name)}
               value={editing.tags}
@@ -534,6 +581,7 @@ function TextCard({
   onToggleArchive,
   onQueue,
   onTag,
+  onResume,
 }: {
   text: TextSummary;
   wpm: number;
@@ -543,6 +591,7 @@ function TextCard({
   onToggleArchive: () => void;
   onQueue?: () => void;
   onTag?: (name: string) => void;
+  onResume?: () => void;
 }) {
   const archived = text.archivedAt !== null;
   const percent =
@@ -553,7 +602,10 @@ function TextCard({
       <Card className="p-4">
         <div className="flex items-start gap-3">
           <Link href={`/leitor/${text.id}`} className="min-w-0 flex-1">
-            <p className="font-medium leading-snug">{text.title}</p>
+            <p className="font-medium leading-snug">
+              {text.fresh ? <NewBadge /> : null}
+              {text.title}
+            </p>
             <p className="mt-1 text-sm text-muted">
               {`${formatNumber(text.wordCount)} palavras · ~${estimatedMinutes(text.wordCount, wpm)} min`}
               {percent > 0 ? ` · ${percent}% lido` : ""}
@@ -566,7 +618,12 @@ function TextCard({
           {/* Botoes sempre visiveis: a versao anterior os escondia atras de
               :hover, inalcancavel em tela de toque. */}
           <div className="flex shrink-0 gap-1">
-            {onQueue && !archived ? (
+            {text.abandoned && onResume ? (
+              <IconButton label="Retomar" onClick={onResume}>
+                <RestoreIcon className="size-5" />
+              </IconButton>
+            ) : null}
+            {onQueue && !archived && !text.abandoned ? (
               <IconButton
                 label={text.queuePosition === null ? "Adicionar a fila" : "Tirar da fila"}
                 onClick={onQueue}
@@ -640,13 +697,16 @@ function SeriesCard({
   index,
   onUnlink,
   onUnlinkChapter,
+  onFollow,
 }: {
   series: SeriesSummary;
   wpm: number;
   index: number;
   onUnlink: () => void;
   onUnlinkChapter: (id: string) => void;
+  onFollow: (follow: boolean) => void;
 }) {
+  const fresh = series.chapters.some((chapter) => chapter.fresh);
   const [open, setOpen] = useState(false);
   const current = series.chapters.find((item) => item.chapter === series.current);
   const read = series.chapters.reduce((sum, item) => sum + item.progressIndex, 0);
@@ -659,8 +719,12 @@ function SeriesCard({
           <Link href={`/leitor/${current?.id ?? series.chapters[0]!.id}`} className="min-w-0 flex-1">
             <p className="flex items-center gap-1.5 font-medium leading-snug">
               <SeriesIcon className="size-4 shrink-0 text-muted" />
+              {fresh ? <NewBadge /> : null}
               <span className="truncate">{series.title}</span>
             </p>
+            {series.follow?.paused ? (
+              <p className="mt-1 text-sm text-danger">{PAUSED_MESSAGE}</p>
+            ) : null}
             <p className="mt-1 text-sm text-muted">
               {`${seriesProgress(series.current, series.total)} · ${formatNumber(series.wordCount)} palavras · ~${estimatedMinutes(series.wordCount, wpm)} min`}
             </p>
@@ -690,6 +754,7 @@ function SeriesCard({
                     <Link href={`/leitor/${chapter.id}`} className="min-w-0 flex-1 py-2">
                       <span className="tabular mr-2 text-sm text-faint">{chapter.chapter}</span>
                       <span className={`text-sm ${done ? "text-faint" : ""}`}>
+                        {chapter.fresh ? <NewBadge /> : null}
                         {chapter.title}
                       </span>
                     </Link>
@@ -706,6 +771,26 @@ function SeriesCard({
               })}
             </ul>
 
+            {series.follow?.paused ? (
+              <Button full onClick={() => onFollow(true)}>
+                Tentar acompanhar de novo
+              </Button>
+            ) : (
+              <Button
+                variant={series.follow ? "secondary" : "primary"}
+                full
+                aria-pressed={series.follow !== null}
+                onClick={() => onFollow(series.follow === null)}
+              >
+                {series.follow ? "Deixar de acompanhar" : "Acompanhar novos capitulos"}
+              </Button>
+            )}
+            {series.follow?.paused ? (
+              <Button variant="ghost" full onClick={() => onFollow(false)}>
+                Deixar de acompanhar
+              </Button>
+            ) : null}
+
             <Button variant="secondary" full onClick={onUnlink}>
               Desfazer a serie
             </Button>
@@ -713,6 +798,15 @@ function SeriesCard({
         ) : null}
       </Card>
     </li>
+  );
+}
+
+/** Marca de texto importado sozinho e ainda nao lido (US-70, US-71). */
+function NewBadge() {
+  return (
+    <span className="mr-1.5 inline-flex rounded-full bg-accent-soft px-2 py-0.5 align-middle text-xs font-semibold text-accent">
+      Novo
+    </span>
   );
 }
 

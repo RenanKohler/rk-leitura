@@ -155,6 +155,14 @@ export const MoonIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Circulo metade cheio: o simbolo usual de contraste. */
+export const ContrastIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" />
+  </Icon>
+);
+
 export const SpeedIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M4 16a8 8 0 1 1 16 0" />
