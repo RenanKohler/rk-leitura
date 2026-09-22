@@ -74,6 +74,37 @@
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.8);
     --shadow-float: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 16px 40px -20px rgb(0 0 0 / 0.9);
   }
+
+  /*
+   * Alto contraste (US-76): texto e controles a 7:1 ou mais sobre qualquer
+   * fundo do tema, inclusive surface-2 e accent-soft. Bordas pretas, para os
+   * limites dos controles nao dependerem de sombra.
+   */
+  :root[data-theme="contrast"] {
+    --color-bg: #ffffff;
+    --color-surface: #ffffff;
+    --color-surface-2: #ebebeb;
+    --color-border: #000000;
+    --color-border-strong: #000000;
+    --color-ink: #000000;
+    --color-muted: #262626;
+    --color-faint: #3d3d3d;
+    --color-accent: #8f2700;
+    --color-accent-hover: #6e1e00;
+    --color-accent-ink: #ffffff;
+    --color-accent-soft: #fde8df;
+    --color-positive: #0a5a2e;
+    --color-positive-soft: #e3f3ea;
+    --color-danger: #8f1400;
+    --color-danger-soft: #fde8df;
+    --color-chart: #8f2700;
+    --color-chart-soft: #f2c9b8;
+    --color-mark: #5a4500;
+    --color-mark-soft: #fff0a8;
+
+    --shadow-card: none;
+    --shadow-float: 0 0 0 2px #000000;
+  }
 }
 
 /* ==========================================================================
@@ -213,6 +244,13 @@ a,
 
 .flow-word[data-state="read"] {
   color: var(--color-faint);
+}
+
+/* No alto contraste o trecho atual nao depende so da cor (US-76). */
+:root[data-theme="contrast"] .flow-word[data-state="active"] {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
 }
 
 /*

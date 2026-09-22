@@ -8,7 +8,14 @@ import { ExportCard } from "@/components/export-card";
 import { BookmarkletCard } from "@/components/bookmarklet-card";
 import { FeedsCard } from "@/components/feeds-card";
 import { ReminderCard } from "@/components/reminder-card";
-import { MoonIcon, SettingsIcon, SpeedIcon, SunIcon, WordsIcon } from "@/components/icons";
+import {
+  ContrastIcon,
+  MoonIcon,
+  SettingsIcon,
+  SpeedIcon,
+  SunIcon,
+  WordsIcon,
+} from "@/components/icons";
 import {
   MAX_CHUNK,
   MAX_FONT_SCALE,
@@ -173,9 +180,17 @@ export default function SettingsPage() {
           options={[
             { value: "light", label: "Claro", icon: <SunIcon className="size-4" /> },
             { value: "dark", label: "Escuro", icon: <MoonIcon className="size-4" /> },
+            { value: "contrast", label: "Contraste", icon: <ContrastIcon className="size-4" /> },
             { value: "system", label: "Sistema", icon: <SettingsIcon className="size-4" /> },
           ]}
         />
+        {preference === "contrast" || preference === "system" ? (
+          <p className="text-sm text-faint">
+            {preference === "contrast"
+              ? "Alto contraste: texto e controles com contraste reforcado, e o trecho atual sublinhado."
+              : "Segue o sistema, inclusive o pedido de contraste aumentado."}
+          </p>
+        ) : null}
       </Card>
 
       <Card className="space-y-6 p-5">

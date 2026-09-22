@@ -177,7 +177,7 @@ export interface SettingsPayload {
   wordsPerChunk: number;
   highlightOpacity: number;
   readingMode: ReadingMode;
-  theme: "system" | "light" | "dark";
+  theme: "system" | "light" | "dark" | "contrast";
   fontScale: number;
   fontFamily: FontFamily;
   lineHeightStep: number;

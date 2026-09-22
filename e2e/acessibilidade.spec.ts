@@ -73,3 +73,37 @@ test("folha prende o foco e o devolve ao fechar", async ({ page }) => {
   await expect(dialog).toBeHidden();
   await expect(opener).toBeFocused();
 });
+
+/**
+ * Alto contraste (US-76): 7:1 nas telas principais, e aplicado sozinho quando
+ * o tema esta em "Sistema" e o sistema pede contraste aumentado.
+ */
+test("tema de alto contraste passa na regra de 7:1", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("rk-leitura:theme", "contrast"));
+  await registerByApi(page.request);
+  const text = await createText(page.request, "Texto para contraste", 200);
+  const failures: { tela: string; alvos: string[] }[] = [];
+
+  for (const screen of SCREENS) {
+    await page.goto(screen.path(text.id));
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "contrast");
+
+    const results = await new AxeBuilder({ page }).withRules(["color-contrast-enhanced"]).analyze();
+    for (const violation of results.violations) {
+      failures.push({
+        tela: screen.name,
+        alvos: violation.nodes.slice(0, 5).map((node) => node.target.join(" ")),
+      });
+    }
+  }
+
+  expect(failures).toEqual([]);
+});
+
+test("em Sistema, o pedido de contraste do sistema aplica o alto contraste", async ({ page }) => {
+  await page.emulateMedia({ contrast: "more" });
+  await registerByApi(page.request);
+  await page.goto("/textos");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "contrast");
+});
