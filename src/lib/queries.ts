@@ -139,34 +139,51 @@ function isoDate(value: Date | string): string {
 export const loadSettings = cache(async function loadSettings(
   userId: string
 ): Promise<SettingsPayload | null> {
+  return (await loadAccount(userId))?.settings ?? null;
+});
+
+/**
+ * Preferencias e versao da sessao na mesma consulta.
+ *
+ * O layout autenticado precisa das duas: a versao diz se o token foi revogado
+ * por troca de senha (US-62), e as preferencias ja seriam buscadas de todo
+ * jeito pelo layout raiz.
+ */
+export const loadAccount = cache(async function loadAccount(
+  userId: string
+): Promise<{ sessionVersion: number; settings: SettingsPayload } | null> {
   const [row] = await db
-    .select({ settings: speedSettings })
+    .select({ sessionVersion: users.sessionVersion, settings: speedSettings })
     .from(users)
     .leftJoin(speedSettings, eq(speedSettings.userId, users.id))
     .where(eq(users.id, userId))
     .limit(1);
 
   if (!row) return null;
-  if (!row.settings) return DEFAULT_SETTINGS;
+  return { sessionVersion: row.sessionVersion, settings: settingsFrom(row.settings) };
+});
+
+function settingsFrom(row: typeof speedSettings.$inferSelect | null): SettingsPayload {
+  if (!row) return DEFAULT_SETTINGS;
 
   return {
-    baseWpm: row.settings.baseWpm,
-    wordsPerChunk: row.settings.wordsPerChunk,
-    highlightOpacity: row.settings.highlightOpacity,
-    readingMode: row.settings.readingMode as SettingsPayload["readingMode"],
-    theme: row.settings.theme as SettingsPayload["theme"],
-    fontScale: row.settings.fontScale,
-    fontFamily: asFontFamily(row.settings.fontFamily),
-    lineHeightStep: row.settings.lineHeightStep,
-    warmup: row.settings.warmup,
-    wordEmphasis: row.settings.wordEmphasis,
-    timezone: asTimezone(row.settings.timezone),
-    weeklySummarySeenOn: row.settings.weeklySummarySeenOn,
-    placementWpm: row.settings.placementWpm,
-    placementSeen: row.settings.placementSeenAt !== null,
-    reminderHour: row.settings.reminderHour,
+    baseWpm: row.baseWpm,
+    wordsPerChunk: row.wordsPerChunk,
+    highlightOpacity: row.highlightOpacity,
+    readingMode: row.readingMode as SettingsPayload["readingMode"],
+    theme: row.theme as SettingsPayload["theme"],
+    fontScale: row.fontScale,
+    fontFamily: asFontFamily(row.fontFamily),
+    lineHeightStep: row.lineHeightStep,
+    warmup: row.warmup,
+    wordEmphasis: row.wordEmphasis,
+    timezone: asTimezone(row.timezone),
+    weeklySummarySeenOn: row.weeklySummarySeenOn,
+    placementWpm: row.placementWpm,
+    placementSeen: row.placementSeenAt !== null,
+    reminderHour: row.reminderHour,
   };
-})
+}
 
 export interface TextFilters {
   /** Termo ja dobrado por `foldForSearch`, ou null para nao filtrar. */

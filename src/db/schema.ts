@@ -20,6 +20,9 @@ export const users = pgTable(
     email: text("email").notNull(),
     passwordHash: text("password_hash").notNull(),
     name: text("name").notNull().default("Leitor"),
+    // Versao das sessoes emitidas. Trocar a senha ou "sair de todos os
+    // aparelhos" incrementa, e todo token com versao anterior deixa de valer.
+    sessionVersion: integer("session_version").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

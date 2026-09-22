@@ -41,6 +41,10 @@ export function AccountCard() {
 
   const [signingOut, setSigningOut] = useState(false);
 
+  const [confirmingSignOutAll, setConfirmingSignOutAll] = useState(false);
+  const [signOutAllError, setSignOutAllError] = useState("");
+  const [signingOutAll, setSigningOutAll] = useState(false);
+
   const nameChanged = name.trim().length > 0 && name.trim() !== user?.name;
 
   const saveName = async (event: React.FormEvent) => {
@@ -81,6 +85,25 @@ export function AccountCard() {
       setPasswordError(cause instanceof Error ? cause.message : "Falha ao alterar a senha.");
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const confirmSignOutAll = async () => {
+    if (signingOutAll) return;
+
+    setSignOutAllError("");
+    setSigningOutAll(true);
+    try {
+      await apiSend("/api/auth/logout/todos", "POST");
+      void navigator.serviceWorker?.ready
+        .then((registration) => registration.active?.postMessage({ type: "limpar" }))
+        .catch(() => undefined);
+      // Mesma razao da exclusao: o estado do cliente e da sessao que acabou.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = "/login";
+    } catch (cause) {
+      setSignOutAllError(cause instanceof Error ? cause.message : "Falha ao encerrar as sessoes.");
+      setSigningOutAll(false);
     }
   };
 
@@ -178,12 +201,45 @@ export function AccountCard() {
             Sair da conta
           </Button>
 
+          <Button variant="ghost" full onClick={() => setConfirmingSignOutAll(true)}>
+            <LogoutIcon className="size-5" />
+            Sair de todos os aparelhos
+          </Button>
+
           <Button variant="ghost" full onClick={() => setConfirmingDelete(true)}>
             <TrashIcon className="size-5" />
             Excluir conta
           </Button>
         </div>
       </Card>
+
+      <Sheet
+        open={confirmingSignOutAll}
+        title="Sair de todos os aparelhos"
+        onClose={() => {
+          setConfirmingSignOutAll(false);
+          setSignOutAllError("");
+        }}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted">
+            Encerra a sessao em todos os aparelhos em que voce entrou, inclusive neste. Para voltar,
+            sera preciso entrar de novo com e-mail e senha.
+          </p>
+
+          {signOutAllError ? <Alert>{signOutAllError}</Alert> : null}
+
+          <Button
+            variant="danger"
+            size="lg"
+            full
+            loading={signingOutAll}
+            onClick={confirmSignOutAll}
+          >
+            Encerrar todas as sessoes
+          </Button>
+        </div>
+      </Sheet>
 
       <Sheet
         open={confirmingDelete}

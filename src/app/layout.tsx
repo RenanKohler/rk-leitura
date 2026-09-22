@@ -4,8 +4,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers, themeBootstrapScript } from "@/components/providers";
 import { OfflineProvider } from "@/components/offline-provider";
-import { getSession } from "@/lib/auth";
-import { DEFAULT_SETTINGS, loadSettings } from "@/lib/queries";
+import { getSession, publicUser, sessionIsCurrent } from "@/lib/auth";
+import { DEFAULT_SETTINGS, loadAccount } from "@/lib/queries";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -47,10 +47,12 @@ export const viewport: Viewport = {
  */
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const session = await getSession();
-  // `null` significa conta apagada: o token ainda assina, mas nao ha usuario
-  // do outro lado. A aplicacao trata como visitante ate o layout autenticado
-  // encerrar a sessao (ver src/app/(app)/layout.tsx).
-  const settings = session ? await loadSettings(session.id) : null;
+  // Conta apagada ou sessao revogada: o token ainda assina, mas nao vale mais.
+  // A aplicacao trata como visitante ate o layout autenticado encerrar a
+  // sessao (ver src/app/(app)/layout.tsx).
+  const account = session ? await loadAccount(session.id) : null;
+  const current = session && sessionIsCurrent(session, account?.sessionVersion ?? null);
+  const settings = current ? account!.settings : null;
 
   return (
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
@@ -60,7 +62,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       </head>
       <body>
         <Providers
-          initialUser={settings ? session : null}
+          initialUser={current ? publicUser(session) : null}
           initialSettings={settings ?? DEFAULT_SETTINGS}
         >
           <OfflineProvider>{children}</OfflineProvider>

@@ -4,6 +4,8 @@ import { db } from "@/db";
 import { comprehensionQuizzes } from "@/db/schema";
 import { jsonError, requireSession, serverError } from "@/lib/api";
 import { loadText } from "@/lib/queries";
+import { consumeDailyQuota } from "@/lib/daily-quota";
+import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { contentKey, MIN_WORDS_FOR_QUIZ, parseQuiz, type Quiz } from "@/lib/quiz";
 import { generateQuiz, QuizUnavailable } from "@/lib/quiz-generator";
@@ -55,7 +57,17 @@ export async function POST(_request: Request, { params }: Params) {
     }
 
     const key = contentKey(text.content);
-    const quiz = (await cached(id, key)) ?? (await generateAndStore(id, key, text.title, text.content));
+    let quiz = await cached(id, key);
+    if (!quiz) {
+      // So a geracao nova conta para o teto diario da conta.
+      const quota = await consumeDailyQuota("questionario", session.id);
+      if (!quota.allowed) {
+        return jsonError(QUOTA_MESSAGES.questionario, 429, {
+          retryAfter: quota.retryAfterSeconds,
+        });
+      }
+      quiz = await generateAndStore(id, key, text.title, text.content);
+    }
 
     return NextResponse.json({ quiz: withoutAnswers(quiz), questions: quiz.questions.length });
   } catch (error) {

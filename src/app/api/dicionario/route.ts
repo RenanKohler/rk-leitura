@@ -3,6 +3,8 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { savedWords, texts } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
+import { consumeDailyQuota } from "@/lib/daily-quota";
+import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { MAX_SAVED_WORDS, normalizeWord, trimContext, wordKey } from "@/lib/dictionary";
 import { lookupWord, LookupUnavailable } from "@/lib/word-lookup";
@@ -95,6 +97,12 @@ export async function POST(request: Request) {
         },
         cached: true,
       });
+    }
+
+    // Palavra ja consultada voltou acima sem gastar cota; so a chamada nova conta.
+    const quota = await consumeDailyQuota("dicionario", session.id);
+    if (!quota.allowed) {
+      return jsonError(QUOTA_MESSAGES.dicionario, 429, { retryAfter: quota.retryAfterSeconds });
     }
 
     const entry = await lookupWord(word, context);
