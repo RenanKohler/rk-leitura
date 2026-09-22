@@ -31,6 +31,12 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 - O fuso horário do usuário não é armazenado hoje. É o pré-requisito comum de
   US-41, US-42, US-48 e US-49, e deve ser a primeira entrega do épico de
   hábito.
+- As épicas de US-62 a US-76 foram propostas sobre o commit `e87339b`, depois
+  de todas as anteriores entregues. Cada uma cita no campo Evidência o trecho
+  do código que mostra a lacuna. As estimativas são previsões.
+- Os limites numéricos dessas stories (20 questionários e 200 consultas por
+  dia, 10 séries acompanhadas, 5 feeds, intervalos de revisão) são pontos de
+  partida para validar com o uso real, não requisitos fechados.
 - Velocidade de referência para planejamento: 20 a 25 pontos por sprint de 2
   semanas.
 
@@ -69,9 +75,19 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Importação ampliada | 3 | 18 | 0 | 2 | 1 |
 | Ferramentas de leitura | 4 | 22 | 1 | 1 | 2 |
 | Leitura offline | 1 | 13 | 0 | 1 | 0 |
-| **Total** | **61** | **255** | **25 (41%)** | **25 (41%)** | **11 (18%)** |
+| Segurança de sessão | 2 | 7 | 1 | 1 | 0 |
+| Vocabulário | 3 | 13 | 1 | 1 | 1 |
+| Textos em outros idiomas | 3 | 11 | 1 | 2 | 0 |
+| Acompanhamento de conteúdo | 2 | 13 | 0 | 1 | 1 |
+| Custos e observabilidade | 3 | 16 | 2 | 1 | 0 |
+| Acessibilidade | 2 | 8 | 1 | 0 | 1 |
+| **Total** | **76** | **323** | **31 (41%)** | **31 (41%)** | **14 (18%)** |
 
-Status: 60 Implementadas, 1 Aguardando pendência.
+Status: 60 Implementadas, 1 Aguardando pendência, 15 Propostas.
+
+As seis épicas acrescentadas por último (Segurança de sessão em diante, US-62 a
+US-76) partem de lacunas encontradas no código no commit `e87339b`. Somam 68
+pontos: 6 Must, 6 Should e 3 Could.
 
 Os oito épicos finais (Hábito e metas em diante) reúnem o que ainda não existe
 no código: são propostas de produto, não leitura dele. Vêm depois das demais.
@@ -1195,11 +1211,306 @@ Como leitor, eu quero continuar lendo textos já abertos sem internet, para que 
 
 ---
 
+## Épico: Segurança de sessão
+
+### US-62: Encerrar as outras sessões ao trocar a senha
+
+**Épico:** Segurança de sessão
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `PATCH` em `src/app/api/auth/me/route.ts` reemite o token só no aparelho atual; `src/lib/session-token.ts` emite JWT de 7 dias sem versão
+
+Como leitor, eu quero que trocar a senha desconecte os outros aparelhos, para que alguém que conhecia a senha antiga perca o acesso na hora, e não sete dias depois.
+
+**Critérios de aceitação**
+1. Dado que troco a senha no aparelho A, quando o aparelho B faz a próxima requisição, então recebe 401 e é levado ao login.
+2. Dado que troco a senha no aparelho A, quando continuo usando o aparelho A, então permaneço conectado sem precisar entrar de novo.
+3. Dado que informo a senha atual incorreta, quando confirmo, então a senha não muda e nenhuma sessão é encerrada.
+4. Dado que altero apenas o nome, quando salvo, então as sessões dos outros aparelhos continuam válidas.
+
+**Notas técnicas:** acrescentar `session_version` inteiro em `users`, gravado no token e incrementado na troca de senha. O middleware roda no Edge e não consulta banco, então a comparação fica em `requireSession` e em `loadSettings`, o mesmo caminho que já trata a conta excluída (US-07). Tokens emitidos antes da migration não têm versão e devem ser tratados como versão 0.
+
+### US-63: Sair de todos os aparelhos
+
+**Épico:** Segurança de sessão
+**Prioridade:** Should
+**Story points:** 2
+**Status:** Proposta
+**Evidência:** `src/components/account-card.tsx` e `src/app/api/auth/logout/route.ts` encerram apenas a sessão atual
+
+Como leitor, eu quero encerrar a sessão em todos os aparelhos de uma vez, para que eu recupere o controle da conta depois de usar um computador compartilhado ou perder o celular.
+
+**Critérios de aceitação**
+1. Dado que estou em Ajustes, quando aciono "Sair de todos os aparelhos" e confirmo, então todas as sessões, inclusive a atual, são encerradas e vou para o login.
+2. Dado que abro a confirmação, quando cancelo, então nenhuma sessão é encerrada.
+3. Dado que o aparelho B estava com um texto aberto, quando tenta salvar o progresso, então recebe 401 e o progresso pendente não é gravado em nome da conta.
+4. Dado que a ação foi concluída, quando o aparelho B reabre o app instalado, então os caches offline da conta são apagados como em uma saída comum (US-40).
+
+**Notas técnicas:** depende de US-62; reaproveita o incremento de `session_version`. Aplicar o mesmo limite de `account:` já usado em `/api/auth/me`.
+
+---
+
+## Épico: Vocabulário
+
+### US-64: Revisar palavras salvas com repetição espaçada
+
+**Épico:** Vocabulário
+**Prioridade:** Must
+**Story points:** 8
+**Status:** Proposta
+**Evidência:** `savedWords` em `src/db/schema.ts` e `src/app/(app)/palavras/` apenas listam as consultas, sem revisão
+
+Como leitor, eu quero revisar as palavras que consultei em intervalos crescentes, para que eu fixe o vocabulário novo em vez de consultar a mesma palavra de novo.
+
+**Critérios de aceitação**
+1. Dado que tenho palavras com revisão vencida hoje, quando abro "Revisar" em Palavras, então vejo uma palavra por vez com a frase em que ela apareceu, e a definição só aparece quando toco em "Mostrar".
+2. Dado que marco "Lembrei", quando a palavra volta para a fila, então o próximo intervalo avança na sequência 1, 3, 7, 14 e 30 dias.
+3. Dado que marco "Não lembrei", quando a palavra volta para a fila, então o intervalo retorna a 1 dia.
+4. Dado que não há palavras vencidas, quando abro "Revisar", então vejo "Nenhuma palavra para revisar hoje" e a data da próxima revisão, ou o convite a consultar palavras quando a lista está vazia.
+5. Dado que uma sessão de revisão tem mais de 20 palavras vencidas, quando começo, então são apresentadas no máximo 20, as mais atrasadas primeiro.
+
+**Notas técnicas:** acrescentar `next_review_on` (date) e `interval_step` em `saved_words`. "Hoje" é calculado no fuso do usuário (`speedSettings.timezone`), a mesma regra de meta e sequência (US-41, US-42). Regra de intervalo em função pura em `src/lib/`, com teste em `tests/`.
+
+### US-65: Exportar a lista de palavras
+
+**Épico:** Vocabulário
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `src/app/api/exportar/route.ts` exporta sessões e textos; palavras salvas não entram
+
+Como leitor, eu quero exportar minhas palavras salvas em um arquivo, para que eu as estude em um aplicativo de cartões de memorização.
+
+**Critérios de aceitação**
+1. Dado que tenho palavras salvas, quando aciono "Exportar" em Palavras, então baixo um CSV UTF-8 com as colunas palavra, forma base, classe, definição, frase de origem e título do texto.
+2. Dado que o texto de origem foi apagado, quando exporto, então a linha sai com o título vazio, sem erro.
+3. Dado que a definição contém vírgula, aspas ou quebra de linha, quando abro o arquivo em uma planilha, então cada palavra ocupa exatamente uma linha.
+4. Dado que não tenho palavras salvas, quando abro a tela, então o botão "Exportar" fica desabilitado.
+
+### US-66: Marcar uma palavra como aprendida
+
+**Épico:** Vocabulário
+**Prioridade:** Could
+**Story points:** 2
+**Status:** Proposta
+**Evidência:** `src/app/(app)/palavras/words-client.tsx` não distingue palavras aprendidas
+
+Como leitor, eu quero marcar uma palavra como aprendida, para que ela saia da revisão sem que eu perca o registro de que a consultei.
+
+**Critérios de aceitação**
+1. Dado que marco uma palavra como aprendida, quando abro a revisão, então ela não é apresentada.
+2. Dado que filtro por "Aprendidas", quando a lista carrega, então vejo apenas as palavras marcadas.
+3. Dado que desmarco uma palavra aprendida, quando salvo, então ela volta à revisão com intervalo de 1 dia.
+
+**Notas técnicas:** depende de US-64.
+
+---
+
+## Épico: Textos em outros idiomas
+
+### US-67: Registrar o idioma de cada texto
+
+**Épico:** Textos em outros idiomas
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `texts` em `src/db/schema.ts` não tem idioma; `useSpeech` em `src/hooks/use-speech.ts` assume `pt-BR`
+
+Como leitor que lê em mais de um idioma, eu quero que cada texto tenha seu idioma registrado, para que voz, dicionário e questionário tratem o texto no idioma certo.
+
+**Critérios de aceitação**
+1. Dado que importo uma página com atributo `lang` no HTML, quando salvo, então o texto recebe esse idioma.
+2. Dado que importo um EPUB com `dc:language`, quando salvo, então os capítulos recebem esse idioma.
+3. Dado que a origem não declara idioma ou o texto foi colado, quando salvo, então o idioma é `pt-BR`.
+4. Dado que edito o texto, quando escolho outro idioma na lista (português, inglês, espanhol, francês, italiano, alemão), então a mudança é salva.
+5. Dado que a origem declara um idioma fora da lista, quando salvo, então o texto recebe `pt-BR` e a edição permite corrigir.
+
+**Notas técnicas:** coluna `language` em `texts` com padrão `pt-BR`, o que cobre os registros existentes sem backfill. A leitura do atributo entra em `src/lib/parser.ts` e `src/lib/epub-text.ts`, com teste.
+
+### US-68: Narrar o texto na voz do idioma dele
+
+**Épico:** Textos em outros idiomas
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `pickVoice` em `src/lib/speech.ts` recebe `pt-BR` como padrão em todas as chamadas
+
+Como leitor, eu quero que a leitura em voz alta use uma voz do idioma do texto, para que a pronúncia de um artigo em inglês não saia com fonética portuguesa.
+
+**Critérios de aceitação**
+1. Dado que o texto está em inglês, quando ativo a voz, então é escolhida uma voz `en`, com preferência pela variante exata quando existir.
+2. Dado que o aparelho não tem voz no idioma do texto, quando ativo, então vejo a mensagem atual com o nome do idioma do texto, e a narração não começa com voz de outro idioma.
+3. Dado que troco o idioma do texto na edição, quando volto ao leitor, então a próxima narração usa o novo idioma.
+
+**Notas técnicas:** depende de US-67. Muda apenas o argumento passado a `useSpeech`; a seleção de voz já trata variante exata e idioma base.
+
+### US-69: Consultar palavras e responder o questionário em textos estrangeiros
+
+**Épico:** Textos em outros idiomas
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `src/lib/dictionary.ts` e `src/lib/quiz-generator.ts` montam o pedido ao modelo sem informar o idioma do texto
+
+Como leitor que estuda outro idioma, eu quero consultar uma palavra de um texto estrangeiro e receber a definição em português, para que eu entenda o sentido sem sair da leitura.
+
+**Critérios de aceitação**
+1. Dado que consulto uma palavra em um texto em inglês, quando o painel abre, então vejo a palavra original, a tradução e a definição em português.
+2. Dado que a palavra consultada está flexionada, quando a consulta é feita, então a forma base é a do idioma do texto, não uma forma portuguesa.
+3. Dado que concluo um texto em espanhol, quando abro o questionário, então as perguntas são em português e as citações do texto aparecem no original.
+4. Dado que o questionário de um texto já foi gerado e o idioma do texto muda, quando abro de novo, então um questionário novo é gerado.
+
+**Notas técnicas:** depende de US-67. O idioma entra na `contentKey` do questionário para cumprir o critério 4. Palavras salvas passam a guardar o idioma, para que a revisão (US-64) mostre a tradução.
+
+---
+
+## Épico: Acompanhamento de conteúdo
+
+### US-70: Receber aviso quando sair um novo capítulo de uma série
+
+**Épico:** Acompanhamento de conteúdo
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `src/lib/series.ts` e `/api/texts/[id]/proximo` só buscam o capítulo seguinte quando o leitor pede; `src/app/api/cron/lembretes/route.ts` já roda de hora em hora
+
+Como leitor que acompanha histórias em andamento, eu quero ser avisado quando o próximo capítulo for publicado, para que eu não precise voltar à origem para verificar.
+
+**Critérios de aceitação**
+1. Dado que ativo "Acompanhar" em uma série da biblioteca, quando a verificação periódica encontra o capítulo seguinte ao último importado, então ele é importado para a biblioteca e recebo uma notificação com o título.
+2. Dado que o capítulo seguinte ainda não existe, quando a verificação roda, então nada é importado e nenhuma notificação é enviada.
+3. Dado que a origem falha em 3 verificações seguidas, quando isso acontece, então o acompanhamento é pausado e a série mostra "Acompanhamento pausado: a origem não respondeu".
+4. Dado que já acompanho 10 séries, quando tento acompanhar outra, então vejo a mensagem de limite e a ação não é aplicada.
+5. Dado que não permiti notificações, quando um capítulo novo é importado, então ele aparece na biblioteca com a marca "Novo".
+
+**Notas técnicas:** reaproveitar o agendamento horário do lembrete (US-43) e a busca protegida de `safe-fetch`. Verificar cada série no máximo uma vez a cada 6 horas, para não sobrecarregar a origem. O limite de 10 séries protege o tempo de execução da função.
+
+### US-71: Assinar um feed RSS
+
+**Épico:** Acompanhamento de conteúdo
+**Prioridade:** Could
+**Story points:** 8
+**Status:** Proposta
+**Evidência:** não há leitura de RSS ou Atom no código; `src/lib/source-url.ts` já normaliza endereços para detectar duplicatas
+
+Como leitor, eu quero assinar o feed de um site, para que os artigos novos entrem na minha biblioteca sem que eu importe um por um.
+
+**Critérios de aceitação**
+1. Dado que informo o endereço de um feed RSS ou Atom válido, quando salvo, então a assinatura aparece em Ajustes com o nome do feed.
+2. Dado que o endereço não é um feed, quando salvo, então vejo "Esse endereco nao e um feed RSS ou Atom." e nada é salvo.
+3. Dado que o feed publicou itens novos, quando a verificação roda, então no máximo 5 itens por feed são importados e recebem uma etiqueta com o nome do feed.
+4. Dado que um item já está na biblioteca pelo mesmo endereço normalizado, quando a verificação roda, então ele não é importado de novo.
+5. Dado que tenho 5 feeds assinados, quando tento assinar outro, então vejo a mensagem de limite.
+
+**Notas técnicas:** depende da mesma infraestrutura de verificação periódica de US-70; entregar junto evita duas rotinas agendadas. A importação de cada item passa por `importFromUrl`, com as mesmas proteções de tamanho e rede interna.
+
+---
+
+## Épico: Custos e observabilidade
+
+### US-72: Limitar por conta o uso das funções com custo
+
+**Épico:** Custos e observabilidade
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `rateLimit` em `/api/dicionario` e `/api/texts/[id]/questionario` usa como chave apenas `clientIp(request)`
+
+Como mantenedor, eu quero um teto diário por conta para questionário e dicionário, para que uma única conta, trocando de rede, não gere uma conta de modelo de linguagem fora do previsto.
+
+**Critérios de aceitação**
+1. Dado que uma conta gerou 20 questionários novos no dia, quando pede o 21º, então recebe HTTP 429 com "Limite diario de questionarios atingido. Volta a valer amanha."
+2. Dado que uma conta fez 200 consultas ao dicionário no dia, quando faz a 201ª, então recebe HTTP 429 com mensagem equivalente.
+3. Dado que o questionário do texto já estava gerado, quando a conta o abre de novo, então a abertura não conta para o limite.
+4. Dado que virou o dia no fuso do usuário, quando ele volta a usar, então o contador recomeça.
+5. Dado que a conta troca de endereço IP, quando continua usando, então o contador da conta é o mesmo.
+
+**Notas técnicas:** o limite por IP continua valendo, somado ao da conta. O limitador sobre Postgres de US-31 aceita qualquer chave; basta `quiz-dia:<userId>:<data>`. Valores em constantes, fáceis de ajustar depois de medir o uso.
+
+### US-73: Registrar erros do servidor com código de referência
+
+**Épico:** Custos e observabilidade
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `serverError` em `src/lib/api.ts` faz `console.error` e responde uma mensagem genérica; `src/app/error.tsx` não informa referência
+
+Como mantenedor, eu quero que cada erro do servidor gere um registro estruturado com um código que o leitor também vê, para que eu encontre a causa quando alguém relatar um problema.
+
+**Critérios de aceitação**
+1. Dado que uma rota responde 500, quando o leitor vê a mensagem de erro, então ela traz um código de referência de 8 caracteres.
+2. Dado que o erro foi registrado, quando busco o código nos logs da hospedagem, então encontro uma linha JSON com código, rota, id do usuário, mensagem e pilha.
+3. Dado que o erro envolve um texto, quando o registro é gravado, então o conteúdo do texto, o e-mail e a senha não aparecem nele.
+4. Dado que a tela quebra no navegador, quando `error.tsx` é exibido, então o erro é enviado a `POST /api/erros` com o mesmo formato, limitado a 10 envios por IP a cada 10 minutos.
+
+**Notas técnicas:** sem serviço externo nesta story; os logs da Vercel já retêm as linhas. Alertas por e-mail ficam para depois da decisão de provedor de US-05.
+
+### US-74: Testar de ponta a ponta o fluxo principal
+
+**Épico:** Custos e observabilidade
+**Prioridade:** Should
+**Story points:** 8
+**Status:** Proposta
+**Evidência:** `tests/` cobre apenas regras puras (README, seção Testes); `.github/workflows/ci.yml` não sobe navegador nem banco
+
+Como mantenedor, eu quero uma suíte de testes no navegador para o fluxo principal, para que uma mudança que quebre a leitura seja barrada antes do deploy.
+
+**Critérios de aceitação**
+1. Dado um banco vazio na CI, quando a suíte roda, então percorre cadastro, texto colado, leitura no modo Foco até o fim e a sessão registrada no histórico.
+2. Dado que a suíte roda, quando lê no modo Páginas, então vira a página por toque lateral e a posição salva é a da página exibida.
+3. Dado que qualquer passo falha, quando a CI termina, então o job fica vermelho e guarda captura de tela e registro do passo que falhou.
+4. Dado que a suíte roda em um push, quando termina, então leva no máximo 5 minutos.
+
+**Notas técnicas:** Playwright com Chromium e um serviço Postgres no workflow. Nada que dependa de rede externa: a importação por URL usa uma página servida pela própria suíte. Pré-requisito de US-75.
+
+---
+
+## Épico: Acessibilidade
+
+### US-75: Usar o app com leitor de tela e teclado
+
+**Épico:** Acessibilidade
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** atributos `aria-` presentes em 18 arquivos, sem verificação automatizada; folhas em `src/components/ui.tsx` controlam foco manualmente
+
+Como leitor com deficiência visual, eu quero navegar pela biblioteca, pelo leitor e pelos Ajustes com leitor de tela e teclado, para que eu use o app sem depender da visão.
+
+**Critérios de aceitação**
+1. Dado que navego com Tab, quando percorro qualquer tela autenticada, então todo controle recebe foco visível, na ordem da leitura da tela.
+2. Dado que abro uma folha (destaque, palavra, etiquetas), quando ela abre, então o foco vai para ela, fica preso nela e volta ao controle de origem ao fechar.
+3. Dado que uso um leitor de tela, quando chego a um botão com apenas ícone, então ouço um rótulo que descreve a ação.
+4. Dado que a verificação automatizada roda nas telas de biblioteca, leitor, estatísticas e Ajustes, quando termina, então não há violação de gravidade séria ou crítica, nos temas claro e escuro.
+
+**Notas técnicas:** a verificação do critério 4 entra na suíte de US-74 (axe sobre Playwright). O modo Foco troca a palavra várias vezes por segundo; anunciar cada troca tornaria o leitor de tela inutilizável, então a região do texto não deve ser `aria-live`.
+
+### US-76: Escolher um tema de alto contraste
+
+**Épico:** Acessibilidade
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `theme` em `speedSettings` aceita `system`, `light` e `dark`; não há variante de contraste reforçado
+
+Como leitor com baixa visão, eu quero um tema de alto contraste, para que texto, destaque e controles fiquem legíveis sem ampliar a tela.
+
+**Critérios de aceitação**
+1. Dado que escolho "Alto contraste" em Ajustes, quando o tema é aplicado, então texto e controles atingem contraste mínimo de 7:1 com o fundo.
+2. Dado que leio no modo Rolagem com o tema ativo, quando o trecho atual é destacado, então o destaque é indicado também por sublinhado, não apenas por cor.
+3. Dado que o sistema solicita contraste aumentado (`prefers-contrast: more`) e o tema está em "Sistema", quando abro o app, então o tema de alto contraste é aplicado.
+
+**Notas técnicas:** os tokens de cor já ficam em variáveis CSS em `globals.css`; a mudança é um conjunto novo de valores. A intensidade do destaque (US-26) deve continuar ajustável dentro do limite de contraste.
+
+---
+
 ## Fora do escopo (Won't Have)
 
 - **Compartilhamento de textos e destaques entre usuários:** todas as consultas são restritas ao dono; compartilhar mudaria o modelo de privacidade. Não confundir com o épico Compartilhamento, que trata de trazer conteúdo de fora para dentro.
 - **Resumo automático do texto antes da leitura:** seria uma segunda dependência de modelo de linguagem, com custo próprio. Reavaliar depois de medir uso e custo do questionário (US-46).
 - **Aplicativos nativos:** o PWA com Share Target (US-33) e o modo offline (US-40) cobrem os principais casos de uso móvel.
+- **Tradução automática do texto inteiro:** multiplicaria o custo de modelo de linguagem por texto. A consulta pontual de palavras em outro idioma (US-69) cobre o caso de estudo com custo controlado.
 - **Ranking e competição entre leitores:** depende de dados compartilhados e não se alinha ao objetivo de treino individual.
 
 ## Sugestão de MVP e próximos passos
@@ -1233,6 +1544,33 @@ histórico do que foi entregue, agrupado por dependência.
 | ~~8~~ | ~~US-40, US-43~~ | ~~18~~ | Concluída: leitura offline e lembrete diário |
 | ~~—~~ | ~~US-31~~ | ~~5~~ | Concluída: limite de requisições compartilhado, sobre o Postgres |
 | — | US-05 | 5 | Aguardando pendência: provedor de e-mail transacional. |
+
+### Próximas entregas: épicas US-62 a US-76
+
+| Ordem | Stories | Pontos | Objetivo |
+| --- | --- | --- | --- |
+| 9 | US-62, US-63, US-72, US-73 | 15 | Sessões revogáveis, teto de custo por conta e erros rastreáveis |
+| 10 | US-74, US-75 | 13 | Testes no navegador e acessibilidade verificada na CI |
+| 11 | US-67, US-68, US-69 | 11 | Textos em outros idiomas |
+| 12 | US-64, US-65, US-66 | 13 | Revisão e exportação de vocabulário |
+| 13 | US-70, US-71 | 13 | Acompanhamento de séries e feeds |
+| 14 | US-76 | 3 | Tema de alto contraste |
+
+Critérios desta ordem:
+
+- **Segurança e custo antes de funcionalidade nova.** US-62 e US-72 corrigem
+  exposições que já existem em produção: a senha trocada não derruba outros
+  aparelhos, e o teto das rotas com custo pode ser contornado trocando de rede.
+  US-73 vem junto porque as entregas seguintes precisam de erros rastreáveis.
+- **US-74 antes de US-75.** A verificação de acessibilidade roda dentro da
+  suíte de navegador; montar a suíte primeiro evita uma segunda
+  infraestrutura de teste.
+- **Idioma antes de vocabulário.** US-69 faz a palavra salva guardar o
+  idioma, e a revisão de US-64 usa essa informação para mostrar a tradução.
+  Na ordem inversa, a tabela de palavras mudaria duas vezes.
+- **US-70 e US-71 juntas.** Compartilham a rotina de verificação periódica;
+  separadas, seriam duas rotinas agendadas sobre o mesmo limite de execução
+  do plano Hobby.
 
 Por que esta ordem e não a do documento de origem:
 
