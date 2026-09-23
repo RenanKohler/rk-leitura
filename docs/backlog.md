@@ -1746,7 +1746,7 @@ Como leitor no modo Foco, eu quero que palavras curtas passem mais rápido e nú
 
 **Notas técnicas:** regra local, sem modelo de linguagem. Mover `pauseFactor` para `src/lib/reading.ts` como função pura com teste, acrescentar os pesos novos e normalizar pela média dos pesos do texto, o que cumpre o critério 3. O padrão da opção é ativado, para manter o comportamento atual de pausa em pontuação. Não se aplica à leitura em voz alta, cujo ritmo é o da voz.
 
-**Implementação:** a opção fica em Ajustes como "Ritmo no modo Foco" (Adaptativo ou Uniforme), ligada por padrão para manter a pausa em pontuação que já existia.
+**Implementação:** a opção fica em Ajustes como "Ritmo no modo Foco" (Adaptativo ou Uniforme), ligada por padrão para manter a pausa em pontuação que já existia. Depois do primeiro deploy, a variação foi reduzida: com o peso inteiro, palavras curtas passavam 25% mais rápido que o ppm escolhido, e a leitura parecia não seguir a velocidade. A variação passou a 40% da original, com piso de 95% do tempo por palavra; a média fica até 5% abaixo do ppm configurado, nunca acima (`ADAPTIVE_STRENGTH` e `ADAPTIVE_FLOOR` em `src/lib/pacing.ts`).
 
 ### US-88: Dar mais tempo às palavras que já me travaram
 

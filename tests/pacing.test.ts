@@ -128,11 +128,23 @@ describe("ritmo adaptativo (US-87, US-88)", () => {
     expect(wordWeight("fim.", "o")).toBeGreaterThan(wordWeight("fim", "o"));
   });
 
-  it("a media do texto continua 1, entao a velocidade media nao muda", () => {
-    const words = tokenize("Em 2026, Maria leu de tudo. O texto seguia longo e cheio de detalhes.");
-    const weights = normalizedWeights(words);
+  const texto = tokenize(
+    "Em 2026, Maria leu de tudo. O texto seguia longo e cheio de detalhes, e a leitura de um capitulo inteiro levou a tarde toda. No fim, ela anotou o que lembrava."
+  );
+
+  it("a velocidade media fica a ate 5% da configurada, e nunca acima", () => {
+    const weights = normalizedWeights(texto);
     const mean = weights.reduce((sum, w) => sum + w, 0) / weights.length;
-    expect(mean).toBeCloseTo(1, 10);
+    expect(mean).toBeGreaterThanOrEqual(1);
+    expect(mean).toBeLessThanOrEqual(1.05);
+  });
+
+  it("nenhuma palavra passa mais de 5% mais rapido que o ppm", () => {
+    expect(Math.min(...normalizedWeights(texto))).toBeGreaterThanOrEqual(0.95);
+  });
+
+  it("a variacao fica contida: nenhuma palavra passa de 1,4 vez o tempo medio", () => {
+    expect(Math.max(...normalizedWeights(texto))).toBeLessThanOrEqual(1.4);
   });
 
   it("o bloco considera todas as palavras", () => {
@@ -141,10 +153,11 @@ describe("ritmo adaptativo (US-87, US-88)", () => {
     expect(chunkFactor(weights, 1, 2)).toBe(1.25);
   });
 
-  it("palavra ja consultada ganha tempo extra", () => {
+  it("palavra ja consultada ganha 50% de tempo", () => {
     const words = tokenize("A efemeride foi lembrada.");
     const normal = normalizedWeights(words);
     const boosted = normalizedWeights(words, new Set([wordKeyForPace("efemeride")]));
-    expect(boosted[1]! / boosted[0]!).toBeGreaterThan(normal[1]! / normal[0]!);
+    expect(boosted[1]! / normal[1]!).toBeCloseTo(1.5, 10);
+    expect(boosted[0]).toBe(normal[0]);
   });
 });

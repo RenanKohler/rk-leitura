@@ -222,19 +222,39 @@ export function wordKeyForPace(word: string): string {
 }
 
 /**
- * Pesos de todas as palavras, normalizados para media 1.
+ * Quanto do peso bruto vira variacao de tempo. Com o peso inteiro, palavras
+ * curtas passavam 25% mais rapido que o ppm escolhido e a leitura parecia
+ * nao seguir a velocidade; 40% mantem a pausa de pontuacao perceptivel sem
+ * acelerar o resto.
+ */
+export const ADAPTIVE_STRENGTH = 0.4;
+
+/** Nenhuma palavra passa mais de 5% mais rapido que o ppm configurado. */
+export const ADAPTIVE_FLOOR = 0.95;
+
+/**
+ * Pesos de todas as palavras, normalizados para a media do texto.
  *
- * A normalizacao e o que mantem a velocidade media do texto igual a
- * configurada (US-87, criterio 3): o tempo e redistribuido entre as palavras,
- * nao acrescentado.
+ * A normalizacao mantem a velocidade media perto da configurada (US-87,
+ * criterio 3): o tempo e redistribuido, nao acrescentado. O piso impede que a
+ * redistribuicao acelere palavras curtas alem do ppm escolhido; com ele a
+ * media fica ate 5% abaixo, nunca acima.
+ *
+ * As palavras ja consultadas (US-88) ganham o acrescimo por ultimo, sobre o
+ * peso final, para os 50% nao serem diluidos pela atenuacao.
  */
 export function normalizedWeights(words: string[], known: ReadonlySet<string> = new Set()): number[] {
-  const raw = words.map((word, index) => {
-    const weight = wordWeight(word, words[index - 1]);
-    return known.size > 0 && known.has(wordKeyForPace(word)) ? weight * KNOWN_WORD_BOOST : weight;
+  const softened = words.map(
+    (word, index) => 1 + ADAPTIVE_STRENGTH * (wordWeight(word, words[index - 1]) - 1)
+  );
+  const mean = softened.reduce((sum, weight) => sum + weight, 0) / Math.max(softened.length, 1);
+
+  return softened.map((weight, index) => {
+    const base = Math.max(ADAPTIVE_FLOOR, mean > 0 ? weight / mean : 1);
+    return known.size > 0 && known.has(wordKeyForPace(words[index]!))
+      ? base * KNOWN_WORD_BOOST
+      : base;
   });
-  const mean = raw.reduce((sum, weight) => sum + weight, 0) / Math.max(raw.length, 1);
-  return mean > 0 ? raw.map((weight) => weight / mean) : raw.map(() => 1);
 }
 
 /** Fator de duracao de um bloco: a media dos pesos de todas as suas palavras. */

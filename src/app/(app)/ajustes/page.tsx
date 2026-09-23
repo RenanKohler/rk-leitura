@@ -159,7 +159,7 @@ export default function SettingsPage() {
         />
         <p className="text-sm text-faint">
           {settings.adaptiveRhythm
-            ? "Palavras curtas passam mais rapido; numeros, nomes, palavras longas e fins de frase ficam mais tempo. A velocidade media nao muda."
+            ? "Numeros, nomes, palavras longas e fins de frase ficam um pouco mais na tela. Nenhuma palavra passa mais rapido que a velocidade escolhida."
             : "Todas as palavras ficam o mesmo tempo na tela, sem pausa em pontuacao."}
         </p>
 
