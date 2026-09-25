@@ -220,7 +220,7 @@ function parseInline(text: string, base: number): Piece[] {
   while (i < text.length) {
     const char = text[i]!;
 
-    if (char === "\\" && i + 1 < text.length && /[\\`*_{}[\]()#+\-.!~>|]/.test(text[i + 1]!)) {
+    if (char === "\\" && i + 1 < text.length && /[\\`*_{}[\]()#+\-.!~<>|]/.test(text[i + 1]!)) {
       pushText(text[i + 1]!);
       i += 2;
       continue;
