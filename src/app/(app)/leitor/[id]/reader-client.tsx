@@ -26,6 +26,7 @@ import {
 } from "@/components/icons";
 import {
   chunkDurationMs,
+  chunkLength,
   clamp,
   typographyVars,
   warmupFactor,
@@ -40,6 +41,7 @@ import {
   parseParagraphs,
   sliceParagraphs,
   splitEmphasis,
+  startsParagraph,
   type Paragraph,
   type ReadingMode,
 } from "@/lib/reading";
@@ -396,7 +398,9 @@ function Reader({
 
     // No modo Paginas o passo e a pagina inteira: o tempo de permanencia
     // corresponde as palavras que ainda faltam nela.
-    const step = mode === "page" ? Math.max(1, pageEnd - index) : chunkSize;
+    // O bloco para no fim do paragrafo: o seguinte sempre abre uma tela nova.
+    const step =
+      mode === "page" ? Math.max(1, pageEnd - index) : chunkLength(paragraphs, index, chunkSize);
     const chunk = words.slice(index, index + step);
 
     // A rampa vale para o ritmo palavra a palavra. No modo Paginas a tela
@@ -409,7 +413,7 @@ function Reader({
     const delay =
       mode === "page"
         ? (60_000 / wpm) * step
-        : chunkDurationMs(wpm, chunkSize, factor) *
+        : chunkDurationMs(wpm, step, factor) *
           (weights ? chunkFactor(weights, index, chunk.length) : 1);
 
     const timer = setTimeout(() => {
@@ -461,6 +465,7 @@ function Reader({
     wpm,
     total,
     words,
+    paragraphs,
     mode,
     pageEnd,
     warmup,
@@ -796,7 +801,9 @@ function Reader({
   }, [togglePlay, turnPage]);
 
   const progress = total > 0 ? Math.min(100, (index / total) * 100) : 0;
-  const chunk = words.slice(index, index + chunkSize);
+  const chunk = words.slice(index, index + chunkLength(paragraphs, index, chunkSize));
+  // A primeira palavra do texto nao precisa de aviso: nao ha paragrafo antes.
+  const paragraphStart = index > 0 && startsParagraph(paragraphs, index);
 
   if (total === 0) {
     return (
@@ -900,6 +907,7 @@ function Reader({
           <RsvpStage
             chunk={chunk}
             chunkStyle={wordStyles?.[index] ?? 0}
+            paragraphStart={paragraphStart}
             onToggle={togglePlay}
             playing={playing}
             onLookup={lookupCurrent}
@@ -924,7 +932,7 @@ function Reader({
             paragraphs={paragraphs}
             totalWords={total}
             index={index}
-            chunkSize={chunkSize}
+            chunkSize={chunk.length}
             marks={stored}
             emphasis={emphasis}
             touch={word.handlers}
@@ -1287,6 +1295,7 @@ function ControlButton({
 function RsvpStage({
   chunk,
   chunkStyle,
+  paragraphStart,
   playing,
   onToggle,
   onLookup,
@@ -1294,6 +1303,8 @@ function RsvpStage({
   chunk: string[];
   /** Estilo Markdown da primeira palavra do bloco; 0 em texto simples. */
   chunkStyle: number;
+  /** O bloco abre um paragrafo novo. */
+  paragraphStart: boolean;
   playing: boolean;
   onToggle: () => void;
   onLookup: () => void;
@@ -1316,6 +1327,17 @@ function RsvpStage({
         <div className="absolute inset-x-0 bottom-0 flex justify-center">
           <span className="h-3 w-px bg-accent/40" />
         </div>
+        {/* Sinal de paragrafo a esquerda, fora do eixo de fixacao: aparece
+            so enquanto a primeira palavra do paragrafo esta na tela. */}
+        {paragraphStart ? (
+          <span
+            data-testid="inicio-paragrafo"
+            aria-hidden="true"
+            className="paragraph-sign absolute left-0 top-1/2 -translate-y-1/2 text-[clamp(1.5rem,7vw,2.5rem)]"
+          >
+            {"\u00b6"}
+          </span>
+        ) : null}
 
         <p
           className={`reader-word flex min-h-[4.5rem] items-center justify-center py-6 text-[clamp(2rem,11vw,4rem)] ${
@@ -1414,11 +1436,17 @@ function Words({
   );
 }
 
-/** Atributos do paragrafo que dizem, ao CSS, o tipo do bloco Markdown. */
+/**
+ * Atributos do paragrafo que dizem, ao CSS, o tipo do bloco Markdown e se o
+ * trecho continua um paragrafo iniciado antes (sem recuo de primeira linha).
+ */
 function blockProps(paragraph: Paragraph) {
-  return paragraph.kind && paragraph.kind !== "p"
-    ? { "data-kind": paragraph.kind, "data-marker": paragraph.marker }
-    : {};
+  return {
+    ...(paragraph.kind && paragraph.kind !== "p"
+      ? { "data-kind": paragraph.kind, "data-marker": paragraph.marker }
+      : {}),
+    ...(paragraph.continued ? { "data-cont": "" } : {}),
+  };
 }
 
 /** Os quatro manipuladores de ponteiro que o toque longo precisa. */

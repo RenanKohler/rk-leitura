@@ -140,6 +140,9 @@ function fillRuler(
       element.dataset.kind = paragraph.kind;
       if (paragraph.marker) element.dataset.marker = paragraph.marker;
     }
+    // O recuo de primeira linha muda onde as linhas quebram: o trecho que
+    // continua da pagina anterior nao o recebe, na pagina e aqui.
+    if (paragraph.continued) element.dataset.cont = "";
 
     const styled = paragraph.styles?.some((style) => styleClass(style) !== "") ?? false;
     if (!emphasis && !styled) {

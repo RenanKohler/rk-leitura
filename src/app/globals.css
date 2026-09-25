@@ -374,6 +374,23 @@ a,
 }
 
 /*
+ * Inicio de paragrafo: recuo da primeira linha. Titulos, listas, citacoes e
+ * codigo ja se distinguem pelo proprio bloco; o trecho que continua um
+ * paragrafo da pagina anterior (data-cont) fica sem recuo. So CSS: o texto
+ * do DOM continua sendo so as palavras, como a selecao de destaques exige.
+ */
+.reader-prose p:not([data-kind]):not([data-cont]) {
+  text-indent: 1.5em;
+}
+
+/* Sinal de paragrafo no modo foco. */
+.paragraph-sign {
+  color: var(--color-accent);
+  line-height: 1;
+  user-select: none;
+}
+
+/*
  * Textos em Markdown. Os simbolos de formatacao nao existem no texto da tela:
  * o tipo do bloco vem em `data-kind` e o marcador de lista e desenhado por
  * CSS, fora do texto, para a selecao continuar contando so palavras.
