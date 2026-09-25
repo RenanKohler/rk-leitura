@@ -31,7 +31,7 @@ import {
   users,
 } from "@/db/schema";
 import { DEFAULT_PAGE_SIZE } from "@/lib/api";
-import { asFontFamily, parseParagraphs } from "@/lib/reading";
+import { asFontFamily, asTextFormat, parseParagraphs } from "@/lib/reading";
 import { excerptOf } from "@/lib/highlights";
 import { MAX_SAVED_WORDS } from "@/lib/dictionary";
 import { tagKey } from "@/lib/tags";
@@ -728,6 +728,7 @@ export async function loadText(userId: string, id: string): Promise<TextDetail |
     title: text.title,
     sourceUrl: text.sourceUrl,
     content: text.content,
+    format: asTextFormat(text.format),
     language: text.language,
     wordCount: text.wordCount,
     progressIndex: text.progressIndex,
@@ -783,7 +784,7 @@ export async function loadHighlights(
     .where(and(eq(highlights.userId, userId), eq(highlights.textId, textId)))
     .orderBy(asc(highlights.startIndex));
 
-  const { words } = parseParagraphs(text.content);
+  const { words } = parseParagraphs(text.content, text.format);
 
   return {
     text,
@@ -1251,6 +1252,7 @@ export async function loadTimeWindow(userId: string, minutes: number): Promise<T
     id: texts.id,
     title: texts.title,
     content: texts.content,
+    format: texts.format,
     progressIndex: texts.progressIndex,
     wordCount: texts.wordCount,
     queuePosition: texts.queuePosition,
@@ -1272,7 +1274,7 @@ export async function loadTimeWindow(userId: string, minutes: number): Promise<T
 
   const fit = (rows: typeof queued, source: TimeSuggestion["source"]): TimeSuggestion[] =>
     rows.flatMap((row) => {
-      const { paragraphs } = parseParagraphs(row.content);
+      const { paragraphs } = parseParagraphs(row.content, asTextFormat(row.format));
       const slice = fitParagraphEnd(paragraphs, row.progressIndex, budget, pace.wpm, warmup);
       if (!slice) return [];
       return [

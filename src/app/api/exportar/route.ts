@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { highlights, readingSessions, texts } from "@/db/schema";
 import { jsonError, requireSession, serverError } from "@/lib/api";
 import { excerptOf } from "@/lib/highlights";
-import { parseParagraphs } from "@/lib/reading";
+import { asTextFormat, parseParagraphs } from "@/lib/reading";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +80,7 @@ async function exportLibrary(userId: string) {
   const payload = rows.map((row) => {
     // O trecho vai junto: quem abrir o arquivo fora do app nao tem como
     // reconstruir um intervalo de palavras a partir do indice sozinho.
-    const { words } = parseParagraphs(row.content);
+    const { words } = parseParagraphs(row.content, asTextFormat(row.format));
 
     return {
       titulo: row.title,
@@ -92,6 +92,7 @@ async function exportLibrary(userId: string) {
       criadoEm: row.createdAt.toISOString(),
       atualizadoEm: row.updatedAt.toISOString(),
       conteudo: row.content,
+      formato: row.format,
       destaques: (byText.get(row.id) ?? []).map((mark) => ({
         inicio: mark.startIndex,
         fim: mark.endIndex,

@@ -6,7 +6,7 @@ import { asString, jsonError, readJson, readPageParams, requireSession, serverEr
 import { asLanguage } from "@/lib/language";
 import { loadLibrary } from "@/lib/queries";
 import { asTextScope, asTextStatus, normalizeQuery } from "@/lib/text-filter";
-import { countWords } from "@/lib/reading";
+import { asTextFormat, countWords } from "@/lib/reading";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
 import { detectSeries, seriesKeyFor } from "@/lib/series";
 import { normalizeTagList } from "@/lib/tags";
@@ -25,6 +25,8 @@ interface Body {
   series?: unknown;
   /** Idioma declarado pela origem; sem ele, ou fora da lista, portugues. */
   language?: unknown;
+  /** "markdown" para interpretar as marcas; qualquer outro valor e texto simples. */
+  format?: unknown;
 }
 
 export async function GET(request: Request) {
@@ -72,6 +74,12 @@ export async function POST(request: Request) {
     // que e o comportamento de sempre e nao um erro. Quem ja conhece a
     // sequencia - a importacao de EPUB - manda `series` e nao depende da
     // deteccao, o que permite ao capitulo manter o proprio titulo.
+    const format = asTextFormat(body?.format);
+    const wordCount = countWords(content, format);
+    if (wordCount === 0) {
+      return jsonError("O texto nao tem palavras para ler.", 400);
+    }
+
     const declared = asDeclaredSeries(body?.series);
     const series = declared ?? detectSeries(title, sourceUrl);
     const tagNames = normalizeTagList(body?.tags);
@@ -84,8 +92,9 @@ export async function POST(request: Request) {
           title: title.slice(0, 200),
           sourceUrl,
           content,
+          format,
           // Calculado no servidor: o cliente nao decide a contagem.
-          wordCount: countWords(content),
+          wordCount,
           sourcePage: pageFromUrl(sourceUrl),
           seriesKey: series?.key ?? null,
           seriesTitle: series?.title ?? null,

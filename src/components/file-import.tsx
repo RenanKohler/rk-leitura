@@ -6,7 +6,8 @@ import { apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
 import { Alert, Button, Card, Field } from "@/components/ui";
 import { CheckIcon, FileIcon } from "@/components/icons";
-import { countWords, formatNumber } from "@/lib/reading";
+import { countWords, formatNumber, type TextFormat } from "@/lib/reading";
+import { markdownTitle } from "@/lib/markdown";
 import {
   fileTitle,
   hasNoText,
@@ -28,6 +29,10 @@ import {
 } from "@/lib/epub-text";
 import type { TextDetail } from "@/lib/types";
 
+/** Markdown e texto puro: o limite e o mesmo do conteudo aceito pelo servidor. */
+const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
+const MARKDOWN_FILE = /\.(md|markdown)$/i;
+
 interface Chapter {
   title: string;
   content: string;
@@ -36,7 +41,7 @@ interface Chapter {
 }
 
 /**
- * Importacao de arquivo: PDF e EPUB.
+ * Importacao de arquivo: PDF, EPUB e Markdown.
  *
  * A leitura acontece no navegador. Mandar um PDF de dez megabytes para uma
  * funcao serverless esbarraria no limite de corpo e no de tempo, e guardar o
@@ -53,6 +58,7 @@ export function FileImport() {
   const [error, setError] = useState("");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [format, setFormat] = useState<TextFormat>("plain");
   const [truncated, setTruncated] = useState(false);
   const [chapters, setChapters] = useState<Chapter[] | null>(null);
   const [bookTitle, setBookTitle] = useState("");
@@ -64,6 +70,7 @@ export function FileImport() {
     setError("");
     setTitle("");
     setContent("");
+    setFormat("plain");
     setTruncated(false);
     setChapters(null);
     setBookTitle("");
@@ -76,7 +83,9 @@ export function FileImport() {
     setBusy(true);
     try {
       if (/\.epub$/i.test(file.name)) await readEpub(file);
-      else await readPdf(file);
+      else if (MARKDOWN_FILE.test(file.name) || file.type === "text/markdown") {
+        await readMarkdown(file);
+      } else await readPdf(file);
     } catch (cause) {
       setError(
         cause instanceof EpubError
@@ -113,6 +122,23 @@ export function FileImport() {
     setTruncated(long);
     setContent(long ? result.content.slice(0, MAX_IMPORT_CHARS) : result.content);
     setTitle(fileTitle(result.title, file.name));
+  };
+
+  const readMarkdown = async (file: File) => {
+    if (file.size > MAX_MARKDOWN_BYTES) {
+      throw new Error(`O arquivo passa de ${Math.round(MAX_MARKDOWN_BYTES / 1024 / 1024)} MB.`);
+    }
+
+    const source = (await file.text()).replace(/^\uFEFF/, "");
+    if (countWords(source, "markdown") === 0) {
+      throw new Error("Este arquivo nao tem texto para ler.");
+    }
+
+    const long = source.length > MAX_IMPORT_CHARS;
+    setTruncated(long);
+    setFormat("markdown");
+    setContent(long ? source.slice(0, MAX_IMPORT_CHARS) : source);
+    setTitle(markdownTitle(source) ?? fileTitle(null, file.name));
   };
 
   const readEpub = async (file: File) => {
@@ -187,6 +213,7 @@ export function FileImport() {
       const { text } = await apiSend<{ text: TextDetail }>("/api/texts", "POST", {
         title: title.trim(),
         content,
+        format,
       });
       notify("Texto salvo.", "success");
       router.replace(`/leitor/${text.id}`);
@@ -237,7 +264,7 @@ export function FileImport() {
         <input
           ref={inputRef}
           type="file"
-          accept=".pdf,.epub,application/pdf,application/epub+zip"
+          accept=".pdf,.epub,.md,.markdown,application/pdf,application/epub+zip,text/markdown"
           className="sr-only"
           onChange={(event) => void onPick(event.target.files?.[0])}
         />
@@ -251,7 +278,7 @@ export function FileImport() {
           <FileIcon className="size-7 text-muted" />
           <span className="font-medium">{busy ? progress || "Lendo" : "Escolher arquivo"}</span>
           <span className="text-sm text-muted">
-            {`PDF com texto selecionavel ate ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB, ou EPUB sem protecao`}
+            {`PDF com texto selecionavel ate ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB, EPUB sem protecao ou Markdown (.md)`}
           </span>
         </button>
       </Card>
@@ -261,7 +288,7 @@ export function FileImport() {
       {truncated ? (
         <Alert tone="positive">
           O documento passa do tamanho maximo. Vamos importar o trecho inicial, de{" "}
-          {formatNumber(countWords(content))} palavras.
+          {formatNumber(countWords(content, format))} palavras.
         </Alert>
       ) : null}
 
@@ -281,7 +308,7 @@ export function FileImport() {
             </p>
           </div>
           <p className="tabular text-sm text-faint">
-            {`${formatNumber(countWords(content))} palavras`}
+            {`${formatNumber(countWords(content, format))} palavras`}
           </p>
           <Button size="lg" full loading={saving} disabled={!title.trim()} onClick={() => void saveSingle()}>
             Salvar na biblioteca

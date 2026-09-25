@@ -7,7 +7,7 @@ import { extractTextFromHtml } from "@/lib/parser";
 import { fetchPublicHtml, SafeFetchError } from "@/lib/safe-fetch";
 import { alreadyPresent, buildPageUrl } from "@/lib/continuation";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { countWords } from "@/lib/reading";
+import { asTextFormat, countWords } from "@/lib/reading";
 
 export const dynamic = "force-dynamic";
 
@@ -134,7 +134,7 @@ export async function POST(request: Request, { params }: Params) {
       .update(texts)
       .set({
         content: merged,
-        wordCount: countWords(merged),
+        wordCount: countWords(merged, asTextFormat(text.format)),
         sourcePage: nextPage,
         updatedAt: new Date(),
       })

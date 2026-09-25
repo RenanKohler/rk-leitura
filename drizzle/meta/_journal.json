@@ -134,6 +134,13 @@
       "when": 1790115859312,
       "tag": "0018_unique_thundra",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790355072501,
+      "tag": "0019_normal_strong_guy",
+      "breakpoints": true
     }
   ]
 }

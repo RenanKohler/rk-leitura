@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sliceParagraphs, splitEmphasis, type Paragraph } from "@/lib/reading";
+import { styleClass } from "@/lib/markdown";
 
 /** Teto de palavras testadas por pagina na busca binaria. */
 const MAX_WORDS_PER_PAGE = 800;
@@ -133,25 +134,40 @@ function fillRuler(
 ) {
   const nodes = sliceParagraphs(paragraphs, start, start + count).map((paragraph) => {
     const element = document.createElement("p");
+    // Titulo e item de lista tem corpo e recuo proprios: a regua precisa do
+    // mesmo tipo de bloco da pagina para medir a mesma altura.
+    if (paragraph.kind && paragraph.kind !== "p") {
+      element.dataset.kind = paragraph.kind;
+      if (paragraph.marker) element.dataset.marker = paragraph.marker;
+    }
 
-    if (!emphasis) {
+    const styled = paragraph.styles?.some((style) => styleClass(style) !== "") ?? false;
+    if (!emphasis && !styled) {
       // textContent, nunca innerHTML: o conteudo vem de uma pagina externa.
       element.textContent = paragraph.words.join(" ");
       return element;
     }
 
-    // Com enfase, a regua monta a mesma arvore da pagina visivel: o negrito
-    // e mais largo que o texto normal, e medir texto corrido daria uma
-    // pagina que nao cabe na tela. As duas saem de `splitEmphasis`.
+    // Com enfase ou estilo Markdown, a regua monta a mesma arvore da pagina
+    // visivel: o negrito e mais largo que o texto normal, e medir texto
+    // corrido daria uma pagina que nao cabe na tela. As duas saem de
+    // `splitEmphasis` e `styleClass`.
     for (const [index, word] of paragraph.words.entries()) {
       if (index > 0) element.append(document.createTextNode(" "));
-      for (const part of splitEmphasis(word, true)) {
+      const classes = styleClass(paragraph.styles?.[index] ?? 0);
+      let target: HTMLElement = element;
+      if (classes) {
+        target = document.createElement("span");
+        target.className = classes;
+        element.append(target);
+      }
+      for (const part of splitEmphasis(word, emphasis)) {
         if (part.bold) {
           const strong = document.createElement("b");
           strong.textContent = part.text;
-          element.append(strong);
+          target.append(strong);
         } else {
-          element.append(document.createTextNode(part.text));
+          target.append(document.createTextNode(part.text));
         }
       }
     }
