@@ -201,6 +201,20 @@ function paragraphAt(paragraphs: Paragraph[], index: number): number {
   return low;
 }
 
+/**
+ * Inicio estavel da janela renderizada da rolagem para uma posicao alvo.
+ *
+ * Se o inicio acompanhasse a leitura palavra a palavra, o paragrafo do topo
+ * perderia uma palavra a cada passo e se redistribuiria o tempo todo. O
+ * inicio so avanca em paragrafos inteiros e, dentro de um paragrafo longo,
+ * em saltos de `step` palavras.
+ */
+export function windowStart(paragraphs: Paragraph[], target: number, step: number): number {
+  if (target <= 0 || paragraphs.length === 0) return 0;
+  const paragraphStart = paragraphs[paragraphAt(paragraphs, target)]!.start;
+  return Math.max(paragraphStart, Math.floor(target / step) * step);
+}
+
 /** A palavra `index` abre um paragrafo (ou titulo, item, citacao). */
 export function startsParagraph(paragraphs: Paragraph[], index: number): boolean {
   if (paragraphs.length === 0) return false;

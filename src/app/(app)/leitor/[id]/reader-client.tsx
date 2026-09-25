@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWakeLock } from "@/hooks/use-wake-lock";
@@ -30,6 +30,7 @@ import {
   clamp,
   typographyVars,
   warmupFactor,
+  windowStart,
   WARMUP_WORDS,
   formatClock,
   formatNumber,
@@ -1671,7 +1672,7 @@ function FlowStage({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLSpanElement>(null);
 
-  const start = Math.max(0, index - WINDOW_BEFORE);
+  const start = windowStart(paragraphs, index - WINDOW_BEFORE, WINDOW_STEP);
   const end = Math.min(totalWords, index + reach);
   const visible = sliceParagraphs(paragraphs, start, end);
 
@@ -1691,6 +1692,27 @@ function FlowStage({
     return () => observer.disconnect();
   }, [end]);
 
+  // Quando a janela descarta paragrafos do topo, o texto que fica sobe na
+  // pagina. A compensacao mantem a palavra atual no mesmo ponto da tela: guarda
+  // a posicao dela no documento (independe da rolagem, entao uma rolagem suave
+  // em andamento nao entra na conta) e rola a diferenca antes da pintura.
+  const stageRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<{ position: number; offset: number; start: number } | null>(null);
+  useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    if (anchor && anchor.start !== start) {
+      const element = stageRef.current?.querySelector(`[data-start="${anchor.position}"]`);
+      if (element) {
+        const shift = element.getBoundingClientRect().top + window.scrollY - anchor.offset;
+        if (shift !== 0) window.scrollBy({ top: shift, behavior: "instant" });
+      }
+    }
+    const active = activeRef.current;
+    anchorRef.current = active
+      ? { position: index, offset: active.getBoundingClientRect().top + window.scrollY, start }
+      : null;
+  }, [index, start]);
+
   // Sem isso o destaque desce para fora da tela e o leitor perde a posicao.
   // Rola apenas quando a palavra atual sai da faixa confortavel de leitura,
   // em vez de a cada passo.
@@ -1708,7 +1730,15 @@ function FlowStage({
   }, [index]);
 
   return (
-    <div className="flex-1 px-5 py-8" onDoubleClick={onToggle} {...touch}>
+    <div
+      ref={stageRef}
+      // A compensacao acima faz o papel da ancoragem nativa; as duas juntas
+      // rolariam o deslocamento duas vezes.
+      style={{ overflowAnchor: "none" }}
+      className="flex-1 px-5 py-8"
+      onDoubleClick={onToggle}
+      {...touch}
+    >
       <div className="reader-prose mx-auto max-w-2xl">
         {visible.map((paragraph) => (
           <p key={paragraph.start} {...blockProps(paragraph)}>

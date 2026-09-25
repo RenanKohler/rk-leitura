@@ -18,6 +18,7 @@ import {
   tokenize,
   typographyVars,
   warmupFactor,
+  windowStart,
   WARMUP_START,
   WARMUP_WORDS,
 } from "@/lib/reading";
@@ -98,6 +99,20 @@ describe("inicio de paragrafo", () => {
   it("reconhece a primeira palavra de cada paragrafo", () => {
     const starts = Array.from({ length: 8 }, (_, index) => startsParagraph(paragraphs, index));
     expect(starts).toEqual([true, false, false, true, false, false, false, true]);
+  });
+
+  it("a janela da rolagem comeca em paragrafo inteiro", () => {
+    expect(windowStart(paragraphs, -5, 400)).toBe(0);
+    expect(windowStart(paragraphs, 1, 400)).toBe(0);
+    expect(windowStart(paragraphs, 5, 400)).toBe(3);
+    expect(windowStart(paragraphs, 7, 400)).toBe(7);
+  });
+
+  it("paragrafo longo avanca a janela em saltos", () => {
+    const longo = parseParagraphs(Array.from({ length: 1000 }, () => "a").join(" ")).paragraphs;
+    expect(windowStart(longo, 399, 400)).toBe(0);
+    expect(windowStart(longo, 450, 400)).toBe(400);
+    expect(windowStart(longo, 799, 400)).toBe(400);
   });
 
   it("o bloco nao atravessa o fim do paragrafo", () => {
