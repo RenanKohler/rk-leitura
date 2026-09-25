@@ -15,7 +15,7 @@ import { loadText } from "@/lib/queries";
 import { normalizeTagList } from "@/lib/tags";
 import { applyTags } from "@/lib/text-tags";
 import { detectSeries } from "@/lib/series";
-import { clamp, countWords } from "@/lib/reading";
+import { asTextFormat, clamp, countWords } from "@/lib/reading";
 import { newerPosition } from "@/lib/offline";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +64,7 @@ export async function PUT(request: Request, { params }: Params) {
       content?: unknown;
       tags?: unknown;
       language?: unknown;
+      format?: unknown;
     }>(request);
     const title = asString(body?.title);
     const content = asString(body?.content);
@@ -84,7 +85,12 @@ export async function PUT(request: Request, { params }: Params) {
     }
 
     const [current] = await db
-      .select({ content: texts.content, title: texts.title, seriesKey: texts.seriesKey })
+      .select({
+        content: texts.content,
+        format: texts.format,
+        title: texts.title,
+        seriesKey: texts.seriesKey,
+      })
       .from(texts)
       .where(ownedText(id, session.id))
       .limit(1);
@@ -94,8 +100,15 @@ export async function PUT(request: Request, { params }: Params) {
     // Trocar so o titulo nao mexe na leitura. E o conteudo que invalida a
     // posicao salva e os indices dos destaques - por isso as duas perdas
     // acontecem juntas, e so quando ele muda de fato.
-    const rewritten = current.content !== content;
-    const wordCount = countWords(content);
+    // Formato ausente mantem o salvo. Trocar o formato muda quais palavras
+    // existem, entao conta como reescrever o conteudo.
+    const format =
+      body?.format === undefined ? asTextFormat(current.format) : asTextFormat(body.format);
+    const rewritten = current.content !== content || current.format !== format;
+    const wordCount = countWords(content, format);
+    if (wordCount === 0) {
+      return jsonError("O texto nao tem palavras para ler.", 400);
+    }
 
     // O titulo mudou: o capitulo pode ter passado a ser reconhecido, ou
     // deixado de ser. Nao mexe em quem ja foi desvinculado a mao - o
@@ -111,6 +124,7 @@ export async function PUT(request: Request, { params }: Params) {
           title: title.slice(0, 200),
           sourceUrl,
           content,
+          format,
           wordCount,
           ...(language ? { language } : {}),
           ...(rewritten ? { progressIndex: 0 } : {}),

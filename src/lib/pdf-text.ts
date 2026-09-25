@@ -168,7 +168,7 @@ export function fileTitle(metaTitle: unknown, filename: string): string {
 
   return (
     filename
-      .replace(/\.pdf$/i, "")
+      .replace(/\.(pdf|md|markdown)$/i, "")
       .replace(/[_]+/g, " ")
       .replace(/\s+/g, " ")
       .trim()

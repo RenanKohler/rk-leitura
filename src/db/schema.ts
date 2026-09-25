@@ -44,6 +44,9 @@ export const texts = pgTable(
     // Nulo quando o texto foi colado manualmente em vez de importado.
     sourceUrl: text("source_url"),
     content: text("content").notNull(),
+    // "markdown" quando o conteudo guarda marcas de formatacao a interpretar
+    // na leitura; "plain" para os demais, inclusive todos os anteriores.
+    format: text("format").notNull().default("plain"),
     // Idioma do texto (US-67): decide voz, dicionario e questionario.
     language: text("language").notNull().default("pt-BR"),
     wordCount: integer("word_count").notNull().default(0),

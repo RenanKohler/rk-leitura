@@ -43,6 +43,7 @@ import {
   type Paragraph,
   type ReadingMode,
 } from "@/lib/reading";
+import { STYLE, styleClass } from "@/lib/markdown";
 import { apiSend } from "@/lib/client";
 import { QuizSheet } from "@/components/quiz-sheet";
 import { HighlightSheet } from "@/components/highlight-sheet";
@@ -121,8 +122,20 @@ function Reader({
 
   // As duas visoes do mesmo texto: a lista corrida indexa a posicao, os
   // paragrafos dao a forma na tela.
-  const { words, paragraphs } = useMemo(() => parseParagraphs(text.content), [text.content]);
+  const { words, paragraphs } = useMemo(
+    () => parseParagraphs(text.content, text.format),
+    [text.content, text.format]
+  );
   const total = words.length;
+  // Estilo de cada palavra na lista corrida, para o modo Foco. Texto simples
+  // nao tem estilo e fica sem a lista.
+  const wordStyles = useMemo(
+    () =>
+      paragraphs.some((paragraph) => paragraph.styles)
+        ? paragraphs.flatMap((paragraph) => paragraph.styles ?? paragraph.words.map(() => 0))
+        : null,
+    [paragraphs]
+  );
 
   // Ritmo adaptativo (US-87, US-88): o peso de cada palavra, normalizado para
   // a media do texto continuar na velocidade escolhida. Desligado, todo bloco
@@ -886,6 +899,7 @@ function Reader({
         ) : mode === "rsvp" ? (
           <RsvpStage
             chunk={chunk}
+            chunkStyle={wordStyles?.[index] ?? 0}
             onToggle={togglePlay}
             playing={playing}
             onLookup={lookupCurrent}
@@ -1272,11 +1286,14 @@ function ControlButton({
  */
 function RsvpStage({
   chunk,
+  chunkStyle,
   playing,
   onToggle,
   onLookup,
 }: {
   chunk: string[];
+  /** Estilo Markdown da primeira palavra do bloco; 0 em texto simples. */
+  chunkStyle: number;
   playing: boolean;
   onToggle: () => void;
   onLookup: () => void;
@@ -1300,7 +1317,11 @@ function RsvpStage({
           <span className="h-3 w-px bg-accent/40" />
         </div>
 
-        <p className="reader-word flex min-h-[4.5rem] items-center justify-center py-6 text-[clamp(2rem,11vw,4rem)] font-semibold">
+        <p
+          className={`reader-word flex min-h-[4.5rem] items-center justify-center py-6 text-[clamp(2rem,11vw,4rem)] ${
+            chunkStyle & (STYLE.bold | STYLE.heading) ? "font-extrabold" : "font-semibold"
+          } ${styleClass(chunkStyle & ~STYLE.bold)}`}
+        >
           {single ? <OrpWord word={single} /> : <span>{chunk.join(" ")}</span>}
         </p>
       </div>
@@ -1344,32 +1365,60 @@ function OrpWord({ word }: { word: string }) {
  * `use-paged-text.ts`: as duas passam por `splitEmphasis`, entao o negrito
  * que muda a largura na tela tambem muda a largura medida.
  */
-function Word({ word, emphasis }: { word: string; emphasis: boolean }) {
-  if (!emphasis) return <>{word}</>;
-
-  return (
+function Word({
+  word,
+  emphasis,
+  style = 0,
+}: {
+  word: string;
+  emphasis: boolean;
+  /** Estilo Markdown da palavra (bits de STYLE). */
+  style?: number;
+}) {
+  const body = emphasis ? (
     <>
       {splitEmphasis(word, true).map((part, index) =>
         part.bold ? <b key={index}>{part.text}</b> : <span key={index}>{part.text}</span>
       )}
     </>
+  ) : (
+    word
   );
+
+  const classes = styleClass(style);
+  return classes ? <span className={classes}>{body}</span> : <>{body}</>;
 }
 
 /** Uma sequencia de palavras, com o espaco entre elas. */
-function Words({ words, emphasis }: { words: string[]; emphasis: boolean }) {
-  if (!emphasis) return <>{words.join(" ")}</>;
+function Words({
+  words,
+  emphasis,
+  styles,
+}: {
+  words: string[];
+  emphasis: boolean;
+  styles?: number[];
+}) {
+  const styled = styles?.some((style) => styleClass(style) !== "") ?? false;
+  if (!emphasis && !styled) return <>{words.join(" ")}</>;
 
   return (
     <>
       {words.map((word, index) => (
         <span key={index}>
           {index > 0 ? " " : null}
-          <Word word={word} emphasis />
+          <Word word={word} emphasis={emphasis} style={styles?.[index]} />
         </span>
       ))}
     </>
   );
+}
+
+/** Atributos do paragrafo que dizem, ao CSS, o tipo do bloco Markdown. */
+function blockProps(paragraph: Paragraph) {
+  return paragraph.kind && paragraph.kind !== "p"
+    ? { "data-kind": paragraph.kind, "data-marker": paragraph.marker }
+    : {};
 }
 
 /** Os quatro manipuladores de ponteiro que o toque longo precisa. */
@@ -1409,7 +1458,7 @@ function MarkedText({
   if (segments.length === 1 && segments[0]!.id === null) {
     return (
       <span data-start={paragraph.start}>
-        <Words words={paragraph.words} emphasis={emphasis} />
+        <Words words={paragraph.words} emphasis={emphasis} styles={paragraph.styles} />
       </span>
     );
   }
@@ -1419,6 +1468,7 @@ function MarkedText({
       {segments.map((segment, position) => {
         const from = segment.start - paragraph.start;
         const words = paragraph.words.slice(from, segment.end - paragraph.start);
+        const styles = paragraph.styles?.slice(from, segment.end - paragraph.start);
         // O espaco entre pedacos vive fora deles: dentro, entraria na contagem
         // de palavras do pedaco seguinte e deslocaria a selecao em um.
         const gap = segment.end < end ? " " : "";
@@ -1426,7 +1476,7 @@ function MarkedText({
         if (!segment.id) {
           return (
             <span key={position} data-start={segment.start}>
-              <Words words={words} emphasis={emphasis} />
+              <Words words={words} emphasis={emphasis} styles={styles} />
               {gap}
             </span>
           );
@@ -1440,7 +1490,7 @@ function MarkedText({
               className="mark"
               onClick={() => onOpenMark(segment.id!)}
             >
-              <Words words={words} emphasis={emphasis} />
+              <Words words={words} emphasis={emphasis} styles={styles} />
             </span>
             {gap}
           </span>
@@ -1510,7 +1560,7 @@ function PageStage({
         <div className="reader-prose">
           {ready
             ? sliceParagraphs(paragraphs, pageStart, pageEnd).map((paragraph) => (
-                <p key={paragraph.start}>
+                <p key={paragraph.start} {...blockProps(paragraph)}>
                   <MarkedText
                     paragraph={paragraph}
                     marks={marks}
@@ -1633,7 +1683,7 @@ function FlowStage({
     <div className="flex-1 px-5 py-8" onDoubleClick={onToggle} {...touch}>
       <div className="reader-prose mx-auto max-w-2xl">
         {visible.map((paragraph) => (
-          <p key={paragraph.start}>
+          <p key={paragraph.start} {...blockProps(paragraph)}>
             {paragraph.words.map((word, offset) => {
               const position = paragraph.start + offset;
               const state =
@@ -1661,7 +1711,7 @@ function FlowStage({
                   data-note={mark?.note && last ? "sim" : undefined}
                   onClick={() => (mark ? onOpenMark(mark.id) : onSeek(position))}
                 >
-                  <Word word={word} emphasis={emphasis} />{" "}
+                  <Word word={word} emphasis={emphasis} style={paragraph.styles?.[offset]} />{" "}
                 </span>
               );
             })}

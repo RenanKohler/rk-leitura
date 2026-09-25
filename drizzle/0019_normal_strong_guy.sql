@@ -1,0 +1,1 @@
+ALTER TABLE "texts" ADD COLUMN "format" text DEFAULT 'plain' NOT NULL;

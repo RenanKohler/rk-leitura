@@ -374,6 +374,116 @@ a,
 }
 
 /*
+ * Textos em Markdown. Os simbolos de formatacao nao existem no texto da tela:
+ * o tipo do bloco vem em `data-kind` e o marcador de lista e desenhado por
+ * CSS, fora do texto, para a selecao continuar contando so palavras.
+ */
+.reader-prose p[data-kind="h1"],
+.reader-prose p[data-kind="h2"],
+.reader-prose p[data-kind="h3"] {
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.reader-prose p[data-kind="h1"] {
+  font-size: 1.6em;
+}
+
+.reader-prose p[data-kind="h2"] {
+  font-size: 1.3em;
+}
+
+.reader-prose p[data-kind="h3"] {
+  font-size: 1.1em;
+}
+
+.reader-prose p + p[data-kind^="h"] {
+  margin-top: 1.3em;
+}
+
+.reader-prose p[data-kind="quote"] {
+  border-left: 3px solid var(--color-border-strong);
+  padding-left: 0.9em;
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.reader-prose p[data-kind="li"],
+.reader-prose p[data-kind="oli"] {
+  position: relative;
+  padding-left: 1.6em;
+}
+
+/* Itens seguidos ficam mais juntos que paragrafos. */
+.reader-prose p[data-kind="li"] + p[data-kind="li"],
+.reader-prose p[data-kind="oli"] + p[data-kind="oli"] {
+  margin-top: 0.35em;
+}
+
+.reader-prose p[data-kind="li"]::before,
+.reader-prose p[data-kind="oli"]::before {
+  position: absolute;
+  left: 0;
+  width: 1.3em;
+  text-align: right;
+  color: var(--color-muted);
+  user-select: none;
+}
+
+.reader-prose p[data-kind="li"]::before {
+  content: "\2022";
+}
+
+.reader-prose p[data-kind="oli"]::before {
+  content: attr(data-marker);
+  font-variant-numeric: tabular-nums;
+}
+
+.reader-prose p[data-kind="code"],
+.reader-prose .md-code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.88em;
+}
+
+.reader-prose p[data-kind="code"] {
+  background-color: var(--color-surface-2);
+  border-radius: 0.4rem;
+  padding: 0.15em 0.6em;
+}
+
+.reader-prose p[data-kind="code"] + p[data-kind="code"] {
+  margin-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.reader-prose .md-code {
+  background-color: var(--color-surface-2);
+  border-radius: 0.25rem;
+  padding: 0 0.2em;
+}
+
+.md-bold {
+  font-weight: 700;
+}
+
+.md-italic {
+  font-style: italic;
+}
+
+.md-strike {
+  text-decoration: line-through;
+}
+
+.md-link {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+/*
  * Tipografia da leitura.
  *
  * Os valores descem por variavel para que a regua de medicao do modo Paginas

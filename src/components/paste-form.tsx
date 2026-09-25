@@ -6,6 +6,7 @@ import { apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
 import { Alert, Button, Card, Field, TextArea } from "@/components/ui";
 import { countWords, formatNumber } from "@/lib/reading";
+import { looksLikeMarkdown, markdownTitle } from "@/lib/markdown";
 import type { TextDetail } from "@/lib/types";
 
 const MIN_WORDS = 10;
@@ -28,10 +29,15 @@ export function PasteForm({
   const [content, setContent] = useState(initialContent);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Nulo enquanto o leitor nao escolheu: vale a deteccao automatica.
+  const [markdownChoice, setMarkdownChoice] = useState<boolean | null>(null);
   const router = useRouter();
   const notify = useToast();
 
-  const wordCount = countWords(content);
+  const detected = looksLikeMarkdown(content);
+  const markdown = markdownChoice ?? detected;
+  const format = markdown ? "markdown" : "plain";
+  const wordCount = countWords(content, format);
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -45,8 +51,12 @@ export function PasteForm({
     setSaving(true);
     try {
       const { text } = await apiSend<{ text: TextDetail }>("/api/texts", "POST", {
-        title: title.trim() || content.trim().split(/\s+/).slice(0, 6).join(" "),
+        title:
+          title.trim() ||
+          (markdown ? markdownTitle(content) : null) ||
+          content.trim().split(/\s+/).slice(0, 6).join(" "),
         content: content.trim(),
+        format,
       });
       notify("Texto salvo.", "success");
       router.replace(`/leitor/${text.id}`);
@@ -78,6 +88,24 @@ export function PasteForm({
           value={content}
           onChange={(event) => setContent(event.target.value)}
         />
+
+        {detected || markdownChoice !== null ? (
+          <label className="flex min-h-11 items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              name="markdown"
+              className="size-5 accent-[var(--color-accent)]"
+              checked={markdown}
+              onChange={(event) => setMarkdownChoice(event.target.checked)}
+            />
+            <span>
+              Interpretar formatacao Markdown
+              <span className="block text-faint">
+                Titulos, listas, negrito e links aparecem formatados no leitor.
+              </span>
+            </span>
+          </label>
+        ) : null}
 
         <Button type="submit" size="lg" full loading={saving} disabled={wordCount === 0}>
           Salvar e ler

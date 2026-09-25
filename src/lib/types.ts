@@ -1,4 +1,4 @@
-import type { FontFamily, ReadingMode } from "@/lib/reading";
+import type { FontFamily, ReadingMode, TextFormat } from "@/lib/reading";
 import type { GoalKind } from "@/lib/goals";
 
 /** Formatos devolvidos pelas rotas internas, consumidos no cliente. */
@@ -122,6 +122,8 @@ export interface TextDetail extends TextSummary {
   checkpointAnswered: number;
   /** Idioma do texto (US-67), um dos codigos de `lib/language.ts`. */
   language: string;
+  /** Como o conteudo e lido: texto simples ou Markdown. */
+  format: TextFormat;
   /** Ultima pagina ja trazida da origem; a importacao inicial e a 1. */
   sourcePage: number;
 }

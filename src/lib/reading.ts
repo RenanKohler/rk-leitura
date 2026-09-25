@@ -2,6 +2,7 @@
  * Funcoes puras compartilhadas entre servidor e cliente.
  * Nao importar nada de servidor aqui.
  */
+import { parseMarkdown, type BlockKind } from "@/lib/markdown";
 
 export const MIN_WPM = 100;
 export const MAX_WPM = 1200;
@@ -82,7 +83,21 @@ export function tokenize(content: string): string[] {
     .filter((token) => token.length > 0);
 }
 
-export function countWords(content: string): number {
+/**
+ * Como o conteudo guardado deve ser lido. Texto simples e o padrao: os textos
+ * anteriores ao Markdown mantem a contagem de palavras e, com ela, a posicao
+ * salva e os destaques.
+ */
+export type TextFormat = "plain" | "markdown";
+
+export function asTextFormat(value: unknown): TextFormat {
+  return value === "markdown" ? "markdown" : "plain";
+}
+
+export function countWords(content: string, format: TextFormat = "plain"): number {
+  if (format === "markdown") {
+    return parseMarkdown(content).reduce((sum, block) => sum + block.words.length, 0);
+  }
   return tokenize(content).length;
 }
 
@@ -90,6 +105,12 @@ export interface Paragraph {
   /** Indice, no texto inteiro, da primeira palavra do paragrafo. */
   start: number;
   words: string[];
+  /** Tipo do bloco em textos Markdown; ausente e paragrafo comum. */
+  kind?: BlockKind;
+  /** Numero do item em lista numerada. */
+  marker?: string;
+  /** Estilo de cada palavra (bits de STYLE), so em textos Markdown. */
+  styles?: number[];
 }
 
 /**
@@ -100,9 +121,26 @@ export interface Paragraph {
  * os paragrafos dao a forma na tela. Antes so existia a lista corrida, entao o
  * texto era exibido como um bloco unico - dialogo e narracao sem separacao.
  */
-export function parseParagraphs(content: string): { words: string[]; paragraphs: Paragraph[] } {
+export function parseParagraphs(
+  content: string,
+  format: TextFormat = "plain"
+): { words: string[]; paragraphs: Paragraph[] } {
   const words: string[] = [];
   const paragraphs: Paragraph[] = [];
+
+  if (format === "markdown") {
+    for (const block of parseMarkdown(content)) {
+      paragraphs.push({
+        start: words.length,
+        words: block.words,
+        kind: block.kind,
+        ...(block.marker ? { marker: block.marker } : {}),
+        styles: block.styles,
+      });
+      for (const word of block.words) words.push(word);
+    }
+    return { words, paragraphs };
+  }
 
   for (const block of content.split(/\n+/)) {
     const blockWords = block
@@ -134,7 +172,12 @@ export function sliceParagraphs(
 
     const from = Math.max(start, paragraph.start) - paragraph.start;
     const to = Math.min(end, paragraphEnd) - paragraph.start;
-    slice.push({ start: paragraph.start + from, words: paragraph.words.slice(from, to) });
+    slice.push({
+      ...paragraph,
+      start: paragraph.start + from,
+      words: paragraph.words.slice(from, to),
+      ...(paragraph.styles ? { styles: paragraph.styles.slice(from, to) } : {}),
+    });
   }
 
   return slice;
