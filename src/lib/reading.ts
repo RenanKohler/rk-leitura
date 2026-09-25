@@ -111,6 +111,11 @@ export interface Paragraph {
   marker?: string;
   /** Estilo de cada palavra (bits de STYLE), so em textos Markdown. */
   styles?: number[];
+  /**
+   * Recorte que comeca no meio do paragrafo (topo da pagina ou da janela da
+   * rolagem): o inicio real ficou antes e nao recebe a marca de paragrafo.
+   */
+  continued?: boolean;
 }
 
 /**
@@ -177,10 +182,55 @@ export function sliceParagraphs(
       start: paragraph.start + from,
       words: paragraph.words.slice(from, to),
       ...(paragraph.styles ? { styles: paragraph.styles.slice(from, to) } : {}),
+      ...(from > 0 ? { continued: true } : {}),
     });
   }
 
   return slice;
+}
+
+/** Indice do paragrafo que contem a palavra `index` (busca binaria). */
+function paragraphAt(paragraphs: Paragraph[], index: number): number {
+  let low = 0;
+  let high = paragraphs.length - 1;
+  while (low < high) {
+    const middle = (low + high + 1) >> 1;
+    if (paragraphs[middle]!.start <= index) low = middle;
+    else high = middle - 1;
+  }
+  return low;
+}
+
+/**
+ * Inicio estavel da janela renderizada da rolagem para uma posicao alvo.
+ *
+ * Se o inicio acompanhasse a leitura palavra a palavra, o paragrafo do topo
+ * perderia uma palavra a cada passo e se redistribuiria o tempo todo. O
+ * inicio so avanca em paragrafos inteiros e, dentro de um paragrafo longo,
+ * em saltos de `step` palavras.
+ */
+export function windowStart(paragraphs: Paragraph[], target: number, step: number): number {
+  if (target <= 0 || paragraphs.length === 0) return 0;
+  const paragraphStart = paragraphs[paragraphAt(paragraphs, target)]!.start;
+  return Math.max(paragraphStart, Math.floor(target / step) * step);
+}
+
+/** A palavra `index` abre um paragrafo (ou titulo, item, citacao). */
+export function startsParagraph(paragraphs: Paragraph[], index: number): boolean {
+  if (paragraphs.length === 0) return false;
+  return paragraphs[paragraphAt(paragraphs, index)]!.start === index;
+}
+
+/**
+ * Tamanho do bloco que comeca em `index`: ate `size` palavras, sem atravessar
+ * o fim do paragrafo. Assim o fim de um paragrafo e o comeco do seguinte
+ * nunca aparecem juntos na mesma tela.
+ */
+export function chunkLength(paragraphs: Paragraph[], index: number, size: number): number {
+  if (paragraphs.length === 0) return size;
+  const paragraph = paragraphs[paragraphAt(paragraphs, index)]!;
+  const remaining = paragraph.start + paragraph.words.length - index;
+  return Math.max(1, Math.min(size, remaining));
 }
 
 /**

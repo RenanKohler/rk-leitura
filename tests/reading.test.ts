@@ -8,14 +8,17 @@ import {
   MIN_WPM,
   asFontFamily,
   chunkDurationMs,
+  chunkLength,
   clamp,
   countWords,
   orpIndex,
   parseParagraphs,
   sliceParagraphs,
+  startsParagraph,
   tokenize,
   typographyVars,
   warmupFactor,
+  windowStart,
   WARMUP_START,
   WARMUP_WORDS,
 } from "@/lib/reading";
@@ -82,6 +85,43 @@ describe("sliceParagraphs", () => {
 
   it("devolve vazio para intervalo fora do texto", () => {
     expect(sliceParagraphs(paragraphs, 50, 60)).toEqual([]);
+  });
+
+  it("marca o trecho que comeca no meio do paragrafo", () => {
+    const recorte = sliceParagraphs(paragraphs, 1, 4);
+    expect(recorte.map((p) => p.continued ?? false)).toEqual([true, false]);
+  });
+});
+
+describe("inicio de paragrafo", () => {
+  const { paragraphs } = parseParagraphs("um dois tres\n\nquatro cinco seis sete\n\noito");
+
+  it("reconhece a primeira palavra de cada paragrafo", () => {
+    const starts = Array.from({ length: 8 }, (_, index) => startsParagraph(paragraphs, index));
+    expect(starts).toEqual([true, false, false, true, false, false, false, true]);
+  });
+
+  it("a janela da rolagem comeca em paragrafo inteiro", () => {
+    expect(windowStart(paragraphs, -5, 400)).toBe(0);
+    expect(windowStart(paragraphs, 1, 400)).toBe(0);
+    expect(windowStart(paragraphs, 5, 400)).toBe(3);
+    expect(windowStart(paragraphs, 7, 400)).toBe(7);
+  });
+
+  it("paragrafo longo avanca a janela em saltos", () => {
+    const longo = parseParagraphs(Array.from({ length: 1000 }, () => "a").join(" ")).paragraphs;
+    expect(windowStart(longo, 399, 400)).toBe(0);
+    expect(windowStart(longo, 450, 400)).toBe(400);
+    expect(windowStart(longo, 799, 400)).toBe(400);
+  });
+
+  it("o bloco nao atravessa o fim do paragrafo", () => {
+    expect(chunkLength(paragraphs, 0, 2)).toBe(2);
+    expect(chunkLength(paragraphs, 2, 2)).toBe(1);
+    expect(chunkLength(paragraphs, 3, 3)).toBe(3);
+    expect(chunkLength(paragraphs, 6, 3)).toBe(1);
+    expect(chunkLength(paragraphs, 7, 4)).toBe(1);
+    expect(chunkLength([], 0, 3)).toBe(3);
   });
 });
 
