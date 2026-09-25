@@ -1,19 +1,19 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
 import { Alert, Button, Card, Field } from "@/components/ui";
 import { CheckIcon, FileIcon } from "@/components/icons";
-import { countWords, formatNumber, type TextFormat } from "@/lib/reading";
+import { countWords, formatNumber, parseParagraphs, type TextFormat } from "@/lib/reading";
 import { markdownTitle } from "@/lib/markdown";
 import {
   fileTitle,
   hasNoText,
   MAX_IMPORT_CHARS,
   MAX_PDF_BYTES,
-  type TextItem,
+  usableMetaTitle,
 } from "@/lib/pdf-text";
 import {
   chapterText,
@@ -118,10 +118,15 @@ export function FileImport() {
       );
     }
 
+    // O extrator entrega Markdown: colunas na ordem de leitura e titulos
+    // marcados como titulos.
     const long = result.content.length > MAX_IMPORT_CHARS;
     setTruncated(long);
+    setFormat("markdown");
     setContent(long ? result.content.slice(0, MAX_IMPORT_CHARS) : result.content);
-    setTitle(fileTitle(result.title, file.name));
+    setTitle(
+      usableMetaTitle(result.title) ?? markdownTitle(result.content) ?? fileTitle(null, file.name)
+    );
   };
 
   const readMarkdown = async (file: File) => {
@@ -256,6 +261,15 @@ export function FileImport() {
     }
   };
 
+  // A previa mostra o texto como sera lido, sem as marcas de formatacao.
+  const preview = useMemo(
+    () =>
+      parseParagraphs(content.slice(0, 5_000), format)
+        .paragraphs.map((paragraph) => paragraph.words.join(" "))
+        .join("\n\n"),
+    [content, format]
+  );
+
   const chosenCount = chapters?.filter((chapter) => chapter.chosen).length ?? 0;
 
   return (
@@ -303,8 +317,8 @@ export function FileImport() {
           <div>
             <p className="text-sm font-medium text-muted">Previa</p>
             <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-muted">
-              {content.slice(0, 500)}
-              {content.length > 500 ? "…" : ""}
+              {preview.slice(0, 500)}
+              {preview.length > 500 ? "…" : ""}
             </p>
           </div>
           <p className="tabular text-sm text-faint">
