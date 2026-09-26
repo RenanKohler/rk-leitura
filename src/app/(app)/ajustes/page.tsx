@@ -13,6 +13,7 @@ import { SecurityCard } from "@/components/security-card";
 import { ReprocessCard } from "@/components/reprocess-card";
 import {
   ContrastIcon,
+  DeviceIcon,
   MoonIcon,
   SettingsIcon,
   SpeedIcon,
@@ -268,13 +269,14 @@ export default function SettingsPage() {
         <SectionTitle>Aparencia</SectionTitle>
         <Segmented<ThemePreference>
           label="Tema"
+          columns={2}
           value={preference}
           onChange={changeTheme}
           options={[
             { value: "light", label: "Claro", icon: <SunIcon className="size-4" /> },
             { value: "dark", label: "Escuro", icon: <MoonIcon className="size-4" /> },
             { value: "contrast", label: "Contraste", icon: <ContrastIcon className="size-4" /> },
-            { value: "system", label: "Sistema", icon: <SettingsIcon className="size-4" /> },
+            { value: "system", label: "Sistema", icon: <DeviceIcon className="size-4" /> },
           ]}
         />
         {preference === "contrast" || preference === "system" ? (

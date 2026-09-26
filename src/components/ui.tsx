@@ -249,14 +249,24 @@ export function Segmented<T extends string>({
   onChange,
   options,
   label,
+  columns,
 }: {
   value: T;
   onChange: (value: T) => void;
   options: { value: T; label: string; icon?: ReactNode }[];
   label?: string;
+  /**
+   * Opcoes em grade, com esse numero de colunas. Para quando elas nao cabem
+   * numa linha so no celular: quatro opcoes com icone passam de 360px.
+   */
+  columns?: 2;
 }) {
   return (
-    <div role="group" aria-label={label} className="flex rounded-full bg-surface-2 p-1">
+    <div
+      role="group"
+      aria-label={label}
+      className={`bg-surface-2 p-1 ${columns ? "grid grid-cols-2 gap-1 rounded-3xl" : "flex rounded-full"}`}
+    >
       {options.map((option) => {
         const active = option.value === value;
         return (
@@ -265,12 +275,14 @@ export function Segmented<T extends string>({
             type="button"
             onClick={() => onChange(option.value)}
             aria-pressed={active}
-            className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors ${
+            // `min-w-0` deixa a opcao encolher: sem ele, o texto dita a largura
+            // minima e a ultima opcao sai para fora do cartao.
+            className={`flex min-h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors ${
               active ? "bg-surface text-ink shadow-card" : "text-muted"
             }`}
           >
-            {option.icon}
-            {option.label}
+            {option.icon ? <span className="shrink-0">{option.icon}</span> : null}
+            <span className="truncate">{option.label}</span>
           </button>
         );
       })}

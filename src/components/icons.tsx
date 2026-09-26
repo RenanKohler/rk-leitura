@@ -312,3 +312,10 @@ export const BookmarkIcon = (props: IconProps) => (
     <path d="M6.5 4h11v16l-5.5-4-5.5 4z" />
   </Icon>
 );
+
+export const DeviceIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="6.5" y="3" width="11" height="18" rx="2.5" />
+    <path d="M10.5 17.5h3" />
+  </Icon>
+);
