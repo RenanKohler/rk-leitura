@@ -1,7 +1,7 @@
 import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { parseEntry, type WordEntry } from "@/lib/dictionary";
 import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
@@ -16,7 +16,7 @@ import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
  * flexionada, sem uma tabela de conjugacoes.
  */
 
-const MODEL = "claude-opus-5";
+const MODEL = "claude-opus-5-5";
 
 export class LookupUnavailable extends Error {
   constructor(message: string) {
@@ -78,11 +78,15 @@ export async function lookupWord(
 ): Promise<WordEntry> {
   let response;
   try {
-    response = await client().messages.parse({
+    response = await client().beta.messages.parse({
       model: MODEL,
       max_tokens: 1000,
       system: SYSTEM,
-      output_config: { format: zodOutputFormat(EntrySchema) },
+      // Consulta no meio da leitura: pouco raciocinio, resposta rapida.
+      output_config: { effort: "low", format: betaZodOutputFormat(EntrySchema) },
+      // Recusa dos classificadores de seguranca e refeita em outro modelo na mesma chamada.
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
       messages: [{ role: "user", content: prompt(word, context, language) }],
     });
   } catch (error) {
