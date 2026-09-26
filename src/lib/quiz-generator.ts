@@ -1,7 +1,7 @@
 import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
 import {
@@ -21,7 +21,7 @@ import {
  * uma rota.
  */
 
-const MODEL = "claude-opus-5";
+const MODEL = "claude-opus-5-5";
 
 /** Recorte enviado ao modelo. Textos longos nao melhoram as perguntas. */
 const MAX_CHARS = 60_000;
@@ -81,11 +81,15 @@ export async function generateQuiz(
 
   let response;
   try {
-    response = await client().messages.parse({
+    response = await client().beta.messages.parse({
       model: MODEL,
       max_tokens: 8000,
       system: SYSTEM,
-      output_config: { format: zodOutputFormat(QuizSchema) },
+      // `medium` e o padrao deste modelo; fica explicito para nao mudar sem aviso.
+      output_config: { effort: "medium", format: betaZodOutputFormat(QuizSchema) },
+      // Recusa dos classificadores de seguranca e refeita em outro modelo na mesma chamada.
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
       messages: [
         {
           role: "user",
@@ -105,7 +109,8 @@ export async function generateQuiz(
     throw new QuizUnavailable("Nao consegui montar o questionario agora.");
   }
 
-  // O modelo pode recusar por seguranca; nesse caso nao ha conteudo a validar.
+  // O modelo pode recusar por seguranca, e o fallback nem sempre resolve;
+  // nesse caso nao ha conteudo a validar.
   if (response.stop_reason === "refusal") {
     throw new QuizUnavailable("Nao consigo montar perguntas sobre este texto.");
   }
