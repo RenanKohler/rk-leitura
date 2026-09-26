@@ -8,6 +8,7 @@ import { ExportCard } from "@/components/export-card";
 import { BookmarkletCard } from "@/components/bookmarklet-card";
 import { FeedsCard } from "@/components/feeds-card";
 import { ReminderCard } from "@/components/reminder-card";
+import { VoiceCard } from "@/components/voice-card";
 import {
   ContrastIcon,
   MoonIcon,
@@ -313,6 +314,8 @@ export default function SettingsPage() {
           </Button>
         </Link>
       </Card>
+
+      <VoiceCard />
 
       <ReminderCard />
 

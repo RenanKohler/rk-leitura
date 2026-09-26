@@ -110,12 +110,16 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Portabilidade | 3 | 12 | 1 | 0 | 2 |
 | Estatísticas por texto | 2 | 6 | 0 | 2 | 0 |
 | Conforto visual | 2 | 5 | 0 | 1 | 1 |
-| **Total** | **104** | **417** | **43 (41%)** | **41 (39%)** | **20 (19%)** |
+| Voz baixável | 1 | 8 | 0 | 1 | 0 |
+| **Total** | **105** | **425** | **43 (41%)** | **42 (40%)** | **20 (19%)** |
 
-Status: 87 Implementadas, 1 Aguardando pendência, 16 Propostas.
+Status: 88 Implementadas, 1 Aguardando pendência, 16 Propostas.
 
 As seis épicas finais (Navegação no texto em diante, US-89 a US-104) somam 52
 pontos: 7 Must, 6 Should e 3 Could. Todas podem ser feitas sem serviço externo.
+
+A US-105 (voz baixável) foi pedida e entregue fora dessa rodada, e é a
+única do grupo com download de terceiros: os modelos vêm do Hugging Face.
 
 As seis épicas acrescentadas por último (Segurança de sessão em diante, US-62 a
 US-76) partem de lacunas encontradas no código no commit `e87339b`. Somam 68
@@ -2080,6 +2084,27 @@ Como leitor, eu quero um aviso depois de um tempo lendo sem parar, para que eu d
 4. Dado a opção desligada, quando leio por mais de 20 minutos, então nenhum aviso aparece.
 
 **Notas técnicas:** tudo no navegador, sem notificação push. O tempo de aviso não entra no tempo da sessão.
+
+## Épico: Voz baixável
+
+### US-105: Baixar uma voz para ouvir os textos no aparelho
+
+**Épico:** Voz baixável
+**Prioridade:** Should
+**Story points:** 8
+**Status:** Implementada
+**Evidência:** `src/lib/piper.ts`, `src/lib/piper-client.ts`, `public/piper-worker.js`, `src/hooks/use-speech.ts`, `src/components/voice-card.tsx`
+
+Como leitor, eu quero baixar uma voz de melhor qualidade para português e inglês e usá-la na narração, para que a voz seja a mesma em qualquer celular e funcione sem internet.
+
+**Critérios de aceitação**
+1. Dado a tela Ajustes, quando abro "Vozes para baixar", então vejo 3 vozes em português (Faber, Cadu, Jeff) e 4 em inglês (LJ, Kristin, Norman, John), com tamanho e licença, e "Voz do sistema" marcada por padrão.
+2. Dado que toco em "Baixar", quando o download termina, então a voz fica disponível com "Ouvir" e "Apagar", e passa a ser a escolhida do idioma se nenhuma outra estava.
+3. Dado uma voz escolhida para o idioma do texto, quando aciono "Ler em voz alta", então a narração usa essa voz, na velocidade da leitura, e a posição acompanha a fala frase a frase.
+4. Dado que saio da conta ou o app é atualizado, quando volto, então as vozes baixadas continuam no aparelho.
+5. Dado um navegador sem suporte, falta de espaço ou falha no download, quando tento baixar, então aparece a mensagem do problema e a voz do sistema continua valendo.
+
+**Notas técnicas:** modelos Piper (`rhasspy/piper-voices`, qualidade média, ~63 MB cada) baixados do Hugging Face para o Cache Storage `leitura-vozes`. O motor (ONNX Runtime Web 1.18 e o conversor de fonemas espeak-ng em wasm, ~30 MB) é servido pelo próprio app a partir de `public/tts`, copiado de `node_modules` no `postinstall`, e baixado junto da primeira voz. A síntese roda em um Web Worker; a posição dentro da frase é estimada pelo tamanho das palavras (`wordOffsets`), porque o modelo não informa onde cada palavra cai. Só entraram vozes com dados em domínio público ou CC0. O espeak-ng embutido no conversor é GPL-3.
 
 ## Fora do escopo (Won't Have)
 

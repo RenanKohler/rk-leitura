@@ -300,6 +300,12 @@ e2e/                testes no navegador: fluxo principal e acessibilidade
 - **Idioma do texto.** Lido do `lang` da pagina ou do `dc:language` do EPUB,
   portugues quando ausente. Decide a voz da narracao e o pedido ao modelo no
   dicionario e no questionario.
+- **Voz baixavel.** Em Ajustes, o leitor pode baixar vozes Piper (portugues e
+  ingles, ~63 MB cada) para a narracao. Modelo e motor ficam no Cache Storage
+  `leitura-vozes`, que o service worker e a saida da conta preservam, e a
+  sintese roda em um Web Worker (`public/piper-worker.js`). O motor (ONNX
+  Runtime Web e o conversor de fonemas em wasm) e copiado de `node_modules`
+  para `public/tts` no `postinstall`; a pasta nao e versionada.
 - **Interface.** Mobile-first, com barra inferior ao alcance do polegar, areas
   de toque de no minimo 44px, respeito as areas seguras do Android/iOS e temas
   claro e escuro.
