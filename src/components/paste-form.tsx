@@ -8,6 +8,7 @@ import { Alert, Button, Card, Field, TextArea } from "@/components/ui";
 import { countWords, formatNumber } from "@/lib/reading";
 import { looksLikeMarkdown, markdownTitle } from "@/lib/markdown";
 import type { TextDetail } from "@/lib/types";
+import { CitationsOption } from "@/components/citations-option";
 
 const MIN_WORDS = 10;
 
@@ -31,6 +32,7 @@ export function PasteForm({
   const [error, setError] = useState("");
   // Nulo enquanto o leitor nao escolheu: vale a deteccao automatica.
   const [markdownChoice, setMarkdownChoice] = useState<boolean | null>(null);
+  const [keepCitations, setKeepCitations] = useState(false);
   const router = useRouter();
   const notify = useToast();
 
@@ -57,6 +59,7 @@ export function PasteForm({
           content.trim().split(/\s+/).slice(0, 6).join(" "),
         content: content.trim(),
         format,
+        keepCitations,
       });
       notify("Texto salvo.", "success");
       router.replace(`/leitor/${text.id}`);
@@ -106,6 +109,8 @@ export function PasteForm({
             </span>
           </label>
         ) : null}
+
+        <CitationsOption content={content} keep={keepCitations} onChange={setKeepCitations} />
 
         <Button type="submit" size="lg" full loading={saving} disabled={wordCount === 0}>
           Salvar e ler

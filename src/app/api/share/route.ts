@@ -10,6 +10,7 @@ import { countWords } from "@/lib/reading";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
 import { detectSeries } from "@/lib/series";
 import type { ShareResult } from "@/lib/types";
+import { importContent } from "@/lib/citations";
 
 export const dynamic = "force-dynamic";
 
@@ -55,14 +56,16 @@ export async function POST(request: Request) {
       finalUrl === url ? null : await findTextBySourceUrl(session.id, [finalUrl]);
     if (afterRedirect) return result("existing", afterRedirect);
 
+    // Sem pre-visualizacao aqui: artigo cientifico ja entra sem as referencias.
+    const content = importContent(imported.content, false);
     const [created] = await db
       .insert(texts)
       .values({
         userId: session.id,
         title: imported.title.slice(0, 200),
         sourceUrl: finalUrl,
-        content: imported.content,
-        wordCount: countWords(imported.content),
+        content,
+        wordCount: countWords(content),
         sourcePage: pageFromUrl(finalUrl),
         language: asLanguage(imported.language),
         ...seriesFields(imported.title, finalUrl),

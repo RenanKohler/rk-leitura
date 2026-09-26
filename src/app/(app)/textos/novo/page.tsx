@@ -11,6 +11,7 @@ import { FileImport } from "@/components/file-import";
 import { formatNumber } from "@/lib/reading";
 import type { ImportedText, TextDetail } from "@/lib/types";
 import Link from "next/link";
+import { CitationsOption } from "@/components/citations-option";
 
 type Source = "link" | "texto" | "arquivo";
 
@@ -52,6 +53,7 @@ function FromLink() {
   const [importing, setImporting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<ImportedText | null>(null);
+  const [keepCitations, setKeepCitations] = useState(false);
   const [title, setTitle] = useState("");
   const router = useRouter();
   const notify = useToast();
@@ -87,6 +89,7 @@ function FromLink() {
         sourceUrl: preview.sourceUrl,
         content: preview.content,
         language: preview.language,
+        keepCitations,
       });
       notify("Texto salvo.", "success");
       router.replace(`/leitor/${text.id}`);
@@ -141,6 +144,8 @@ function FromLink() {
               {preview.content.length > 2000 ? "..." : ""}
             </div>
           </div>
+
+          <CitationsOption content={preview.content} keep={keepCitations} onChange={setKeepCitations} />
 
           <Button size="lg" full loading={saving} onClick={handleSave} disabled={!title.trim()}>
             Salvar e ler
