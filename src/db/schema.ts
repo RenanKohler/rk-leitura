@@ -44,6 +44,12 @@ export const texts = pgTable(
     // Nulo quando o texto foi colado manualmente em vez de importado.
     sourceUrl: text("source_url"),
     content: text("content").notNull(),
+    /**
+     * Conteudo como foi importado, guardado quando o leitor omite as
+     * referencias de um texto ja salvo. E o que permite desfazer. Nulo no
+     * caso comum, e volta a nulo quando o conteudo e editado.
+     */
+    originalContent: text("original_content"),
     // "markdown" quando o conteudo guarda marcas de formatacao a interpretar
     // na leitura; "plain" para os demais, inclusive todos os anteriores.
     format: text("format").notNull().default("plain"),

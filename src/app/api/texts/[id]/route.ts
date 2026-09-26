@@ -127,7 +127,9 @@ export async function PUT(request: Request, { params }: Params) {
           format,
           wordCount,
           ...(language ? { language } : {}),
-          ...(rewritten ? { progressIndex: 0 } : {}),
+          // Conteudo reescrito a mao: o original guardado para desfazer a
+          // omissao de referencias deixa de corresponder a ele.
+          ...(rewritten ? { progressIndex: 0, originalContent: null } : {}),
           ...(retitled && current.seriesKey !== null
             ? {
                 seriesKey: series?.key ?? null,

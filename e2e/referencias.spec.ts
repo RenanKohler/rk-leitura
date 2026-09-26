@@ -52,3 +52,49 @@ test("leitor pode manter as referencias", async ({ page }) => {
   await expect(page).toHaveURL(/\/leitor\//);
   await expect(page.locator(".reader-prose").first()).toContainText("[1]");
 });
+
+/** Texto ja salvo: omitir e restaurar mantem destaque, marcador e posicao nas mesmas palavras. */
+test("reprocessar texto salvo remapeia destaques, marcadores e posicao", async ({ page }) => {
+  await registerByApi(page.request);
+  await updateSettings(page.request, { readingMode: "flow" });
+  const created = await page.request.post("/api/texts", {
+    data: { title: "Artigo antigo", content: ARTICLE, keepCitations: true },
+  });
+  const { id } = (await created.json()).text as { id: string };
+  // 0 A 1 memoria 2 de 3 trabalho 4 guarda 5 poucos 6 itens 7 por 8 vez 9 [1]. 10 Miller 11 (1956) 12 estimou 13 sete 14 itens,
+  const excerpt = async () =>
+    ((await (await page.request.get(`/api/texts/${id}/destaques`)).json()).highlights[0].excerpt as string);
+  const detail = async () => (await (await page.request.get(`/api/texts/${id}`)).json()).text;
+  const bookmark = async () =>
+    (await (await page.request.get(`/api/texts/${id}/marcadores`)).json()).bookmarks[0].position as number;
+  await page.request.post(`/api/texts/${id}/destaques`, { data: { start: 12, end: 14 } });
+  await page.request.post(`/api/texts/${id}/marcadores`, { data: { position: 10, label: "Miller" } });
+  await page.request.patch(`/api/texts/${id}`, { data: { progressIndex: 12, at: new Date().toISOString() } });
+  expect((await detail()).progressIndex).toBe(12);
+
+  expect(await excerpt()).toBe("estimou sete");
+
+  await page.goto("/ajustes");
+  await page.getByRole("button", { name: "Procurar artigos com referencias" }).dispatchEvent("click");
+  await expect(page.getByTestId("reprocessar-lista")).toContainText("Artigo antigo");
+  await page.getByRole("button", { name: /Omitir em 1 texto/ }).dispatchEvent("click");
+  await expect(page.getByText("Referencias omitidas em 1 texto.")).toBeVisible();
+
+  const omitted = await detail();
+  expect(omitted.content).not.toContain("[1]");
+  expect(omitted.content).not.toContain("Baddeley");
+  expect(await excerpt()).toBe("estimou sete");
+  expect(omitted.progressIndex).toBe(10); // "estimou" sem [1]. e (1956)
+  expect(await bookmark()).toBe(9); // "Miller"
+
+  await page.goto(`/leitor/${id}`);
+  await page.getByRole("button", { name: "Ajustes de leitura" }).click();
+  await page.getByRole("button", { name: "Restaurar referencias" }).click();
+  await expect(page.locator(".reader-prose").first()).toContainText("[1]");
+
+  const restored = await detail();
+  expect(restored.content).toBe(ARTICLE);
+  expect(await excerpt()).toBe("estimou sete");
+  expect(restored.progressIndex).toBe(12);
+  expect(await bookmark()).toBe(10);
+});

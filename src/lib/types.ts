@@ -126,6 +126,8 @@ export interface TextDetail extends TextSummary {
   format: TextFormat;
   /** Ultima pagina ja trazida da origem; a importacao inicial e a 1. */
   sourcePage: number;
+  /** Referencias omitidas depois de salvo; da para restaurar. */
+  referencesOmitted: boolean;
 }
 
 /** Resposta de POST /api/texts/[id]/continuar. */

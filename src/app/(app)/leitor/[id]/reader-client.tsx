@@ -52,6 +52,7 @@ import { STYLE, styleClass } from "@/lib/markdown";
 import { apiSend } from "@/lib/client";
 import { QuizSheet } from "@/components/quiz-sheet";
 import { NavigateSheet } from "@/components/navigate-sheet";
+import { countCitations } from "@/lib/citations";
 import {
   EYE_REST_AFTER_MS,
   EYE_REST_RESET_MS,
@@ -802,6 +803,39 @@ function Reader({
   );
 
   const [navigating, setNavigating] = useState(false);
+
+  /* --- referencias (texto ja salvo) -------------------------------------- */
+  // Conta so quando a folha de ajustes abre: e uma varredura do texto inteiro.
+  const citations = useMemo(
+    () => (showSettings ? countCitations(text.content) : 0),
+    [showSettings, text.content]
+  );
+  const [reprocessing, setReprocessing] = useState(false);
+  const reprocess = useCallback(
+    async (acao: "omitir" | "restaurar") => {
+      setReprocessing(true);
+      saveProgress(stateRef.current.index);
+      try {
+        const result = await apiSend<{ status: string; message?: string }>(
+          `/api/texts/${text.id}/referencias`,
+          "POST",
+          { acao }
+        );
+        if (result.status === "unchanged") {
+          notify(result.message ?? "Nada a mudar.", "info");
+          setReprocessing(false);
+          return;
+        }
+        // O texto inteiro muda de indices: recarregar e o jeito seguro de o
+        // leitor, os destaques e a posicao voltarem juntos.
+        window.location.reload();
+      } catch (cause) {
+        notify(cause instanceof Error ? cause.message : "Nao consegui reprocessar.", "error");
+        setReprocessing(false);
+      }
+    },
+    [text.id, notify, saveProgress]
+  );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const restart = useCallback(() => {
@@ -1329,6 +1363,17 @@ function Reader({
             <RestartIcon className="size-5" />
             Comecar do inicio
           </Button>
+
+          {citations > 0 && !text.referencesOmitted ? (
+            <Button variant="secondary" full loading={reprocessing} onClick={() => void reprocess("omitir")}>
+              {`Omitir referencias do texto (${citations})`}
+            </Button>
+          ) : null}
+          {text.referencesOmitted ? (
+            <Button variant="secondary" full loading={reprocessing} onClick={() => void reprocess("restaurar")}>
+              Restaurar referencias
+            </Button>
+          ) : null}
 
           <Link
             href={`/textos/${text.id}/leituras`}
