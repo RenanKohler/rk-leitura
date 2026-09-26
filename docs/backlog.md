@@ -47,7 +47,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 - Os limites numéricos dessas stories (20 questionários e 200 consultas por
   dia, 10 séries acompanhadas, 5 feeds, intervalos de revisão) são pontos de
   partida para validar com o uso real, não requisitos fechados.
-- As épicas de US-89 a US-104 foram propostas sobre o commit `893cf53` com
+- As épicas de US-89 a US-106 foram propostas sobre o commit `893cf53` com
   uma restrição: nenhuma depende de serviço externo, conta nova, chave de API,
   modelo de linguagem, e-mail, notificação push ou rotina agendada. Todas usam
   só o que a aplicação já tem: Next.js, Postgres e APIs do navegador. Nenhuma
@@ -110,12 +110,13 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Portabilidade | 3 | 12 | 1 | 0 | 2 |
 | Estatísticas por texto | 2 | 6 | 0 | 2 | 0 |
 | Conforto visual | 2 | 5 | 0 | 1 | 1 |
-| **Total** | **104** | **417** | **43 (41%)** | **41 (39%)** | **20 (19%)** |
+| Kindle | 2 | 8 | 0 | 1 | 1 |
+| **Total** | **106** | **425** | **43 (41%)** | **42 (40%)** | **21 (20%)** |
 
-Status: 87 Implementadas, 1 Aguardando pendência, 16 Propostas.
+Status: 87 Implementadas, 1 Aguardando pendência, 18 Propostas.
 
-As seis épicas finais (Navegação no texto em diante, US-89 a US-104) somam 52
-pontos: 7 Must, 6 Should e 3 Could. Todas podem ser feitas sem serviço externo.
+As sete épicas finais (Navegação no texto em diante, US-89 a US-106) somam 60
+pontos: 7 Must, 7 Should e 4 Could. Todas podem ser feitas sem serviço externo.
 
 As seis épicas acrescentadas por último (Segurança de sessão em diante, US-62 a
 US-76) partem de lacunas encontradas no código no commit `e87339b`. Somam 68
@@ -2081,6 +2082,45 @@ Como leitor, eu quero um aviso depois de um tempo lendo sem parar, para que eu d
 
 **Notas técnicas:** tudo no navegador, sem notificação push. O tempo de aviso não entra no tempo da sessão.
 
+## Épico: Kindle
+
+### US-105: Importar destaques e notas do Kindle
+
+**Épico:** Kindle
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Proposta
+**Evidência:** `src/components/file-import.tsx:281` (aceita PDF, EPUB e Markdown; não reconhece o arquivo de recortes do Kindle)
+
+Como leitor que também lê no Kindle, eu quero importar o arquivo `My Clippings.txt` do aparelho, para que meus destaques e notas dos livros do Kindle fiquem na mesma biblioteca que o resto das minhas leituras.
+
+**Critérios de aceitação**
+1. Dado um `My Clippings.txt` com destaques de 3 livros, quando importo, então são criados 3 textos, um por livro, com título "Destaques: <livro>", o autor e um parágrafo por destaque, na ordem da localização no livro.
+2. Dado um destaque com nota na mesma localização, quando importo, então a nota aparece logo abaixo do destaque, marcada como nota.
+3. Dado um arquivo com recortes em inglês e em português ("Your Highlight" e "Seu destaque"), quando importo, então os dois formatos são reconhecidos, e marcadores (bookmarks) sem texto são ignorados.
+4. Dado que importo o mesmo arquivo de novo, depois de fazer destaques novos no Kindle, quando a importação termina, então só os destaques novos são acrescentados ao texto de cada livro, e o resumo informa quantos eram repetidos.
+5. Dado um arquivo `.txt` que não segue o formato de recortes, quando importo, então aparece "Arquivo de recortes do Kindle nao reconhecido" e nada é criado.
+
+**Notas técnicas:** a leitura do arquivo roda no navegador, como PDF e EPUB. O arquivo fica na pasta `documents` dos Kindle de tinta eletrônica, acessível por USB; os apps do Kindle para celular não o geram. Destaques repetidos são identificados por livro, localização e texto. O Kindle também grava o mesmo destaque várias vezes quando ele é ajustado: manter só o mais recente de cada intervalo sobreposto.
+
+### US-106: Exportar um texto em EPUB para ler no Kindle
+
+**Épico:** Kindle
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `src/app/api/exportar/route.ts` (exporta JSON e CSV; não há exportação de texto legível em outro aparelho); `jszip` já é dependência
+
+Como leitor, eu quero baixar um texto da biblioteca como EPUB, para que eu o envie ao meu Kindle pelo site ou app "Enviar para Kindle" e leia no aparelho.
+
+**Critérios de aceitação**
+1. Dado um texto da biblioteca, quando escolho "Baixar EPUB", então recebo um arquivo com título, autor quando houver, origem e o conteúdo dividido em parágrafos.
+2. Dado um texto em Markdown, quando exporto, então títulos, negrito, itálico, listas e citações viram as marcações equivalentes em XHTML.
+3. Dado o arquivo gerado, quando é validado pelo EPUBCheck no teste automatizado, então não há erros.
+4. Dado um texto com caracteres especiais no título, como "/" ou ":", quando exporto, então o nome do arquivo é ajustado e o download funciona.
+
+**Notas técnicas:** o envio ao Kindle fica a cargo do leitor, pelo site ou app "Enviar para Kindle" da Amazon. O envio automático por e-mail está no Won't Have, pois depende de provedor de e-mail, como a US-05.
+
 ## Fora do escopo (Won't Have)
 
 - **Compartilhamento de textos e destaques entre usuários:** todas as consultas são restritas ao dono; compartilhar mudaria o modelo de privacidade. Não confundir com o épico Compartilhamento, que trata de trazer conteúdo de fora para dentro.
@@ -2091,6 +2131,8 @@ Como leitor, eu quero um aviso depois de um tempo lendo sem parar, para que eu d
 - **Sugestão de leitura pelo horário de melhor desempenho:** exige meses de dados de uma só pessoa para separar o efeito do horário do efeito do texto.
 - **Mapa das partes mal compreendidas:** as perguntas do questionário não estão ligadas a posições no texto, então o mapa não teria base.
 - **Modo só de áudio controlado pelo fone:** o controle de mídia na web é limitado e a narração com a tela bloqueada já é instável (US-39).
+- **Sincronizar a biblioteca do Kindle:** a Amazon não oferece API pública para listar ou baixar os livros da conta, e os livros comprados têm DRM. Ler o conteúdo exigiria automatizar o login na conta Amazon (contra os termos de uso e frágil) ou remover a proteção, o que a Lei 9.610/98, art. 107, proíbe. As US-105 e US-106 cobrem o que é possível: trazer destaques e notas e levar textos para o Kindle.
+- **Enviar textos ao Kindle por e-mail automaticamente:** depende de provedor de e-mail transacional, a mesma pendência da US-05. A US-106 cobre o caso com envio manual.
 - **Ranking e competição entre leitores:** depende de dados compartilhados e não se alinha ao objetivo de treino individual.
 
 ## Sugestão de MVP e próximos passos
@@ -2136,7 +2178,7 @@ histórico do que foi entregue, agrupado por dependência.
 | ~~13~~ | ~~US-70, US-71~~ | ~~13~~ | Concluída: acompanhamento de séries e feeds |
 | ~~14~~ | ~~US-76~~ | ~~3~~ | Concluída: tema de alto contraste |
 
-### Próximas entregas: épicas US-89 a US-104
+### Próximas entregas: épicas US-89 a US-106
 
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
@@ -2145,6 +2187,7 @@ histórico do que foi entregue, agrupado por dependência.
 | 21 | US-89, US-92, US-103 | 11 | Navegar por textos longos e manter o olho na linha |
 | 22 | US-97, US-101, US-102 | 9 | Aparelhos conectados e estatísticas por texto e por dia |
 | 23 | US-99, US-100, US-104 | 9 | DOCX, exportação anotada e descanso da vista |
+| 24 | US-105, US-106 | 8 | Trazer destaques do Kindle e levar textos para ele |
 
 Critérios desta ordem:
 
