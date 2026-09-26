@@ -8,6 +8,8 @@ import { ExportCard } from "@/components/export-card";
 import { BookmarkletCard } from "@/components/bookmarklet-card";
 import { FeedsCard } from "@/components/feeds-card";
 import { ReminderCard } from "@/components/reminder-card";
+import { VoiceCard } from "@/components/voice-card";
+import { SecurityCard } from "@/components/security-card";
 import {
   ContrastIcon,
   MoonIcon,
@@ -178,6 +180,66 @@ export default function SettingsPage() {
             : "A leitura segue ate o fim sem perguntar."}
         </p>
 
+        <Segmented<"pausar" | "seguir">
+          label="Troca de paragrafo no modo Foco"
+          value={settings.paragraphPause ? "pausar" : "seguir"}
+          onChange={(value) => void update({ paragraphPause: value === "pausar" })}
+          options={[
+            { value: "seguir", label: "Sem pausa" },
+            { value: "pausar", label: "Pausa curta" },
+          ]}
+        />
+        <p className="text-sm text-faint">
+          {settings.paragraphPause
+            ? "Ao terminar um paragrafo, o proximo demora um pouco mais para aparecer. A pausa nao conta no seu ritmo."
+            : "O proximo paragrafo aparece no tempo normal."}
+        </p>
+
+        <Segmented<"recuar" | "manter">
+          label="Ao retomar depois de uma pausa"
+          value={settings.resumeRewind ? "recuar" : "manter"}
+          onChange={(value) => void update({ resumeRewind: value === "recuar" })}
+          options={[
+            { value: "recuar", label: "Voltar um pouco" },
+            { value: "manter", label: "Seguir de onde parou" },
+          ]}
+        />
+        <p className="text-sm text-faint">
+          {settings.resumeRewind
+            ? "Depois de 5 segundos ou mais parado, a leitura recomeca ate 5 palavras antes, sem passar do inicio da frase."
+            : "A leitura recomeca exatamente na palavra em que parou."}
+        </p>
+
+        <Segmented<"apagar" | "normal">
+          label="Linhas fora da atual"
+          value={settings.dimLines ? "apagar" : "normal"}
+          onChange={(value) => void update({ dimLines: value === "apagar" })}
+          options={[
+            { value: "normal", label: "Normais" },
+            { value: "apagar", label: "Apagadas" },
+          ]}
+        />
+        <p className="text-sm text-faint">
+          {settings.dimLines
+            ? "Nos modos Rolagem e Paginas, so a linha que esta sendo lida fica com cor cheia enquanto a leitura anda."
+            : "Todas as linhas ficam com a mesma cor."}
+        </p>
+
+        <Segmented<"avisar" | "nao">
+          label="Descanso da vista"
+          value={settings.eyeRest ? "avisar" : "nao"}
+          onChange={(value) => void update({ eyeRest: value === "avisar" })}
+          options={[
+            { value: "nao", label: "Sem aviso" },
+            { value: "avisar", label: "A cada 20 min" },
+          ]}
+        />
+        <p className="text-sm text-faint">
+          {settings.eyeRest
+            ? "Depois de 20 minutos lendo sem parar, a leitura pausa e pede 20 segundos olhando para longe."
+            : "A leitura nao interrompe para descanso."}
+        </p>
+
         <Segmented<"normal" | "enfase">
           label="Enfase no inicio das palavras"
           value={settings.wordEmphasis ? "enfase" : "normal"}
@@ -314,11 +376,15 @@ export default function SettingsPage() {
         </Link>
       </Card>
 
+      <VoiceCard />
+
       <ReminderCard />
 
       <FeedsCard />
 
       <BookmarkletCard />
+
+      <SecurityCard />
 
       <AccountCard />
     </div>

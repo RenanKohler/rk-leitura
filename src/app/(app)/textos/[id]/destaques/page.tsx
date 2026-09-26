@@ -36,6 +36,8 @@ export default async function HighlightsPage({
       textId={loaded.text.id}
       title={loaded.text.title}
       sourceUrl={loaded.text.sourceUrl}
+      content={loaded.text.content}
+      format={loaded.text.format}
       initial={loaded.items}
     />
   );

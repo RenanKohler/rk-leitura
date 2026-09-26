@@ -64,6 +64,10 @@ export async function PUT(request: Request) {
       // Padrao ligado: so um `false` explicito desliga.
       adaptiveRhythm: body?.adaptiveRhythm !== false,
       askCheckpoints: body?.askCheckpoints === true,
+      paragraphPause: body?.paragraphPause === true,
+      resumeRewind: body?.resumeRewind !== false,
+      dimLines: body?.dimLines === true,
+      eyeRest: body?.eyeRest === true,
       timezone: asTimezone(body?.timezone),
     };
 

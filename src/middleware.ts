@@ -18,7 +18,7 @@ const PROTECTED_PREFIXES = [
   "/compartilhar",
   "/estatisticas",
 ];
-const GUEST_ONLY = ["/login", "/cadastro"];
+const GUEST_ONLY = ["/login", "/cadastro", "/recuperar"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -62,6 +62,7 @@ export const config = {
     "/",
     "/login",
     "/cadastro",
+    "/recuperar",
     "/dashboard/:path*",
     "/textos/:path*",
     "/leitor/:path*",

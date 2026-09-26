@@ -50,7 +50,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // Conta apagada ou sessao revogada: o token ainda assina, mas nao vale mais.
   // A aplicacao trata como visitante ate o layout autenticado encerrar a
   // sessao (ver src/app/(app)/layout.tsx).
-  const account = session ? await loadAccount(session.id) : null;
+  const account = session ? await loadAccount(session.id, session.sid) : null;
   const current = session && sessionIsCurrent(session, account?.sessionVersion ?? null);
   const settings = current ? account!.settings : null;
 

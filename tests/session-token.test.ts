@@ -9,7 +9,19 @@ describe("versao da sessao no token", () => {
   it("vai e volta no token", async () => {
     const { createToken, verifyToken } = await import("@/lib/session-token");
     const token = await createToken({ id: "u1", email: "a@b.com", name: "A", version: 3 });
-    expect(await verifyToken(token)).toEqual({ id: "u1", email: "a@b.com", name: "A", version: 3 });
+    expect(await verifyToken(token)).toEqual({
+      id: "u1",
+      email: "a@b.com",
+      name: "A",
+      version: 3,
+      sid: null,
+    });
+  });
+
+  it("leva o aparelho da sessao quando ha um", async () => {
+    const { createToken, verifyToken } = await import("@/lib/session-token");
+    const token = await createToken({ id: "u1", email: "a@b.com", name: "A", version: 0, sid: "s1" });
+    expect((await verifyToken(token))?.sid).toBe("s1");
   });
 
   it("token emitido antes da versao existir vale como versao 0", async () => {
@@ -25,7 +37,7 @@ describe("versao da sessao no token", () => {
 
   it("sessao so vale com a versao atual da conta", async () => {
     const { sessionIsCurrent } = await import("@/lib/auth");
-    const session = { id: "u1", email: "a@b.com", name: "A", version: 1 };
+    const session = { id: "u1", email: "a@b.com", name: "A", version: 1, sid: null };
     expect(sessionIsCurrent(session, 1)).toBe(true);
     expect(sessionIsCurrent(session, 2)).toBe(false);
     expect(sessionIsCurrent(session, null)).toBe(false);

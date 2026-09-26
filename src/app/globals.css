@@ -514,3 +514,35 @@ a,
      entre si, mais folga entre letras - o que a leitura com dislexia pede. */
   --reader-font-legivel: Verdana, Tahoma, "DejaVu Sans", sans-serif;
 }
+
+/*
+ * Linhas fora da atual apagadas (US-103). A palavra ativa nunca apaga, mesmo
+ * quando o bloco quebra em duas linhas. No alto contraste o apagado e mais
+ * leve, para o texto seguir acima de 4,5:1.
+ */
+[data-dim] .flow-word:not([data-line]):not([data-state="active"]) {
+  opacity: 0.45;
+  transition: opacity 150ms ease;
+}
+
+:root[data-theme="contrast"] [data-dim] .flow-word:not([data-line]):not([data-state="active"]) {
+  /* 0,75 sobre o cinza das palavras ja lidas (#3d3d3d) da #6e6e6e: 5,1:1. */
+  opacity: 0.75;
+}
+
+/* Calendario do ano (US-102): cinco niveis sobre a cor de acento. */
+.calendar-cell {
+  background-color: var(--color-surface-2);
+}
+.calendar-cell[data-level="1"] {
+  background-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-surface-2));
+}
+.calendar-cell[data-level="2"] {
+  background-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-surface-2));
+}
+.calendar-cell[data-level="3"] {
+  background-color: color-mix(in srgb, var(--color-accent) 78%, var(--color-surface-2));
+}
+.calendar-cell[data-level="4"] {
+  background-color: var(--color-accent);
+}

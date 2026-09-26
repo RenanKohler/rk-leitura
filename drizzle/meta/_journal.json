@@ -141,6 +141,20 @@
       "when": 1790355072501,
       "tag": "0019_normal_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790420919012,
+      "tag": "0020_moaning_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790421085351,
+      "tag": "0021_yummy_raider",
+      "breakpoints": true
     }
   ]
 }

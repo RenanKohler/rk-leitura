@@ -20,6 +20,7 @@ import {
   ForwardIcon,
   RestartIcon,
   RewindIcon,
+  SearchIcon,
   SettingsIcon,
   SparkIcon,
   VoiceIcon,
@@ -49,6 +50,15 @@ import {
 import { STYLE, styleClass } from "@/lib/markdown";
 import { apiSend } from "@/lib/client";
 import { QuizSheet } from "@/components/quiz-sheet";
+import { NavigateSheet } from "@/components/navigate-sheet";
+import {
+  EYE_REST_AFTER_MS,
+  EYE_REST_RESET_MS,
+  EYE_REST_SECONDS,
+  paragraphPauseMs,
+  resumeTarget,
+  sentenceBackTarget,
+} from "@/lib/navigation";
 import { HighlightSheet } from "@/components/highlight-sheet";
 import { WordSheet } from "@/components/word-sheet";
 import { MIN_WORDS_FOR_QUIZ } from "@/lib/quiz";
@@ -315,8 +325,18 @@ function Reader({
     if (range) void createMark(range);
   }, [words, index, createMark]);
 
+  // Pausas que o proprio leitor faz na troca de paragrafo (US-94). Descontadas
+  // do tempo da sessao: sem isso, ligar a pausa baixaria o ritmo medido e as
+  // estimativas de tempo (US-83) passariam a errar para mais.
+  const pauseCreditRef = useRef(0);
   const elapsedMs = useCallback(
-    () => elapsedRef.current + (startedAtRef.current ? Date.now() - startedAtRef.current : 0),
+    () =>
+      Math.max(
+        0,
+        elapsedRef.current +
+          (startedAtRef.current ? Date.now() - startedAtRef.current : 0) -
+          pauseCreditRef.current
+      ),
     []
   );
 
@@ -351,6 +371,7 @@ function Reader({
       elapsedRef.current = 0;
       startedAtRef.current = null;
       wordsReadRef.current = 0;
+      pauseCreditRef.current = 0;
 
       if (wordsRead < MIN_WORDS_TO_RECORD || duration < 1000) {
         return { durationMs: duration, wordsRead };
@@ -389,6 +410,12 @@ function Reader({
   const answeredRef = useRef(text.checkpointAnswered);
   const [checkpoint, setCheckpoint] = useState<number | null>(null);
   const askCheckpoints = settings.askCheckpoints && !text.abandoned;
+  const paragraphPause = settings.paragraphPause;
+  const resumeRewind = settings.resumeRewind;
+  const eyeRest = settings.eyeRest;
+  // Posicao em que a leitura parou: o recuo ao retomar (US-95) so vale se o
+  // leitor nao escolheu outra posicao durante a pausa.
+  const pausedIndexRef = useRef(-1);
 
   /* --- motor de avanco --------------------------------------------------- */
   useEffect(() => {
@@ -411,13 +438,20 @@ function Reader({
 
     // A versao anterior dividia a duracao pelo tamanho do bloco em vez de
     // multiplicar: em 350 ppm com 4 palavras o texto passava a ~5600 ppm.
+    // Pausa curta antes de um paragrafo novo no modo Foco (US-94).
+    const extra =
+      paragraphPause && mode === "rsvp" && index + step < total && startsParagraph(paragraphs, index + step)
+        ? paragraphPauseMs(wpm)
+        : 0;
+
     const delay =
-      mode === "page"
+      (mode === "page"
         ? (60_000 / wpm) * step
         : chunkDurationMs(wpm, step, factor) *
-          (weights ? chunkFactor(weights, index, chunk.length) : 1);
+          (weights ? chunkFactor(weights, index, chunk.length) : 1)) + extra;
 
     const timer = setTimeout(() => {
+      pauseCreditRef.current += extra;
       wordsReadRef.current += Math.min(step, total - index);
       const next = index + step;
 
@@ -437,6 +471,7 @@ function Reader({
           stopReachedRef.current = true;
           const realMs = elapsedMs();
           pausedAtRef.current = Date.now();
+          pausedIndexRef.current = next;
           setPlaying(false);
           saveProgress(next);
           flushSession(false);
@@ -451,6 +486,7 @@ function Reader({
           elapsedRef.current += startedAtRef.current ? Date.now() - startedAtRef.current : 0;
           startedAtRef.current = null;
           pausedAtRef.current = Date.now();
+          pausedIndexRef.current = next;
           setPlaying(false);
           saveProgress(next);
           setCheckpoint(marker);
@@ -473,6 +509,7 @@ function Reader({
     weights,
     stopAt,
     askCheckpoints,
+    paragraphPause,
     elapsedMs,
     saveProgress,
     flushSession,
@@ -520,11 +557,21 @@ function Reader({
   }, [saveProgress, flushSession]);
 
   /* --- acoes ------------------------------------------------------------- */
+  // Descanso da vista (US-104): tempo de leitura continua desde a ultima
+  // parada longa. Parar por menos de 2 minutos nao conta como descanso.
+  const restAccumRef = useRef(0);
+  const restStartRef = useRef<number | null>(null);
+  const [resting, setResting] = useState(false);
+
   const togglePlay = useCallback(() => {
+    const now = Date.now();
     if (stateRef.current.playing) {
-      elapsedRef.current += startedAtRef.current ? Date.now() - startedAtRef.current : 0;
+      elapsedRef.current += startedAtRef.current ? now - startedAtRef.current : 0;
       startedAtRef.current = null;
-      pausedAtRef.current = Date.now();
+      pausedAtRef.current = now;
+      pausedIndexRef.current = stateRef.current.index;
+      if (restStartRef.current !== null) restAccumRef.current += now - restStartRef.current;
+      restStartRef.current = null;
       saveProgress(stateRef.current.index);
       setPlaying(false);
       return;
@@ -532,15 +579,47 @@ function Reader({
 
     if (stateRef.current.index >= total) return;
 
+    const pausedMs = pausedAtRef.current > 0 ? now - pausedAtRef.current : 0;
+
+    // Recua algumas palavras depois de uma pausa longa (US-95), desde que a
+    // posicao seja a mesma em que a leitura parou.
+    let from = stateRef.current.index;
+    if (resumeRewind && pausedIndexRef.current === from) {
+      const target = resumeTarget(words, from, pausedMs);
+      if (target !== from) {
+        from = target;
+        stateRef.current.index = target;
+        setIndex(target);
+      }
+    }
+    pausedIndexRef.current = -1;
+
     // Pausa curta nao reinicia a rampa. O numero e o que separa "parei para
     // ajustar a tela" de "voltei ao texto depois de um tempo".
-    const brief = Date.now() - pausedAtRef.current < SHORT_PAUSE_MS;
-    if (!brief) warmupOriginRef.current = stateRef.current.index;
+    const brief = now - pausedAtRef.current < SHORT_PAUSE_MS;
+    if (!brief) warmupOriginRef.current = from;
 
-    startedAtRef.current = Date.now();
+    if (pausedAtRef.current === 0 || pausedMs >= EYE_REST_RESET_MS) restAccumRef.current = 0;
+    restStartRef.current = now;
+
+    startedAtRef.current = now;
     setFinished(false);
     setPlaying(true);
-  }, [total, saveProgress]);
+  }, [total, saveProgress, resumeRewind, words]);
+
+  // Aviso de descanso: agenda para quando a leitura continua completar o
+  // intervalo; pausar desarma, e o tempo ja lido fica acumulado.
+  useEffect(() => {
+    if (!playing || !eyeRest) return;
+    const running = restStartRef.current !== null ? Date.now() - restStartRef.current : 0;
+    const remaining = Math.max(0, EYE_REST_AFTER_MS - restAccumRef.current - running);
+    const timer = setTimeout(() => {
+      if (!stateRef.current.playing) return;
+      togglePlay();
+      setResting(true);
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [playing, eyeRest, togglePlay]);
 
   // Consultar uma palavra pausa a leitura, e fechar o painel nao a retoma
   // sozinha: quem parou para entender uma palavra decide quando voltar.
@@ -705,6 +784,25 @@ function Reader({
     [mode, pages, total, continueFromSource]
   );
 
+  /** Volta ao inicio da frase, ou da anterior quando ja esta no inicio (US-91). */
+  const backSentence = useCallback(() => {
+    setIndex(sentenceBackTarget(words, stateRef.current.index));
+    setFinished(false);
+  }, [words]);
+
+  /** Vai para uma posicao escolhida na navegacao, com a leitura pausada. */
+  const goTo = useCallback(
+    (position: number) => {
+      if (stateRef.current.playing) togglePlay();
+      setIndex(clamp(position, 0, Math.max(0, total - 1)));
+      setFinished(false);
+    },
+    [togglePlay, total]
+  );
+
+  const [navigating, setNavigating] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
   const restart = useCallback(() => {
     setPlaying(false);
     setFinished(false);
@@ -780,10 +878,29 @@ function Reader({
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      // Com uma folha aberta, as teclas sao dela (Esc fecha, Tab navega).
+      if (document.body.dataset.sheet) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
 
       if (event.code === "Space") {
         event.preventDefault();
         togglePlay();
+      } else if (event.key === "ArrowLeft" && event.shiftKey) {
+        event.preventDefault();
+        backSentence();
+      } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        // Velocidade pelo teclado (US-93), nos mesmos limites do controle.
+        event.preventDefault();
+        const next = clamp(wpm + (event.key === "ArrowUp" ? 25 : -25), MIN_WPM, MAX_WPM);
+        if (next !== wpm) void save({ baseWpm: next });
+      } else if (event.key === "1" || event.key === "2" || event.key === "3") {
+        const modes: ReadingMode[] = ["rsvp", "flow", "page"];
+        void save({ readingMode: modes[Number(event.key) - 1]! });
+      } else if (event.key === "?") {
+        setShortcutsOpen(true);
+      } else if (event.key === "/") {
+        event.preventDefault();
+        setNavigating(true);
       } else if (event.key === "ArrowLeft") {
         turnPage(-1);
       } else if (event.key === "ArrowRight") {
@@ -799,7 +916,7 @@ function Reader({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [togglePlay, turnPage]);
+  }, [togglePlay, turnPage, backSentence, wpm, save]);
 
   const progress = total > 0 ? Math.min(100, (index / total) * 100) : 0;
   const chunk = words.slice(index, index + chunkLength(paragraphs, index, chunkSize));
@@ -861,6 +978,15 @@ function Reader({
               </span>
             </Link>
           ) : null}
+
+          <button
+            type="button"
+            onClick={() => setNavigating(true)}
+            aria-label="Navegar no texto"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+          >
+            <SearchIcon className="size-5" />
+          </button>
 
           <button
             type="button"
@@ -936,6 +1062,7 @@ function Reader({
             chunkSize={chunk.length}
             marks={stored}
             emphasis={emphasis}
+            dim={settings.dimLines && playing}
             touch={word.handlers}
             onToggle={togglePlay}
             onSeek={(position) => {
@@ -1057,6 +1184,18 @@ function Reader({
               ) : null}
             </div>
 
+            {mode !== "page" ? (
+              <div className="mt-1 flex justify-center">
+                <button
+                  type="button"
+                  onClick={backSentence}
+                  className="min-h-9 rounded-full px-3 text-sm text-muted hover:bg-surface-2 hover:text-ink"
+                >
+                  Voltar a frase
+                </button>
+              </div>
+            ) : null}
+
             {mode === "page" && pagesReady ? (
               <p className="tabular mt-2 text-center text-sm text-muted">
                 {`Pagina ${currentPage + 1} de ${pages.length}`}
@@ -1097,6 +1236,40 @@ function Reader({
           onRemove={() => removeMark(openMark)}
         />
       ) : null}
+
+      <NavigateSheet
+        open={navigating}
+        onClose={() => setNavigating(false)}
+        textId={text.id}
+        words={words}
+        paragraphs={paragraphs}
+        index={index}
+        onGo={goTo}
+      />
+
+      <Sheet open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} title="Atalhos de teclado">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+          {SHORTCUTS.map(([keys, action]) => (
+            <div key={keys} className="contents">
+              <dt>
+                <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-xs">
+                  {keys}
+                </kbd>
+              </dt>
+              <dd className="text-muted">{action}</dd>
+            </div>
+          ))}
+        </dl>
+      </Sheet>
+
+      <EyeRestSheet
+        open={resting}
+        onClose={() => {
+          // O descanso zera a contagem: os proximos 20 minutos comecam agora.
+          restAccumRef.current = 0;
+          setResting(false);
+        }}
+      />
 
       <QuizSheet
         textId={text.id}
@@ -1155,6 +1328,13 @@ function Reader({
             <RestartIcon className="size-5" />
             Comecar do inicio
           </Button>
+
+          <Link
+            href={`/textos/${text.id}/leituras`}
+            className="flex min-h-11 items-center justify-center rounded-full text-sm font-medium text-muted hover:bg-surface-2 hover:text-ink"
+          >
+            Historico deste texto
+          </Link>
 
           {/* Concluido nao se larga; largado ja esta fora da lista. */}
           {!concluded && !finished && !text.abandoned ? (
@@ -1260,6 +1440,57 @@ function Reader({
 }
 
 /* -------------------------------------------------------------------------- */
+
+const SHORTCUTS: [string, string][] = [
+  ["Espaco", "Iniciar ou pausar"],
+  ["Seta para cima / baixo", "Mais ou menos 25 ppm"],
+  ["Seta para a esquerda / direita", "Voltar ou avancar uma tela"],
+  ["Shift + seta para a esquerda", "Voltar ao inicio da frase"],
+  ["1, 2, 3", "Modo Foco, Rolagem ou Paginas"],
+  ["/", "Buscar e navegar no texto"],
+  ["?", "Esta lista"],
+  ["Esc", "Fechar a janela aberta"],
+];
+
+/**
+ * Pausa para descansar a vista (US-104). A contagem regressiva nao retoma a
+ * leitura sozinha: quem decide a volta e o leitor.
+ */
+function EyeRestSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [left, setLeft] = useState(EYE_REST_SECONDS);
+
+  useEffect(() => {
+    if (!open) return;
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const remaining = Math.max(0, EYE_REST_SECONDS - Math.floor((Date.now() - started) / 1000));
+      setLeft(remaining);
+      if (remaining === 0) clearInterval(timer);
+    }, 250);
+    return () => {
+      clearInterval(timer);
+      setLeft(EYE_REST_SECONDS);
+    };
+  }, [open]);
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Descanso da vista">
+      <div className="space-y-4 text-center">
+        <p className="text-base">Olhe para longe por 20 segundos.</p>
+        <p className="tabular text-4xl font-semibold" aria-live="polite">
+          {left > 0 ? left : "Pronto"}
+        </p>
+        {left === 0 ? (
+          <Button size="lg" full onClick={onClose}>
+            Continuar
+          </Button>
+        ) : (
+          <p className="text-sm text-muted">A leitura esta pausada.</p>
+        )}
+      </div>
+    </Sheet>
+  );
+}
 
 function ControlButton({
   label,
@@ -1647,6 +1878,7 @@ function FlowStage({
   chunkSize,
   marks,
   emphasis,
+  dim,
   touch,
   onToggle,
   onSeek,
@@ -1658,6 +1890,8 @@ function FlowStage({
   chunkSize: number;
   marks: StoredHighlight[];
   emphasis: boolean;
+  /** Apagar as linhas fora da atual (US-103). */
+  dim: boolean;
   touch: WordTouchHandlers;
   onToggle: () => void;
   onSeek: (position: number) => void;
@@ -1713,6 +1947,25 @@ function FlowStage({
       : null;
   }, [index, start]);
 
+  // Linha atual (US-103): as palavras na mesma altura da palavra ativa ganham
+  // `data-line`, e o CSS apaga as demais. Feito aqui, e nao no render, porque
+  // onde a linha quebra so se sabe depois do layout.
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    stage.querySelectorAll("[data-line]").forEach((element) => element.removeAttribute("data-line"));
+    const active = activeRef.current;
+    if (!dim || !active) return;
+
+    const top = active.offsetTop;
+    const parent = active.offsetParent;
+    stage.querySelectorAll<HTMLElement>(".flow-word").forEach((element) => {
+      if (element.offsetParent === parent && Math.abs(element.offsetTop - top) < 4) {
+        element.setAttribute("data-line", "");
+      }
+    });
+  }, [dim, index, start, end]);
+
   // Sem isso o destaque desce para fora da tela e o leitor perde a posicao.
   // Rola apenas quando a palavra atual sai da faixa confortavel de leitura,
   // em vez de a cada passo.
@@ -1735,6 +1988,7 @@ function FlowStage({
       // A compensacao acima faz o papel da ancoragem nativa; as duas juntas
       // rolariam o deslocamento duas vezes.
       style={{ overflowAnchor: "none" }}
+      data-dim={dim ? "" : undefined}
       className="flex-1 px-5 py-8"
       onDoubleClick={onToggle}
       {...touch}

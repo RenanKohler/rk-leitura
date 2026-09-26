@@ -53,7 +53,11 @@ const PAGE = `<!doctype html>
     }
     if (window.caches) {
       caches.keys()
-        .then(function (keys) { return Promise.all(keys.map(function (k) { return caches.delete(k); })); })
+        .then(function (keys) {
+          // As vozes baixadas nao guardam nada da conta: ficam para a proxima.
+          return Promise.all(keys.filter(function (k) { return k !== "leitura-vozes"; })
+            .map(function (k) { return caches.delete(k); }));
+        })
         .then(go, go);
     } else {
       go();

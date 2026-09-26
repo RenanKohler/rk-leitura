@@ -30,7 +30,7 @@ export async function requireSession(): Promise<SessionUser | NextResponse> {
   if (!session) return unauthorized();
   // A versao cobre tambem a troca de senha e o "sair de todos os aparelhos":
   // o token continua assinado, mas foi revogado (US-62, US-63).
-  return sessionIsCurrent(session, await currentSessionVersion(session.id))
+  return sessionIsCurrent(session, await currentSessionVersion(session.id, session.sid))
     ? session
     : unauthorized();
 }

@@ -41,3 +41,6 @@ yarn-error.log*
 # playwright
 /test-results/
 /playwright-report/
+
+# voz baixavel: copiado de node_modules no postinstall
+/public/tts/

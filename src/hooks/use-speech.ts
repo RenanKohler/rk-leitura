@@ -3,8 +3,42 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { languageName, speechLanguage } from "@/lib/language";
 import { pickVoice, rateFor, speechChunks, wordAtCharIndex } from "@/lib/speech";
+import { wordOffsets, type PiperVoice } from "@/lib/piper";
+import {
+  isDownloaded,
+  piperEngine,
+  piperSupported,
+  preferredVoice,
+  type SynthesizedAudio,
+} from "@/lib/piper-client";
 
 export type SpeechState = "parada" | "falando" | "indisponivel";
+
+interface Session {
+  stopped: boolean;
+  /** Interrompe o audio em curso da voz baixada. */
+  halt?: () => void;
+}
+
+let audioContext: AudioContext | null = null;
+
+/**
+ * Contexto de audio unico, criado e retomado dentro do toque do leitor: o
+ * iPhone so libera som de Web Audio que comecou em um gesto.
+ */
+function sharedAudioContext(): AudioContext {
+  if (!audioContext) {
+    const Context =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    audioContext = new Context();
+  }
+  // Sem isto, o iPhone no modo silencioso cala o Web Audio (Safari 16.4+).
+  const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+  if (session) session.type = "playback";
+  void audioContext.resume();
+  return audioContext;
+}
 
 interface StartOptions {
   from: number;
@@ -33,16 +67,145 @@ export function useSpeech(language = "pt-BR") {
   // Tudo o que a fala precisa vive aqui, escrito so dentro de `start`: a
   // narracao atravessa dezenas de eventos entre dois renders, e nenhum deles
   // pode depender de uma identidade de funcao que mudou no meio.
-  const engine = useRef<{ stopped: boolean }>({ stopped: true });
+  const engine = useRef<Session>({ stopped: true });
+
+  // Voz baixada escolhida para o idioma e ja presente no aparelho. Resolvida
+  // antes do toque: `start` precisa decidir de forma sincrona, dentro do
+  // gesto, ou o iPhone nao deixa o audio comecar.
+  const piperRef = useRef<PiperVoice | null>(null);
+  useEffect(() => {
+    let active = true;
+    piperRef.current = null;
+    if (!piperSupported()) return;
+    const voice = preferredVoice(language);
+    if (!voice) return;
+    void isDownloaded(voice).then((present) => {
+      if (!active || !present) return;
+      piperRef.current = voice;
+      // Aquece o motor enquanto o leitor ainda nao pediu a narracao: a
+      // primeira carga leva alguns segundos.
+      void piperEngine().prepare(voice).catch(() => undefined);
+    });
+    return () => {
+      active = false;
+    };
+  }, [language]);
 
   const stop = useCallback(() => {
     engine.current.stopped = true;
+    engine.current.halt?.();
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     setState("parada");
   }, []);
 
+  /**
+   * Narracao com a voz baixada.
+   *
+   * Cada frase e sintetizada inteira no worker e tocada como um trecho de
+   * audio; enquanto uma toca, a seguinte ja esta sendo gerada, para nao haver
+   * silencio entre elas. A posicao anda por estimativa dentro da frase
+   * (`wordOffsets`) e volta a ser exata no inicio de cada frase.
+   */
+  const startPiper = useCallback(
+    (voice: PiperVoice, { from, wpm, words, onWord, onEnd }: StartOptions) => {
+      engine.current.stopped = true;
+      engine.current.halt?.();
+
+      const session: Session = { stopped: false };
+      engine.current = session;
+
+      const context = sharedAudioContext();
+      const queue = speechChunks(words, from);
+      const rate = rateFor(wpm);
+      const tts = piperEngine();
+      const ready = tts.prepare(voice);
+      const audio = new Map<number, Promise<SynthesizedAudio>>();
+
+      const synth = (position: number) => {
+        const chunk = queue[position];
+        if (!chunk || audio.has(position)) return;
+        const pending = ready.then(() => tts.synthesize(chunk.words.join(" "), rate));
+        // Evita aviso de promessa rejeitada sem tratamento: o erro e lido em `play`.
+        pending.catch(() => undefined);
+        audio.set(position, pending);
+      };
+
+      const fail = () => {
+        if (session.stopped) return;
+        session.stopped = true;
+        setError("A voz baixada falhou. Escolha a voz do aparelho em Ajustes ou baixe a voz de novo.");
+        setState("parada");
+      };
+
+      const play = async (position: number) => {
+        if (session.stopped) return;
+        const chunk = queue[position];
+        if (!chunk) {
+          setState("parada");
+          onEnd();
+          return;
+        }
+
+        synth(position);
+        let result: SynthesizedAudio;
+        try {
+          result = await audio.get(position)!;
+        } catch {
+          fail();
+          return;
+        }
+        audio.delete(position);
+        if (session.stopped) return;
+        synth(position + 1);
+
+        if (result.pcm.length === 0) {
+          void play(position + 1);
+          return;
+        }
+
+        const buffer = context.createBuffer(1, result.pcm.length, result.sampleRate);
+        buffer.getChannelData(0).set(result.pcm);
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        source.connect(context.destination);
+
+        const timers = wordOffsets(chunk.words, buffer.duration * 1000).map((offset, word) =>
+          window.setTimeout(() => {
+            if (!session.stopped) onWord(chunk.start + word);
+          }, offset)
+        );
+
+        session.halt = () => {
+          source.onended = null;
+          timers.forEach((timer) => window.clearTimeout(timer));
+          try {
+            source.stop();
+          } catch {
+            // Ja tinha parado.
+          }
+        };
+        source.onended = () => {
+          timers.forEach((timer) => window.clearTimeout(timer));
+          void play(position + 1);
+        };
+        source.start();
+      };
+
+      setError("");
+      setState("falando");
+      void play(0);
+    },
+    []
+  );
+
   const start = useCallback(
     ({ from, wpm, words, onWord, onEnd }: StartOptions): boolean => {
+      const piper = piperRef.current;
+      if (piper) {
+        startPiper(piper, { from, wpm, words, onWord, onEnd });
+        return true;
+      }
+
       if (typeof window === "undefined" || !window.speechSynthesis) {
         setState("indisponivel");
         setError("Este navegador nao le em voz alta.");
@@ -114,7 +277,7 @@ export function useSpeech(language = "pt-BR") {
       speak();
       return true;
     },
-    [lang, language]
+    [lang, language, startPiper]
   );
 
   // Sair da tela no meio da fala deixaria a voz tocando em alguns sistemas.

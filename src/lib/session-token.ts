@@ -19,10 +19,23 @@ export interface SessionUser {
    * fora do Edge; tokens emitidos antes da coluna existir valem como 0.
    */
   version: number;
+  /**
+   * Linha de `auth_sessions` deste aparelho (US-97). Nulo em tokens emitidos
+   * antes da tabela: valem ate expirar e nao aparecem na lista de aparelhos.
+   */
+  sid: string | null;
 }
 
-export function createToken(user: SessionUser): Promise<string> {
-  return new SignJWT({ email: user.email, name: user.name, sv: user.version })
+/** O que se passa para emitir um token; o `sid` e opcional. */
+export type TokenInput = Omit<SessionUser, "sid"> & { sid?: string | null };
+
+export function createToken(user: TokenInput): Promise<string> {
+  return new SignJWT({
+    email: user.email,
+    name: user.name,
+    sv: user.version,
+    ...(user.sid ? { sid: user.sid } : {}),
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
     .setIssuedAt()
@@ -37,7 +50,8 @@ export async function verifyToken(token: string): Promise<SessionUser | null> {
       return null;
     }
     const version = typeof payload.sv === "number" && Number.isInteger(payload.sv) ? payload.sv : 0;
-    return { id: payload.sub, email: payload.email, name: payload.name, version };
+    const sid = typeof payload.sid === "string" ? payload.sid : null;
+    return { id: payload.sub, email: payload.email, name: payload.name, version, sid };
   } catch {
     return null;
   }

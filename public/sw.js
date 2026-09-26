@@ -20,6 +20,11 @@ const SHELL = `leitura-casca-${VERSION}`;
 const PAGES = `leitura-paginas-${VERSION}`;
 const OFFLINE_URL = "/offline";
 
+// Vozes baixadas (Piper): gravadas pela tela, nunca por aqui. Nao tem versao
+// no nome e nao sai na limpeza - sao ~90 MB que nao dizem nada da conta, e
+// apagar a cada deploy ou saida obrigaria a baixar tudo de novo.
+const VOICES = "leitura-vozes";
+
 /** Paginas que o app precisa ter mesmo sem nunca ter sido visitado offline. */
 const PRECACHE = [OFFLINE_URL, "/manifest.webmanifest", "/icon.svg"];
 
@@ -99,7 +104,9 @@ self.addEventListener("activate", (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((key) => key !== SHELL && key !== PAGES).map((key) => caches.delete(key))
+          keys
+            .filter((key) => key !== SHELL && key !== PAGES && key !== VOICES)
+            .map((key) => caches.delete(key))
         )
       )
       .then(() => self.clients.claim())
@@ -109,9 +116,16 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("message", (event) => {
   if (event.data?.type === "flush") event.waitUntil(flushQueue());
-  // Sair da conta apaga tudo: o HTML guardado traz o texto da pessoa dentro.
+  // Sair da conta apaga tudo o que e da conta: o HTML guardado traz o texto
+  // da pessoa dentro. As vozes baixadas ficam.
   if (event.data?.type === "limpar") {
-    event.waitUntil(caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))));
+    event.waitUntil(
+      caches
+        .keys()
+        .then((keys) =>
+          Promise.all(keys.filter((k) => k !== VOICES).map((k) => caches.delete(k)))
+        )
+    );
   }
 });
 

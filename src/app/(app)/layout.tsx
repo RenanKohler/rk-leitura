@@ -18,7 +18,7 @@ import { loadAccount } from "@/lib/queries";
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const session = await getSession();
   if (session) {
-    const account = await loadAccount(session.id);
+    const account = await loadAccount(session.id, session.sid);
     if (!sessionIsCurrent(session, account?.sessionVersion ?? null)) redirect("/sair");
   }
 

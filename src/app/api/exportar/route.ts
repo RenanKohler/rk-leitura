@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { highlights, readingSessions, texts } from "@/db/schema";
+import { bookmarks, highlights, readingSessions, tags, texts, textTags } from "@/db/schema";
 import { jsonError, requireSession, serverError } from "@/lib/api";
 import { excerptOf } from "@/lib/highlights";
 import { asTextFormat, parseParagraphs } from "@/lib/reading";
+import { BACKUP_KIND, BACKUP_VERSION } from "@/lib/backup";
 
 export const dynamic = "force-dynamic";
 
@@ -61,14 +62,32 @@ async function exportSessions(userId: string) {
 }
 
 async function exportLibrary(userId: string) {
-  const [rows, marks] = await Promise.all([
+  const [rows, marks, points, labels] = await Promise.all([
     db.select().from(texts).where(and(eq(texts.userId, userId))).orderBy(asc(texts.createdAt)),
     db
       .select()
       .from(highlights)
       .where(eq(highlights.userId, userId))
       .orderBy(asc(highlights.startIndex)),
+    db
+      .select()
+      .from(bookmarks)
+      .where(eq(bookmarks.userId, userId))
+      .orderBy(asc(bookmarks.position)),
+    db
+      .select({ textId: textTags.textId, name: tags.name })
+      .from(textTags)
+      .innerJoin(tags, eq(tags.id, textTags.tagId))
+      .where(eq(tags.userId, userId)),
   ]);
+
+  const group = <T extends { textId: string }>(items: T[]) => {
+    const map = new Map<string, T[]>();
+    for (const item of items) map.set(item.textId, [...(map.get(item.textId) ?? []), item]);
+    return map;
+  };
+  const pointsByText = group(points);
+  const labelsByText = group(labels);
 
   const byText = new Map<string, typeof marks>();
   for (const mark of marks) {
@@ -93,6 +112,12 @@ async function exportLibrary(userId: string) {
       atualizadoEm: row.updatedAt.toISOString(),
       conteudo: row.content,
       formato: row.format,
+      idioma: row.language,
+      etiquetas: (labelsByText.get(row.id) ?? []).map((label) => label.name),
+      marcadores: (pointsByText.get(row.id) ?? []).map((point) => ({
+        posicao: point.position,
+        nome: point.label,
+      })),
       destaques: (byText.get(row.id) ?? []).map((mark) => ({
         inicio: mark.startIndex,
         fim: mark.endIndex,
@@ -103,7 +128,15 @@ async function exportLibrary(userId: string) {
     };
   });
 
-  return download(JSON.stringify(payload, null, 2), "application/json", "leitura-biblioteca.json");
+  // Versao 2 (US-98): o envelope identifica o arquivo na restauracao, e os
+  // textos trazem idioma, etiquetas e marcadores para voltarem inteiros.
+  const file = {
+    formato: BACKUP_KIND,
+    versao: BACKUP_VERSION,
+    exportadoEm: new Date().toISOString(),
+    textos: payload,
+  };
+  return download(JSON.stringify(file, null, 2), "application/json", "leitura-biblioteca.json");
 }
 
 /**

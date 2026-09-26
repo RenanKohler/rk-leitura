@@ -27,6 +27,7 @@ import {
   parseToc,
   resolvePath,
 } from "@/lib/epub-text";
+import { DocxError, docxTitle, docxToMarkdown, MAX_DOCX_BYTES } from "@/lib/docx-text";
 import type { TextDetail } from "@/lib/types";
 
 /** Markdown e texto puro: o limite e o mesmo do conteudo aceito pelo servidor. */
@@ -41,7 +42,7 @@ interface Chapter {
 }
 
 /**
- * Importacao de arquivo: PDF, EPUB e Markdown.
+ * Importacao de arquivo: PDF, EPUB, Word e Markdown.
  *
  * A leitura acontece no navegador. Mandar um PDF de dez megabytes para uma
  * funcao serverless esbarraria no limite de corpo e no de tempo, e guardar o
@@ -83,12 +84,13 @@ export function FileImport() {
     setBusy(true);
     try {
       if (/\.epub$/i.test(file.name)) await readEpub(file);
+      else if (/\.docx$/i.test(file.name)) await readDocx(file);
       else if (MARKDOWN_FILE.test(file.name) || file.type === "text/markdown") {
         await readMarkdown(file);
       } else await readPdf(file);
     } catch (cause) {
       setError(
-        cause instanceof EpubError
+        cause instanceof EpubError || cause instanceof DocxError
           ? cause.message
           : cause instanceof Error
             ? cause.message
@@ -144,6 +146,42 @@ export function FileImport() {
     setFormat("markdown");
     setContent(long ? source.slice(0, MAX_IMPORT_CHARS) : source);
     setTitle(markdownTitle(source) ?? fileTitle(null, file.name));
+  };
+
+  /** Documento do Word (US-99): vira Markdown com titulos, listas e enfase. */
+  const readDocx = async (file: File) => {
+    if (file.size > MAX_DOCX_BYTES) {
+      throw new DocxError(`O documento passa de ${Math.round(MAX_DOCX_BYTES / 1024 / 1024)} MB.`);
+    }
+
+    setProgress("Abrindo o documento");
+    const JSZip = (await import("jszip")).default;
+    // Documento protegido por senha nao e zip, e sim um arquivo cifrado: cai
+    // aqui junto com o corrompido.
+    const unreadable = new DocxError("Nao foi possivel ler o documento. Ele pode estar protegido por senha ou corrompido.");
+
+    let zip;
+    try {
+      zip = await JSZip.loadAsync(file);
+    } catch {
+      throw unreadable;
+    }
+
+    const documentXml = await zip.file("word/document.xml")?.async("string");
+    if (!documentXml) throw unreadable;
+    const numberingXml = (await zip.file("word/numbering.xml")?.async("string")) ?? null;
+    const coreXml = (await zip.file("docProps/core.xml")?.async("string")) ?? null;
+
+    const source = docxToMarkdown(documentXml, numberingXml);
+    if (countWords(source, "markdown") === 0) {
+      throw new DocxError("Este documento nao tem texto para ler.");
+    }
+
+    const long = source.length > MAX_IMPORT_CHARS;
+    setTruncated(long);
+    setFormat("markdown");
+    setContent(long ? source.slice(0, MAX_IMPORT_CHARS) : source);
+    setTitle(docxTitle(coreXml) ?? markdownTitle(source) ?? fileTitle(null, file.name));
   };
 
   const readEpub = async (file: File) => {
@@ -278,7 +316,7 @@ export function FileImport() {
         <input
           ref={inputRef}
           type="file"
-          accept=".pdf,.epub,.md,.markdown,application/pdf,application/epub+zip,text/markdown"
+          accept=".pdf,.epub,.md,.markdown,.docx,application/pdf,application/epub+zip,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           className="sr-only"
           onChange={(event) => void onPick(event.target.files?.[0])}
         />
@@ -292,7 +330,7 @@ export function FileImport() {
           <FileIcon className="size-7 text-muted" />
           <span className="font-medium">{busy ? progress || "Lendo" : "Escolher arquivo"}</span>
           <span className="text-sm text-muted">
-            {`PDF com texto selecionavel ate ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB, EPUB sem protecao ou Markdown (.md)`}
+            {`PDF com texto selecionavel ate ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB, EPUB sem protecao, Word (.docx) ou Markdown (.md)`}
           </span>
         </button>
       </Card>

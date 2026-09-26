@@ -196,6 +196,14 @@ export interface SettingsPayload {
   adaptiveRhythm: boolean;
   /** Perguntar "isso ainda vale?" a 25, 50 e 75% do texto (US-80). */
   askCheckpoints: boolean;
+  /** Pausa extra na troca de paragrafo no modo Foco (US-94). */
+  paragraphPause: boolean;
+  /** Recuar ate 5 palavras ao retomar depois de pausa longa (US-95). */
+  resumeRewind: boolean;
+  /** Apagar as linhas fora da atual nos modos Rolagem e Paginas (US-103). */
+  dimLines: boolean;
+  /** Aviso para descansar a vista a cada 20 minutos (US-104). */
+  eyeRest: boolean;
   /** Fuso IANA usado para decidir o que e "hoje". */
   timezone: string;
   /** Segunda-feira da ultima semana em que o resumo foi dispensado. */

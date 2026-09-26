@@ -291,6 +291,10 @@ export interface ReadingSettings {
   wordEmphasis: boolean;
   adaptiveRhythm: boolean;
   askCheckpoints: boolean;
+  paragraphPause: boolean;
+  resumeRewind: boolean;
+  dimLines: boolean;
+  eyeRest: boolean;
   timezone: string;
   weeklySummarySeenOn: string | null;
   readingMode: ReadingMode;
@@ -308,6 +312,10 @@ export const FALLBACK_SETTINGS: ReadingSettings = {
   wordEmphasis: false,
   adaptiveRhythm: true,
   askCheckpoints: false,
+  paragraphPause: false,
+  resumeRewind: true,
+  dimLines: false,
+  eyeRest: false,
   timezone: "UTC",
   weeklySummarySeenOn: null,
   readingMode: "rsvp",

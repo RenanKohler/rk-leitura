@@ -300,6 +300,25 @@ e2e/                testes no navegador: fluxo principal e acessibilidade
 - **Idioma do texto.** Lido do `lang` da pagina ou do `dc:language` do EPUB,
   portugues quando ausente. Decide a voz da narracao e o pedido ao modelo no
   dicionario e no questionario.
+- **Voz baixavel.** Em Ajustes, o leitor pode baixar vozes Piper (portugues e
+  ingles, ~63 MB cada) para a narracao. Modelo e motor ficam no Cache Storage
+  `leitura-vozes`, que o service worker e a saida da conta preservam, e a
+  sintese roda em um Web Worker (`public/piper-worker.js`). O motor (ONNX
+  Runtime Web e o conversor de fonemas em wasm) e copiado de `node_modules`
+  para `public/tts` no `postinstall`; a pasta nao e versionada.
+- **Navegacao no texto.** A folha "Navegar no texto" (icone de lupa, ou "/")
+  busca expressoes ignorando acento e caixa, lista os titulos de textos
+  Markdown e guarda marcadores de posicao (tabela `bookmarks`). O teclado muda
+  velocidade (setas), modo (1, 2, 3) e volta a frase (Shift + seta); "?" lista
+  os atalhos. As regras ficam em `src/lib/navigation.ts`.
+- **Seguranca sem e-mail.** Codigos de recuperacao (`recovery_codes`, so o
+  hash) redefinem a senha em `/recuperar`. Cada login cria uma linha em
+  `auth_sessions` e o token leva o id dela: Ajustes lista os aparelhos e
+  desconecta um sem derrubar os outros.
+- **Portabilidade.** A exportacao da biblioteca tem envelope com versao
+  (`src/lib/backup.ts`) e volta pela restauracao em Ajustes, em lotes de ate
+  3 MB com desfazer. Arquivos .docx sao convertidos em Markdown no navegador.
+  A tela de destaques baixa o texto inteiro anotado.
 - **Interface.** Mobile-first, com barra inferior ao alcance do polegar, areas
   de toque de no minimo 44px, respeito as areas seguras do Android/iOS e temas
   claro e escuro.
