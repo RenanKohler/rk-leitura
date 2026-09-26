@@ -5,13 +5,14 @@ import { users } from "@/db/schema";
 import { asString, jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import {
   clearSession,
-  createToken,
+  currentSessionVersion,
   getSession,
   getUserById,
   hashPassword,
+  openSession,
   publicUser,
+  revokeSessions,
   sessionIsCurrent,
-  setSessionCookie,
   verifyPassword,
 } from "@/lib/auth";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
@@ -29,7 +30,7 @@ export async function GET() {
     // Revalida contra o banco: a conta pode ter sido apagada, ou a sessao
     // revogada por troca de senha, depois do token.
     const user = await getUserById(session.id);
-    if (!user || !sessionIsCurrent(session, user.sessionVersion)) {
+    if (!user || !sessionIsCurrent(session, await currentSessionVersion(session.id, session.sid))) {
       return NextResponse.json({ user: null });
     }
 
@@ -118,7 +119,10 @@ export async function PATCH(request: Request) {
 
     // Reemitido sempre: o nome vive dentro do token, e a troca de senha muda a
     // versao - sem o token novo, este aparelho cairia junto com os outros.
-    await setSessionCookie(await createToken(updated));
+    // A troca de senha tira os outros aparelhos da lista (US-97): a versao
+    // nova ja os derrubou, e manter as linhas mostraria aparelhos mortos.
+    if (newPassword !== null) await revokeSessions(session.id, undefined, session.sid);
+    await openSession(updated, request, session.sid);
 
     return NextResponse.json({ user: publicUser(updated) });
   } catch (error) {

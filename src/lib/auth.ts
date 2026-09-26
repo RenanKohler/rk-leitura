@@ -2,11 +2,12 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { compare, hash } from "bcryptjs";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { authSessions, users } from "@/db/schema";
 import { isProduction } from "@/lib/env";
 import {
+  createToken,
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
   verifyToken,
@@ -59,22 +60,85 @@ export async function findUserByEmail(email: string) {
   return user ?? null;
 }
 
+/** Intervalo minimo entre duas gravacoes do ultimo acesso de um aparelho. */
+const LAST_SEEN_STEP_MS = 60 * 60 * 1000;
+
 /**
- * Versao atual das sessoes da conta, ou null quando a conta nao existe mais.
- * So uma coluna: e a consulta que toda rota autenticada faz.
+ * Versao atual das sessoes da conta, ou null quando a conta nao existe mais
+ * ou quando este aparelho foi desconectado (US-97).
+ *
+ * Uma consulta so, com a linha do aparelho junto: e a que toda rota
+ * autenticada faz. O ultimo acesso e gravado de carona, no maximo uma vez
+ * por hora, sem esperar a escrita.
  */
-export async function currentSessionVersion(id: string): Promise<number | null> {
+export async function currentSessionVersion(id: string, sid: string | null = null): Promise<number | null> {
   const [row] = await db
-    .select({ version: users.sessionVersion })
+    .select({
+      version: users.sessionVersion,
+      deviceId: authSessions.id,
+      revokedAt: authSessions.revokedAt,
+      lastSeenAt: authSessions.lastSeenAt,
+    })
     .from(users)
+    .leftJoin(
+      authSessions,
+      and(eq(authSessions.id, sid ?? "00000000-0000-0000-0000-000000000000"), eq(authSessions.userId, users.id))
+    )
     .where(eq(users.id, id))
     .limit(1);
-  return row?.version ?? null;
+
+  if (!row) return null;
+  if (sid) {
+    if (!row.deviceId || row.revokedAt) return null;
+    if (row.lastSeenAt && Date.now() - row.lastSeenAt.getTime() > LAST_SEEN_STEP_MS) {
+      void db
+        .update(authSessions)
+        .set({ lastSeenAt: new Date() })
+        .where(eq(authSessions.id, sid))
+        .catch(() => undefined);
+    }
+  }
+  return row.version;
 }
 
 /** O token ainda vale: a conta existe e nenhuma troca de senha o revogou. */
 export function sessionIsCurrent(session: SessionUser, version: number | null): boolean {
   return version !== null && version === session.version;
+}
+
+/**
+ * Abre a sessao deste aparelho: grava a linha dele e o cookie com o id.
+ *
+ * `sid` reaproveita a linha existente - e o caso de reemitir o token depois
+ * de trocar nome ou senha, em que o aparelho continua o mesmo.
+ */
+export async function openSession(
+  user: { id: string; email: string; name: string; version: number },
+  request: Request | null,
+  sid: string | null = null
+): Promise<void> {
+  let id = sid;
+  if (!id) {
+    const userAgent = request?.headers.get("user-agent")?.slice(0, 300) ?? null;
+    const [row] = await db
+      .insert(authSessions)
+      .values({ userId: user.id, userAgent })
+      .returning({ id: authSessions.id });
+    id = row?.id ?? null;
+  }
+  await setSessionCookie(await createToken({ ...user, sid: id }));
+}
+
+/** Desconecta aparelhos da conta; sem `sid`, todos. */
+export async function revokeSessions(userId: string, sid?: string, except?: string | null) {
+  const conditions = [eq(authSessions.userId, userId), isNull(authSessions.revokedAt)];
+  if (sid) conditions.push(eq(authSessions.id, sid));
+  if (except) conditions.push(sql`${authSessions.id} <> ${except}`);
+  return db
+    .update(authSessions)
+    .set({ revokedAt: new Date() })
+    .where(and(...conditions))
+    .returning({ id: authSessions.id });
 }
 
 /** Os dados da sessao que podem ir para o cliente. */

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateUser, createToken, setSessionCookie } from "@/lib/auth";
+import { authenticateUser, openSession } from "@/lib/auth";
 import { asString, jsonError, readJson, serverError } from "@/lib/api";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -31,13 +31,9 @@ export async function POST(request: Request) {
       return jsonError("E-mail ou senha incorretos.", 401);
     }
 
-    await setSessionCookie(
-      await createToken({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        version: user.sessionVersion,
-      })
+    await openSession(
+      { id: user.id, email: user.email, name: user.name, version: user.sessionVersion },
+      request
     );
 
     return NextResponse.json({ user: { id: user.id, email: user.email, name: user.name } });

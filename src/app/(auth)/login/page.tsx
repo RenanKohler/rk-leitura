@@ -70,6 +70,12 @@ function LoginForm() {
         </Button>
       </form>
 
+      <p className="text-center text-sm">
+        <Link href="/recuperar" className="font-medium text-accent">
+          Esqueci a senha
+        </Link>
+      </p>
+
       {process.env.NEXT_PUBLIC_DEMO_HINT === "true" ? (
         <p className="rounded-2xl bg-surface-2 px-4 py-3 text-center text-sm text-muted">
           Conta de demonstracao: <strong>leitor@exemplo.com</strong> / <strong>demo1234</strong>

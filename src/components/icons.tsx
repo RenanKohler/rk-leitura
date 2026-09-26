@@ -299,3 +299,16 @@ export const VoiceIcon = (props: IconProps) => (
     <path d="M19 6a8.5 8.5 0 0 1 0 12" />
   </Icon>
 );
+
+export const SearchIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m20 20-4.2-4.2" />
+  </Icon>
+);
+
+export const BookmarkIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M6.5 4h11v16l-5.5-4-5.5 4z" />
+  </Icon>
+);

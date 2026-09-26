@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createToken, createUser, findUserByEmail, setSessionCookie } from "@/lib/auth";
+import { createUser, findUserByEmail, openSession } from "@/lib/auth";
 import { asString, jsonError, readJson, serverError } from "@/lib/api";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -47,13 +47,9 @@ export async function POST(request: Request) {
     }
 
     const user = await createUser(email, password, name);
-    await setSessionCookie(
-      await createToken({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        version: user.sessionVersion,
-      })
+    await openSession(
+      { id: user.id, email: user.email, name: user.name, version: user.sessionVersion },
+      request
     );
 
     return NextResponse.json({ user: { id: user.id, email: user.email, name: user.name } });

@@ -17,6 +17,7 @@ import {
 } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  authSessions,
   highlights,
   readingGoals,
   readingSessions,
@@ -107,6 +108,10 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   wordEmphasis: false,
   adaptiveRhythm: true,
   askCheckpoints: false,
+  paragraphPause: false,
+  resumeRewind: true,
+  dimLines: false,
+  eyeRest: false,
   timezone: "UTC",
   weeklySummarySeenOn: null,
   placementWpm: null,
@@ -165,17 +170,35 @@ export const loadSettings = cache(async function loadSettings(
  * jeito pelo layout raiz.
  */
 export const loadAccount = cache(async function loadAccount(
-  userId: string
-): Promise<{ sessionVersion: number; settings: SettingsPayload } | null> {
+  userId: string,
+  sid: string | null = null
+): Promise<{ sessionVersion: number | null; settings: SettingsPayload } | null> {
   const [row] = await db
-    .select({ sessionVersion: users.sessionVersion, settings: speedSettings })
+    .select({
+      sessionVersion: users.sessionVersion,
+      settings: speedSettings,
+      deviceId: authSessions.id,
+      revokedAt: authSessions.revokedAt,
+    })
     .from(users)
     .leftJoin(speedSettings, eq(speedSettings.userId, users.id))
+    .leftJoin(
+      authSessions,
+      and(
+        eq(authSessions.id, sid ?? "00000000-0000-0000-0000-000000000000"),
+        eq(authSessions.userId, users.id)
+      )
+    )
     .where(eq(users.id, userId))
     .limit(1);
 
   if (!row) return null;
-  return { sessionVersion: row.sessionVersion, settings: settingsFrom(row.settings) };
+  // Aparelho desconectado (US-97): a versao nula faz a sessao nao valer.
+  const deviceGone = sid !== null && (!row.deviceId || row.revokedAt !== null);
+  return {
+    sessionVersion: deviceGone ? null : row.sessionVersion,
+    settings: settingsFrom(row.settings),
+  };
 });
 
 function settingsFrom(row: typeof speedSettings.$inferSelect | null): SettingsPayload {
@@ -194,6 +217,10 @@ function settingsFrom(row: typeof speedSettings.$inferSelect | null): SettingsPa
     wordEmphasis: row.wordEmphasis,
     adaptiveRhythm: row.adaptiveRhythm,
     askCheckpoints: row.askCheckpoints,
+    paragraphPause: row.paragraphPause,
+    resumeRewind: row.resumeRewind,
+    dimLines: row.dimLines,
+    eyeRest: row.eyeRest,
     timezone: asTimezone(row.timezone),
     weeklySummarySeenOn: row.weeklySummarySeenOn,
     placementWpm: row.placementWpm,
@@ -1343,4 +1370,34 @@ export async function loadStaleQueue(userId: string): Promise<string[]> {
       )
     );
   return rows.map((row) => row.id);
+}
+
+/**
+ * Historico de leitura de um texto (US-101), ou null quando o texto nao e do
+ * usuario - a pagina responde 404 nos dois casos, sem revelar qual.
+ */
+export async function loadTextHistory(userId: string, textId: string) {
+  const [text] = await db
+    .select({ id: texts.id, title: texts.title, wordCount: texts.wordCount, progressIndex: texts.progressIndex })
+    .from(texts)
+    .where(and(eq(texts.id, textId), eq(texts.userId, userId)))
+    .limit(1);
+  if (!text) return null;
+
+  const [rows, pace] = await Promise.all([
+    db
+      .select({
+        durationMs: readingSessions.durationMs,
+        wordsRead: readingSessions.wordsRead,
+        wpm: readingSessions.wpm,
+        completed: readingSessions.completed,
+        createdAt: readingSessions.createdAt,
+      })
+      .from(readingSessions)
+      .where(and(eq(readingSessions.userId, userId), eq(readingSessions.textId, textId)))
+      .orderBy(desc(readingSessions.createdAt)),
+    loadPace(userId),
+  ]);
+
+  return { text, rows, pace };
 }

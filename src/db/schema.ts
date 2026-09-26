@@ -161,6 +161,14 @@ export const speedSettings = pgTable(
     adaptiveRhythm: boolean("adaptive_rhythm").notNull().default(true),
     // "Isso ainda vale?" a 25, 50 e 75% do texto (US-80). Desligado por padrao.
     askCheckpoints: boolean("ask_checkpoints").notNull().default(false),
+    // Pausa extra na troca de paragrafo no modo Foco (US-94). Desligada por padrao.
+    paragraphPause: boolean("paragraph_pause").notNull().default(false),
+    // Recuo de ate 5 palavras ao retomar depois de uma pausa longa (US-95).
+    resumeRewind: boolean("resume_rewind").notNull().default(true),
+    // Linhas fora da atual apagadas nos modos Rolagem e Paginas (US-103).
+    dimLines: boolean("dim_lines").notNull().default(false),
+    // Aviso para descansar a vista a cada 20 minutos de leitura (US-104).
+    eyeRest: boolean("eye_rest").notNull().default(false),
     /**
      * Fuso do usuario, no formato IANA ("America/Sao_Paulo").
      *
@@ -529,4 +537,75 @@ export const feeds = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [uniqueIndex("feeds_user_url_unique").on(table.userId, table.url)]
+);
+
+/**
+ * Marcadores de posicao dentro de um texto (US-92).
+ *
+ * Diferente do destaque, e um ponto e nao um intervalo: serve para voltar a
+ * um trecho de referencia sem mexer na posicao de leitura. Editar o texto nao
+ * apaga o marcador; se ele ficar alem do fim, a lista o mostra como fora do
+ * texto e deixa apagar.
+ */
+export const bookmarks = pgTable(
+  "bookmarks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    textId: uuid("text_id")
+      .notNull()
+      .references(() => texts.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    label: text("label").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("bookmarks_text_position_idx").on(table.textId, table.position)]
+);
+
+/**
+ * Codigos de recuperacao de acesso (US-96).
+ *
+ * A alternativa a recuperacao por e-mail enquanto nao ha provedor (US-05).
+ * Guardado so o hash: o codigo aparece uma vez, na geracao. Gerar um conjunto
+ * novo apaga o anterior inteiro.
+ */
+export const recoveryCodes = pgTable(
+  "recovery_codes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    codeHash: text("code_hash").notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("recovery_codes_user_idx").on(table.userId)]
+);
+
+/**
+ * Uma linha por aparelho conectado (US-97).
+ *
+ * O token leva o id da linha. Desconectar um aparelho marca `revokedAt`, e a
+ * proxima requisicao dele deixa de valer - sem mexer na versao da conta, que
+ * derrubaria todos. Tokens emitidos antes desta tabela nao tem id e seguem
+ * valendo ate expirar ou ate "sair de todos os aparelhos".
+ */
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    // Gravado no maximo uma vez por hora: escrever a cada requisicao seria
+    // uma escrita no banco por clique.
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => [index("auth_sessions_user_idx").on(table.userId)]
 );

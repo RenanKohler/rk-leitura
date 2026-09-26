@@ -113,10 +113,10 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Voz baixável | 1 | 8 | 0 | 1 | 0 |
 | **Total** | **105** | **425** | **43 (41%)** | **42 (40%)** | **20 (19%)** |
 
-Status: 88 Implementadas, 1 Aguardando pendência, 16 Propostas.
+Status: 104 Implementadas, 1 Aguardando pendência.
 
 As seis épicas finais (Navegação no texto em diante, US-89 a US-104) somam 52
-pontos: 7 Must, 6 Should e 3 Could. Todas podem ser feitas sem serviço externo.
+pontos: 7 Must, 6 Should e 3 Could. Nenhuma usa serviço externo. Todas implementadas.
 
 A US-105 (voz baixável) foi pedida e entregue fora dessa rodada, e é a
 única do grupo com download de terceiros: os modelos vêm do Hugging Face.
@@ -1796,8 +1796,8 @@ Como leitor, eu quero que as palavras que já consultei no dicionário fiquem um
 **Épico:** Navegação no texto
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx:779` (o teclado só trata espaço, setas e PageUp/PageDown; não há busca no leitor)
+**Status:** Implementada
+**Evidência:** `src/lib/navigation.ts` (`searchWords`), `src/components/navigate-sheet.tsx`, `e2e/navegacao.spec.ts`
 
 Como leitor, eu quero buscar uma palavra ou expressão no texto aberto e pular para ela, para que eu reencontre um trecho sem voltar de dez em dez palavras.
 
@@ -1810,13 +1810,15 @@ Como leitor, eu quero buscar uma palavra ou expressão no texto aberto e pular p
 
 **Notas técnicas:** a busca roda sobre o array de palavras que o leitor já tem, sem chamada ao servidor. A correspondência é por sequência de palavras normalizadas, para que o índice do resultado seja um índice de palavra válido.
 
+**Notas de implementação:** A lista mostra os 50 primeiros resultados; a contagem vai ate 500 e mostra "500+" acima disso. A ultima palavra da busca casa pelo prefixo, para achar enquanto se digita.
+
 ### US-91: Voltar ao início da frase
 
 **Épico:** Navegação no texto
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx:1009` (só existe "Voltar 10 palavras"); `sentenceRange` já é usado em `reader-client.tsx:314` para destacar a frase
+**Status:** Implementada
+**Evidência:** `src/lib/navigation.ts` (`sentenceBackTarget`), botao "Voltar a frase" em `src/app/(app)/leitor/[id]/reader-client.tsx`
 
 Como leitor, eu quero voltar ao início da frase atual com um comando, para que eu releia a frase que perdi sem cair no meio da anterior.
 
@@ -1826,13 +1828,15 @@ Como leitor, eu quero voltar ao início da frase atual com um comando, para que 
 3. Dado que estou na primeira frase do texto, quando aciono o comando, então a posição vai para a palavra 0.
 4. Dado o teclado, quando pressiono Shift + seta para a esquerda, então o efeito é o mesmo do botão.
 
+**Notas de implementação:** O botao fica abaixo dos controles nos modos Foco e Rolagem; no modo Paginas a pagina inteira ja esta na tela.
+
 ### US-89: Navegar pelo sumário de títulos
 
 **Épico:** Navegação no texto
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `src/lib/markdown.ts` (títulos Markdown já são reconhecidos); `reader-client.tsx:1345` (o estilo `STYLE.heading` só muda a fonte, não há lista de títulos)
+**Status:** Implementada
+**Evidência:** `src/lib/navigation.ts` (`textHeadings`), `src/components/navigate-sheet.tsx`
 
 Como leitor, eu quero ver a lista de títulos do texto e pular para um deles, para que eu vá direto à seção que me interessa em textos longos.
 
@@ -1849,8 +1853,8 @@ Como leitor, eu quero ver a lista de títulos do texto e pular para um deles, pa
 **Épico:** Navegação no texto
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `src/db/schema.ts` (`texts.progressIndex` guarda uma posição só; `highlights` guarda intervalos, não pontos de retorno)
+**Status:** Implementada
+**Evidência:** tabela `bookmarks` (`drizzle/0021`), `src/app/api/texts/[id]/marcadores`, `src/components/navigate-sheet.tsx`
 
 Como leitor, eu quero marcar posições no texto com um nome curto, para que eu volte a trechos de referência sem perder a posição de leitura.
 
@@ -1862,6 +1866,8 @@ Como leitor, eu quero marcar posições no texto com um nome curto, para que eu 
 
 **Notas técnicas:** tabela nova com dono, texto, índice e nome, com exclusão em cascata junto do texto. Entra na exportação da biblioteca (US-50).
 
+**Notas de implementação:** Os marcadores entram na exportacao da biblioteca (versao 2) e voltam na restauracao (US-98).
+
 ## Épico: Controle da leitura
 
 ### US-93: Ajustar velocidade e modo pelo teclado
@@ -1869,8 +1875,8 @@ Como leitor, eu quero marcar posições no texto com um nome curto, para que eu 
 **Épico:** Controle da leitura
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx:779-800`
+**Status:** Implementada
+**Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx` (teclado e folha "Atalhos de teclado")
 
 Como leitor no computador, eu quero mudar a velocidade, o modo e a posição pelo teclado, para que eu não tire a mão do teclado durante a leitura.
 
@@ -1880,13 +1886,15 @@ Como leitor no computador, eu quero mudar a velocidade, o modo e a posição pel
 3. Dado o leitor aberto, quando pressiono "?", então abre a lista de atalhos, e Esc a fecha.
 4. Dado que o foco está em um campo de texto, quando digito essas teclas, então nenhum atalho é acionado.
 
+**Notas de implementação:** Tambem "/" abre a navegacao no texto. Com uma folha aberta, as teclas sao dela.
+
 ### US-94: Pausar no fim de cada parágrafo no modo Foco
 
 **Épico:** Controle da leitura
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `src/lib/reading.ts` (`chunkLength` já corta o grupo no fim do parágrafo); `src/lib/pacing.ts` (nenhum peso extra para fim de parágrafo)
+**Status:** Implementada
+**Evidência:** `src/lib/navigation.ts` (`paragraphPauseMs`), motor do leitor, preferencia `paragraph_pause` (`drizzle/0020`)
 
 Como leitor no modo Foco, eu quero um intervalo um pouco maior ao trocar de parágrafo, para que eu perceba a mudança de assunto antes de a próxima ideia começar.
 
@@ -1898,13 +1906,15 @@ Como leitor no modo Foco, eu quero um intervalo um pouco maior ao trocar de par�
 
 **Notas técnicas:** pendência deixada em aberto na entrega do sinal de início de parágrafo. Guardar a opção em `speed_settings`.
 
+**Notas de implementação:** A pausa e descontada do tempo da sessao (`pauseCreditRef`), entao o ritmo medido nao cai.
+
 ### US-95: Recuar algumas palavras ao retomar depois de uma pausa
 
 **Épico:** Controle da leitura
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx:536-538` (a pausa longa só reinicia a aceleração gradual; a posição não recua)
+**Status:** Implementada
+**Evidência:** `src/lib/navigation.ts` (`resumeTarget`), `togglePlay` no leitor, preferencia `resume_rewind`
 
 Como leitor, eu quero que a leitura recomece algumas palavras antes de onde parei, para que eu retome com o fio da frase em vez de cair no meio dela.
 
@@ -1916,6 +1926,8 @@ Como leitor, eu quero que a leitura recomece algumas palavras antes de onde pare
 
 **Notas técnicas:** usa `sentenceRange` para o limite do recuo. Deve ficar abaixo da recapitulação de US-77, que trata paradas de dias.
 
+**Notas de implementação:** O recuo so vale se a posicao nao mudou durante a pausa: tocar em outra palavra e retomar nao recua.
+
 ## Épico: Conta sem serviços externos
 
 ### US-96: Recuperar o acesso com códigos de recuperação
@@ -1923,8 +1935,8 @@ Como leitor, eu quero que a leitura recomece algumas palavras antes de onde pare
 **Épico:** Conta sem serviços externos
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `src/app/api/auth` (só `login`, `logout`, `me` e `register`); US-05 está aguardando provedor de e-mail
+**Status:** Implementada
+**Evidência:** tabela `recovery_codes`, `src/lib/recovery.ts`, `src/app/api/auth/codigos`, `src/app/api/auth/recuperar`, `src/app/(auth)/recuperar/page.tsx`, `src/components/security-card.tsx`
 
 Como leitor, eu quero gerar códigos de recuperação e usá-los para redefinir a senha, para que eu não perca a biblioteca ao esquecer a senha, mesmo sem recuperação por e-mail.
 
@@ -1937,13 +1949,15 @@ Como leitor, eu quero gerar códigos de recuperação e usá-los para redefinir 
 
 **Notas técnicas:** substitui a US-05 para quem gerou códigos. A US-05 continua valendo para quem não gerou, quando houver provedor de e-mail.
 
+**Notas de implementação:** Gerar codigos pede a senha atual: com um cookie roubado, gerar codigos daria acesso permanente. Hash SHA-256 com o segredo do app como tempero; limite de 10 tentativas por IP e 5 por e-mail em 15 minutos.
+
 ### US-97: Ver os aparelhos conectados e desconectar um deles
 
 **Épico:** Conta sem serviços externos
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `src/db/schema.ts:22-25` (`users.sessionVersion` só permite derrubar todas as sessões de uma vez, US-63)
+**Status:** Implementada
+**Evidência:** tabela `auth_sessions`, `sid` no token (`src/lib/session-token.ts`), `currentSessionVersion` e `openSession` em `src/lib/auth.ts`, `src/app/api/auth/aparelhos`
 
 Como leitor, eu quero ver em quais aparelhos estou conectado e desconectar um deles, para que eu encerre um acesso esquecido sem sair de todos.
 
@@ -1955,6 +1969,8 @@ Como leitor, eu quero ver em quais aparelhos estou conectado e desconectar um de
 
 **Notas técnicas:** exige uma tabela de sessões com identificador no token. A data de último acesso deve ser gravada no máximo uma vez por hora por sessão, para não escrever no banco a cada requisição.
 
+**Notas de implementação:** Criterio 4 ajustado: "Sair de todos os aparelhos" desconecta tambem o atual, como ja fazia a US-63. Tokens emitidos antes da tabela nao aparecem na lista e valem ate expirar ou ate "sair de todos".
+
 ## Épico: Portabilidade
 
 ### US-98: Restaurar a biblioteca a partir do arquivo exportado
@@ -1962,8 +1978,8 @@ Como leitor, eu quero ver em quais aparelhos estou conectado e desconectar um de
 **Épico:** Portabilidade
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `src/app/api/exportar/route.ts:63` (a exportação da biblioteca existe; não há rota de importação)
+**Status:** Implementada
+**Evidência:** `src/lib/backup.ts`, `src/app/api/importar/route.ts`, `src/components/export-card.tsx`
 
 Como leitor, eu quero importar o arquivo exportado da biblioteca, para que eu recupere textos, progresso e destaques em outra conta ou depois de excluir a antiga.
 
@@ -1976,13 +1992,15 @@ Como leitor, eu quero importar o arquivo exportado da biblioteca, para que eu re
 
 **Notas técnicas:** validar com zod e gravar em uma transação. O arquivo exportado já traz conteúdo, formato, progresso e destaques; precisa passar a trazer idioma, etiquetas e a versão do formato.
 
+**Notas de implementação:** O arquivo e validado inteiro no navegador e enviado em lotes de ate 3 MB (a funcao da Vercel recebe no maximo 4,5 MB). Se um lote falha, os anteriores sao apagados e nada fica gravado. A exportacao passou a ter envelope com versao; o formato antigo (lista solta) continua aceito.
+
 ### US-99: Importar documentos DOCX
 
 **Épico:** Portabilidade
 **Prioridade:** Could
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `src/components/file-import.tsx:281` (aceita PDF, EPUB e Markdown); `jszip` já é dependência
+**Status:** Implementada
+**Evidência:** `src/lib/docx-text.ts`, `readDocx` em `src/components/file-import.tsx`, `e2e/docx.spec.ts`
 
 Como leitor, eu quero importar um arquivo do Word, para que eu leia documentos de trabalho sem copiar e colar.
 
@@ -1994,13 +2012,15 @@ Como leitor, eu quero importar um arquivo do Word, para que eu leia documentos d
 
 **Notas técnicas:** a conversão roda no navegador, como o PDF e o EPUB: abrir o zip e ler `word/document.xml`, sem biblioteca nova.
 
+**Notas de implementação:** Limite de 10 MB, o mesmo do PDF.
+
 ### US-100: Exportar um texto com destaques e notas em Markdown
 
 **Épico:** Portabilidade
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `src/app/(app)/textos/[id]/destaques/page.tsx` (exporta só os destaques, sem o texto)
+**Status:** Implementada
+**Evidência:** `src/lib/annotated-export.ts`, botao em `src/app/(app)/textos/[id]/destaques/highlights-client.tsx`
 
 Como leitor, eu quero baixar o texto inteiro com os destaques marcados e as notas ao lado, para que eu leve o material anotado para minhas anotações pessoais.
 
@@ -2010,6 +2030,8 @@ Como leitor, eu quero baixar o texto inteiro com os destaques marcados e as nota
 3. Dado um texto sem destaques, quando exporto, então o arquivo traz só o texto, sem erro.
 4. Dado um texto já em Markdown, quando exporto, então a formatação original é mantida.
 
+**Notas de implementação:** O texto e remontado a partir dos paragrafos, porque so ali cada palavra tem indice; a formatacao Markdown volta pelos atributos que o parser guarda.
+
 ## Épico: Estatísticas por texto
 
 ### US-101: Ver o histórico de leitura de um texto
@@ -2017,8 +2039,8 @@ Como leitor, eu quero baixar o texto inteiro com os destaques marcados e as nota
 **Épico:** Estatísticas por texto
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `src/app/(app)/historico/page.tsx` e `src/app/(app)/estatisticas/page.tsx` (visões gerais, sem recorte por texto)
+**Status:** Implementada
+**Evidência:** `loadTextHistory` em `src/lib/queries.ts`, `src/app/(app)/textos/[id]/leituras/page.tsx`, link em Ajustes de leitura
 
 Como leitor, eu quero ver quanto tempo e em quantas sessões li um texto, para que eu saiba o esforço real que ele exigiu.
 
@@ -2028,13 +2050,15 @@ Como leitor, eu quero ver quanto tempo e em quantas sessões li um texto, para q
 3. Dado um texto sem sessões, quando abro o detalhe, então aparece "Nenhuma sessao registrada".
 4. Dado um texto de outro usuário, quando peço o detalhe pela URL, então a resposta é 404.
 
+**Notas de implementação:** A comparacao usa a previsao pelo ritmo atual (US-83), porque a estimativa do momento da importacao nao e guardada. Texto de outro usuario mostra a tela de nao encontrado; o status HTTP sai 200 por causa do `loading.tsx` da biblioteca.
+
 ### US-102: Ver um calendário anual de dias lidos
 
 **Épico:** Estatísticas por texto
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `src/components/trend-chart.tsx` (a evolução é por semana; não há visão por dia do ano)
+**Status:** Implementada
+**Evidência:** `src/lib/calendar.ts`, `src/components/year-calendar.tsx`, `src/app/(app)/estatisticas/page.tsx`
 
 Como leitor, eu quero ver um calendário do ano com a intensidade de leitura de cada dia, para que eu enxergue períodos de constância e de parada.
 
@@ -2047,6 +2071,8 @@ Como leitor, eu quero ver um calendário do ano com a intensidade de leitura de 
 
 **Notas técnicas:** reaproveita o agrupamento por dia no fuso do leitor usado pela meta diária (US-41).
 
+**Notas de implementação:** Ultimas 53 semanas, e nao o ano do calendario. Niveis: 1-5, 6-15, 16-30 e mais de 30 minutos.
+
 ## Épico: Conforto visual
 
 ### US-103: Escurecer as linhas fora da atual
@@ -2054,8 +2080,8 @@ Como leitor, eu quero ver um calendário do ano com a intensidade de leitura de 
 **Épico:** Conforto visual
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `src/app/globals.css` (o destaque é da palavra ativa; o restante do texto tem a mesma opacidade)
+**Status:** Implementada
+**Evidência:** `useLayoutEffect` de linha atual em `FlowStage`, regra `[data-dim]` em `src/app/globals.css`, preferencia `dim_lines`
 
 Como leitor nos modos Rolagem e Páginas, eu quero que as linhas fora da linha atual fiquem mais apagadas, para que meu olho não se perca ao voltar para a posição.
 
@@ -2067,13 +2093,15 @@ Como leitor nos modos Rolagem e Páginas, eu quero que as linhas fora da linha a
 
 **Notas técnicas:** só CSS e a posição da palavra ativa. Não pode acrescentar texto ao DOM das páginas, para manter a régua de paginação e o índice de palavras.
 
+**Notas de implementação:** So no modo Rolagem: o modo Paginas avanca a pagina inteira e nao tem linha atual. Apagado a 45%; no alto contraste, 75%, que mantem 5,1:1 ate nas palavras ja lidas.
+
 ### US-104: Receber um aviso para descansar a vista
 
 **Épico:** Conforto visual
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx` (não há contagem de tempo contínuo na tela)
+**Status:** Implementada
+**Evidência:** `EyeRestSheet` e o efeito de descanso em `src/app/(app)/leitor/[id]/reader-client.tsx`, preferencia `eye_rest`
 
 Como leitor, eu quero um aviso depois de um tempo lendo sem parar, para que eu descanse a vista antes de cansar.
 
@@ -2084,6 +2112,8 @@ Como leitor, eu quero um aviso depois de um tempo lendo sem parar, para que eu d
 4. Dado a opção desligada, quando leio por mais de 20 minutos, então nenhum aviso aparece.
 
 **Notas técnicas:** tudo no navegador, sem notificação push. O tempo de aviso não entra no tempo da sessão.
+
+**Notas de implementação:** Sem teste no navegador: o intervalo e de 20 minutos. As constantes estao em `src/lib/navigation.ts`.
 
 ## Épico: Voz baixável
 
@@ -2162,15 +2192,15 @@ histórico do que foi entregue, agrupado por dependência.
 | ~~13~~ | ~~US-70, US-71~~ | ~~13~~ | Concluída: acompanhamento de séries e feeds |
 | ~~14~~ | ~~US-76~~ | ~~3~~ | Concluída: tema de alto contraste |
 
-### Próximas entregas: épicas US-89 a US-104
+### Entregas: épicas US-89 a US-104
 
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
-| 19 | US-90, US-91, US-93, US-94, US-95 | 13 | Controle fino da posição e do ritmo no leitor |
-| 20 | US-96, US-98 | 10 | Recuperar acesso e dados sem depender de terceiros |
-| 21 | US-89, US-92, US-103 | 11 | Navegar por textos longos e manter o olho na linha |
-| 22 | US-97, US-101, US-102 | 9 | Aparelhos conectados e estatísticas por texto e por dia |
-| 23 | US-99, US-100, US-104 | 9 | DOCX, exportação anotada e descanso da vista |
+| ~~19~~ | ~~US-90, US-91, US-93, US-94, US-95~~ | ~~13~~ | Concluída: controle fino da posição e do ritmo no leitor |
+| ~~20~~ | ~~US-96, US-98~~ | ~~10~~ | Concluída: recuperar acesso e dados sem depender de terceiros |
+| ~~21~~ | ~~US-89, US-92, US-103~~ | ~~11~~ | Concluída: navegar por textos longos e manter o olho na linha |
+| ~~22~~ | ~~US-97, US-101, US-102~~ | ~~9~~ | Concluída: aparelhos conectados e estatísticas por texto e por dia |
+| ~~23~~ | ~~US-99, US-100, US-104~~ | ~~9~~ | Concluída: dOCX, exportação anotada e descanso da vista |
 
 Critérios desta ordem:
 

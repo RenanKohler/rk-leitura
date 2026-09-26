@@ -7,6 +7,8 @@ import { useToast } from "@/components/providers";
 import { Button, Card, EmptyState, SectionTitle } from "@/components/ui";
 import { BackIcon, CopyIcon, DownloadIcon, MarkIcon, TrashIcon } from "@/components/icons";
 import { exportFileName, toMarkdown } from "@/lib/highlights";
+import { annotatedFileName, annotatedMarkdown } from "@/lib/annotated-export";
+import type { TextFormat } from "@/lib/reading";
 import type { HighlightItem } from "@/lib/types";
 
 /**
@@ -20,11 +22,15 @@ export function HighlightsClient({
   textId,
   title,
   sourceUrl,
+  content,
+  format,
   initial,
 }: {
   textId: string;
   title: string;
   sourceUrl: string | null;
+  content: string;
+  format: TextFormat;
   initial: HighlightItem[];
 }) {
   const notify = useToast();
@@ -37,15 +43,27 @@ export function HighlightsClient({
       items.map((item) => ({ start: item.start, excerpt: item.excerpt, note: item.note }))
     );
 
-  const download = () => {
-    const blob = new Blob([markdown()], { type: "text/markdown;charset=utf-8" });
+  const save = (body: string, filename: string) => {
+    const blob = new Blob([body], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = exportFileName(title);
+    link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  const download = () => save(markdown(), exportFileName(title));
+
+  /** O texto inteiro com os destaques marcados e as notas (US-100). */
+  const downloadAnnotated = () =>
+    save(
+      annotatedMarkdown(
+        { title, sourceUrl, content, format },
+        items.map((item) => ({ start: item.start, end: item.end, note: item.note }))
+      ),
+      annotatedFileName(title)
+    );
 
   const copy = async () => {
     try {
@@ -94,9 +112,17 @@ export function HighlightsClient({
           title="Nenhum destaque ainda"
           description="Selecione um trecho durante a leitura para marcar, ou use Destacar frase no modo Foco."
           action={
-            <Link href={`/leitor/${textId}`}>
-              <Button size="lg">Abrir o texto</Button>
-            </Link>
+            <div className="flex flex-col gap-2">
+              <Link href={`/leitor/${textId}`}>
+                <Button size="lg" full>
+                  Abrir o texto
+                </Button>
+              </Link>
+              <Button variant="secondary" onClick={downloadAnnotated}>
+                <DownloadIcon className="size-5" />
+                Baixar o texto em .md
+              </Button>
+            </div>
           }
         />
       ) : (
@@ -111,6 +137,10 @@ export function HighlightsClient({
               Copiar
             </Button>
           </div>
+          <Button variant="secondary" full className="mt-2" onClick={downloadAnnotated}>
+            <DownloadIcon className="size-5" />
+            Baixar o texto anotado (.md)
+          </Button>
 
           <div className="mt-6">
             <SectionTitle>Trechos</SectionTitle>
