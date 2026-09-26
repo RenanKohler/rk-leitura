@@ -35,6 +35,7 @@ import {
   WARMUP_WORDS,
   formatClock,
   formatNumber,
+  isCompound,
   MAX_CHUNK,
   MAX_WPM,
   MIN_CHUNK,
@@ -1639,8 +1640,10 @@ function Word({
     word
   );
 
+  // Palavra com hifen nao quebra no fim da linha (a regua faz o mesmo).
+  const joined = isCompound(word) ? <span className="nobreak">{body}</span> : body;
   const classes = styleClass(style);
-  return classes ? <span className={classes}>{body}</span> : <>{body}</>;
+  return classes ? <span className={classes}>{joined}</span> : <>{joined}</>;
 }
 
 /** Uma sequencia de palavras, com o espaco entre elas. */
@@ -1654,7 +1657,7 @@ function Words({
   styles?: number[];
 }) {
   const styled = styles?.some((style) => styleClass(style) !== "") ?? false;
-  if (!emphasis && !styled) return <>{words.join(" ")}</>;
+  if (!emphasis && !styled && !words.some(isCompound)) return <>{words.join(" ")}</>;
 
   return (
     <>
