@@ -28,6 +28,7 @@ import {
   resolvePath,
 } from "@/lib/epub-text";
 import { DocxError, docxTitle, docxToMarkdown, MAX_DOCX_BYTES } from "@/lib/docx-text";
+import { CitationsOption } from "@/components/citations-option";
 import type { TextDetail } from "@/lib/types";
 
 /** Markdown e texto puro: o limite e o mesmo do conteudo aceito pelo servidor. */
@@ -66,9 +67,11 @@ export function FileImport() {
   // `dc:language` do livro, repassado a cada capitulo salvo (US-67).
   const [bookLanguage, setBookLanguage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [keepCitations, setKeepCitations] = useState(false);
 
   const reset = () => {
     setError("");
+    setKeepCitations(false);
     setTitle("");
     setContent("");
     setFormat("plain");
@@ -257,6 +260,7 @@ export function FileImport() {
         title: title.trim(),
         content,
         format,
+        keepCitations,
       });
       notify("Texto salvo.", "success");
       router.replace(`/leitor/${text.id}`);
@@ -362,6 +366,7 @@ export function FileImport() {
           <p className="tabular text-sm text-faint">
             {`${formatNumber(countWords(content, format))} palavras`}
           </p>
+          <CitationsOption content={content} keep={keepCitations} onChange={setKeepCitations} />
           <Button size="lg" full loading={saving} disabled={!title.trim()} onClick={() => void saveSingle()}>
             Salvar na biblioteca
           </Button>

@@ -9,6 +9,7 @@ import { findTextBySourceUrl, loadNextUp } from "@/lib/queries";
 import { countWords } from "@/lib/reading";
 import { detectSeries } from "@/lib/series";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
+import { importContent } from "@/lib/citations";
 
 /**
  * Importa o capitulo seguinte ao texto informado.
@@ -61,14 +62,16 @@ export async function importNextChapter(
     const finalUrl = normalizeSourceUrl(imported.sourceUrl);
     const series = detectSeries(imported.title, finalUrl);
 
+    // Sem pre-visualizacao aqui: artigo cientifico ja entra sem as referencias.
+    const content = importContent(imported.content, false);
     const [created] = await db
       .insert(texts)
       .values({
         userId,
         title: imported.title.slice(0, 200),
         sourceUrl: finalUrl,
-        content: imported.content,
-        wordCount: countWords(imported.content),
+        content,
+        wordCount: countWords(content),
         sourcePage: pageFromUrl(finalUrl),
         // Quando o capitulo novo nao casa com o padrao, herda a serie do
         // anterior: foi ela que levou ate ele.

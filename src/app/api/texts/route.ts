@@ -11,6 +11,7 @@ import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
 import { detectSeries, seriesKeyFor } from "@/lib/series";
 import { normalizeTagList } from "@/lib/tags";
 import { applyTags } from "@/lib/text-tags";
+import { importContent } from "@/lib/citations";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ interface Body {
   title?: unknown;
   sourceUrl?: unknown;
   content?: unknown;
+  keepCitations?: unknown;
   tags?: unknown;
   /** Sequencia conhecida de antemao, como na importacao de EPUB. */
   series?: unknown;
@@ -57,7 +59,10 @@ export async function POST(request: Request) {
   try {
     const body = await readJson<Body>(request);
     const title = asString(body?.title);
-    const content = asString(body?.content);
+    const raw = asString(body?.content);
+    // Artigo cientifico entra sem as referencias do corpo, a menos que o
+    // leitor tenha pedido para mante-las na pre-visualizacao.
+    const content = raw ? importContent(raw, body?.keepCitations === true) : null;
     const rawSourceUrl = asString(body?.sourceUrl);
     // Forma canonica na escrita: e o que permite reconhecer, depois, que um
     // endereco compartilhado ja esta na biblioteca.

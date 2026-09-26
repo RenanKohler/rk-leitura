@@ -84,6 +84,18 @@ export function tokenize(content: string): string[] {
 }
 
 /**
+ * Palavra composta por hifen ("guarda-chuva", "e-mail").
+ *
+ * Na tela ela nao pode quebrar no hifen: "guarda-" no fim de uma linha e
+ * "chuva" no comeco da outra se leem como duas palavras. Acima de 40
+ * caracteres a quebra volta a ser permitida, para a palavra nao estourar a
+ * largura da tela.
+ */
+export function isCompound(word: string): boolean {
+  return word.length <= 40 && /[\p{L}\p{N}][-\u2010][\p{L}\p{N}]/u.test(word);
+}
+
+/**
  * Como o conteudo guardado deve ser lido. Texto simples e o padrao: os textos
  * anteriores ao Markdown mantem a contagem de palavras e, com ela, a posicao
  * salva e os destaques.

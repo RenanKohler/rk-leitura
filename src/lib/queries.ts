@@ -771,6 +771,7 @@ export async function loadText(userId: string, id: string): Promise<TextDetail |
     abandoned: text.abandonedAt !== null,
     lastReadAt: lastSession?.at ? isoDate(lastSession.at) : null,
     checkpointAnswered: text.checkpointAnswered,
+    referencesOmitted: text.originalContent !== null,
     createdAt: isoDate(text.createdAt),
     updatedAt: isoDate(text.updatedAt),
   };

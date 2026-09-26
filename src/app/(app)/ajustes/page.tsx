@@ -10,6 +10,7 @@ import { FeedsCard } from "@/components/feeds-card";
 import { ReminderCard } from "@/components/reminder-card";
 import { VoiceCard } from "@/components/voice-card";
 import { SecurityCard } from "@/components/security-card";
+import { ReprocessCard } from "@/components/reprocess-card";
 import {
   ContrastIcon,
   MoonIcon,
@@ -349,6 +350,8 @@ export default function SettingsPage() {
       </Card>
 
       <ExportCard />
+
+      <ReprocessCard />
 
       <Card className="space-y-3 p-5">
         <SectionTitle>Compartilhar do navegador</SectionTitle>

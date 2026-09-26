@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { sliceParagraphs, splitEmphasis, type Paragraph } from "@/lib/reading";
+import { isCompound, sliceParagraphs, splitEmphasis, type Paragraph } from "@/lib/reading";
 import { styleClass } from "@/lib/markdown";
 
 /** Teto de palavras testadas por pagina na busca binaria. */
@@ -145,7 +145,7 @@ function fillRuler(
     if (paragraph.continued) element.dataset.cont = "";
 
     const styled = paragraph.styles?.some((style) => styleClass(style) !== "") ?? false;
-    if (!emphasis && !styled) {
+    if (!emphasis && !styled && !paragraph.words.some(isCompound)) {
       // textContent, nunca innerHTML: o conteudo vem de uma pagina externa.
       element.textContent = paragraph.words.join(" ");
       return element;
@@ -163,6 +163,13 @@ function fillRuler(
         target = document.createElement("span");
         target.className = classes;
         element.append(target);
+      }
+      // Mesmo involucro da pagina: palavra com hifen nao quebra na linha.
+      if (isCompound(word)) {
+        const joined = document.createElement("span");
+        joined.className = "nobreak";
+        target.append(joined);
+        target = joined;
       }
       for (const part of splitEmphasis(word, emphasis)) {
         if (part.bold) {

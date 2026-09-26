@@ -546,3 +546,8 @@ a,
 .calendar-cell[data-level="4"] {
   background-color: var(--color-accent);
 }
+
+/* Palavra composta por hifen: nao quebra no fim da linha ("guarda-" / "chuva"). */
+.nobreak {
+  white-space: nowrap;
+}

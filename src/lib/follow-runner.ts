@@ -16,6 +16,7 @@ import { detectSeries } from "@/lib/series";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
 import { normalizeTagList } from "@/lib/tags";
 import { applyTags } from "@/lib/text-tags";
+import { importContent } from "@/lib/citations";
 
 /**
  * Verificacao periodica de series acompanhadas e feeds (US-70, US-71).
@@ -149,6 +150,8 @@ async function checkFeed(
       if (finalUrl !== url && (await findTextBySourceUrl(feed.userId, [finalUrl]))) continue;
       const series = detectSeries(document.title, finalUrl);
 
+      // Importado sem ninguem ver: artigo cientifico ja entra sem as referencias.
+      const content = importContent(document.content, false);
       await db.transaction(async (tx) => {
         const [row] = await tx
           .insert(texts)
@@ -156,8 +159,8 @@ async function checkFeed(
             userId: feed.userId,
             title: document.title.slice(0, 200),
             sourceUrl: finalUrl,
-            content: document.content,
-            wordCount: countWords(document.content),
+            content,
+            wordCount: countWords(content),
             sourcePage: pageFromUrl(finalUrl),
             seriesKey: series?.key ?? null,
             seriesTitle: series?.title ?? null,

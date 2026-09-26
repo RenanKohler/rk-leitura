@@ -285,3 +285,15 @@ describe("tipografia", () => {
     expect(asFontFamily("serif")).toBe("serif");
   });
 });
+
+describe("isCompound", () => {
+  it("reconhece palavra com hifen entre letras ou numeros", async () => {
+    const { isCompound } = await import("@/lib/reading");
+    expect(["guarda-chuva", "e-mail", "bem-vindo,", "COVID-19"].every(isCompound)).toBe(true);
+  });
+
+  it("travessao solto, hifen na ponta e palavra longa demais nao contam", async () => {
+    const { isCompound } = await import("@/lib/reading");
+    expect(["—", "-", "fim-", "-x", "a".repeat(30) + "-" + "b".repeat(15)].some(isCompound)).toBe(false);
+  });
+});

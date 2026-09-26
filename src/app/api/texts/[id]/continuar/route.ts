@@ -8,6 +8,7 @@ import { fetchPublicHtml, SafeFetchError } from "@/lib/safe-fetch";
 import { alreadyPresent, buildPageUrl } from "@/lib/continuation";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { asTextFormat, countWords } from "@/lib/reading";
+import { stripCitations } from "@/lib/citations";
 
 export const dynamic = "force-dynamic";
 
@@ -125,15 +126,20 @@ export async function POST(request: Request, { params }: Params) {
       });
     }
 
-    const merged = `${text.content.trimEnd()}\n\n${parsed.content.trim()}`.slice(
-      0,
-      MAX_CONTENT_CHARS
-    );
+    // Texto com referencias omitidas: a parte nova entra do mesmo jeito, e o
+    // original guardado recebe a parte completa, para desfazer continuar valendo.
+    const omitted = text.originalContent !== null;
+    const addition = omitted ? stripCitations(parsed.content).text : parsed.content;
+    const merged = `${text.content.trimEnd()}\n\n${addition.trim()}`.slice(0, MAX_CONTENT_CHARS);
+    const original = omitted
+      ? `${text.originalContent!.trimEnd()}\n\n${parsed.content.trim()}`.slice(0, MAX_CONTENT_CHARS)
+      : null;
 
     const [updated] = await db
       .update(texts)
       .set({
         content: merged,
+        ...(omitted ? { originalContent: original } : {}),
         wordCount: countWords(merged, asTextFormat(text.format)),
         sourcePage: nextPage,
         updatedAt: new Date(),
@@ -145,7 +151,8 @@ export async function POST(request: Request, { params }: Params) {
       status: "appended",
       page: nextPage,
       addedWords: (updated?.wordCount ?? 0) - text.wordCount,
-      text: updated,
+      // O original guardado nao vai ao leitor: e so para desfazer, no servidor.
+      text: updated ? { ...updated, originalContent: undefined, referencesOmitted: omitted } : updated,
     });
   } catch (error) {
     return serverError("texts/continuar", error);
