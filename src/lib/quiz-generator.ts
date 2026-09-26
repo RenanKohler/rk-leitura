@@ -109,6 +109,9 @@ export async function generateQuiz(
     throw new QuizUnavailable("Nao consegui montar o questionario agora.");
   }
 
+  // Custo por questionario: modelo que respondeu (muda quando o fallback atua) e tokens.
+  console.info("[quiz] uso:", response.model, JSON.stringify(response.usage));
+
   // O modelo pode recusar por seguranca, e o fallback nem sempre resolve;
   // nesse caso nao ha conteudo a validar.
   if (response.stop_reason === "refusal") {

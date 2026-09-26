@@ -45,7 +45,7 @@ const SYSTEM = [
   "Recebe uma palavra e a frase em que ela aparece, e devolve o sentido usado ali.",
   "A definicao e curta e direta, escrita para quem esta lendo e nao quer parar.",
   "Nunca repete a palavra consultada dentro da propria definicao.",
-  "Quando a palavra estiver em outro idioma, define em portugues e diz o idioma em `kind`.",
+  "Quando uma palavra de outro idioma aparecer em texto em portugues, define em portugues e diz o idioma em `kind`.",
 ].join(" ");
 
 function client(): Anthropic {
@@ -100,6 +100,9 @@ export async function lookupWord(
     console.error("[dicionario] falha:", error);
     throw new LookupUnavailable("Nao consegui consultar agora.");
   }
+
+  // Custo por consulta: modelo que respondeu (muda quando o fallback atua) e tokens.
+  console.info("[dicionario] uso:", response.model, JSON.stringify(response.usage));
 
   if (response.stop_reason === "refusal") {
     throw new LookupUnavailable("Nao consigo definir esta palavra.");
