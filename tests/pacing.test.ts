@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   checkpointCrossed,
-  chunkFactor,
   effectiveWpm,
   fitParagraphEnd,
   highlightsBefore,
   normalizedWeights,
+  pauseAfter,
+  pauseKinds,
+  pauseMs,
   predictMs,
   recapWindow,
+  runnerDelayMs,
   savedMinutes,
   wordKeyForPace,
   wordWeight,
@@ -120,37 +123,34 @@ describe("marcos de desistencia (US-80, US-81)", () => {
   });
 });
 
-describe("ritmo adaptativo (US-87, US-88)", () => {
-  it("curta pesa menos que media; numero e nome proprio pesam mais", () => {
+describe("peso lexical (US-87, US-88)", () => {
+  it("curta pesa menos que media; longa, numero e nome proprio pesam mais", () => {
     expect(wordWeight("de", "casa")).toBeLessThan(wordWeight("janela", "casa"));
+    expect(wordWeight("paralelepipedo", "o")).toBeGreaterThan(wordWeight("janela", "o"));
     expect(wordWeight("2026", "em")).toBeGreaterThan(wordWeight("hoje", "em"));
     expect(wordWeight("Maria", "com")).toBeGreaterThan(wordWeight("Maria", "fim."));
-    expect(wordWeight("fim.", "o")).toBeGreaterThan(wordWeight("fim", "o"));
+  });
+
+  it("a pontuacao nao entra no peso: vira pausa", () => {
+    expect(wordWeight("fim.", "o")).toBe(wordWeight("fim", "o"));
+    expect(wordWeight("\u2014", "disse")).toBeLessThan(wordWeight("de", "casa"));
   });
 
   const texto = tokenize(
     "Em 2026, Maria leu de tudo. O texto seguia longo e cheio de detalhes, e a leitura de um capitulo inteiro levou a tarde toda. No fim, ela anotou o que lembrava."
   );
 
-  it("a velocidade media fica a ate 5% da configurada, e nunca acima", () => {
+  it("a velocidade media das palavras fica na configurada", () => {
     const weights = normalizedWeights(texto);
     const mean = weights.reduce((sum, w) => sum + w, 0) / weights.length;
-    expect(mean).toBeGreaterThanOrEqual(1);
+    expect(mean).toBeGreaterThanOrEqual(0.98);
     expect(mean).toBeLessThanOrEqual(1.05);
   });
 
-  it("nenhuma palavra passa mais de 5% mais rapido que o ppm", () => {
-    expect(Math.min(...normalizedWeights(texto))).toBeGreaterThanOrEqual(0.95);
-  });
-
-  it("a variacao fica contida: nenhuma palavra passa de 1,4 vez o tempo medio", () => {
-    expect(Math.max(...normalizedWeights(texto))).toBeLessThanOrEqual(1.4);
-  });
-
-  it("o bloco considera todas as palavras", () => {
-    const weights = [0.5, 1.5, 1];
-    expect(chunkFactor(weights, 0, 2)).toBe(1);
-    expect(chunkFactor(weights, 1, 2)).toBe(1.25);
+  it("nenhuma palavra passa mais de 10% mais rapido que o ppm nem de 1,5 vez", () => {
+    const weights = normalizedWeights(texto);
+    expect(Math.min(...weights)).toBeGreaterThanOrEqual(0.9);
+    expect(Math.max(...weights)).toBeLessThanOrEqual(1.5);
   });
 
   it("palavra ja consultada ganha 50% de tempo", () => {
@@ -161,3 +161,80 @@ describe("ritmo adaptativo (US-87, US-88)", () => {
     expect(boosted[0]).toBe(normal[0]);
   });
 });
+
+describe("pausas de pontuacao (Word Runner)", () => {
+  const pausa = (texto: string, index: number, fimDeParagrafo = false) =>
+    pauseAfter(tokenize(texto), index, fimDeParagrafo);
+
+  it("virgula, ponto e fim de paragrafo, em ordem crescente", () => {
+    expect(pausa("Ela veio, viu tudo.", 1)).toBe("clause");
+    expect(pausa("Ela veio. Depois saiu.", 1)).toBe("sentence");
+    expect(pausa("Ela veio. Depois saiu.", 1, true)).toBe("paragraph");
+    expect(pausa("Ela veio e saiu.", 1)).toBe("none");
+    expect(pausaMs("clause")).toBeLessThan(pausaMs("sentence"));
+    expect(pausaMs("sentence")).toBeLessThan(pausaMs("paragraph"));
+  });
+
+  it("aspas e parenteses depois da pontuacao nao escondem a pausa", () => {
+    expect(pausa('Ele disse "chega." Depois saiu.', 2)).toBe("sentence");
+    expect(pausa("Um (talvez dois), no maximo.", 2)).toBe("clause");
+  });
+
+  it("interrogacao, exclamacao e reticencias sempre encerram", () => {
+    expect(pausa("Voce vem? ela perguntou.", 1)).toBe("sentence");
+    expect(pausa("E entao... nada.", 1)).toBe("sentence");
+    expect(pausa("E entao\u2026 nada.", 1)).toBe("sentence");
+  });
+
+  it("tratamento, inicial e abreviatura nao encerram a frase", () => {
+    expect(pausa("O Sr. Silva chegou.", 1)).toBe("none");
+    expect(pausa("Livro de J. R. R. Tolkien.", 2)).toBe("none");
+    expect(pausa("Veja o cap. tres.", 2)).toBe("none");
+    expect(pausa("Frutas, legumes etc. Depois o resto.", 2)).toBe("clause");
+    expect(pausa("Ele disse sim, e. Depois saiu.", 3)).toBe("sentence");
+  });
+
+  it("ponto seguido de minuscula vira so pausa curta", () => {
+    expect(pausa("As 3 p.m. ela saiu.", 2)).toBe("clause");
+  });
+
+  it("o travessao pausa antes dele, nao depois", () => {
+    expect(pausa("Ele \u2014 que era timido \u2014 saiu.", 0)).toBe("clause");
+    expect(pausa("Ele \u2014 que era timido \u2014 saiu.", 1)).toBe("none");
+  });
+
+  it("a ultima palavra do texto nao pausa", () => {
+    expect(pausa("Fim.", 0, true)).toBe("none");
+  });
+
+  it("marca o fim de cada paragrafo", () => {
+    const { words, paragraphs } = parseParagraphs("Primeiro bloco aqui\n\nSegundo bloco, curto.\n\nFim");
+    const kinds = pauseKinds(words, paragraphs);
+    expect(kinds[2]).toBe("paragraph");
+    expect(kinds[4]).toBe("clause");
+    expect(kinds[5]).toBe("paragraph");
+    expect(kinds[6]).toBe("none");
+  });
+
+  it("a pausa acompanha a velocidade, presa entre piso e teto", () => {
+    // 300 ppm: 200 ms por palavra; fim de frase = 1,8 palavra.
+    expect(pauseMs("sentence", 300)).toBe(360);
+    // Devagar, o teto evita a leitura gaguejando.
+    expect(pauseMs("sentence", 100)).toBe(480);
+    expect(pauseMs("paragraph", 100)).toBe(700);
+    // Rapido, o piso impede a pausa de sumir.
+    expect(pauseMs("sentence", 1200)).toBe(160);
+    expect(pauseMs("none", 300)).toBe(0);
+  });
+
+  it("duracao da palavra: peso vezes a palavra, mais a pausa, com a rampa", () => {
+    expect(runnerDelayMs(300, 1, "none")).toBe(200);
+    expect(runnerDelayMs(300, 1.2, "none")).toBeCloseTo(240, 10);
+    expect(runnerDelayMs(300, 1, "sentence")).toBe(560);
+    expect(runnerDelayMs(300, 1, "none", 0.5)).toBe(400);
+  });
+});
+
+function pausaMs(kind: "clause" | "sentence" | "paragraph") {
+  return pauseMs(kind, 300);
+}

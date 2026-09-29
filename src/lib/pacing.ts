@@ -181,7 +181,132 @@ export function savedMinutes(wordsLeft: number, wpm: number): number {
   return wpm > 0 ? Math.round(wordsLeft / wpm) : 0;
 }
 
-/* --- ritmo adaptativo (US-87, US-88) -------------------------------------- */
+/* --- ritmo dinamico (US-87, US-88) --------------------------------------- */
+/*
+ * Modelo do Word Runner do Kindle ("Dynamic Pacing") e dos leitores RSVP de
+ * codigo aberto (Spritz, Squirt, speedread): o tempo de cada palavra tem duas
+ * partes independentes.
+ *
+ * 1. Peso lexical: palavra longa, numero e nome proprio ficam mais; palavra
+ *    curta, um pouco menos. Normalizado para a media do texto, entao so
+ *    redistribui o tempo - a velocidade media das palavras continua a
+ *    escolhida.
+ * 2. Pausa de pontuacao: um respiro depois de virgula, fim de frase e fim de
+ *    paragrafo, somado ao tempo da palavra. E o que da o fraseado: a frase
+ *    chega como unidade, em vez de uma fila de palavras no mesmo passo.
+ *
+ * A versao anterior misturava as duas coisas num peso so, atenuado a 40% e
+ * normalizado: o fim de frase ganhava ~15% e a virgula ~7% - imperceptivel,
+ * e a leitura soava como metronomo. Os leitores de referencia usam de 2x a 3x
+ * da duracao da palavra nessas posicoes.
+ *
+ * As pausas sao proporcionais a duracao da palavra, mas presas entre um piso
+ * e um teto em milissegundos. Sem o teto, em ritmo lento a pausa de 3x passa
+ * de um segundo e a leitura "gagueja" (a critica mais comum ao Word Runner em
+ * velocidade baixa); sem o piso, em ritmo alto ela some.
+ */
+
+/** Descricao das duas opcoes de ritmo, na folha do leitor e nos Ajustes. */
+export const RHYTHM_HINTS = {
+  dinamico:
+    "Como o Word Runner do Kindle: pausa curta na virgula, maior no fim da frase e do paragrafo; palavras longas, numeros e nomes ficam um pouco mais.",
+  uniforme: "Toda palavra fica o mesmo tempo, sem pausas de pontuacao.",
+} as const;
+
+export type PauseKind = "none" | "clause" | "sentence" | "paragraph";
+
+/** Pausa extra, em duracoes de palavra, com piso e teto em ms. */
+export const PAUSES: Record<Exclude<PauseKind, "none">, { factor: number; min: number; max: number }> =
+  {
+    clause: { factor: 0.8, min: 70, max: 240 },
+    sentence: { factor: 1.8, min: 160, max: 480 },
+    paragraph: { factor: 2.6, min: 260, max: 700 },
+  };
+
+// Fecha aspas, parenteses e colchetes depois da pontuacao: `fim."` e `(sic),`.
+const SENTENCE_MARK = /[.!?\u2026]["'\u201d\u2019\u00bb)\]]*$/u;
+const CLAUSE_MARK = /(?:[,;:]|\))["'\u201d\u2019\u00bb)\]]*$/u;
+const DASH = /^[\u2013\u2014-]+$/;
+
+/** Tratamentos: vem antes de um nome e nao pedem pausa nenhuma ("Sr. Silva"). */
+const TITLES = new Set([
+  "sr", "sra", "srta", "srs", "sras", "dr", "dra", "drs", "dras", "prof", "profa", "profs",
+  "sto", "sta", "mr", "mrs", "mme", "exmo", "exma", "revmo",
+]);
+
+/**
+ * Abreviaturas que terminam em ponto sem terminar a frase (pt e en). A
+ * comparacao e sem acento e em minusculas. Palavras comuns que tambem sao
+ * abreviatura ("no", "min") ficam de fora: la o ponto encerra a frase.
+ */
+const ABBREVIATIONS = new Set([
+  "av", "pag", "pags", "pp", "cap", "caps", "ex", "fig", "figs", "vol", "vols", "ed",
+  "eds", "obs", "cf", "vs", "cit", "ibid", "et", "al", "aprox", "tel", "dept", "depto",
+  "ltda", "cia", "e.g", "i.e", "etc", "art", "arts", "inc", "num", "sec", "seg",
+]);
+
+function bareLower(word: string): string {
+  return word
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/^[^\p{L}\p{N}]+/u, "")
+    .replace(/[.\u2026"'\u201d\u2019\u00bb)\]]+$/u, "");
+}
+
+/**
+ * Que pausa vem depois da palavra `index`.
+ *
+ * Fim de paragrafo vale mais que fim de frase, que vale mais que virgula. O
+ * ponto de tratamento ("Sr."), de abreviatura ("etc.", "cap.") e de inicial
+ * de nome ("J.") nao encerra a frase; um ponto seguido de minuscula tambem
+ * nao.
+ */
+export function pauseAfter(
+  words: string[],
+  index: number,
+  endsParagraph: boolean
+): PauseKind {
+  const word = words[index];
+  if (word === undefined || index >= words.length - 1) return "none";
+  if (endsParagraph) return "paragraph";
+
+  if (SENTENCE_MARK.test(word)) {
+    // "?", "!" e reticencias sempre encerram; o ponto depende do contexto.
+    if (/(?:[!?\u2026]|\.\.\.)[^\p{L}\p{N}]*$/u.test(word)) return "sentence";
+    const bare = bareLower(word);
+    // Tratamento e inicial de nome ("J. R. R. Tolkien") emendam no que vem.
+    // So maiuscula: "Sim, e." e "Foi o." terminam a frase.
+    if (TITLES.has(bare) || /^[^\p{L}]*\p{Lu}\.$/u.test(word)) return "none";
+    const lowerNext = /^[^\p{L}]*\p{Ll}/u.test(words[index + 1] ?? "");
+    if (ABBREVIATIONS.has(bare)) return lowerNext ? "none" : "clause";
+    // Ponto seguido de minuscula nao fecha frase ("3 p.m. e", "U.S. law").
+    return lowerNext ? "clause" : "sentence";
+  }
+
+  // O travessao solto nao pausa; quem pausa e a palavra antes dele, como na
+  // leitura em voz alta ("ele - que era timido - saiu").
+  if (DASH.test(word)) return "none";
+  if (CLAUSE_MARK.test(word) || DASH.test(words[index + 1] ?? "")) return "clause";
+  return "none";
+}
+
+/** Pausas de todo o texto, a partir dos paragrafos. */
+export function pauseKinds(words: string[], paragraphs: Paragraph[]): PauseKind[] {
+  const ends = new Set<number>();
+  for (const paragraph of paragraphs) {
+    if (paragraph.words.length > 0) ends.add(paragraph.start + paragraph.words.length - 1);
+  }
+  return words.map((_, index) => pauseAfter(words, index, ends.has(index)));
+}
+
+/** Milissegundos de pausa na velocidade dada. */
+export function pauseMs(kind: PauseKind, wpm: number): number {
+  if (kind === "none") return 0;
+  const { factor, min, max } = PAUSES[kind];
+  const perWord = 60_000 / Math.max(wpm, 1);
+  return Math.round(Math.min(max, Math.max(min, perWord * factor)));
+}
 
 /** Peso extra das palavras que o leitor ja consultou no dicionario. */
 export const KNOWN_WORD_BOOST = 1.5;
@@ -190,25 +315,24 @@ const DIGIT = /\d/;
 const STRIP = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
 
 /**
- * Peso de uma palavra: quanto tempo ela pede em relacao a media.
+ * Peso lexical de uma palavra: quanto tempo ela pede em relacao a media,
+ * sem contar a pontuacao (que vira pausa, em `pauseAfter`).
  *
- * Curta passa mais rapido; longa, numero e nome proprio ficam mais. O fim de
- * frase e de oracao ganha a pausa que o leitor ja tinha. So regras locais,
- * sem modelo de linguagem.
+ * Curta passa um pouco mais rapido; longa, numero e nome proprio ficam mais.
+ * Token so de pontuacao (o travessao do dialogo) passa rapido. So regras
+ * locais, sem modelo de linguagem.
  */
 export function wordWeight(word: string, previous: string | undefined): number {
   const bare = word.replace(STRIP, "");
   const length = bare.length;
+  if (length === 0) return 0.5;
 
-  let weight = length <= 3 ? 0.75 : length <= 8 ? 1 : length <= 12 ? 1.15 : 1.3;
-  if (DIGIT.test(bare)) weight += 0.35;
+  let weight =
+    length <= 2 ? 0.8 : length <= 4 ? 0.9 : length <= 7 ? 1 : length <= 10 ? 1.12 : length <= 13 ? 1.25 : 1.35;
+  if (DIGIT.test(bare)) weight += 0.3;
   // Maiuscula no meio da frase e nome proprio; no comeco, e so a frase.
-  const sentenceStart = previous === undefined || SENTENCE_END.test(previous);
-  if (!sentenceStart && /^\p{Lu}/u.test(bare)) weight += 0.25;
-
-  if (SENTENCE_END.test(word)) weight += 0.6;
-  else if (/[,;:]["')\]]?$/.test(word)) weight += 0.3;
-
+  const sentenceStart = previous === undefined || SENTENCE_MARK.test(previous);
+  if (!sentenceStart && /^\p{Lu}/u.test(bare)) weight += 0.15;
   return weight;
 }
 
@@ -218,48 +342,47 @@ export function wordKeyForPace(word: string): string {
     .replace(STRIP, "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 /**
- * Quanto do peso bruto vira variacao de tempo. Com o peso inteiro, palavras
- * curtas passavam 25% mais rapido que o ppm escolhido e a leitura parecia
- * nao seguir a velocidade; 40% mantem a pausa de pontuacao perceptivel sem
- * acelerar o resto.
+ * Nenhuma palavra passa mais de 10% mais rapido que o ppm configurado. Mais
+ * que isso e as palavras curtas parecem atropelar o ritmo escolhido.
  */
-export const ADAPTIVE_STRENGTH = 0.4;
-
-/** Nenhuma palavra passa mais de 5% mais rapido que o ppm configurado. */
-export const ADAPTIVE_FLOOR = 0.95;
+export const ADAPTIVE_FLOOR = 0.9;
+/** Nem fica mais que 1,5 vez o tempo medio, fora o acrescimo de US-88. */
+export const ADAPTIVE_CEIL = 1.5;
 
 /**
- * Pesos de todas as palavras, normalizados para a media do texto.
+ * Pesos lexicais de todas as palavras, normalizados para a media do texto.
  *
- * A normalizacao mantem a velocidade media perto da configurada (US-87,
- * criterio 3): o tempo e redistribuido, nao acrescentado. O piso impede que a
- * redistribuicao acelere palavras curtas alem do ppm escolhido; com ele a
- * media fica ate 5% abaixo, nunca acima.
- *
- * As palavras ja consultadas (US-88) ganham o acrescimo por ultimo, sobre o
- * peso final, para os 50% nao serem diluidos pela atenuacao.
+ * A normalizacao mantem a velocidade media das palavras na configurada (US-87,
+ * criterio 3): o tempo e redistribuido, nao acrescentado. As palavras ja
+ * consultadas (US-88) ganham o acrescimo por ultimo, sobre o peso final.
  */
 export function normalizedWeights(words: string[], known: ReadonlySet<string> = new Set()): number[] {
-  const softened = words.map(
-    (word, index) => 1 + ADAPTIVE_STRENGTH * (wordWeight(word, words[index - 1]) - 1)
-  );
-  const mean = softened.reduce((sum, weight) => sum + weight, 0) / Math.max(softened.length, 1);
+  const raw = words.map((word, index) => wordWeight(word, words[index - 1]));
+  const mean = raw.reduce((sum, weight) => sum + weight, 0) / Math.max(raw.length, 1);
 
-  return softened.map((weight, index) => {
-    const base = Math.max(ADAPTIVE_FLOOR, mean > 0 ? weight / mean : 1);
+  return raw.map((weight, index) => {
+    const base = Math.min(ADAPTIVE_CEIL, Math.max(ADAPTIVE_FLOOR, mean > 0 ? weight / mean : 1));
     return known.size > 0 && known.has(wordKeyForPace(words[index]!))
       ? base * KNOWN_WORD_BOOST
       : base;
   });
 }
 
-/** Fator de duracao de um bloco: a media dos pesos de todas as suas palavras. */
-export function chunkFactor(weights: number[], from: number, size: number): number {
-  const slice = weights.slice(from, from + size);
-  if (slice.length === 0) return 1;
-  return slice.reduce((sum, weight) => sum + weight, 0) / slice.length;
+/**
+ * Quanto a palavra fica na tela no Word Runner: a duracao na velocidade (com
+ * a rampa de aquecimento), vezes o peso lexical, mais a pausa que vem depois
+ * dela.
+ */
+export function runnerDelayMs(
+  wpm: number,
+  weight: number,
+  pause: PauseKind,
+  speedFactor = 1
+): number {
+  const perWord = 60_000 / Math.max(wpm * speedFactor, 1);
+  return perWord * weight + pauseMs(pause, wpm);
 }

@@ -18,7 +18,7 @@ test.beforeEach(async ({ context }) => {
  */
 test("tempo livre sugere o texto que cabe no tempo", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "rsvp", baseWpm: 1200, warmup: false });
+  await updateSettings(page.request, { baseWpm: 1200, warmup: false });
   // 3 paragrafos de 60 palavras: a 1200 ppm, 5 minutos cobrem o texto todo.
   await createText(page.request, "Texto curto para o tempo livre", 180);
 
@@ -33,7 +33,7 @@ test("tempo livre sugere o texto que cabe no tempo", async ({ page }) => {
 
 test("o leitor pausa no ponto de parada e compara previsto e real", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "rsvp", baseWpm: 1200, warmup: false });
+  await updateSettings(page.request, { baseWpm: 1200, warmup: false });
   const text = await createText(page.request, "Texto com ponto de parada", 180);
 
   await page.goto(`/leitor/${text.id}?ate=60&previsto=3000`);
@@ -78,7 +78,6 @@ test("largar tira o texto da lista e retomar o devolve", async ({ page }) => {
 test("marco de 25% pergunta uma vez", async ({ page }) => {
   await registerByApi(page.request);
   await updateSettings(page.request, {
-    readingMode: "rsvp",
     baseWpm: 1200,
     warmup: false,
     askCheckpoints: true,

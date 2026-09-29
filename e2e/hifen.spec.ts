@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openReader, randomIp, registerByApi, updateSettings } from "./helpers";
+import { openReader, randomIp, registerByApi } from "./helpers";
 
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": randomIp() });
@@ -19,15 +19,14 @@ async function brokenCompounds(page: Page): Promise<number> {
   );
 }
 
-for (const mode of ["flow", "page"] as const) {
-  test(`palavra com hifen nao quebra no fim da linha (${mode})`, async ({ page }) => {
-    await registerByApi(page.request);
-    await updateSettings(page.request, { readingMode: mode });
-    const response = await page.request.post("/api/texts", { data: { title: "Hifen", content: CONTENT } });
-    const text = (await response.json()).text as { id: string };
+test("palavra com hifen nao quebra no fim da linha", async ({ page }) => {
+  await registerByApi(page.request);
+  const response = await page.request.post("/api/texts", { data: { title: "Hifen", content: CONTENT } });
+  const text = (await response.json()).text as { id: string };
 
-    await openReader(page, text.id);
-    expect(await page.locator(".reader-prose .nobreak").count()).toBeGreaterThan(5);
-    expect(await brokenCompounds(page)).toBe(0);
-  });
-}
+  await openReader(page, text.id);
+  // A pagina so aparece depois de medida.
+  await expect(page.locator(".reader-prose .nobreak").first()).toBeVisible();
+  expect(await page.locator(".reader-prose .nobreak").count()).toBeGreaterThan(5);
+  expect(await brokenCompounds(page)).toBe(0);
+});

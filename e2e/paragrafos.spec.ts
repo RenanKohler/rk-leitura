@@ -18,10 +18,9 @@ async function createTwoParagraphs(page: import("@playwright/test").Page) {
   return (await response.json()).text as { id: string };
 }
 
-/** Rolagem: o paragrafo abre com recuo de primeira linha, sem texto extra. */
-test("paragrafo comeca com recuo na rolagem", async ({ page }) => {
+/** Pagina: o paragrafo abre com recuo de primeira linha, sem texto extra. */
+test("paragrafo comeca com recuo na pagina", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "flow" });
   const text = await createTwoParagraphs(page);
 
   await openReader(page, text.id);
@@ -35,28 +34,21 @@ test("paragrafo comeca com recuo na rolagem", async ({ page }) => {
 });
 
 /**
- * Foco: com blocos de 3 palavras, o bloco para no fim do paragrafo e o
- * seguinte abre com o sinal de paragrafo.
+ * Word Runner: a ultima palavra do paragrafo sai sem o sinal; a primeira do
+ * seguinte abre com ele.
  */
-test("modo foco sinaliza o inicio do paragrafo", async ({ page }) => {
+test("o Word Runner sinaliza o inicio do paragrafo", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, {
-    readingMode: "rsvp",
-    wordsPerChunk: 3,
-    baseWpm: 100,
-    warmup: false,
-  });
+  await updateSettings(page.request, { baseWpm: 100, warmup: false });
   const text = await createTwoParagraphs(page);
 
   await openReader(page, text.id);
   await expect(page.getByTestId("inicio-paragrafo")).toHaveCount(0);
   await page.getByRole("button", { name: "Iniciar leitura" }).click();
 
-  // 8 palavras no primeiro paragrafo: o terceiro bloco fica com 2 palavras
-  // em vez de juntar "aqui." com o comeco do paragrafo seguinte.
-  const word = page.locator(".reader-word").first();
-  await expect(word).toHaveText("termina aqui.", { timeout: 15_000 });
+  const word = page.getByTestId("palavra-runner");
+  await expect(word).toHaveText("aqui.", { timeout: 15_000 });
   await expect(page.getByTestId("inicio-paragrafo")).toHaveCount(0);
-  await expect(word).toHaveText("O segundo paragrafo", { timeout: 15_000 });
+  await expect(word).toHaveText("O", { timeout: 15_000 });
   await expect(page.getByTestId("inicio-paragrafo")).toBeVisible();
 });

@@ -383,7 +383,45 @@ a,
   text-indent: 1.5em;
 }
 
-/* Sinal de paragrafo no modo foco. */
+/*
+ * Palavra atual na pagina, depois de pausar o Word Runner ou durante a
+ * narracao. So fundo e sombra, sem padding: a quebra de linha fica igual a
+ * medida pela regua de paginacao.
+ */
+.current-word {
+  background-color: color-mix(
+    in srgb,
+    var(--color-accent) calc(var(--highlight-opacity, 0.35) * 100%),
+    transparent
+  );
+  border-radius: 0.2rem;
+  box-shadow: 0 0 0 1px
+    color-mix(in srgb, var(--color-accent) calc(var(--highlight-opacity, 0.35) * 60%), transparent);
+}
+
+:root[data-theme="contrast"] .current-word {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+/*
+ * Linha de contexto do Word Runner: a frase em volta, menor e apagada, com a
+ * palavra atual em cor cheia. Tamanho fixo em relacao ao texto da pagina para
+ * nao disputar atencao com a palavra central.
+ */
+.runner-context {
+  font-size: calc(var(--reader-size, 1.125rem) * 0.85);
+  line-height: 1.6;
+  color: var(--color-faint);
+}
+
+.runner-context [data-current] {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+/* Sinal de paragrafo no Word Runner. */
 .paragraph-sign {
   color: var(--color-accent);
   line-height: 1;

@@ -55,6 +55,23 @@ function spanFromSelection(): Span | null {
 }
 
 /**
+ * Indice da palavra sob o ponto (x, y) da tela, ou null fora do texto.
+ *
+ * Mesmo elo da selecao: o `data-start` do pedaco e a contagem de palavras ate
+ * o caractere tocado.
+ */
+export function wordIndexFromPoint(x: number, y: number): number | null {
+  const target = document as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  const position = target.caretPositionFromPoint?.(x, y);
+  if (position) return edge(position.offsetNode, position.offset, "start");
+  const range = target.caretRangeFromPoint?.(x, y);
+  return range ? edge(range.startContainer, range.startOffset, "start") : null;
+}
+
+/**
  * Indice da palavra em um extremo da selecao.
  *
  * O deslocamento e medido dentro do pedaco inteiro, nao do no de texto: um

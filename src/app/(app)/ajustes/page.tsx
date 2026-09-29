@@ -20,12 +20,10 @@ import {
   WordsIcon,
 } from "@/components/icons";
 import {
-  MAX_CHUNK,
   MAX_FONT_SCALE,
   MAX_HIGHLIGHT,
   MAX_LINE_HEIGHT,
   MAX_WPM,
-  MIN_CHUNK,
   MIN_FONT_SCALE,
   MIN_HIGHLIGHT,
   MIN_LINE_HEIGHT,
@@ -36,8 +34,8 @@ import {
   typographyVars,
   WARMUP_WORDS,
   type FontFamily,
-  type ReadingMode,
 } from "@/lib/reading";
+import { RHYTHM_HINTS } from "@/lib/pacing";
 
 const SAMPLE = "A leitura dinamica treina o olho a reconhecer palavras inteiras".split(" ");
 
@@ -57,12 +55,6 @@ const FONT_HINTS: Record<FontFamily, string> = {
 };
 
 const LINE_HEIGHT_LABELS = ["Compacto", "Normal", "Folgado"];
-
-const MODE_HINTS: Record<ReadingMode, string> = {
-  rsvp: "Uma palavra por vez no centro da tela, com a letra de fixacao destacada.",
-  flow: "Texto corrido com rolagem, destacando o trecho atual.",
-  page: "Uma tela cheia por vez, sem rolagem. Toque na metade direita para avancar e na esquerda para voltar.",
-};
 
 export default function SettingsPage() {
   const { settings, save } = useSettings();
@@ -89,20 +81,10 @@ export default function SettingsPage() {
       <Card className="space-y-6 p-5">
         <SectionTitle>Leitura</SectionTitle>
 
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-muted">Modo</p>
-          <Segmented<ReadingMode>
-            label="Modo de leitura"
-            value={settings.readingMode}
-            onChange={(value) => void update({ readingMode: value })}
-            options={[
-              { value: "rsvp", label: "Foco" },
-              { value: "flow", label: "Rolagem" },
-              { value: "page", label: "Paginas" },
-            ]}
-          />
-          <p className="text-sm text-faint">{MODE_HINTS[settings.readingMode]}</p>
-        </div>
+        <p className="text-sm text-faint">
+          O texto abre em paginas. O play inicia o Word Runner: uma palavra por vez, com a frase
+          em volta embaixo. Pausar volta a pagina, com a palavra atual marcada.
+        </p>
 
         <Slider
           label="Velocidade"
@@ -116,22 +98,12 @@ export default function SettingsPage() {
         />
 
         <Slider
-          label="Palavras por bloco"
-          display={`${settings.wordsPerChunk}`}
-          min={MIN_CHUNK}
-          max={MAX_CHUNK}
-          hint="Blocos maiores exigem mais campo visual; comece por 1."
-          value={settings.wordsPerChunk}
-          onChange={(value) => void update({ wordsPerChunk: value })}
-        />
-
-        <Slider
           label="Intensidade do destaque"
           display={`${toPercent(settings.highlightOpacity)}%`}
           min={toPercent(MIN_HIGHLIGHT)}
           max={toPercent(MAX_HIGHLIGHT)}
           step={5}
-          hint="Vale para o trecho atual no modo Rolagem."
+          hint="Vale para a palavra atual marcada na pagina."
           value={toPercent(settings.highlightOpacity)}
           onChange={(value) => void update({ highlightOpacity: value / 100 })}
         />
@@ -151,19 +123,17 @@ export default function SettingsPage() {
             : "A leitura comeca direto na velocidade configurada."}
         </p>
 
-        <Segmented<"adaptativo" | "uniforme">
-          label="Ritmo no modo Foco"
-          value={settings.adaptiveRhythm ? "adaptativo" : "uniforme"}
-          onChange={(value) => void update({ adaptiveRhythm: value === "adaptativo" })}
+        <Segmented<"dinamico" | "uniforme">
+          label="Ritmo do Word Runner"
+          value={settings.adaptiveRhythm ? "dinamico" : "uniforme"}
+          onChange={(value) => void update({ adaptiveRhythm: value === "dinamico" })}
           options={[
-            { value: "adaptativo", label: "Adaptativo" },
+            { value: "dinamico", label: "Dinamico" },
             { value: "uniforme", label: "Uniforme" },
           ]}
         />
         <p className="text-sm text-faint">
-          {settings.adaptiveRhythm
-            ? "Numeros, nomes, palavras longas e fins de frase ficam um pouco mais na tela. Nenhuma palavra passa mais rapido que a velocidade escolhida."
-            : "Todas as palavras ficam o mesmo tempo na tela, sem pausa em pontuacao."}
+          {RHYTHM_HINTS[settings.adaptiveRhythm ? "dinamico" : "uniforme"]}
         </p>
 
         <Segmented<"perguntar" | "nao">
@@ -181,21 +151,6 @@ export default function SettingsPage() {
             : "A leitura segue ate o fim sem perguntar."}
         </p>
 
-        <Segmented<"pausar" | "seguir">
-          label="Troca de paragrafo no modo Foco"
-          value={settings.paragraphPause ? "pausar" : "seguir"}
-          onChange={(value) => void update({ paragraphPause: value === "pausar" })}
-          options={[
-            { value: "seguir", label: "Sem pausa" },
-            { value: "pausar", label: "Pausa curta" },
-          ]}
-        />
-        <p className="text-sm text-faint">
-          {settings.paragraphPause
-            ? "Ao terminar um paragrafo, o proximo demora um pouco mais para aparecer. A pausa nao conta no seu ritmo."
-            : "O proximo paragrafo aparece no tempo normal."}
-        </p>
-
         <Segmented<"recuar" | "manter">
           label="Ao retomar depois de uma pausa"
           value={settings.resumeRewind ? "recuar" : "manter"}
@@ -209,21 +164,6 @@ export default function SettingsPage() {
           {settings.resumeRewind
             ? "Depois de 5 segundos ou mais parado, a leitura recomeca ate 5 palavras antes, sem passar do inicio da frase."
             : "A leitura recomeca exatamente na palavra em que parou."}
-        </p>
-
-        <Segmented<"apagar" | "normal">
-          label="Linhas fora da atual"
-          value={settings.dimLines ? "apagar" : "normal"}
-          onChange={(value) => void update({ dimLines: value === "apagar" })}
-          options={[
-            { value: "normal", label: "Normais" },
-            { value: "apagar", label: "Apagadas" },
-          ]}
-        />
-        <p className="text-sm text-faint">
-          {settings.dimLines
-            ? "Nos modos Rolagem e Paginas, so a linha que esta sendo lida fica com cor cheia enquanto a leitura anda."
-            : "Todas as linhas ficam com a mesma cor."}
         </p>
 
         <Segmented<"avisar" | "nao">
@@ -252,13 +192,11 @@ export default function SettingsPage() {
         />
         <p className="text-sm text-faint">
           {settings.wordEmphasis
-            ? "As primeiras letras de cada palavra ficam em negrito nos modos Rolagem e Paginas."
+            ? "As primeiras letras de cada palavra ficam em negrito na pagina."
             : "O texto aparece com peso uniforme, como em um livro."}
         </p>
 
         <Preview
-          mode={settings.readingMode}
-          chunkSize={settings.wordsPerChunk}
           highlightOpacity={settings.highlightOpacity}
           emphasis={settings.wordEmphasis}
         />
@@ -394,60 +332,46 @@ export default function SettingsPage() {
   );
 }
 
-/** Mostra como o texto aparece com os ajustes atuais. */
-function Preview({
-  mode,
-  chunkSize,
-  highlightOpacity,
-  emphasis,
-}: {
-  mode: ReadingMode;
-  chunkSize: number;
-  highlightOpacity: number;
-  emphasis: boolean;
-}) {
-  const chunk = SAMPLE.slice(0, chunkSize);
+/** Mostra como o texto aparece com os ajustes atuais: a pagina e o Word Runner. */
+function Preview({ highlightOpacity, emphasis }: { highlightOpacity: number; emphasis: boolean }) {
+  // Palavra marcada na pagina: a mesma que aparece no Word Runner ao lado.
+  const current = 3;
 
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium text-muted">Previa</p>
       <div
-        className="flex min-h-24 items-center justify-center rounded-2xl bg-bg px-4 py-6 text-center"
+        className="grid gap-3 rounded-2xl bg-bg px-4 py-6 sm:grid-cols-2"
         // Mesma variavel que o leitor define: a previa mostra o destaque de
         // verdade, nao uma imitacao que sai do lugar na primeira mudanca.
         style={{ "--highlight-opacity": highlightOpacity } as React.CSSProperties}
       >
-        {mode === "page" ? (
-          <div className="w-full max-w-xs">
-            <div className="rounded-lg border border-border bg-surface px-3 py-3 text-left">
-              <p className="text-sm leading-relaxed">
-                {SAMPLE.map((word, index) => (
-                  <span key={index}>
-                    {index > 0 ? " " : null}
-                    <Emphasized word={word} on={emphasis} />
-                  </span>
-                ))}
-              </p>
-            </div>
-            <p className="tabular mt-2 text-xs text-muted">Pagina 1 de 8</p>
-          </div>
-        ) : mode === "rsvp" ? (
-          <p className="reader-word w-full text-2xl font-semibold sm:text-3xl">
-            {chunk.length === 1 ? <OrpPreview word={chunk[0]!} /> : chunk.join(" ")}
-          </p>
-        ) : (
-          <p className="text-base leading-relaxed">
+        <div className="rounded-lg border border-border bg-surface px-3 py-3 text-left">
+          <p className="text-sm leading-relaxed">
             {SAMPLE.map((word, index) => (
-              <span
-                key={index}
-                className="flow-word"
-                data-state={index < chunkSize ? "active" : "pending"}
-              >
-                <Emphasized word={word} on={emphasis} />{" "}
+              <span key={index}>
+                {index > 0 ? " " : null}
+                <span className={index === current ? "current-word" : undefined}>
+                  <Emphasized word={word} on={emphasis} />
+                </span>
               </span>
             ))}
           </p>
-        )}
+          <p className="tabular mt-2 text-xs text-muted">Pagina 1 de 8</p>
+        </div>
+        <div className="flex flex-col items-center justify-center rounded-lg border border-border bg-surface px-3 py-3 text-center">
+          <p className="reader-word w-full text-2xl font-semibold">
+            <OrpPreview word={SAMPLE[current]!} />
+          </p>
+          <p className="runner-context mt-2">
+            {SAMPLE.map((word, index) => (
+              <span key={index} data-current={index === current ? "" : undefined}>
+                {index > 0 ? " " : null}
+                {word}
+              </span>
+            ))}
+          </p>
+        </div>
       </div>
     </div>
   );

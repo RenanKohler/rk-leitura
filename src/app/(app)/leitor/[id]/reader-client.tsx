@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWakeLock } from "@/hooks/use-wake-lock";
@@ -26,19 +26,14 @@ import {
   VoiceIcon,
 } from "@/components/icons";
 import {
-  chunkDurationMs,
-  chunkLength,
   clamp,
   typographyVars,
   warmupFactor,
-  windowStart,
   WARMUP_WORDS,
   formatClock,
   formatNumber,
   isCompound,
-  MAX_CHUNK,
   MAX_WPM,
-  MIN_CHUNK,
   MIN_WPM,
   orpIndex,
   parseParagraphs,
@@ -46,7 +41,6 @@ import {
   splitEmphasis,
   startsParagraph,
   type Paragraph,
-  type ReadingMode,
 } from "@/lib/reading";
 import { STYLE, styleClass } from "@/lib/markdown";
 import { apiSend } from "@/lib/client";
@@ -57,20 +51,19 @@ import {
   EYE_REST_AFTER_MS,
   EYE_REST_RESET_MS,
   EYE_REST_SECONDS,
-  paragraphPauseMs,
   resumeTarget,
+  runnerContext,
   sentenceBackTarget,
+  sentenceForwardTarget,
 } from "@/lib/navigation";
 import { HighlightSheet } from "@/components/highlight-sheet";
 import { WordSheet } from "@/components/word-sheet";
 import { MIN_WORDS_FOR_QUIZ } from "@/lib/quiz";
-import { useWordSelection } from "@/hooks/use-word-selection";
+import { useWordSelection, wordIndexFromPoint } from "@/hooks/use-word-selection";
 import { useWordTouch } from "@/hooks/use-word-touch";
 import { useSpeech } from "@/hooks/use-speech";
 import { rateNotice } from "@/lib/speech";
-import { normalizeWord, trimContext } from "@/lib/dictionary";
 import {
-  markCovering,
   segmentsOf,
   sentenceRange,
   type Span,
@@ -79,23 +72,24 @@ import {
 import type { ContinuationResult, HighlightItem, NextUp, TextDetail } from "@/lib/types";
 import {
   checkpointCrossed,
-  chunkFactor,
   highlightsBefore,
   normalizedWeights,
+  pauseKinds,
   recapWindow,
+  RHYTHM_HINTS,
+  runnerDelayMs,
   wordKeyForPace,
 } from "@/lib/pacing";
 
-export const MODE_HINTS: Record<ReadingMode, string> = {
-  rsvp: "Uma palavra por vez no centro da tela, com a letra de fixacao destacada.",
-  flow: "Texto corrido com rolagem, destacando o trecho atual.",
-  page: "Uma tela cheia por vez, sem rolagem. Toque na metade direita para avancar e na esquerda para voltar.",
-};
+/*
+ * Uma tela so. Parado, o texto aparece em paginas, como num e-reader; ao
+ * iniciar, o Word Runner cobre a pagina e mostra uma palavra por vez, com a
+ * frase em volta embaixo. Pausar devolve a pagina onde a leitura esta, com a
+ * palavra atual marcada.
+ */
 
 const MIN_WORDS_TO_RECORD = 10;
 const PROGRESS_SAVE_INTERVAL_MS = 5_000;
-/** Salto de "uma tela" nos modos que nao tem pagina medida. */
-const SCREENFUL_WORDS = 110;
 
 /** Abaixo disso, retomar nao reinicia a rampa de aquecimento. */
 const SHORT_PAUSE_MS = 3000;
@@ -109,7 +103,7 @@ interface ReaderProps {
   stopAt?: number;
   /** Tempo previsto para o trecho sugerido. */
   plannedMs?: number;
-  /** Palavras ja consultadas, que ganham tempo no modo Foco (US-88). */
+  /** Palavras ja consultadas, que ganham tempo no Word Runner (US-88). */
   knownWords?: string[];
 }
 
@@ -142,7 +136,7 @@ function Reader({
     [text.content, text.format]
   );
   const total = words.length;
-  // Estilo de cada palavra na lista corrida, para o modo Foco. Texto simples
+  // Estilo de cada palavra na lista corrida, para o Word Runner. Texto simples
   // nao tem estilo e fica sem a lista.
   const wordStyles = useMemo(
     () =>
@@ -152,15 +146,19 @@ function Reader({
     [paragraphs]
   );
 
-  // Ritmo adaptativo (US-87, US-88): o peso de cada palavra, normalizado para
-  // a media do texto continuar na velocidade escolhida. Desligado, todo bloco
-  // dura o mesmo.
+  // Ritmo dinamico (US-87, US-88): o peso de cada palavra, normalizado para
+  // a media do texto continuar na velocidade escolhida, e a pausa de
+  // pontuacao depois dela. Desligado, toda palavra dura o mesmo.
   const adaptive = settings.adaptiveRhythm;
   const weights = useMemo(() => {
     if (!adaptive) return null;
     const known = new Set(knownWords.map(wordKeyForPace));
     return normalizedWeights(words, known);
   }, [adaptive, words, knownWords]);
+  const pauses = useMemo(
+    () => (adaptive ? pauseKinds(words, paragraphs) : null),
+    [adaptive, words, paragraphs]
+  );
 
   // `startAt` vem da lista de destaques: abrir um destaque posiciona a
   // leitura nele, em vez de onde a leitura tinha parado.
@@ -192,14 +190,12 @@ function Reader({
   const [recapPlaying, setRecapPlaying] = useState(false);
 
   const wpm = settings.baseWpm;
-  const chunkSize = settings.wordsPerChunk;
-  const mode = settings.readingMode;
   const warmup = settings.warmup;
 
   useWakeLock(playing);
 
-  // As referencias so sao preenchidas quando o modo Paginas esta montado; nos
-  // outros modos o observer nunca liga e `pages` fica no valor inicial.
+  // A pagina fica montada (so invisivel) enquanto o Word Runner roda: assim a
+  // paginacao continua medida e pausar mostra a pagina certa na hora.
   const emphasis = settings.wordEmphasis;
   const { frameRef, rulerRef, pages, ready: pagesReady } = usePagedText(
     paragraphs,
@@ -225,9 +221,9 @@ function Reader({
   const [marks, setMarks] = useState<HighlightItem[]>(highlights);
   const [openMark, setOpenMark] = useState<string | null>(null);
   const [marking, setMarking] = useState(false);
-  // Selecionar texto so faz sentido onde o texto esta na tela; no modo Foco a
+  // Selecionar texto so faz sentido com a pagina na tela; no Word Runner a
   // unidade que da para apontar sem parar a leitura e a frase.
-  const selectable = mode !== "rsvp" && !finished;
+  const selectable = !playing && !finished;
   const { span: selection, clear: clearSelection } = useWordSelection(selectable);
 
   const stored: StoredHighlight[] = useMemo(
@@ -318,27 +314,19 @@ function Reader({
   }, [nextUp, text.id, online, router, notify]);
 
   /* --- dicionario -------------------------------------------------------- */
-  // Toque longo so nos modos em que o texto esta na tela; no Foco a palavra e
-  // uma so e o toque dela e o de pausar.
-  const word = useWordTouch(mode !== "rsvp" && !finished);
+  // Toque longo so com a pagina na tela; no Word Runner o toque e o freio.
+  const word = useWordTouch(!playing && !finished);
   /** Destaca a frase que contem a palavra atual, sem parar a leitura. */
   const markSentence = useCallback(() => {
     const range = sentenceRange(words, index);
     if (range) void createMark(range);
   }, [words, index, createMark]);
 
-  // Pausas que o proprio leitor faz na troca de paragrafo (US-94). Descontadas
-  // do tempo da sessao: sem isso, ligar a pausa baixaria o ritmo medido e as
-  // estimativas de tempo (US-83) passariam a errar para mais.
-  const pauseCreditRef = useRef(0);
+  // As pausas de pontuacao contam no tempo da sessao: o ritmo medido e o real,
+  // e e dele que saem as estimativas de tempo (US-83).
   const elapsedMs = useCallback(
     () =>
-      Math.max(
-        0,
-        elapsedRef.current +
-          (startedAtRef.current ? Date.now() - startedAtRef.current : 0) -
-          pauseCreditRef.current
-      ),
+      Math.max(0, elapsedRef.current + (startedAtRef.current ? Date.now() - startedAtRef.current : 0)),
     []
   );
 
@@ -373,7 +361,6 @@ function Reader({
       elapsedRef.current = 0;
       startedAtRef.current = null;
       wordsReadRef.current = 0;
-      pauseCreditRef.current = 0;
 
       if (wordsRead < MIN_WORDS_TO_RECORD || duration < 1000) {
         return { durationMs: duration, wordsRead };
@@ -412,7 +399,6 @@ function Reader({
   const answeredRef = useRef(text.checkpointAnswered);
   const [checkpoint, setCheckpoint] = useState<number | null>(null);
   const askCheckpoints = settings.askCheckpoints && !text.abandoned;
-  const paragraphPause = settings.paragraphPause;
   const resumeRewind = settings.resumeRewind;
   const eyeRest = settings.eyeRest;
   // Posicao em que a leitura parou: o recuo ao retomar (US-95) so vale se o
@@ -426,34 +412,13 @@ function Reader({
     // Ja no fim: nada a agendar. A conclusao e tratada no callback abaixo.
     if (index >= total) return;
 
-    // No modo Paginas o passo e a pagina inteira: o tempo de permanencia
-    // corresponde as palavras que ainda faltam nela.
-    // O bloco para no fim do paragrafo: o seguinte sempre abre uma tela nova.
-    const step =
-      mode === "page" ? Math.max(1, pageEnd - index) : chunkLength(paragraphs, index, chunkSize);
-    const chunk = words.slice(index, index + step);
-
-    // A rampa vale para o ritmo palavra a palavra. No modo Paginas a tela
-    // inteira ja da tempo de sobra para o olho se ajustar.
-    const factor =
-      warmup && mode !== "page" ? warmupFactor(index - warmupOriginRef.current) : 1;
-
-    // A versao anterior dividia a duracao pelo tamanho do bloco em vez de
-    // multiplicar: em 350 ppm com 4 palavras o texto passava a ~5600 ppm.
-    // Pausa curta antes de um paragrafo novo no modo Foco (US-94).
-    const extra =
-      paragraphPause && mode === "rsvp" && index + step < total && startsParagraph(paragraphs, index + step)
-        ? paragraphPauseMs(wpm)
-        : 0;
-
-    const delay =
-      (mode === "page"
-        ? (60_000 / wpm) * step
-        : chunkDurationMs(wpm, step, factor) *
-          (weights ? chunkFactor(weights, index, chunk.length) : 1)) + extra;
+    // Word Runner: uma palavra por vez. A rampa de aquecimento vale a partir
+    // de onde a leitura corrente comecou.
+    const factor = warmup ? warmupFactor(index - warmupOriginRef.current) : 1;
+    const delay = runnerDelayMs(wpm, weights?.[index] ?? 1, pauses?.[index] ?? "none", factor);
+    const step = 1;
 
     const timer = setTimeout(() => {
-      pauseCreditRef.current += extra;
       wordsReadRef.current += Math.min(step, total - index);
       const next = index + step;
 
@@ -500,18 +465,13 @@ function Reader({
   }, [
     playing,
     index,
-    chunkSize,
     wpm,
     total,
-    words,
-    paragraphs,
-    mode,
-    pageEnd,
     warmup,
     weights,
+    pauses,
     stopAt,
     askCheckpoints,
-    paragraphPause,
     elapsedMs,
     saveProgress,
     flushSession,
@@ -691,30 +651,6 @@ function Reader({
   }, [speech, total, wpm, words, togglePlay, saveProgress, flushSession, notify]);
 
   /**
-   * Consulta a palavra que esta na tela no modo Foco.
-   *
-   * Ali nao ha o que tocar longamente: a palavra e uma so, e a frase em volta
-   * vem das palavras vizinhas em vez da posicao do dedo.
-   */
-  const lookupCurrent = useCallback(() => {
-    const current = normalizeWord(words[index]);
-    if (!current) {
-      togglePlay();
-      return;
-    }
-    const around = words.slice(Math.max(0, index - 12), index + 12).join(" ");
-    word.open({ word: current, context: trimContext(around) });
-  }, [words, index, word, togglePlay]);
-
-  const jump = useCallback(
-    (delta: number) => {
-      setIndex((current) => clamp(current + delta, 0, Math.max(0, total - 1)));
-      setFinished(false);
-    },
-    [total]
-  );
-
-  /**
    * Busca a continuacao do conto na origem: a URL importada com ?page= da
    * proxima parte. A rota devolve 200 tambem quando nao ha mais paginas ou a
    * origem falha, entao aqui so resta tratar queda de rede - a leitura nunca
@@ -761,15 +697,9 @@ function Reader({
     }
   }, [loadingMore, online, notify]);
 
-  /** Vira a pagina no modo Paginas; nos outros, anda uma tela de texto. */
+  /** Vira a pagina. A leitura seguinte comeca no topo da pagina nova. */
   const turnPage = useCallback(
     (direction: 1 | -1) => {
-      if (mode !== "page") {
-        setFinished(false);
-        setIndex((current) => clamp(current + direction * SCREENFUL_WORDS, 0, Math.max(0, total - 1)));
-        return;
-      }
-
       const page = pageOfWord(pages, stateRef.current.index);
       const target = pages[page + direction];
 
@@ -783,12 +713,18 @@ function Reader({
       setFinished(false);
       setIndex(target);
     },
-    [mode, pages, total, continueFromSource]
+    [pages, continueFromSource]
   );
 
   /** Volta ao inicio da frase, ou da anterior quando ja esta no inicio (US-91). */
   const backSentence = useCallback(() => {
     setIndex(sentenceBackTarget(words, stateRef.current.index));
+    setFinished(false);
+  }, [words]);
+
+  /** Avanca para o inicio da proxima frase, como as setas do Word Runner. */
+  const forwardSentence = useCallback(() => {
+    setIndex(sentenceForwardTarget(words, stateRef.current.index));
     setFinished(false);
   }, [words]);
 
@@ -928,18 +864,18 @@ function Reader({
         event.preventDefault();
         const next = clamp(wpm + (event.key === "ArrowUp" ? 25 : -25), MIN_WPM, MAX_WPM);
         if (next !== wpm) void save({ baseWpm: next });
-      } else if (event.key === "1" || event.key === "2" || event.key === "3") {
-        const modes: ReadingMode[] = ["rsvp", "flow", "page"];
-        void save({ readingMode: modes[Number(event.key) - 1]! });
       } else if (event.key === "?") {
         setShortcutsOpen(true);
       } else if (event.key === "/") {
         event.preventDefault();
         setNavigating(true);
       } else if (event.key === "ArrowLeft") {
-        turnPage(-1);
+        // Correndo, as setas andam por frase; parado, viram a pagina.
+        if (stateRef.current.playing) backSentence();
+        else turnPage(-1);
       } else if (event.key === "ArrowRight") {
-        turnPage(1);
+        if (stateRef.current.playing) forwardSentence();
+        else turnPage(1);
       } else if (event.key === "PageUp") {
         event.preventDefault();
         turnPage(-1);
@@ -951,12 +887,15 @@ function Reader({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [togglePlay, turnPage, backSentence, wpm, save]);
+  }, [togglePlay, turnPage, backSentence, forwardSentence, wpm, save]);
 
   const progress = total > 0 ? Math.min(100, (index / total) * 100) : 0;
-  const chunk = words.slice(index, index + chunkLength(paragraphs, index, chunkSize));
   // A primeira palavra do texto nao precisa de aviso: nao ha paragrafo antes.
   const paragraphStart = index > 0 && startsParagraph(paragraphs, index);
+  const narrating = speech.state === "falando";
+  // Na pagina, a palavra atual so e marcada quando ela nao e o topo da pagina:
+  // depois de pausar o Word Runner ou durante a narracao.
+  const currentOnPage = narrating || index > pageStart ? index : null;
 
   if (total === 0) {
     return (
@@ -1040,7 +979,7 @@ function Reader({
         </div>
       </header>
 
-      <main className="flex flex-1 flex-col">
+      <main className="relative flex flex-1 flex-col">
         {recapPlaying && recap ? (
           <RecapPlayer
             marks={recapMarks}
@@ -1065,47 +1004,39 @@ function Reader({
             loadingNext={loadingNext}
             onNext={() => void openNext()}
           />
-        ) : mode === "rsvp" ? (
-          <RsvpStage
-            chunk={chunk}
-            chunkStyle={wordStyles?.[index] ?? 0}
-            paragraphStart={paragraphStart}
-            onToggle={togglePlay}
-            playing={playing}
-            onLookup={lookupCurrent}
-          />
-        ) : mode === "page" ? (
-          <PageStage
-            frameRef={frameRef}
-            rulerRef={rulerRef}
-            paragraphs={paragraphs}
-            pageStart={pageStart}
-            pageEnd={pageEnd}
-            ready={pagesReady}
-            loadingMore={loadingMore}
-            marks={stored}
-            emphasis={emphasis}
-            touch={word.handlers}
-            onTurn={turnPage}
-            onOpenMark={setOpenMark}
-          />
         ) : (
-          <FlowStage
-            paragraphs={paragraphs}
-            totalWords={total}
-            index={index}
-            chunkSize={chunk.length}
-            marks={stored}
-            emphasis={emphasis}
-            dim={settings.dimLines && playing}
-            touch={word.handlers}
-            onToggle={togglePlay}
-            onSeek={(position) => {
-              setIndex(position);
-              setFinished(false);
-            }}
-            onOpenMark={setOpenMark}
-          />
+          <>
+            <PageStage
+              frameRef={frameRef}
+              rulerRef={rulerRef}
+              paragraphs={paragraphs}
+              pageStart={pageStart}
+              pageEnd={pageEnd}
+              ready={pagesReady}
+              loadingMore={loadingMore}
+              marks={stored}
+              emphasis={emphasis}
+              current={currentOnPage}
+              hidden={playing}
+              touch={word.handlers}
+              onTurn={turnPage}
+              onSeek={(position) => {
+                setIndex(clamp(position, 0, Math.max(0, total - 1)));
+                setFinished(false);
+              }}
+              onOpenMark={setOpenMark}
+            />
+            {playing ? (
+              <RunnerStage
+                words={words}
+                paragraphs={paragraphs}
+                index={index}
+                style={wordStyles?.[index] ?? 0}
+                paragraphStart={paragraphStart}
+                onBrake={togglePlay}
+              />
+            ) : null}
+          </>
         )}
       </main>
 
@@ -1163,13 +1094,13 @@ function Reader({
         <footer className="pb-safe sticky bottom-0 border-t border-border bg-bg/95 backdrop-blur">
           <div className="mx-auto w-full max-w-3xl px-4 py-3">
             <div className="relative flex items-center justify-center gap-3">
-              {mode === "page" ? (
-                <ControlButton label="Pagina anterior" onClick={() => turnPage(-1)}>
-                  <BackIcon className="size-5" />
+              {playing ? (
+                <ControlButton label="Voltar a frase" onClick={backSentence}>
+                  <RewindIcon className="size-5" />
                 </ControlButton>
               ) : (
-                <ControlButton label="Voltar 10 palavras" onClick={() => jump(-10)}>
-                  <RewindIcon className="size-5" />
+                <ControlButton label="Pagina anterior" onClick={() => turnPage(-1)}>
+                  <BackIcon className="size-5" />
                 </ControlButton>
               )}
 
@@ -1182,35 +1113,34 @@ function Reader({
                 {playing ? <PauseIcon className="size-7" /> : <PlayIcon className="size-7" />}
               </button>
 
-              {mode === "page" ? (
+              {playing ? (
+                <ControlButton label="Avancar a frase" onClick={forwardSentence}>
+                  <FastForwardIcon className="size-5" />
+                </ControlButton>
+              ) : (
                 <ControlButton label="Proxima pagina" onClick={() => turnPage(1)}>
                   <ForwardIcon className="size-5" />
                 </ControlButton>
-              ) : (
-                <ControlButton label="Avancar 10 palavras" onClick={() => jump(10)}>
-                  <FastForwardIcon className="size-5" />
-                </ControlButton>
               )}
 
-              {/* A narracao acompanha o texto na tela, entao so faz sentido
-                  onde ele esta visivel. */}
-              {mode === "flow" ? (
+              {/* A narracao acompanha a pagina, com a palavra atual marcada. */}
+              {!playing ? (
                 <div className="absolute left-0">
                   <ControlButton
-                    label={speech.state === "falando" ? "Parar a narracao" : "Ler em voz alta"}
+                    label={narrating ? "Parar a narracao" : "Ler em voz alta"}
                     onClick={toggleSpeech}
-                    active={speech.state === "falando"}
+                    active={narrating}
                   >
                     <VoiceIcon className="size-5" />
                   </ControlButton>
                 </div>
               ) : null}
 
-              {/* No modo Foco nao ha texto na tela para selecionar: a unidade
+              {/* No Word Runner nao ha texto na tela para selecionar: a unidade
                   que da para apontar sem parar a leitura e a frase. Fica
                   absoluto na borda para nao tirar o botao de play do centro,
                   que e onde o polegar o procura. */}
-              {mode === "rsvp" ? (
+              {playing ? (
                 <div className="absolute right-0">
                   <ControlButton label="Destacar frase" onClick={markSentence}>
                     <MarkIcon className="size-5" />
@@ -1219,19 +1149,7 @@ function Reader({
               ) : null}
             </div>
 
-            {mode !== "page" ? (
-              <div className="mt-1 flex justify-center">
-                <button
-                  type="button"
-                  onClick={backSentence}
-                  className="min-h-9 rounded-full px-3 text-sm text-muted hover:bg-surface-2 hover:text-ink"
-                >
-                  Voltar a frase
-                </button>
-              </div>
-            ) : null}
-
-            {mode === "page" && pagesReady ? (
+            {!playing && pagesReady ? (
               <p className="tabular mt-2 text-center text-sm text-muted">
                 {`Pagina ${currentPage + 1} de ${pages.length}`}
               </p>
@@ -1315,41 +1233,29 @@ function Reader({
 
       <Sheet open={showSettings} onClose={() => setShowSettings(false)} title="Ajustes de leitura">
         <div className="space-y-6">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted">Modo</p>
-            <Segmented<ReadingMode>
-              label="Modo de leitura"
-              value={mode}
-              onChange={(value) => void save({ readingMode: value })}
-              options={[
-                { value: "rsvp", label: "Foco" },
-                { value: "flow", label: "Rolagem" },
-                { value: "page", label: "Paginas" },
-              ]}
-            />
-            <p className="text-sm text-faint">{MODE_HINTS[mode]}</p>
-          </div>
-
           <Slider
             label="Velocidade"
             display={`${wpm} ppm`}
             min={MIN_WPM}
             max={MAX_WPM}
             step={10}
-            hint="Palavras por minuto."
+            hint="Palavras por minuto no Word Runner."
             value={wpm}
             onChange={(value) => void save({ baseWpm: value })}
           />
 
-          <Slider
-            label="Palavras por bloco"
-            display={`${chunkSize}`}
-            min={MIN_CHUNK}
-            max={MAX_CHUNK}
-            hint="Quantas palavras aparecem juntas a cada passo."
-            value={chunkSize}
-            onChange={(value) => void save({ wordsPerChunk: value })}
-          />
+          <div className="space-y-2">
+            <Segmented<"dinamico" | "uniforme">
+              label="Ritmo"
+              value={adaptive ? "dinamico" : "uniforme"}
+              onChange={(value) => void save({ adaptiveRhythm: value === "dinamico" })}
+              options={[
+                { value: "dinamico", label: "Dinamico" },
+                { value: "uniforme", label: "Uniforme" },
+              ]}
+            />
+            <p className="text-sm text-faint">{RHYTHM_HINTS[adaptive ? "dinamico" : "uniforme"]}</p>
+          </div>
 
           <Button
             variant="secondary"
@@ -1488,11 +1394,10 @@ function Reader({
 /* -------------------------------------------------------------------------- */
 
 const SHORTCUTS: [string, string][] = [
-  ["Espaco", "Iniciar ou pausar"],
+  ["Espaco", "Iniciar ou pausar o Word Runner"],
   ["Seta para cima / baixo", "Mais ou menos 25 ppm"],
-  ["Seta para a esquerda / direita", "Voltar ou avancar uma tela"],
+  ["Seta para a esquerda / direita", "Pagina anterior ou seguinte; no Word Runner, frase"],
   ["Shift + seta para a esquerda", "Voltar ao inicio da frase"],
-  ["1, 2, 3", "Modo Foco, Rolagem ou Paginas"],
   ["/", "Buscar e navegar no texto"],
   ["?", "Esta lista"],
   ["Esc", "Fechar a janela aberta"],
@@ -1567,36 +1472,41 @@ function ControlButton({
 }
 
 /**
- * Modo foco: o bloco fica parado no centro e a letra do ponto otimo de
- * reconhecimento alinha com as guias, para o olho nao precisar varrer.
+ * Word Runner: uma palavra por vez, parada no centro, com a letra do ponto
+ * otimo de reconhecimento alinhada as guias para o olho nao precisar varrer.
+ *
+ * Embaixo, a frase em volta em letra menor, com a palavra atual em cor cheia:
+ * e o contexto que falta ao RSVP puro - da para ver onde a frase vai e
+ * reencontrar o fio depois de uma distracao sem parar a leitura. Tocar em
+ * qualquer ponto freia (pausa) e devolve a pagina.
  */
-function RsvpStage({
-  chunk,
-  chunkStyle,
+function RunnerStage({
+  words,
+  paragraphs,
+  index,
+  style,
   paragraphStart,
-  playing,
-  onToggle,
-  onLookup,
+  onBrake,
 }: {
-  chunk: string[];
-  /** Estilo Markdown da primeira palavra do bloco; 0 em texto simples. */
-  chunkStyle: number;
-  /** O bloco abre um paragrafo novo. */
+  words: string[];
+  paragraphs: Paragraph[];
+  index: number;
+  /** Estilo Markdown da palavra; 0 em texto simples. */
+  style: number;
+  /** A palavra abre um paragrafo novo. */
   paragraphStart: boolean;
-  playing: boolean;
-  onToggle: () => void;
-  onLookup: () => void;
+  onBrake: () => void;
 }) {
-  const single = chunk.length === 1 ? chunk[0] : null;
+  const current = words[index] ?? "";
+  const context = runnerContext(words, paragraphs, index);
 
   return (
     <button
       type="button"
-      // Parado, o toque na palavra consulta; correndo, ele pausa. Os dois
-      // gestos nao competem porque so um existe de cada vez.
-      onClick={playing ? onToggle : onLookup}
-      aria-label={playing ? "Pausar" : "Consultar a palavra"}
-      className="flex flex-1 flex-col items-center justify-center px-4 text-center"
+      onClick={onBrake}
+      aria-label="Pausar"
+      data-testid="word-runner"
+      className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-bg px-4 text-center"
     >
       <div className="relative w-full max-w-2xl">
         <div className="absolute inset-x-0 top-0 flex justify-center">
@@ -1618,17 +1528,31 @@ function RsvpStage({
         ) : null}
 
         <p
+          data-testid="palavra-runner"
           className={`reader-word flex min-h-[4.5rem] items-center justify-center py-6 text-[clamp(2rem,11vw,4rem)] ${
-            chunkStyle & (STYLE.bold | STYLE.heading) ? "font-extrabold" : "font-semibold"
-          } ${styleClass(chunkStyle & ~STYLE.bold)}`}
+            style & (STYLE.bold | STYLE.heading) ? "font-extrabold" : "font-semibold"
+          } ${styleClass(style & ~STYLE.bold)}`}
         >
-          {single ? <OrpWord word={single} /> : <span>{chunk.join(" ")}</span>}
+          <OrpWord word={current} />
         </p>
       </div>
 
-      {!playing ? (
-        <span className="mt-6 text-sm text-faint">Toque na palavra para consultar</span>
-      ) : null}
+      <p
+        aria-hidden="true"
+        className="runner-context reader-prose mt-6 w-full max-w-2xl text-balance"
+      >
+        {context.clippedStart ? "\u2026 " : null}
+        {words.slice(context.from, context.to).map((item, offset) => {
+          const position = context.from + offset;
+          return (
+            <Fragment key={position}>
+              {offset > 0 ? " " : null}
+              <span data-current={position === index ? "" : undefined}>{item}</span>
+            </Fragment>
+          );
+        })}
+        {context.clippedEnd ? " \u2026" : null}
+      </p>
     </button>
   );
 }
@@ -1651,13 +1575,6 @@ function OrpWord({ word }: { word: string }) {
   );
 }
 
-/**
- * Modo Paginas: uma tela cheia de texto por vez, sem rolagem.
- *
- * O frame define a altura disponivel e a regua oculta mede, com a mesma
- * largura e tipografia, quantas palavras cabem nela. Toque na metade direita
- * avanca, na esquerda volta - o mesmo gesto de um e-reader.
- */
 /**
  * Uma palavra, com ou sem enfase no inicio.
  *
@@ -1717,6 +1634,53 @@ function Words({
 }
 
 /**
+ * Palavras de um trecho, com a palavra atual (`current`, indice no texto)
+ * envolta numa marca. A marca e so fundo, sem caixa propria: nao muda onde as
+ * linhas quebram, entao a pagina continua igual a medida pela regua.
+ */
+function WordsAt({
+  words,
+  start,
+  current,
+  emphasis,
+  styles,
+}: {
+  words: string[];
+  start: number;
+  current: number | null;
+  emphasis: boolean;
+  styles?: number[];
+}) {
+  const at = current === null ? -1 : current - start;
+  if (at < 0 || at >= words.length) {
+    return <Words words={words} emphasis={emphasis} styles={styles} />;
+  }
+
+  return (
+    <>
+      {at > 0 ? (
+        <>
+          <Words words={words.slice(0, at)} emphasis={emphasis} styles={styles?.slice(0, at)} />{" "}
+        </>
+      ) : null}
+      <span className="current-word" data-testid="palavra-atual">
+        <Word word={words[at]!} emphasis={emphasis} style={styles?.[at]} />
+      </span>
+      {at < words.length - 1 ? (
+        <>
+          {" "}
+          <Words
+            words={words.slice(at + 1)}
+            emphasis={emphasis}
+            styles={styles?.slice(at + 1)}
+          />
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/**
  * Atributos do paragrafo que dizem, ao CSS, o tipo do bloco Markdown e se o
  * trecho continua um paragrafo iniciado antes (sem recuo de primeira linha).
  */
@@ -1732,16 +1696,6 @@ function blockProps(paragraph: Paragraph) {
 /** Os quatro manipuladores de ponteiro que o toque longo precisa. */
 type WordTouchHandlers = ReturnType<typeof useWordTouch>["handlers"];
 
-/** Posicao da palavra dentro do trecho destacado. */
-function edgeOf(position: number, mark: StoredHighlight): string {
-  const first = position === mark.start;
-  const last = position === mark.end - 1;
-  if (first && last) return "unico";
-  if (first) return "inicio";
-  if (last) return "fim";
-  return "meio";
-}
-
 /**
  * Um paragrafo do modo Paginas, quebrado nos trechos destacados.
  *
@@ -1753,11 +1707,14 @@ function MarkedText({
   paragraph,
   marks,
   emphasis,
+  current,
   onOpenMark,
 }: {
   paragraph: Paragraph;
   marks: StoredHighlight[];
   emphasis: boolean;
+  /** Palavra atual, marcada na pagina; null sem marca. */
+  current: number | null;
   onOpenMark: (id: string) => void;
 }) {
   const end = paragraph.start + paragraph.words.length;
@@ -1766,7 +1723,13 @@ function MarkedText({
   if (segments.length === 1 && segments[0]!.id === null) {
     return (
       <span data-start={paragraph.start}>
-        <Words words={paragraph.words} emphasis={emphasis} styles={paragraph.styles} />
+        <WordsAt
+          words={paragraph.words}
+          start={paragraph.start}
+          current={current}
+          emphasis={emphasis}
+          styles={paragraph.styles}
+        />
       </span>
     );
   }
@@ -1784,7 +1747,13 @@ function MarkedText({
         if (!segment.id) {
           return (
             <span key={position} data-start={segment.start}>
-              <Words words={words} emphasis={emphasis} styles={styles} />
+              <WordsAt
+                words={words}
+                start={segment.start}
+                current={current}
+                emphasis={emphasis}
+                styles={styles}
+              />
               {gap}
             </span>
           );
@@ -1798,7 +1767,13 @@ function MarkedText({
               className="mark"
               onClick={() => onOpenMark(segment.id!)}
             >
-              <Words words={words} emphasis={emphasis} styles={styles} />
+              <WordsAt
+                words={words}
+                start={segment.start}
+                current={current}
+                emphasis={emphasis}
+                styles={styles}
+              />
             </span>
             {gap}
           </span>
@@ -1808,6 +1783,13 @@ function MarkedText({
   );
 }
 
+/**
+ * Pagina: uma tela cheia de texto por vez, sem rolagem.
+ *
+ * O frame define a altura disponivel e a regua oculta mede, com a mesma
+ * largura e tipografia, quantas palavras cabem nela. Toque na metade direita
+ * avanca, na esquerda volta - o mesmo gesto de um e-reader.
+ */
 function PageStage({
   frameRef,
   rulerRef,
@@ -1818,8 +1800,11 @@ function PageStage({
   loadingMore,
   marks,
   emphasis,
+  current,
+  hidden,
   touch,
   onTurn,
+  onSeek,
   onOpenMark,
 }: {
   frameRef: React.Ref<HTMLDivElement>;
@@ -1831,10 +1816,23 @@ function PageStage({
   loadingMore: boolean;
   marks: StoredHighlight[];
   emphasis: boolean;
+  current: number | null;
+  /** Coberta pelo Word Runner: continua montada para a paginacao seguir medida. */
+  hidden: boolean;
   touch: WordTouchHandlers;
   onTurn: (direction: 1 | -1) => void;
+  /** Toque numa palavra: a leitura seguinte comeca nela. */
+  onSeek: (position: number) => void;
   onOpenMark: (id: string) => void;
 }) {
+  const onClick = (event: React.MouseEvent) => {
+    // Destaque abre a propria folha; arrastar para selecionar nao e toque.
+    if ((event.target as Element).closest(".mark")) return;
+    if (!window.getSelection()?.isCollapsed) return;
+    const position = wordIndexFromPoint(event.clientX, event.clientY);
+    if (position !== null) onSeek(position);
+  };
+
   const touchStartX = useRef<number | null>(null);
 
   const onTouchStart = (event: React.TouchEvent) => {
@@ -1853,7 +1851,8 @@ function PageStage({
 
   return (
     <div
-      className="relative flex flex-1 flex-col px-5 py-6"
+      className={`relative flex flex-1 flex-col px-5 py-6${hidden ? " invisible" : ""}`}
+      aria-hidden={hidden || undefined}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       {...touch}
@@ -1865,7 +1864,7 @@ function PageStage({
         ref={frameRef}
         className="relative mx-auto min-h-0 w-full max-w-2xl flex-1 overflow-hidden"
       >
-        <div className="reader-prose">
+        <div className="reader-prose" onClick={onClick}>
           {ready
             ? sliceParagraphs(paragraphs, pageStart, pageEnd).map((paragraph) => (
                 <p key={paragraph.start} {...blockProps(paragraph)}>
@@ -1873,6 +1872,7 @@ function PageStage({
                     paragraph={paragraph}
                     marks={marks}
                     emphasis={emphasis}
+                    current={current}
                     onOpenMark={onOpenMark}
                   />
                 </p>
@@ -1896,201 +1896,25 @@ function PageStage({
         </p>
       ) : null}
 
-      {/* Zonas de toque: metade esquerda volta, metade direita avanca. */}
+      {/* Zonas de toque nas bordas: a esquerda volta, a direita avanca. O
+          centro fica livre para tocar numa palavra e comecar dali. */}
       <button
         type="button"
         aria-label="Pagina anterior"
         onClick={() => onTurn(-1)}
-        className="absolute inset-y-0 left-0 w-2/5"
+        className="absolute inset-y-0 left-0 w-1/4"
       />
       <button
         type="button"
         aria-label="Proxima pagina"
         onClick={() => onTurn(1)}
-        className="absolute inset-y-0 right-0 w-2/5"
+        className="absolute inset-y-0 right-0 w-1/4"
       />
     </div>
   );
 }
 
 const SWIPE_THRESHOLD_PX = 45;
-const WINDOW_BEFORE = 80;
-const WINDOW_AFTER = 220;
-/** Quanto a janela da rolagem cresce ao chegar no fim do que foi renderizado. */
-const WINDOW_STEP = 400;
-
-function FlowStage({
-  paragraphs,
-  totalWords,
-  index,
-  chunkSize,
-  marks,
-  emphasis,
-  dim,
-  touch,
-  onToggle,
-  onSeek,
-  onOpenMark,
-}: {
-  paragraphs: Paragraph[];
-  totalWords: number;
-  index: number;
-  chunkSize: number;
-  marks: StoredHighlight[];
-  emphasis: boolean;
-  /** Apagar as linhas fora da atual (US-103). */
-  dim: boolean;
-  touch: WordTouchHandlers;
-  onToggle: () => void;
-  onSeek: (position: number) => void;
-  onOpenMark: (id: string) => void;
-}) {
-  // Renderiza so a janela ao redor da posicao atual: um artigo de 5 mil
-  // palavras viraria 5 mil elementos a cada passo. A janela cresce conforme a
-  // leitura chega ao fim do que ja foi renderizado - sem isso o texto
-  // simplesmente acabava algumas centenas de palavras a frente e nao havia
-  // como continuar lendo manualmente.
-  const [reach, setReach] = useState(WINDOW_AFTER);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const activeRef = useRef<HTMLSpanElement>(null);
-
-  const start = windowStart(paragraphs, index - WINDOW_BEFORE, WINDOW_STEP);
-  const end = Math.min(totalWords, index + reach);
-  const visible = sliceParagraphs(paragraphs, start, end);
-
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    // Callback de um observer: estender a janela aqui mantem a escrita de
-    // estado fora do corpo do efeito.
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        setReach((current) => current + WINDOW_STEP);
-      }
-    });
-
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [end]);
-
-  // Quando a janela descarta paragrafos do topo, o texto que fica sobe na
-  // pagina. A compensacao mantem a palavra atual no mesmo ponto da tela: guarda
-  // a posicao dela no documento (independe da rolagem, entao uma rolagem suave
-  // em andamento nao entra na conta) e rola a diferenca antes da pintura.
-  const stageRef = useRef<HTMLDivElement>(null);
-  const anchorRef = useRef<{ position: number; offset: number; start: number } | null>(null);
-  useLayoutEffect(() => {
-    const anchor = anchorRef.current;
-    if (anchor && anchor.start !== start) {
-      const element = stageRef.current?.querySelector(`[data-start="${anchor.position}"]`);
-      if (element) {
-        const shift = element.getBoundingClientRect().top + window.scrollY - anchor.offset;
-        if (shift !== 0) window.scrollBy({ top: shift, behavior: "instant" });
-      }
-    }
-    const active = activeRef.current;
-    anchorRef.current = active
-      ? { position: index, offset: active.getBoundingClientRect().top + window.scrollY, start }
-      : null;
-  }, [index, start]);
-
-  // Linha atual (US-103): as palavras na mesma altura da palavra ativa ganham
-  // `data-line`, e o CSS apaga as demais. Feito aqui, e nao no render, porque
-  // onde a linha quebra so se sabe depois do layout.
-  useLayoutEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    stage.querySelectorAll("[data-line]").forEach((element) => element.removeAttribute("data-line"));
-    const active = activeRef.current;
-    if (!dim || !active) return;
-
-    const top = active.offsetTop;
-    const parent = active.offsetParent;
-    stage.querySelectorAll<HTMLElement>(".flow-word").forEach((element) => {
-      if (element.offsetParent === parent && Math.abs(element.offsetTop - top) < 4) {
-        element.setAttribute("data-line", "");
-      }
-    });
-  }, [dim, index, start, end]);
-
-  // Sem isso o destaque desce para fora da tela e o leitor perde a posicao.
-  // Rola apenas quando a palavra atual sai da faixa confortavel de leitura,
-  // em vez de a cada passo.
-  useEffect(() => {
-    const element = activeRef.current;
-    if (!element) return;
-
-    const rect = element.getBoundingClientRect();
-    const upper = window.innerHeight * 0.3;
-    const lower = window.innerHeight * 0.62;
-
-    if (rect.top < upper || rect.bottom > lower) {
-      element.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
-  }, [index]);
-
-  return (
-    <div
-      ref={stageRef}
-      // A compensacao acima faz o papel da ancoragem nativa; as duas juntas
-      // rolariam o deslocamento duas vezes.
-      style={{ overflowAnchor: "none" }}
-      data-dim={dim ? "" : undefined}
-      className="flex-1 px-5 py-8"
-      onDoubleClick={onToggle}
-      {...touch}
-    >
-      <div className="reader-prose mx-auto max-w-2xl">
-        {visible.map((paragraph) => (
-          <p key={paragraph.start} {...blockProps(paragraph)}>
-            {paragraph.words.map((word, offset) => {
-              const position = paragraph.start + offset;
-              const state =
-                position >= index && position < index + chunkSize
-                  ? "active"
-                  : position < index
-                    ? "read"
-                    : "pending";
-              const mark = markCovering(marks, position);
-              const last = mark ? position === mark.end - 1 : false;
-
-              return (
-                <span
-                  key={position}
-                  ref={position === index ? activeRef : undefined}
-                  data-state={state}
-                  // `data-start` e o elo entre a tela e os indices: e por ele
-                  // que a selecao vira intervalo de palavras.
-                  data-start={position}
-                  className={`flow-word cursor-pointer${mark ? " mark" : ""}`}
-                  // Onde a palavra esta dentro do trecho: so as pontas do
-                  // destaque ficam arredondadas, para que ele seja lido como
-                  // uma marcacao unica e nao uma por palavra.
-                  data-edge={mark ? edgeOf(position, mark) : undefined}
-                  data-note={mark?.note && last ? "sim" : undefined}
-                  onClick={() => (mark ? onOpenMark(mark.id) : onSeek(position))}
-                >
-                  <Word word={word} emphasis={emphasis} style={paragraph.styles?.[offset]} />{" "}
-                </span>
-              );
-            })}
-          </p>
-        ))}
-      </div>
-
-      {end < totalWords ? (
-        <div ref={sentinelRef} aria-hidden="true" className="h-px" />
-      ) : null}
-
-      <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-faint">
-        {end < totalWords
-          ? "Toque em uma palavra para pular ate ela."
-          : "Fim do texto. Toque em uma palavra para voltar."}
-      </p>
-    </div>
-  );
-}
 
 function Finished({
   total,
