@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { randomIp, registerByApi, updateSettings } from "./helpers";
+import { randomIp, registerByApi } from "./helpers";
 
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": randomIp() });
@@ -27,7 +27,6 @@ const SOURCE = [
  */
 test("texto colado em Markdown chega formatado ao leitor", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "flow" });
 
   await page.goto("/textos/novo");
   await page.getByRole("button", { name: "Colar" }).click();
@@ -54,10 +53,9 @@ test("texto colado em Markdown chega formatado ao leitor", async ({ page }) => {
   expect(shown).not.toMatch(/[#*>\[\]]/);
 });
 
-/** Arquivo .md: importado pela aba Arquivo e lido no modo Paginas. */
+/** Arquivo .md: importado pela aba Arquivo e lido na pagina. */
 test("arquivo .md e importado com a formatacao", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "page" });
 
   await page.goto("/textos/novo");
   await page.getByRole("button", { name: "Arquivo" }).click();

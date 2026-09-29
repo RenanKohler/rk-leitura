@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { randomIp, registerByApi, updateSettings } from "./helpers";
+import { randomIp, registerByApi } from "./helpers";
 
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": randomIp() });
@@ -24,7 +24,6 @@ async function paste(page: Page) {
 /** Artigo cientifico: citacoes e lista de referencias ficam fora da leitura. */
 test("referencias do corpo sao omitidas na importacao", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "flow" });
   await paste(page);
 
   const option = page.getByTestId("referencias");
@@ -43,7 +42,6 @@ test("referencias do corpo sao omitidas na importacao", async ({ page }) => {
 
 test("leitor pode manter as referencias", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "flow" });
   await paste(page);
 
   await page.getByTestId("referencias").getByRole("checkbox").uncheck();
@@ -56,7 +54,6 @@ test("leitor pode manter as referencias", async ({ page }) => {
 /** Texto ja salvo: omitir e restaurar mantem destaque, marcador e posicao nas mesmas palavras. */
 test("reprocessar texto salvo remapeia destaques, marcadores e posicao", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "flow" });
   const created = await page.request.post("/api/texts", {
     data: { title: "Artigo antigo", content: ARTICLE, keepCitations: true },
   });

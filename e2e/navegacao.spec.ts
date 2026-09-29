@@ -20,7 +20,6 @@ const position = (page: Page) =>
 /** US-90: busca ignora acento e caixa, conta e circula pelos resultados. */
 test("busca no texto posiciona a leitura no resultado", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "flow" });
   const text = await createText(
     page,
     "A Memória de trabalho guarda pouco. Outra frase qualquer aqui. A memoria de trabalho cansa. Fim da memória de trabalho, enfim."
@@ -46,24 +45,43 @@ test("busca no texto posiciona a leitura no resultado", async ({ page }) => {
   expect(await position(page)).toBe(12);
 });
 
-/** US-91 e US-93: voltar a frase pelo botao e pelo teclado; velocidade e modo pelo teclado. */
-test("voltar a frase e atalhos de teclado", async ({ page }) => {
+/** Centro da palavra `word` na pagina, para tocar nela. */
+async function wordPoint(page: Page, word: string) {
+  return page.locator(".reader-prose").first().evaluate((root, target) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const at = node.textContent?.indexOf(target) ?? -1;
+      if (at < 0) continue;
+      const range = document.createRange();
+      range.setStart(node, at);
+      range.setEnd(node, at + target.length);
+      const rect = range.getBoundingClientRect();
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    }
+    throw new Error(`palavra ${target} fora da pagina`);
+  }, word);
+}
+
+/** US-91 e US-93: tocar numa palavra, voltar a frase e velocidade pelo teclado. */
+test("tocar na palavra, voltar a frase e atalhos de teclado", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "flow", baseWpm: 300 });
+  await updateSettings(page.request, { baseWpm: 300 });
+  // Palavras curtas no inicio da linha deixam "palavras" longe das bordas,
+  // fora das zonas de virar a pagina.
   const text = await createText(page, "Primeira frase curta. Segunda frase tem seis palavras aqui. Terceira.");
 
   await openReader(page, text.id);
-  await page.locator('[data-start="7"]').click();
+  const point = await wordPoint(page, "palavras");
+  await page.mouse.click(point.x, point.y);
   expect(await position(page)).toBe(8);
-  await page.getByRole("button", { name: "Voltar a frase" }).click();
+  await expect(page.getByTestId("palavra-atual")).toHaveText("palavras");
+  await page.keyboard.press("Shift+ArrowLeft");
   expect(await position(page)).toBe(4);
   await page.keyboard.press("Shift+ArrowLeft");
   expect(await position(page)).toBe(1);
 
   await page.keyboard.press("ArrowUp");
   await expect(page.getByText("325 ppm").first()).toBeVisible();
-  await page.keyboard.press("3");
-  await expect(page.getByRole("button", { name: "Proxima pagina" }).first()).toBeVisible();
 
   await page.keyboard.press("?");
   await expect(page.getByRole("dialog", { name: "Atalhos de teclado" })).toBeVisible();
@@ -71,10 +89,28 @@ test("voltar a frase e atalhos de teclado", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "Atalhos de teclado" })).toHaveCount(0);
 });
 
+/** No Word Runner, os botoes andam por frase sem parar a leitura. */
+test("Word Runner volta e avanca por frase", async ({ page }) => {
+  await registerByApi(page.request);
+  await updateSettings(page.request, { baseWpm: 100, warmup: false });
+  const frases = Array.from({ length: 8 }, (_, i) => `Frase numero ${i} com cinco palavras.`).join(" ");
+  const text = await createText(page, frases);
+
+  await openReader(page, text.id);
+  await page.getByRole("button", { name: "Iniciar leitura" }).click();
+  const runner = page.getByTestId("palavra-runner");
+  await page.getByRole("button", { name: "Avancar a frase" }).click();
+  await expect(runner).toHaveText("Frase");
+  await page.getByRole("button", { name: "Avancar a frase" }).click();
+  await expect(page.getByTestId("word-runner")).toContainText("Frase numero 2");
+  await page.getByRole("button", { name: "Voltar a frase" }).click();
+  await expect(page.getByTestId("word-runner")).toContainText(/Frase numero [12]/);
+  await expect(page.getByTestId("word-runner")).toBeVisible();
+});
+
 /** US-89 e US-92: sumario de titulos e marcadores. */
 test("sumario leva ao titulo e marcador guarda a posicao", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "flow" });
   const text = await createText(
     page,
     "# Inicio\n\nTexto de abertura aqui.\n\n## Segunda parte\n\nMais texto nesta parte.\n\n## Terceira parte\n\nFim.",
@@ -94,7 +130,8 @@ test("sumario leva ao titulo e marcador guarda a posicao", async ({ page }) => {
   await expect(page.getByRole("button", { name: /^Ponto chave/ })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  await page.locator('[data-start="0"]').click();
+  // Na primeira pagina, "pagina anterior" volta ao inicio do texto.
+  await page.keyboard.press("ArrowLeft");
   expect(await position(page)).toBe(1);
 
   await page.getByRole("button", { name: "Navegar no texto" }).click();
@@ -102,29 +139,10 @@ test("sumario leva ao titulo e marcador guarda a posicao", async ({ page }) => {
   expect(await position(page)).toBe(6);
 });
 
-/** US-103: com a opcao ligada, so a linha atual fica com cor cheia durante a leitura. */
-test("linhas fora da atual ficam apagadas enquanto le", async ({ page }) => {
-  await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "flow", dimLines: true, baseWpm: 60, warmup: false });
-  const words = Array.from({ length: 120 }, (_, i) => `palavra${i}`).join(" ");
-  const text = await createText(page, words);
-
-  await openReader(page, text.id);
-  await expect(page.locator("[data-dim]")).toHaveCount(0);
-  await page.getByRole("button", { name: "Iniciar leitura" }).click();
-  await expect(page.locator("[data-dim]")).toHaveCount(1);
-  const opacity = (selector: string) =>
-    page.locator(selector).first().evaluate((el) => Number(getComputedStyle(el).opacity));
-  await expect.poll(() => opacity('[data-start="0"]')).toBe(1);
-  await expect.poll(() => opacity('[data-start="100"]')).toBeLessThan(0.5);
-  await page.getByRole("button", { name: "Pausar" }).first().click();
-  await expect(page.locator("[data-dim]")).toHaveCount(0);
-});
-
 /** US-95: depois de uma pausa longa, a leitura recomeca algumas palavras antes. */
 test("retomar depois de pausa longa recua ate 5 palavras", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "rsvp", baseWpm: 150, warmup: false, wordsPerChunk: 1 });
+  await updateSettings(page.request, { baseWpm: 150, warmup: false });
   const words = Array.from({ length: 60 }, (_, i) => `termo${i}`).join(" ");
   const text = await createText(page, words);
 

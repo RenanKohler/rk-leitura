@@ -4,10 +4,11 @@ import {
   bookmarkLabel,
   currentHeading,
   MAX_SEARCH_RESULTS,
-  paragraphPauseMs,
   resumeTarget,
   searchWords,
+  runnerContext,
   sentenceBackTarget,
+  sentenceForwardTarget,
   sentenceStart,
   textHeadings,
 } from "@/lib/navigation";
@@ -109,14 +110,38 @@ describe("textHeadings (US-89)", () => {
   });
 });
 
-describe("marcadores e pausas", () => {
+describe("marcadores", () => {
   it("nome padrao sao as 5 primeiras palavras", () => {
     expect(bookmarkLabel(words, 3)).toBe("Segunda frase tem seis palavras");
     expect(bookmarkLabel(words, 50)).toBe("Marcador");
   });
+});
 
-  it("pausa de paragrafo e 1,5 palavra", () => {
-    expect(paragraphPauseMs(300)).toBe(300);
-    expect(paragraphPauseMs(600)).toBe(150);
+describe("Word Runner: avancar a frase e contexto", () => {
+  const texto = parseParagraphs(
+    "Primeira frase curta. Segunda frase tem seis palavras.\n\nOutro paragrafo sem ponto"
+  );
+
+  it("avanca para o inicio da frase seguinte", () => {
+    expect(sentenceForwardTarget(texto.words, 0)).toBe(3);
+    expect(sentenceForwardTarget(texto.words, 3)).toBe(8);
+    expect(sentenceForwardTarget(texto.words, 10)).toBe(11);
+    expect(sentenceForwardTarget([], 0)).toBe(0);
+  });
+
+  it("o contexto e a frase atual, sem sair do paragrafo", () => {
+    expect(runnerContext(texto.words, texto.paragraphs, 4)).toEqual({
+      from: 3,
+      to: 8,
+      clippedStart: false,
+      clippedEnd: false,
+    });
+    expect(runnerContext(texto.words, texto.paragraphs, 10)).toMatchObject({ from: 8, to: 12 });
+  });
+
+  it("frase longa e recortada em volta da palavra", () => {
+    const longa = parseParagraphs(Array.from({ length: 60 }, (_, i) => `p${i}`).join(" ") + ".");
+    const context = runnerContext(longa.words, longa.paragraphs, 30, 5);
+    expect(context).toEqual({ from: 25, to: 36, clippedStart: true, clippedEnd: true });
   });
 });

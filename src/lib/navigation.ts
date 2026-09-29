@@ -6,7 +6,7 @@
  * posicao no leitor. Funcoes puras, testaveis sem navegador.
  */
 
-import type { Paragraph } from "@/lib/reading";
+import { paragraphRange, type Paragraph } from "@/lib/reading";
 
 const SENTENCE_END = /[.!?…][")'\]»”’]*$/;
 
@@ -30,6 +30,43 @@ export function sentenceBackTarget(words: string[], index: number): number {
   const start = sentenceStart(words, index);
   if (start < index) return start;
   return start === 0 ? 0 : sentenceStart(words, start - 1);
+}
+
+/** Inicio da frase seguinte, para "Avancar a frase" no Word Runner. */
+export function sentenceForwardTarget(words: string[], index: number): number {
+  if (words.length === 0) return 0;
+  let position = Math.max(0, Math.trunc(index)) + 1;
+  while (position < words.length && !SENTENCE_END.test(words[position - 1]!)) position += 1;
+  return Math.min(position, words.length - 1);
+}
+
+/* --- contexto do Word Runner ----------------------------------------------- */
+
+/** Palavras de cada lado da atual, no maximo, na linha de contexto. */
+export const CONTEXT_RADIUS = 10;
+
+/**
+ * Trecho mostrado sob a palavra do Word Runner: a frase atual, sem sair do
+ * paragrafo e com no maximo `radius` palavras de cada lado. `clippedStart` e
+ * `clippedEnd` dizem se a frase continua alem do recorte.
+ */
+export function runnerContext(
+  words: string[],
+  paragraphs: Paragraph[],
+  index: number,
+  radius = CONTEXT_RADIUS
+): { from: number; to: number; clippedStart: boolean; clippedEnd: boolean } {
+  if (words.length === 0) return { from: 0, to: 0, clippedStart: false, clippedEnd: false };
+  const position = Math.max(0, Math.min(words.length - 1, Math.trunc(index)));
+  const paragraph = paragraphRange(paragraphs, position, words.length);
+
+  const sentenceFrom = Math.max(sentenceStart(words, position), paragraph.start);
+  let sentenceTo = position + 1;
+  while (sentenceTo < paragraph.end && !SENTENCE_END.test(words[sentenceTo - 1]!)) sentenceTo += 1;
+
+  const from = Math.max(sentenceFrom, position - radius);
+  const to = Math.min(sentenceTo, position + radius + 1);
+  return { from, to, clippedStart: from > sentenceFrom, clippedEnd: to < sentenceTo };
 }
 
 /* --- recuo ao retomar ------------------------------------------------------ */
@@ -144,14 +181,6 @@ export function bookmarkLabel(words: string[], position: number): string {
 }
 
 /* --- pausas ------------------------------------------------------------------- */
-
-/**
- * Pausa extra ao trocar de paragrafo no modo Foco (US-94): 1,5 vez a duracao
- * de uma palavra na velocidade escolhida.
- */
-export function paragraphPauseMs(wpm: number): number {
-  return Math.round((60_000 / Math.max(1, wpm)) * 1.5);
-}
 
 /** Leitura continua antes do aviso de descanso (US-104). */
 export const EYE_REST_AFTER_MS = 20 * 60_000;

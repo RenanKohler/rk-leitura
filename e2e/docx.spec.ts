@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import { expect, test } from "@playwright/test";
-import { randomIp, registerByApi, updateSettings } from "./helpers";
+import { randomIp, registerByApi } from "./helpers";
 
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": randomIp() });
@@ -24,7 +24,6 @@ async function docx(): Promise<Buffer> {
 /** US-99: documento do Word entra como Markdown, com titulo e negrito. */
 test("arquivo .docx e importado com a formatacao", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "flow" });
 
   await page.goto("/textos/novo");
   await page.getByRole("button", { name: "Arquivo" }).click();

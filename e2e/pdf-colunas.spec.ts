@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import path from "node:path";
-import { randomIp, registerByApi, updateSettings } from "./helpers";
+import { randomIp, registerByApi } from "./helpers";
 
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": randomIp() });
@@ -13,7 +13,6 @@ test.beforeEach(async ({ context }) => {
  */
 test("PDF de artigo em duas colunas chega na ordem de leitura", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { readingMode: "flow" });
 
   await page.goto("/textos/novo");
   await page.getByRole("button", { name: "Arquivo" }).click();
@@ -31,9 +30,14 @@ test("PDF de artigo em duas colunas chega na ordem de leitura", async ({ page })
 
   const prose = page.locator(".reader-prose").first();
   await expect(prose.locator('p[data-kind="h1"]')).toHaveText(/sustained attention research/);
-  await expect(prose.locator('p[data-kind="h2"]').first()).toHaveText(/Introduction/);
+  // A pagina mostra so o comeco; os demais titulos aparecem no sumario.
+  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await expect(
+    page.getByRole("region", { name: "Sumario" }).getByRole("button", { name: /Introduction/ })
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
 
-  // O texto salvo: a tela so renderiza uma janela ao redor da posicao.
+  // O texto salvo: a tela so mostra uma pagina por vez.
   const id = page.url().split("/leitor/")[1]!.split(/[?#]/)[0];
   const { text } = await (await page.request.get(`/api/texts/${id}`)).json();
   const content: string = text.content;

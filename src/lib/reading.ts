@@ -213,6 +213,17 @@ function paragraphAt(paragraphs: Paragraph[], index: number): number {
   return low;
 }
 
+/** Intervalo [start, end) do paragrafo que contem a palavra `index`. */
+export function paragraphRange(
+  paragraphs: Paragraph[],
+  index: number,
+  total: number
+): { start: number; end: number } {
+  if (paragraphs.length === 0) return { start: 0, end: total };
+  const paragraph = paragraphs[paragraphAt(paragraphs, index)]!;
+  return { start: paragraph.start, end: paragraph.start + paragraph.words.length };
+}
+
 /**
  * Inicio estavel da janela renderizada da rolagem para uma posicao alvo.
  *
