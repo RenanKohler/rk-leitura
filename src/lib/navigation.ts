@@ -4,19 +4,20 @@
  *
  * Tudo trabalha sobre a lista corrida de palavras, que e o que da indice de
  * posicao no leitor. Funcoes puras, testaveis sem navegador.
+ *
+ * O que e frase vem do segmentador unico (`sentences.ts`): "O Sr. Silva
+ * chegou." e uma frase so em "Voltar a frase", no contexto do Word Runner, no
+ * recuo ao retomar, no destaque e no ritmo.
  */
 
 import { paragraphRange, type Paragraph } from "@/lib/reading";
-
-const SENTENCE_END = /[.!?…][")'\]»”’]*$/;
+import { isSentenceEnd, sentenceStartOf } from "@/lib/sentences";
 
 /* --- frase ---------------------------------------------------------------- */
 
 /** Primeira palavra da frase que contem `index`. */
-export function sentenceStart(words: string[], index: number): number {
-  let position = Math.max(0, Math.min(words.length - 1, Math.trunc(index)));
-  while (position > 0 && !SENTENCE_END.test(words[position - 1]!)) position -= 1;
-  return Math.max(0, position);
+export function sentenceStart(words: string[], index: number, language?: string): number {
+  return sentenceStartOf(words, index, language);
 }
 
 /**
@@ -25,67 +26,142 @@ export function sentenceStart(words: string[], index: number): number {
  * No meio da frase, volta ao inicio dela. Ja no inicio, volta ao inicio da
  * anterior - senao o comando repetido ficaria preso no mesmo lugar.
  */
-export function sentenceBackTarget(words: string[], index: number): number {
+export function sentenceBackTarget(words: string[], index: number, language?: string): number {
   if (words.length === 0) return 0;
-  const start = sentenceStart(words, index);
+  const start = sentenceStart(words, index, language);
   if (start < index) return start;
-  return start === 0 ? 0 : sentenceStart(words, start - 1);
+  return start === 0 ? 0 : sentenceStart(words, start - 1, language);
 }
 
 /** Inicio da frase seguinte, para "Avancar a frase" no Word Runner. */
-export function sentenceForwardTarget(words: string[], index: number): number {
+export function sentenceForwardTarget(words: string[], index: number, language?: string): number {
   if (words.length === 0) return 0;
   let position = Math.max(0, Math.trunc(index)) + 1;
-  while (position < words.length && !SENTENCE_END.test(words[position - 1]!)) position += 1;
+  while (position < words.length && !isSentenceEnd(words, position - 1, language)) position += 1;
   return Math.min(position, words.length - 1);
 }
 
 /* --- contexto do Word Runner ----------------------------------------------- */
 
-/** Palavras de cada lado da atual, no maximo, na linha de contexto. */
-export const CONTEXT_RADIUS = 10;
+/** Palavras, no maximo, de cada bloco da linha de contexto. */
+export const CONTEXT_BLOCK = 18;
+/** Bloco menor que isso nao vale o corte: fica colado ao vizinho. */
+const CONTEXT_MIN_BLOCK = 6;
+/** Quanto o corte pode fugir do ponto ideal para cair depois de uma virgula. */
+const CONTEXT_SLACK = 6;
+/** Pontuacao de oracao, onde o corte do bloco fica natural. */
+const CLAUSE_END = /[,;:]["'”’»)\]]*$/u;
 
 /**
- * Trecho mostrado sob a palavra do Word Runner: a frase atual, sem sair do
- * paragrafo e com no maximo `radius` palavras de cada lado. `clippedStart` e
- * `clippedEnd` dizem se a frase continua alem do recorte.
+ * Trecho mostrado sob a palavra do Word Runner.
+ *
+ * E a frase atual, sem sair do paragrafo. Frase longa e dividida em blocos
+ * fixos de ate `maxBlock` palavras, contados a partir do inicio da frase e
+ * cortados de preferencia depois de virgula, ponto e virgula ou dois-pontos;
+ * devolve o bloco que contem a palavra. A linha so muda quando a palavra sai
+ * do bloco - a janela deslizante anterior mudava a cada palavra e o olho,
+ * que deveria ficar no centro, era puxado para a linha de baixo.
+ *
+ * `clippedStart` e `clippedEnd` dizem se a frase continua alem do bloco.
  */
 export function runnerContext(
   words: string[],
   paragraphs: Paragraph[],
   index: number,
-  radius = CONTEXT_RADIUS
+  maxBlock = CONTEXT_BLOCK,
+  language?: string
 ): { from: number; to: number; clippedStart: boolean; clippedEnd: boolean } {
   if (words.length === 0) return { from: 0, to: 0, clippedStart: false, clippedEnd: false };
-  const position = Math.max(0, Math.min(words.length - 1, Math.trunc(index)));
+  const position = Math.max(0, Math.min(words.length - 1, Math.trunc(index) || 0));
   const paragraph = paragraphRange(paragraphs, position, words.length);
+  const size = Math.max(1, Math.trunc(maxBlock) || CONTEXT_BLOCK);
 
-  const sentenceFrom = Math.max(sentenceStart(words, position), paragraph.start);
+  const sentenceFrom = Math.max(sentenceStart(words, position, language), paragraph.start);
   let sentenceTo = position + 1;
-  while (sentenceTo < paragraph.end && !SENTENCE_END.test(words[sentenceTo - 1]!)) sentenceTo += 1;
+  while (sentenceTo < paragraph.end && !isSentenceEnd(words, sentenceTo - 1, language)) {
+    sentenceTo += 1;
+  }
 
-  const from = Math.max(sentenceFrom, position - radius);
-  const to = Math.min(sentenceTo, position + radius + 1);
+  let from = sentenceFrom;
+  let to = sentenceTo;
+  while (to - from > size) {
+    const remaining = to - from;
+    // Blocos de tamanho parecido: 19 palavras viram 10 + 9, nao 18 + 1.
+    const ideal = from + Math.ceil(remaining / Math.ceil(remaining / size));
+    let cut = ideal;
+    let distance = Infinity;
+    const first = Math.max(from + Math.min(CONTEXT_MIN_BLOCK, size), ideal - CONTEXT_SLACK);
+    for (let end = first; end <= from + size && end < to; end += 1) {
+      if (!CLAUSE_END.test(words[end - 1]!)) continue;
+      const gap = Math.abs(end - ideal);
+      if (gap <= distance) {
+        cut = end;
+        distance = gap;
+      }
+    }
+    if (position < cut) {
+      to = cut;
+      break;
+    }
+    from = cut;
+  }
+
   return { from, to, clippedStart: from > sentenceFrom, clippedEnd: to < sentenceTo };
 }
 
 /* --- recuo ao retomar ------------------------------------------------------ */
 
-/** Pausa a partir da qual retomar recua algumas palavras (US-95). */
+/** Pausa a partir da qual retomar recua ao inicio da frase (US-95). */
 export const REWIND_AFTER_MS = 5_000;
-/** Quantas palavras, no maximo, o recuo volta. */
-export const REWIND_WORDS = 5;
+/** A partir daqui recua ao inicio da frase anterior. */
+export const REWIND_SENTENCE_MS = 60_000;
+/** A partir daqui recua ao inicio do paragrafo. */
+export const REWIND_PARAGRAPH_MS = 10 * 60_000;
+/** Recuo maximo, em palavras: um paragrafo sem ponto nao volta pagina inteira. */
+export const REWIND_MAX_WORDS = 60;
+/** Ritmo a partir do qual ate uma pausa curta recua uma palavra. */
+export const REWIND_FAST_WPM = 450;
 
 /**
- * Onde a leitura recomeca depois de uma pausa.
+ * Onde a leitura recomeca depois de uma pausa, escalonado pela duracao dela:
  *
- * Recua ate `REWIND_WORDS` palavras sem passar do inicio da frase: o objetivo
- * e retomar o fio da frase, nao reler a anterior.
+ * - menos de 5 s: no mesmo lugar; a 450 ppm ou mais, uma palavra antes (a
+ *   palavra da pausa passou rapido demais para ter sido lida), sem sair da
+ *   frase;
+ * - de 5 s a 1 min: inicio da frase;
+ * - de 1 a 10 min: inicio da frase anterior, que da o contexto da atual;
+ * - mais de 10 min: inicio do paragrafo (ou da frase anterior, se ela vier
+ *   antes); sem os paragrafos, a frase anterior.
+ *
+ * Nunca volta mais que `REWIND_MAX_WORDS` palavras.
  */
-export function resumeTarget(words: string[], index: number, pausedMs: number): number {
-  if (pausedMs < REWIND_AFTER_MS || index <= 0) return index;
-  const floor = sentenceStart(words, index);
-  return Math.max(0, floor, index - REWIND_WORDS);
+export function resumeTarget(
+  words: string[],
+  index: number,
+  pausedMs: number,
+  paragraphs?: Paragraph[],
+  wpm?: number,
+  language?: string
+): number {
+  if (index <= 0 || words.length === 0) return index;
+  const position = Math.min(Math.trunc(index), words.length - 1);
+  const start = sentenceStart(words, position, language);
+
+  let target: number;
+  if (pausedMs < REWIND_AFTER_MS) {
+    if (wpm === undefined || wpm < REWIND_FAST_WPM) return index;
+    target = Math.max(start, position - 1);
+  } else if (pausedMs < REWIND_SENTENCE_MS) {
+    target = start;
+  } else {
+    const previous = start === 0 ? 0 : sentenceStart(words, start - 1, language);
+    target = previous;
+    if (pausedMs > REWIND_PARAGRAPH_MS && paragraphs && paragraphs.length > 0) {
+      target = Math.min(previous, paragraphRange(paragraphs, position, words.length).start);
+    }
+  }
+
+  return Math.max(0, target, position - REWIND_MAX_WORDS);
 }
 
 /* --- busca ------------------------------------------------------------------ */

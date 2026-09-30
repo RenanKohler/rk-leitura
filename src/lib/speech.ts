@@ -9,6 +9,7 @@
  */
 
 import { clamp } from "@/lib/reading";
+import { isSentenceEnd } from "@/lib/sentences";
 
 /** Ritmo aproximado de uma voz sintetica em velocidade 1. */
 export const BASE_SPEECH_WPM = 180;
@@ -80,11 +81,15 @@ export function pickVoice(voices: VoiceLike[], lang = "pt-BR"): VoiceLike | null
  * Um paragrafo inteiro em uma fala atrasa a parada: cancelar no meio de uma
  * fala longa corta a frase, e em alguns sistemas demora a responder. Frases
  * tambem dao o ponto de sincronia quando o evento de palavra nao chega.
+ *
+ * O corte e o do segmentador unico: "O Sr. Silva chegou." e uma fala so, sem
+ * a voz parar depois de "Sr.".
  */
 export function speechChunks(
   words: string[],
   start: number,
-  maxWords = 40
+  maxWords = 40,
+  language?: string
 ): { start: number; words: string[] }[] {
   const chunks: { start: number; words: string[] }[] = [];
   let current: string[] = [];
@@ -100,7 +105,7 @@ export function speechChunks(
 
   for (let index = start; index < words.length; index += 1) {
     current.push(words[index]!);
-    const ends = /[.!?…][")'\]»”’]*$/.test(words[index]!);
+    const ends = isSentenceEnd(words, index, language);
     if (ends || current.length >= maxWords) flush();
   }
 

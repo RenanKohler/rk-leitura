@@ -115,7 +115,7 @@ export function useSpeech(language = "pt-BR") {
       engine.current = session;
 
       const context = sharedAudioContext();
-      const queue = speechChunks(words, from);
+      const queue = speechChunks(words, from, undefined, language);
       const rate = rateFor(wpm);
       const tts = piperEngine();
       const ready = tts.prepare(voice);
@@ -195,7 +195,7 @@ export function useSpeech(language = "pt-BR") {
       setState("falando");
       void play(0);
     },
-    []
+    [language]
   );
 
   const start = useCallback(
@@ -226,7 +226,7 @@ export function useSpeech(language = "pt-BR") {
       const session = { stopped: false };
       engine.current = session;
 
-      const queue = speechChunks(words, from);
+      const queue = speechChunks(words, from, undefined, language);
       const rate = rateFor(wpm);
       let position = 0;
 

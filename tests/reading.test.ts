@@ -12,6 +12,9 @@ import {
   clamp,
   countWords,
   orpIndex,
+  orpParts,
+  estimatedMinutes,
+  warmupStart,
   parseParagraphs,
   sliceParagraphs,
   startsParagraph,
@@ -178,7 +181,29 @@ describe("orpIndex", () => {
     expect(orpIndex("a")).toBe(0);
     expect(orpIndex("casa")).toBe(1);
     expect(orpIndex("cabana")).toBe(2);
-    expect(orpIndex("extraordinario")).toBe(3);
+    expect(orpIndex("importacao")).toBe(3);
+    // Nucleo acima de 13 letras: pivo na quinta letra.
+    expect(orpIndex("extraordinario")).toBe(4);
+  });
+
+  it("ignora a pontuacao do inicio e do fim (ALG-12)", () => {
+    // O pivo de "casa" e o "a"; a aspa de abertura so desloca o indice.
+    expect(orpIndex('"casa')).toBe(2);
+    expect(orpIndex("casa,")).toBe(1);
+    expect(orpIndex("(cabana).")).toBe(3);
+    expect(orpIndex("\u2014")).toBe(0);
+    // A virgula final nao empurra a palavra para a faixa seguinte: "trabalhos,"
+    // tem 10 caracteres, mas o nucleo tem 9.
+    expect(orpIndex("trabalhos,")).toBe(orpIndex("trabalhos"));
+    expect(orpIndex("importante.")).toBe(orpIndex("importante"));
+  });
+
+  it("conta code points em NFC, sem partir o acento", () => {
+    // "a" + acento combinante: 2 unidades em NFD, 1 letra em NFC.
+    const decomposta = "ac\u0327a\u0303o";
+    expect(orpIndex(decomposta)).toBe(orpIndex("a\u00e7\u00e3o"));
+    expect(orpParts(decomposta)).toEqual({ before: "a", pivot: "\u00e7", after: "\u00e3o" });
+    expect(orpParts('"atencao",')).toEqual({ before: '"at', pivot: "e", after: 'ncao",' });
   });
 });
 
@@ -223,12 +248,55 @@ describe("warmupFactor", () => {
     }
   });
 
+  it("aceita o fator inicial e trata posicao negativa como o inicio (ALG-16)", () => {
+    expect(WARMUP_WORDS).toBe(25);
+    expect(warmupFactor(-5)).toBe(WARMUP_START);
+    expect(warmupFactor(0, 0.85)).toBe(0.85);
+    expect(warmupFactor(-3, 0.85)).toBe(0.85);
+    expect(warmupFactor(0, 1)).toBe(1);
+    expect(warmupFactor(12.5, 0.8)).toBeCloseTo(0.9, 10);
+    expect(warmupFactor(WARMUP_WORDS, 0.85)).toBe(1);
+  });
+
   it("nunca sai da faixa, nem com entrada absurda", () => {
     for (const palavra of [-100, Number.NaN, 1e9]) {
       const fator = warmupFactor(palavra);
       expect(fator).toBeGreaterThanOrEqual(WARMUP_START);
       expect(fator).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe("warmupStart (ALG-16)", () => {
+  it("abertura e pausa de mais de 2 minutos comecam em 0,6", () => {
+    expect(warmupStart()).toBe(0.6);
+    expect(warmupStart(null)).toBe(0.6);
+    expect(warmupStart(0)).toBe(0.6);
+    expect(warmupStart(5 * 60_000)).toBe(0.6);
+    expect(warmupStart(120_000)).toBe(0.6);
+  });
+
+  it("pausa de menos de 3 s nao tem rampa", () => {
+    expect(warmupStart(1_000)).toBe(1);
+    expect(warmupStart(2_999)).toBe(1);
+  });
+
+  it("de 3 a 30 s comeca em 0,85; de 30 s a 2 min desce ate 0,6", () => {
+    expect(warmupStart(3_000)).toBe(0.85);
+    expect(warmupStart(30_000)).toBe(0.85);
+    expect(warmupStart(75_000)).toBeCloseTo(0.725, 10);
+    expect(warmupStart(60_000)).toBeLessThan(0.85);
+    expect(warmupStart(60_000)).toBeGreaterThan(0.6);
+  });
+});
+
+describe("estimatedMinutes com as pausas", () => {
+  it("soma o acrescimo medio das pausas quando o ritmo dinamico esta ligado", () => {
+    // 1.000 palavras a 300 ppm: 3,3 min de palavras, ~3,9 com as pausas.
+    expect(estimatedMinutes(1000, 300, false)).toBe(3);
+    expect(estimatedMinutes(1000, 300)).toBe(4);
+    expect(estimatedMinutes(1000, 300, true)).toBe(4);
+    expect(estimatedMinutes(10, 300)).toBe(1);
   });
 });
 
