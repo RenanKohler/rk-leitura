@@ -312,3 +312,25 @@ export const BookmarkIcon = (props: IconProps) => (
     <path d="M6.5 4h11v16l-5.5-4-5.5 4z" />
   </Icon>
 );
+
+export const UserIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="12" cy="8.5" r="3.8" />
+    <path d="M4.5 20.5c1.2-3.6 4-5.5 7.5-5.5s6.3 1.9 7.5 5.5" />
+  </Icon>
+);
+
+export const ChartIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 20h16" />
+    <path d="M7 16v-4M12 16V7M17 16v-6" />
+  </Icon>
+);
+
+export const MoreIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="5.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="18.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+  </Icon>
+);

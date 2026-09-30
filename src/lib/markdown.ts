@@ -2,7 +2,7 @@
  * Leitura de textos em Markdown.
  *
  * O leitor trabalha com uma lista corrida de palavras: e por ela que andam a
- * posicao salva, os destaques, a selecao e o modo Foco. Por isso o Markdown
+ * posicao salva, os destaques, a selecao e o Word Runner. Por isso o Markdown
  * nao vira HTML: vira as mesmas palavras limpas que um texto simples daria,
  * mais o estilo de cada palavra e o tipo de cada bloco. Os simbolos de
  * formatacao (`#`, `**`, `>`, `-`...) nunca entram na contagem.
@@ -20,7 +20,7 @@ export const STYLE = {
   code: 4,
   strike: 8,
   link: 16,
-  /** Palavra de titulo: o modo Foco a mostra em negrito. */
+  /** Palavra de titulo: o Word Runner a mostra em negrito. */
   heading: 32,
 } as const;
 

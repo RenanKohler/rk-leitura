@@ -1,4 +1,4 @@
-import type { FontFamily, ReadingMode, TextFormat } from "@/lib/reading";
+import type { FontFamily, TextFormat } from "@/lib/reading";
 import type { GoalKind } from "@/lib/goals";
 
 /** Formatos devolvidos pelas rotas internas, consumidos no cliente. */
@@ -62,6 +62,8 @@ export interface ReviewCard {
   translation: string | null;
   context: string | null;
   textTitle: string | null;
+  /** Intervalo atual em dias: a tela mostra quanto cada resposta adiaria. */
+  interval: number;
 }
 
 /** O que a tela de revisao precisa para abrir (US-64). */
@@ -72,6 +74,36 @@ export interface ReviewSession {
   /** Proxima data com revisao, quando nao ha nada vencido. */
   nextReviewOn: string | null;
   totalWords: number;
+}
+
+/** Retencao das revisoes de palavras nos ultimos 30 dias (PROD-7). */
+export interface RetentionSummary {
+  /** Porcentagem de respostas que nao foram "errei"; nula sem respostas. */
+  percent: number | null;
+  answers: number;
+}
+
+/** Um destaque na revisao espacada (PROD-4). */
+export interface HighlightReviewCard {
+  id: string;
+  textId: string;
+  textTitle: string;
+  /** Primeira palavra do trecho no texto, para abrir o leitor ali. */
+  start: number;
+  /** Palavras do trecho, na ordem. */
+  words: string[];
+  /** Posicao, dentro de `words`, da palavra escondida no modo lacuna; nula sem candidata. */
+  blank: number | null;
+  note: string | null;
+  interval: number;
+  createdAt: string;
+}
+
+export interface HighlightReviewSession {
+  cards: HighlightReviewCard[];
+  /** Vencidos hoje, alem dos que cabem na sessao. */
+  due: number;
+  totalHighlights: number;
 }
 
 /** Etiqueta com quantos textos ela marca. */
@@ -128,6 +160,34 @@ export interface TextDetail extends TextSummary {
   sourcePage: number;
   /** Referencias omitidas depois de salvo; da para restaurar. */
   referencesOmitted: boolean;
+  /**
+   * Recapitulacao do capitulo anterior (PROD-12). So vem no carregamento do
+   * leitor, e so quando: o texto e capitulo de serie, a leitura esta na
+   * posicao 0 e o capitulo anterior foi concluido ha mais de 48 horas - a
+   * pausa em que o fio da historia costuma se perder. Ausente nos demais
+   * casos e nas respostas da API.
+   */
+  previousChapter?: PreviousChapter;
+}
+
+/** O que o leitor mostra para retomar o fio da serie (PROD-12). */
+export interface PreviousChapter {
+  /** Titulo do capitulo anterior. */
+  title: string;
+  /** Ultimos paragrafos do capitulo anterior, do mais antigo ao ultimo. */
+  tail: string[];
+  /** Destaques feitos no capitulo anterior, na ordem do texto. */
+  highlights: { text: string; note: string | null }[];
+}
+
+/** Um texto em que a busca achou o termo no conteudo (APP-16). */
+export interface ContentMatch {
+  id: string;
+  title: string;
+  /** Trecho em volta da ocorrencia, com reticencias quando cortado. */
+  excerpt: string;
+  /** Indice da palavra da ocorrencia: vai no `?de=` do leitor. */
+  wordIndex: number;
 }
 
 /** Resposta de POST /api/texts/[id]/continuar. */
@@ -152,6 +212,29 @@ export interface SessionSummary {
   /** Acertos do questionario, quando houve. */
   comprehension: number | null;
   createdAt: string;
+}
+
+/** Ritmo medio de um modo nos ultimos 30 dias. */
+export interface ModePace {
+  mode: string;
+  wpm: number;
+  sessions: number;
+}
+
+/** Um dia com questionario ou lacunas respondidos (PROD-13). */
+export interface ComprehensionPoint {
+  day: string;
+  /** Media de acertos do dia, em porcentagem. */
+  percent: number;
+  /** Ppm do dia. */
+  wpm: number;
+  /** Ritmo eficaz: ppm x acertos, o que de fato ficou por minuto. */
+  effectiveWpm: number;
+}
+
+export interface LearningStats {
+  byMode: ModePace[];
+  comprehension: ComprehensionPoint[];
 }
 
 export interface ImportedText {
@@ -184,9 +267,7 @@ export interface HighlightItem {
 
 export interface SettingsPayload {
   baseWpm: number;
-  wordsPerChunk: number;
   highlightOpacity: number;
-  readingMode: ReadingMode;
   theme: "system" | "light" | "dark" | "contrast";
   fontScale: number;
   fontFamily: FontFamily;
@@ -194,16 +275,12 @@ export interface SettingsPayload {
   warmup: boolean;
   /** Enfase nas primeiras letras de cada palavra. */
   wordEmphasis: boolean;
-  /** Ritmo pela densidade do trecho no modo Foco (US-87). */
+  /** Ritmo pela densidade do trecho no Word Runner (US-87). */
   adaptiveRhythm: boolean;
   /** Perguntar "isso ainda vale?" a 25, 50 e 75% do texto (US-80). */
   askCheckpoints: boolean;
-  /** Pausa extra na troca de paragrafo no modo Foco (US-94). */
-  paragraphPause: boolean;
-  /** Recuar ate 5 palavras ao retomar depois de pausa longa (US-95). */
+  /** Recuar ao retomar depois de uma pausa, conforme o tempo parado (US-95). */
   resumeRewind: boolean;
-  /** Apagar as linhas fora da atual nos modos Rolagem e Paginas (US-103). */
-  dimLines: boolean;
   /** Aviso para descansar a vista a cada 20 minutos (US-104). */
   eyeRest: boolean;
   /** Fuso IANA usado para decidir o que e "hoje". */
@@ -216,6 +293,8 @@ export interface SettingsPayload {
   placementSeen: boolean;
   /** Hora local do lembrete diario; nulo quando nao ha lembrete. */
   reminderHour: number | null;
+  /** Guia de primeiro uso do leitor ja visto nesta conta. */
+  readerTipsSeen: boolean;
 }
 
 /** Resposta de GET/PUT /api/metas. */

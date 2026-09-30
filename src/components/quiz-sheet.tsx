@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { apiSend } from "@/lib/client";
+import { ApiError, apiSend } from "@/lib/client";
 import { Alert, Button, Sheet, Spinner } from "@/components/ui";
 import { CheckIcon, CloseIcon } from "@/components/icons";
 
@@ -24,6 +24,12 @@ interface Result {
  * A correcao acontece no servidor: para conferir aqui, a tela precisaria do
  * gabarito, e o questionario deixaria de medir qualquer coisa. O que chega na
  * abertura sao so enunciado e alternativas.
+ *
+ * Quando o questionario por IA nao esta disponivel - instalacao sem chave,
+ * cota do dia esgotada, texto curto demais - a folha cai nas perguntas de
+ * lacuna (PROD-3), montadas do proprio trecho no servidor. A nota vai para a
+ * mesma sessao e alimenta o treino do mesmo jeito. A interface do componente
+ * nao muda: quem abre a folha nao precisa saber qual das duas respondeu.
  */
 export function QuizSheet({
   textId,
@@ -42,6 +48,26 @@ export function QuizSheet({
   const [score, setScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Qual das duas montou as perguntas, e o trecho das lacunas para a correcao.
+  const [kind, setKind] = useState<"ia" | "lacunas">("ia");
+  const [range, setRange] = useState<{ from: number; to: number } | null>(null);
+  const [fallbackNote, setFallbackNote] = useState("");
+
+  const begin = (list: Question[]) => {
+    setQuestions(list);
+    setAnswers(Array.from({ length: list.length }, () => -1));
+  };
+
+  const startCloze = async (note = "") => {
+    const data = await apiSend<{ quiz: { questions: Question[] }; from: number; to: number }>(
+      `/api/texts/${textId}/lacunas`,
+      "POST"
+    );
+    setKind("lacunas");
+    setRange({ from: data.from, to: data.to });
+    setFallbackNote(note);
+    begin(data.quiz.questions);
+  };
 
   const start = async () => {
     setLoading(true);
@@ -51,10 +77,36 @@ export function QuizSheet({
         `/api/texts/${textId}/questionario`,
         "POST"
       );
-      setQuestions(data.quiz.questions);
-      setAnswers(Array.from({ length: data.quiz.questions.length }, () => -1));
+      setKind("ia");
+      begin(data.quiz.questions);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui montar o questionario.");
+      // Sem IA (503), texto curto (422) ou cota do dia (429): as lacunas nao
+      // dependem de nada disso. Outros erros continuam aparecendo como erro.
+      const unavailable =
+        cause instanceof ApiError && [422, 429, 503].includes(cause.status);
+      if (unavailable) {
+        try {
+          await startCloze(cause.message);
+        } catch (clozeCause) {
+          setError(
+            clozeCause instanceof Error ? clozeCause.message : "Nao consegui montar as perguntas."
+          );
+        }
+      } else {
+        setError(cause instanceof Error ? cause.message : "Nao consegui montar o questionario.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startLocal = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await startCloze();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Nao consegui montar as perguntas.");
     } finally {
       setLoading(false);
     }
@@ -65,9 +117,11 @@ export function QuizSheet({
     setError("");
     try {
       const data = await apiSend<{ score: number; results: Result[] }>(
-        `/api/texts/${textId}/questionario/respostas`,
+        kind === "lacunas"
+          ? `/api/texts/${textId}/lacunas/respostas`
+          : `/api/texts/${textId}/questionario/respostas`,
         "POST",
-        { answers }
+        kind === "lacunas" ? { answers, ...range } : { answers }
       );
       setResults(data.results);
       setScore(data.score);
@@ -89,6 +143,9 @@ export function QuizSheet({
       setScore(null);
       setAnswers([]);
       setError("");
+      setKind("ia");
+      setRange(null);
+      setFallbackNote("");
     }, 200);
   };
 
@@ -150,6 +207,16 @@ export function QuizSheet({
           </>
         ) : questions ? (
           <>
+            {kind === "lacunas" ? (
+              <div className="space-y-1" data-testid="lacunas-aviso">
+                <p className="text-sm text-muted">
+                  Complete cada frase do trecho com a palavra que estava no texto.
+                </p>
+                {fallbackNote ? (
+                  <p className="text-xs text-faint">{`Perguntas montadas aqui mesmo, sem servico externo. (${fallbackNote})`}</p>
+                ) : null}
+              </div>
+            ) : null}
             <ol className="space-y-5">
               {questions.map((question, index) => (
                 <li key={index} className="space-y-2">
@@ -198,6 +265,11 @@ export function QuizSheet({
             <Button size="lg" full loading={loading} onClick={start}>
               {loading ? <Spinner className="size-5" /> : null}
               {loading ? "Montando as perguntas" : "Comecar"}
+            </Button>
+            {/* Para quem nao quer o texto fora do aparelho: as lacunas sao
+                montadas no proprio servidor do app. */}
+            <Button variant="ghost" full disabled={loading} onClick={startLocal}>
+              Prefiro lacunas, sem servico externo
             </Button>
           </>
         )}

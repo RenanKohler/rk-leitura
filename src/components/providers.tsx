@@ -12,16 +12,14 @@ import {
   type ReactNode,
 } from "react";
 import { CheckIcon } from "@/components/icons";
-import type { FontFamily, ReadingMode } from "@/lib/reading";
+import type { FontFamily } from "@/lib/reading";
+import { THEME_STORAGE_KEY, type ResolvedTheme, type ThemePreference } from "@/lib/theme";
 
 /* -------------------------------------------------------------------------- */
 /* Tema                                                                        */
 /* -------------------------------------------------------------------------- */
 
-export type ThemePreference = "system" | "light" | "dark" | "contrast";
-type ResolvedTheme = "light" | "dark" | "contrast";
-
-const THEME_STORAGE_KEY = "rk-leitura:theme";
+export type { ThemePreference } from "@/lib/theme";
 
 interface ThemeContextValue {
   preference: ThemePreference;
@@ -29,15 +27,6 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
-
-/**
- * Script inline executado antes da primeira pintura. Sem ele a pagina aparece
- * clara por um quadro antes do tema escuro ser aplicado. Repete a regra de
- * `resolveTheme`, que nao pode ser importada por um script em texto.
- */
-export const themeBootstrapScript = `(function(){try{var p=localStorage.getItem(${JSON.stringify(
-  THEME_STORAGE_KEY
-)})||"system";var m=function(q){return window.matchMedia(q).matches};var t=p==="contrast"||(p==="system"&&m("(prefers-contrast: more)"))?"contrast":p==="dark"||(p==="system"&&m("(prefers-color-scheme: dark)"))?"dark":"light";document.documentElement.dataset.theme=t;}catch(e){}})();`;
 
 /**
  * A preferencia vive no localStorage, fora do React. useSyncExternalStore e a
@@ -157,16 +146,19 @@ function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pb-safe pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6 in-data-[sheet=aberta]:bottom-auto in-data-[sheet=aberta]:top-4"
+        // A posicao vem de `.toast-region` (globals.css): acima da barra do
+        // celular, acima do rodape do leitor via --toast-offset, e no topo
+        // quando uma folha esta aberta.
+        className="toast-region pointer-events-none fixed inset-x-0 z-[60] flex flex-col items-center gap-2 px-4"
       >
         {toasts.map((toast) => (
           <div
             key={toast.id}
             className={`animate-rise flex max-w-sm items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium shadow-float ${
               toast.tone === "error"
-                ? "bg-danger text-white"
+                ? "bg-toast-error text-toast-error-ink"
                 : toast.tone === "success"
-                  ? "bg-positive text-white"
+                  ? "bg-toast-success text-toast-success-ink"
                   : "bg-ink text-bg"
             }`}
           >
@@ -282,7 +274,6 @@ export function useAuth() {
 
 export interface ReadingSettings {
   baseWpm: number;
-  wordsPerChunk: number;
   highlightOpacity: number;
   fontScale: number;
   fontFamily: FontFamily;
@@ -291,19 +282,17 @@ export interface ReadingSettings {
   wordEmphasis: boolean;
   adaptiveRhythm: boolean;
   askCheckpoints: boolean;
-  paragraphPause: boolean;
   resumeRewind: boolean;
-  dimLines: boolean;
   eyeRest: boolean;
   timezone: string;
   weeklySummarySeenOn: string | null;
-  readingMode: ReadingMode;
   theme: ThemePreference;
+  /** Guia de primeiro uso do leitor ja visto nesta conta. */
+  readerTipsSeen: boolean;
 }
 
 export const FALLBACK_SETTINGS: ReadingSettings = {
   baseWpm: 300,
-  wordsPerChunk: 1,
   highlightOpacity: 0.35,
   fontScale: 3,
   fontFamily: "sans",
@@ -312,14 +301,12 @@ export const FALLBACK_SETTINGS: ReadingSettings = {
   wordEmphasis: false,
   adaptiveRhythm: true,
   askCheckpoints: false,
-  paragraphPause: false,
   resumeRewind: true,
-  dimLines: false,
-  eyeRest: false,
+  eyeRest: true,
   timezone: "UTC",
   weeklySummarySeenOn: null,
-  readingMode: "rsvp",
   theme: "system",
+  readerTipsSeen: false,
 };
 
 interface SettingsContextValue {

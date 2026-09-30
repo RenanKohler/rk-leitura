@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { sentenceAround, wordAround } from "@/lib/dictionary";
+import { wordIndexFromPoint } from "@/hooks/use-word-selection";
 
 /** Tempo de toque que separa "consultar" de "tocar para seguir". */
 const LONG_PRESS_MS = 450;
@@ -12,6 +13,8 @@ const MOVE_TOLERANCE_PX = 10;
 export interface TouchedWord {
   word: string;
   context: string;
+  /** Indice da palavra no texto, quando o toque caiu num pedaco com `data-start`. */
+  index?: number;
 }
 
 /**
@@ -25,6 +28,8 @@ export function useWordTouch(enabled: boolean): {
   touched: TouchedWord | null;
   clear: () => void;
   open: (word: TouchedWord) => void;
+  /** O ultimo toque longo aconteceu ha menos de `withinMs`: o clique que vem junto nao e toque simples. */
+  recentLongPress: (withinMs?: number) => boolean;
   handlers: {
     onPointerDown: (event: React.PointerEvent) => void;
     onPointerUp: () => void;
@@ -35,6 +40,7 @@ export function useWordTouch(enabled: boolean): {
   const [touched, setTouched] = useState<TouchedWord | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const origin = useRef({ x: 0, y: 0 });
+  const longPressAt = useRef(0);
 
   const cancel = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -53,6 +59,7 @@ export function useWordTouch(enabled: boolean): {
         if (found) {
           // O toque longo do sistema abriria a selecao por cima do painel.
           window.getSelection()?.removeAllRanges();
+          longPressAt.current = Date.now();
           setTouched(found);
         }
       }, LONG_PRESS_MS);
@@ -70,18 +77,24 @@ export function useWordTouch(enabled: boolean): {
     [cancel]
   );
 
+  // Objeto estavel: a pagina e memoizada e nao pode re-renderizar so porque
+  // o leitor renderizou (o Word Runner renderiza a cada palavra).
+  const handlers = useMemo(
+    () => ({ onPointerDown, onPointerUp: cancel, onPointerMove, onPointerCancel: cancel }),
+    [onPointerDown, cancel, onPointerMove]
+  );
+
   return {
     touched,
     clear: useCallback(() => setTouched(null), []),
-    // O modo Foco abre o painel sem toque longo: la a palavra ja esta
-    // escolhida pela posicao da leitura.
+    // Abre o painel sem toque longo: pelo teclado, a palavra ja esta escolhida
+    // pela posicao da leitura.
     open: useCallback((chosen: TouchedWord) => setTouched(chosen), []),
-    handlers: {
-      onPointerDown,
-      onPointerUp: cancel,
-      onPointerMove,
-      onPointerCancel: cancel,
-    },
+    recentLongPress: useCallback(
+      (withinMs = 700) => Date.now() - longPressAt.current < withinMs,
+      []
+    ),
+    handlers,
   };
 }
 
@@ -94,7 +107,12 @@ function wordAtPoint(x: number, y: number): TouchedWord | null {
   const word = wordAround(text, position.offset);
   if (!word) return null;
 
-  return { word, context: sentenceAround(text, position.offset) };
+  const index = wordIndexFromPoint(x, y);
+  return {
+    word,
+    context: sentenceAround(text, position.offset),
+    ...(index !== null ? { index } : {}),
+  };
 }
 
 /** `caretPositionFromPoint` com o nome antigo do WebKit como reserva. */

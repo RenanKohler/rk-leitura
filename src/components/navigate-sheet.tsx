@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiSend } from "@/lib/client";
 import { Alert, Button, Sheet } from "@/components/ui";
 import { BookmarkIcon, TrashIcon } from "@/components/icons";
+import { XrayPanel } from "@/components/xray-panel";
 import {
   bookmarkLabel,
   currentHeading,
@@ -45,6 +46,7 @@ export function NavigateSheet({
   onGo: (position: number) => void;
 }) {
   const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState(0);
   const results = useMemo(() => searchWords(words, query), [words, query]);
   const headings = useMemo(() => textHeadings(paragraphs), [paragraphs]);
@@ -54,6 +56,7 @@ export function NavigateSheet({
   const [label, setLabel] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showNames, setShowNames] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -116,7 +119,8 @@ export function NavigateSheet({
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Navegar no texto">
+    // A folha abre para buscar: o foco vai direto ao campo (A11Y-13).
+    <Sheet open={open} onClose={onClose} title="Navegar no texto" initialFocus={searchRef}>
       <div className="space-y-6">
         {error ? <Alert>{error}</Alert> : null}
 
@@ -126,6 +130,7 @@ export function NavigateSheet({
           </label>
           <input
             id="busca-texto"
+            ref={searchRef}
             type="search"
             value={query}
             onChange={(event) => {
@@ -155,10 +160,10 @@ export function NavigateSheet({
                     {`${selected + 1} de ${results.length}${results.length >= MAX_SEARCH_RESULTS ? "+" : ""}`}
                   </p>
                   <div className="flex gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => step(-1)}>
+                    <Button variant="secondary" className="min-w-11" onClick={() => step(-1)}>
                       Anterior
                     </Button>
-                    <Button variant="secondary" size="sm" onClick={() => step(1)}>
+                    <Button variant="secondary" className="min-w-11" onClick={() => step(1)}>
                       Proximo
                     </Button>
                   </div>
@@ -173,7 +178,7 @@ export function NavigateSheet({
                           onClose();
                         }}
                         aria-current={position === selected ? "true" : undefined}
-                        className={`w-full rounded-lg px-2 py-2 text-left text-sm ${
+                        className={`min-h-11 w-full rounded-lg px-2 py-2 text-left text-sm ${
                           position === selected ? "bg-accent-soft" : "hover:bg-surface-2"
                         }`}
                       >
@@ -265,6 +270,30 @@ export function NavigateSheet({
               })}
             </ul>
           )}
+        </section>
+
+        {/* Nomes do texto (PROD-11). Calculado so quando aberto: varre o texto
+            inteiro, e a maioria das consultas a folha e busca ou marcador. */}
+        <section className="space-y-2" aria-label="Nomes">
+          <button
+            type="button"
+            aria-expanded={showNames}
+            onClick={() => setShowNames((value) => !value)}
+            className="flex min-h-11 w-full items-center justify-between rounded-lg px-2 text-left text-sm font-medium text-muted hover:bg-surface-2"
+          >
+            Nomes no texto
+            <span aria-hidden="true">{showNames ? "\u2212" : "+"}</span>
+          </button>
+          {showNames ? (
+            <XrayPanel
+              words={words}
+              paragraphs={paragraphs}
+              onGo={(position) => {
+                onGo(position);
+                onClose();
+              }}
+            />
+          ) : null}
         </section>
       </div>
     </Sheet>

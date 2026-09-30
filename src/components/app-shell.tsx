@@ -2,27 +2,80 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useAuth } from "@/components/providers";
 import {
-  HistoryIcon,
   HomeIcon,
   LibraryIcon,
   LogoMark,
   LogoutIcon,
   PlusIcon,
   SettingsIcon,
+  UserIcon,
 } from "@/components/icons";
 
+/**
+ * Destinos principais (APP-6).
+ *
+ * "Voce" entrou no lugar de "Historico": Estatisticas, Palavras e revisao e
+ * Treino so eram alcancaveis de dentro de Ajustes, e ninguem procura o
+ * proprio progresso na tela de preferencias. O hub junta essas telas e o
+ * historico; `also` lista as rotas que acendem a aba mesmo fora do caminho
+ * dela.
+ */
 const NAV = [
-  { href: "/dashboard", label: "Inicio", Icon: HomeIcon },
-  { href: "/textos", label: "Textos", Icon: LibraryIcon },
-  { href: "/historico", label: "Historico", Icon: HistoryIcon },
-  { href: "/ajustes", label: "Ajustes", Icon: SettingsIcon },
+  { href: "/dashboard", label: "Inicio", Icon: HomeIcon, also: [] },
+  { href: "/textos", label: "Textos", Icon: LibraryIcon, also: [] },
+  {
+    href: "/voce",
+    label: "Voce",
+    Icon: UserIcon,
+    also: ["/historico", "/estatisticas", "/palavras", "/treino"],
+  },
+  { href: "/ajustes", label: "Ajustes", Icon: SettingsIcon, also: [] },
 ] as const;
 
-function isActive(pathname: string, href: string) {
+type NavItem = (typeof NAV)[number];
+
+/**
+ * Titulo da aba para rotas que ainda nao exportam `metadata` (A11Y-15).
+ *
+ * Cada rota deveria declarar o proprio titulo; estas pertencem a telas em
+ * reescrita e continuam so com o titulo generico do app, que o leitor de tela
+ * anuncia igual em toda navegacao. Ate elas ganharem `metadata`, o titulo
+ * vem daqui. A primeira correspondencia vence, entao a rota mais especifica
+ * vem antes.
+ */
+const FALLBACK_TITLES: [prefix: string, title: string][] = [
+  ["/palavras/revisar", "Revisao de palavras"],
+  ["/palavras", "Palavras"],
+  ["/estatisticas", "Estatisticas"],
+  ["/treino", "Treino"],
+];
+
+function useFallbackTitle(pathname: string) {
+  useEffect(() => {
+    const found = FALLBACK_TITLES.find(([prefix]) => matches(pathname, prefix));
+    if (!found) return;
+    const wanted = `${found[1]} | Leitura`;
+    const apply = () => {
+      if (document.title !== wanted) document.title = wanted;
+    };
+    apply();
+    // O Next escreve o titulo padrao ao terminar a navegacao, as vezes depois
+    // deste efeito; o observador reaplica enquanto a rota for esta.
+    const observer = new MutationObserver(apply);
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [pathname]);
+}
+
+function matches(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function isActive(pathname: string, item: NavItem) {
+  return matches(pathname, item.href) || item.also.some((href) => matches(pathname, href));
 }
 
 /**
@@ -36,15 +89,32 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const immersive = pathname.startsWith("/leitor/");
+  useFallbackTitle(pathname);
 
   if (immersive) return <>{children}</>;
 
   return (
     <div className="min-h-dvh">
+      {/* Primeira parada de Tab (A11Y-15): sem ele, quem navega por teclado
+          atravessa a navegacao inteira em toda tela antes do conteudo. */}
+      <a
+        href="#conteudo"
+        className="sr-only rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-ink focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70]"
+      >
+        Pular para o conteudo
+      </a>
+
       <DesktopSidebar pathname={pathname} name={user?.name} email={user?.email} onLogout={logout} />
 
       <div className="lg:pl-64">
-        <main className="mx-auto w-full max-w-3xl px-4 pt-4 pb-28 sm:px-6 lg:pb-10">{children}</main>
+        <main
+          id="conteudo"
+          // Alvo do link acima: sem tabIndex o foco nao chega ao main.
+          tabIndex={-1}
+          className="mx-auto w-full max-w-3xl px-4 pt-4 pb-28 focus:outline-none sm:px-6 lg:pb-10"
+        >
+          {children}
+        </main>
       </div>
 
       <MobileTabBar pathname={pathname} />
@@ -70,9 +140,10 @@ function DesktopSidebar({
         <span className="text-lg font-semibold tracking-tight">Leitura</span>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3">
-        {NAV.map(({ href, label, Icon }) => {
-          const active = isActive(pathname, href);
+      <nav aria-label="Navegacao principal" className="flex-1 space-y-1 px-3">
+        {NAV.map((item) => {
+          const { href, label, Icon } = item;
+          const active = isActive(pathname, item);
           return (
             <Link
               key={href}
@@ -111,7 +182,7 @@ function DesktopSidebar({
             onClick={onLogout}
             aria-label="Sair"
             title="Sair"
-            className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
           >
             <LogoutIcon className="size-5" />
           </button>
@@ -127,11 +198,13 @@ function MobileTabBar({ pathname }: { pathname: string }) {
   return (
     <nav
       aria-label="Navegacao principal"
+      // Marca para os avisos flutuantes subirem acima da barra (globals.css).
+      data-tabbar=""
       className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur-lg lg:hidden"
     >
       <div className="mx-auto grid max-w-md grid-cols-5 items-center px-1">
-        <TabLink {...first} active={isActive(pathname, first.href)} />
-        <TabLink {...second} active={isActive(pathname, second.href)} />
+        <TabLink {...first} active={isActive(pathname, first)} />
+        <TabLink {...second} active={isActive(pathname, second)} />
 
         <div className="flex justify-center">
           <Link
@@ -143,8 +216,8 @@ function MobileTabBar({ pathname }: { pathname: string }) {
           </Link>
         </div>
 
-        <TabLink {...third} active={isActive(pathname, third.href)} />
-        <TabLink {...fourth} active={isActive(pathname, fourth.href)} />
+        <TabLink {...third} active={isActive(pathname, third)} />
+        <TabLink {...fourth} active={isActive(pathname, fourth)} />
       </div>
     </nav>
   );

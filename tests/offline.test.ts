@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { newerPosition, OFFLINE_TEXTS, queueable } from "@/lib/offline";
+import {
+  acceptsPosition,
+  LIVE_SAVE_WINDOW_MS,
+  newerPosition,
+  OFFLINE_TEXTS,
+  queueable,
+} from "@/lib/offline";
 
 describe("queueable", () => {
   it("aceita o salvamento de posicao", () => {
@@ -54,6 +60,40 @@ describe("newerPosition", () => {
 
   it("data invalida conta como ausente", () => {
     expect(newerPosition({ progressIndex: 40, at: "ontem" }, { progressIndex: 90 })).toBe(90);
+  });
+});
+
+describe("acceptsPosition", () => {
+  const servidor = new Date("2026-09-19T12:00:00Z");
+  const gravadoAgora = new Date("2026-09-19T11:59:58Z");
+
+  it("save feito agora vence mesmo com o relogio do aparelho atrasado", () => {
+    // Aparelho 3 minutos atrasado: o `at` e anterior a ultima gravacao, que
+    // usou a hora do servidor. Antes o save era descartado em silencio.
+    expect(acceptsPosition("2026-09-19T11:57:00Z", gravadoAgora, servidor)).toBe(true);
+  });
+
+  it("save feito agora vence com o relogio adiantado", () => {
+    expect(acceptsPosition("2026-09-19T12:04:00Z", gravadoAgora, servidor)).toBe(true);
+  });
+
+  it("save da fila offline mais antigo que a ultima gravacao perde", () => {
+    expect(acceptsPosition("2026-09-19T09:00:00Z", gravadoAgora, servidor)).toBe(false);
+  });
+
+  it("save da fila offline mais novo que a ultima gravacao vence", () => {
+    const gravadoCedo = new Date("2026-09-19T08:00:00Z");
+    expect(acceptsPosition("2026-09-19T09:00:00Z", gravadoCedo, servidor)).toBe(true);
+  });
+
+  it("sem data, ou com data invalida, e um save de agora", () => {
+    expect(acceptsPosition(null, gravadoAgora, servidor)).toBe(true);
+    expect(acceptsPosition("ontem", gravadoAgora, servidor)).toBe(true);
+  });
+
+  it("a janela de agora tem cinco minutos", () => {
+    const limite = new Date(servidor.getTime() - LIVE_SAVE_WINDOW_MS).toISOString();
+    expect(acceptsPosition(limite, gravadoAgora, servidor)).toBe(false);
   });
 });
 

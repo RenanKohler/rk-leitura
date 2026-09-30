@@ -81,8 +81,8 @@ async function seed() {
   await db.insert(speedSettings).values({
     userId: user.id,
     baseWpm: 320,
-    wordsPerChunk: 1,
-    readingMode: "rsvp",
+    // Padrao de conta nova (PROD-16); a coluna ainda nasce desligada.
+    eyeRest: true,
   });
 
   const created = [];

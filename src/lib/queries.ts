@@ -37,7 +37,7 @@ import { excerptOf } from "@/lib/highlights";
 import { MAX_SAVED_WORDS } from "@/lib/dictionary";
 import { tagKey } from "@/lib/tags";
 import { cleanTitle, nextChapterUrl } from "@/lib/series";
-import { REVIEW_SESSION_SIZE } from "@/lib/vocabulary";
+import { currentInterval, REVIEW_SESSION_SIZE } from "@/lib/vocabulary";
 import {
   effectiveWpm,
   fitParagraphEnd,
@@ -97,9 +97,7 @@ import type {
 
 export const DEFAULT_SETTINGS: SettingsPayload = {
   baseWpm: 300,
-  wordsPerChunk: 1,
   highlightOpacity: 0.35,
-  readingMode: "rsvp",
   theme: "system",
   fontScale: 3,
   fontFamily: "sans",
@@ -108,15 +106,14 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   wordEmphasis: false,
   adaptiveRhythm: true,
   askCheckpoints: false,
-  paragraphPause: false,
   resumeRewind: true,
-  dimLines: false,
-  eyeRest: false,
+  eyeRest: true,
   timezone: "UTC",
   weeklySummarySeenOn: null,
   placementWpm: null,
   placementSeen: false,
   reminderHour: null,
+  readerTipsSeen: false,
 };
 
 export interface Page<T> {
@@ -206,9 +203,7 @@ function settingsFrom(row: typeof speedSettings.$inferSelect | null): SettingsPa
 
   return {
     baseWpm: row.baseWpm,
-    wordsPerChunk: row.wordsPerChunk,
     highlightOpacity: row.highlightOpacity,
-    readingMode: row.readingMode as SettingsPayload["readingMode"],
     theme: row.theme as SettingsPayload["theme"],
     fontScale: row.fontScale,
     fontFamily: asFontFamily(row.fontFamily),
@@ -217,15 +212,14 @@ function settingsFrom(row: typeof speedSettings.$inferSelect | null): SettingsPa
     wordEmphasis: row.wordEmphasis,
     adaptiveRhythm: row.adaptiveRhythm,
     askCheckpoints: row.askCheckpoints,
-    paragraphPause: row.paragraphPause,
     resumeRewind: row.resumeRewind,
-    dimLines: row.dimLines,
     eyeRest: row.eyeRest,
     timezone: asTimezone(row.timezone),
     weeklySummarySeenOn: row.weeklySummarySeenOn,
     placementWpm: row.placementWpm,
     placementSeen: row.placementSeenAt !== null,
     reminderHour: row.reminderHour,
+    readerTipsSeen: row.readerTipsSeen,
   };
 }
 
@@ -422,7 +416,7 @@ export async function loadSessions(
 export async function loadOverview(
   userId: string
 ): Promise<{ stats: DashboardStats; continueReading: ContinueReading | null }> {
-  const [[totals], [textTotals], [continueReading]] = await Promise.all([
+  const [[totals], library, [continueReading]] = await Promise.all([
     db
       .select({
         sessions: count(),
@@ -433,7 +427,9 @@ export async function loadOverview(
       .from(readingSessions)
       .where(eq(readingSessions.userId, userId)),
 
-    db.select({ texts: count() }).from(texts).where(eq(texts.userId, userId)),
+    // Mesma conta do rotulo da biblioteca no filtro padrao (Ativos): sem
+    // largados e sem arquivados (APP-13).
+    countLibrary(userId),
 
     // Leitura em andamento mais recente: comecada e ainda nao terminada.
     db
@@ -458,7 +454,7 @@ export async function loadOverview(
 
   return {
     stats: {
-      texts: textTotals?.texts ?? 0,
+      texts: library.texts,
       sessions: totals?.sessions ?? 0,
       wordsRead: totals?.wordsRead ?? 0,
       avgWpm: totals?.avgWpm ?? 0,
@@ -856,23 +852,82 @@ async function tagsByText(textIds: string[]): Promise<Map<string, string[]>> {
   return byText;
 }
 
-/** Etiquetas da conta com quantos textos cada uma tem. */
+/**
+ * Etiquetas da conta com quantos textos cada uma tem.
+ *
+ * A contagem e a que a biblioteca mostraria ao tocar na etiqueta, no filtro
+ * padrao (APP-13): sem largados, e com a aba decidida por grupo como na
+ * lista. Antes contava todo vinculo, e a etiqueta dizia 5 onde a lista
+ * filtrada mostrava 3.
+ */
 export async function loadTags(userId: string): Promise<TagSummary[]> {
-  const rows = await db
-    .select({
-      id: tags.id,
-      name: tags.name,
-      texts: sql<number>`count(${textTags.textId})::int`,
-    })
-    .from(tags)
-    .leftJoin(textTags, eq(textTags.tagId, tags.id))
-    .where(eq(tags.userId, userId))
-    .groupBy(tags.id, tags.name);
+  const where = textsWhere(userId, {}, { withScope: false });
+  const [rows, counted] = await Promise.all([
+    db
+      .select({ id: tags.id, name: tags.name })
+      .from(tags)
+      .where(eq(tags.userId, userId)),
+    db
+      .select({
+        tagId: sql<string>`tag_id`,
+        texts: sql<number>`coalesce(sum(n), 0)::int`,
+      })
+      .from(
+        sql`(select ${textTags.tagId} as tag_id, ${groupKey} as k, count(*) as n
+             from ${texts} join ${textTags} on ${textTags.textId} = ${texts.id}
+             where ${where}
+             group by 1, 2
+             having ${scopeHavingFor({})}) as grupos`
+      )
+      .groupBy(sql`tag_id`),
+  ]);
 
-  return rows.sort((a, b) => tagKey(a.name).localeCompare(tagKey(b.name)));
+  const byTag = new Map(counted.map((row) => [row.tagId, row.texts]));
+  return rows
+    .map((row) => ({ ...row, texts: byTag.get(row.id) ?? 0 }))
+    .sort((a, b) => tagKey(a.name).localeCompare(tagKey(b.name)));
 }
 
 /* --- biblioteca agrupada por serie --------------------------------------- */
+
+/** Texto solto forma um grupo de um: o id serve de chave. */
+const groupKey = sql`coalesce(${texts.seriesKey}, ${texts.id}::text)`;
+
+/**
+ * A aba decide por grupo: uma serie so esta arquivada quando todos os
+ * capitulos estao. Sem isto, concluir o capitulo 1 faria a mesma serie
+ * aparecer nas duas abas ao mesmo tempo.
+ */
+function scopeHavingFor(filters: TextFilters): SQL {
+  return (filters.scope ?? DEFAULT_SCOPE) === "arquivados"
+    ? sql`bool_and(${texts.archivedAt} is not null)`
+    : sql`bool_or(${texts.archivedAt} is null)`;
+}
+
+/**
+ * Quantos itens e quantos textos a biblioteca mostra com estes filtros.
+ *
+ * Dois numeros: grupos para a paginacao, textos para o rotulo. Um cartao de
+ * serie e um item da lista e varios textos da biblioteca. E a mesma conta
+ * que o painel usa no numero de textos (APP-13): antes o painel contava tudo,
+ * inclusive largados e arquivados, e a biblioteca so os ativos - a mesma
+ * conta mostrava dois totais diferentes.
+ */
+export async function countLibrary(
+  userId: string,
+  filters: TextFilters = {}
+): Promise<{ value: number; texts: number }> {
+  const where = textsWhere(userId, filters, { withScope: false });
+  const [totals] = await db
+    .select({
+      value: sql<number>`count(*)::int`,
+      texts: sql<number>`coalesce(sum(n), 0)::int`,
+    })
+    .from(
+      sql`(select ${groupKey} as k, count(*) as n from ${texts} where ${where} group by 1 having ${scopeHavingFor(filters)}) as grupos`
+    );
+  return { value: totals?.value ?? 0, texts: totals?.texts ?? 0 };
+}
 
 /**
  * A biblioteca como ela e mostrada: um item por texto solto e um por serie.
@@ -888,18 +943,9 @@ export async function loadLibrary(
   filters: TextFilters = {}
 ): Promise<Page<LibraryItem> & { texts: number }> {
   const where = textsWhere(userId, filters, { withScope: false });
-  // Texto solto forma um grupo de um: o id serve de chave.
-  const groupKey = sql`coalesce(${texts.seriesKey}, ${texts.id}::text)`;
+  const scopeHaving = scopeHavingFor(filters);
 
-  // A aba decide por grupo: uma serie so esta arquivada quando todos os
-  // capitulos estao. Sem isto, concluir o capitulo 1 faria a mesma serie
-  // aparecer nas duas abas ao mesmo tempo.
-  const scopeHaving =
-    (filters.scope ?? DEFAULT_SCOPE) === "arquivados"
-      ? sql`bool_and(${texts.archivedAt} is not null)`
-      : sql`bool_or(${texts.archivedAt} is null)`;
-
-  const [groups, [totals]] = await Promise.all([
+  const [groups, totals] = await Promise.all([
     db
       .select({ key: sql<string>`${groupKey}`, recent: sql<Date>`max(${texts.createdAt})` })
       .from(texts)
@@ -909,16 +955,7 @@ export async function loadLibrary(
       .orderBy(desc(sql`max(${texts.createdAt})`))
       .limit(perPage)
       .offset((page - 1) * perPage),
-    // Dois numeros: grupos para a paginacao, textos para o rotulo. Um cartao
-    // de serie e um item da lista e varios textos da biblioteca.
-    db
-      .select({
-        value: sql<number>`count(*)::int`,
-        texts: sql<number>`coalesce(sum(n), 0)::int`,
-      })
-      .from(
-        sql`(select ${groupKey} as k, count(*) as n from ${texts} where ${where} group by 1 having ${scopeHaving}) as grupos`
-      ),
+    countLibrary(userId, filters),
   ]);
 
   if (groups.length === 0) {
@@ -1209,6 +1246,8 @@ export async function loadReview(userId: string): Promise<ReviewSession> {
         translation: savedWords.translation,
         context: savedWords.context,
         textTitle: texts.title,
+        step: savedWords.reviewStep,
+        storedInterval: savedWords.reviewInterval,
       })
       .from(savedWords)
       .leftJoin(texts, eq(texts.id, savedWords.textId))
@@ -1224,7 +1263,10 @@ export async function loadReview(userId: string): Promise<ReviewSession> {
   ]);
 
   return {
-    cards,
+    cards: cards.map(({ step, storedInterval, ...card }) => ({
+      ...card,
+      interval: currentInterval(storedInterval, step),
+    })),
     due: dueCount?.value ?? 0,
     nextReviewOn: upcoming?.day ?? null,
     totalWords: all?.value ?? 0,
@@ -1267,6 +1309,7 @@ const WINDOW_SUGGESTIONS = 3;
 export async function loadTimeWindow(userId: string, minutes: number): Promise<TimeWindow> {
   const [pace, settings] = await Promise.all([loadPace(userId), loadSettings(userId)]);
   const warmup = settings?.warmup ?? true;
+  const adaptive = settings?.adaptiveRhythm ?? DEFAULT_SETTINGS.adaptiveRhythm;
   const budget = minutes * 60_000;
 
   const readable = and(
@@ -1281,6 +1324,7 @@ export async function loadTimeWindow(userId: string, minutes: number): Promise<T
     title: texts.title,
     content: texts.content,
     format: texts.format,
+    language: texts.language,
     progressIndex: texts.progressIndex,
     wordCount: texts.wordCount,
     queuePosition: texts.queuePosition,
@@ -1302,8 +1346,14 @@ export async function loadTimeWindow(userId: string, minutes: number): Promise<T
 
   const fit = (rows: typeof queued, source: TimeSuggestion["source"]): TimeSuggestion[] =>
     rows.flatMap((row) => {
-      const { paragraphs } = parseParagraphs(row.content, asTextFormat(row.format));
-      const slice = fitParagraphEnd(paragraphs, row.progressIndex, budget, pace.wpm, warmup);
+      const { words, paragraphs } = parseParagraphs(row.content, asTextFormat(row.format));
+      // O ritmo medido nao tem as pausas de pontuacao (o leitor as desconta),
+      // entao a previsao soma as pausas e a rampa como a tela vai executar.
+      const slice = fitParagraphEnd(paragraphs, row.progressIndex, budget, pace.wpm, warmup, {
+        words,
+        adaptive,
+        language: row.language,
+      });
       if (!slice) return [];
       return [
         {
@@ -1333,7 +1383,7 @@ export async function loadTimeWindow(userId: string, minutes: number): Promise<T
 
 /**
  * Palavras que o leitor ja consultou e ainda nao marcou como aprendidas, no
- * idioma do texto: o modo Foco da mais tempo a elas (US-88).
+ * idioma do texto: o Word Runner da mais tempo a elas (US-88).
  */
 export async function loadKnownWords(userId: string, language: string): Promise<string[]> {
   const rows = await db

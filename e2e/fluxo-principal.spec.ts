@@ -31,7 +31,7 @@ test("cadastro, texto colado, leitura no Word Runner e historico", async ({ page
   await updateSettings(page.request, { baseWpm: 1200, warmup: false });
 
   await page.goto("/textos/novo");
-  await page.getByRole("button", { name: "Colar" }).click();
+  await page.getByRole("radio", { name: "Colar" }).click();
   await page.getByRole("textbox", { name: "Titulo" }).fill("Texto do teste de ponta a ponta");
   await page.getByRole("textbox", { name: "Texto" }).fill(sampleText(40));
   await page.getByRole("button", { name: "Salvar e ler" }).click();
@@ -58,8 +58,9 @@ test("a pagina vira por toque lateral e grava a pagina exibida", async ({ page }
   const counter = page.getByText(/^Pagina \d+ de \d+$/);
   await expect(counter).toHaveText(/^Pagina 1 de \d+$/);
 
-  // A zona de toque fica sobre o texto; o botao do rodape tem o mesmo rotulo.
-  await page.locator("main").getByRole("button", { name: "Proxima pagina" }).click();
+  // Toque na borda direita do texto vira a pagina.
+  const box = (await page.locator("main").boundingBox())!;
+  await page.mouse.click(box.x + box.width - 8, box.y + box.height / 2);
   await expect(counter).toHaveText(/^Pagina 2 de \d+$/);
 
   // Sair do leitor grava a posicao.
@@ -92,10 +93,35 @@ test("o Word Runner roda sobre a pagina e pausar volta a ela", async ({ page }) 
   const current = runner.locator("[data-current]");
   await expect(current).toHaveCount(1);
   await expect(current).toHaveText(/^\S+$/);
-  await expect(page.locator("header p.tabular")).toContainText(/^[3-9] \//, { timeout: 10_000 });
+  await expect(page.locator("header .tabular")).toContainText(/^[3-9] \//, { timeout: 10_000 });
 
   await runner.click();
   await expect(runner).toHaveCount(0);
   await expect(page.getByTestId("palavra-atual")).toBeVisible();
   await expect(page.getByText(/^Pagina 1 de \d+$/)).toBeVisible();
+});
+
+/**
+ * APP-11: formato desconhecido e recusado antes de chegar ao leitor de PDF,
+ * e .txt entra como texto simples.
+ */
+test("importacao de arquivo recusa formato desconhecido e aceita .txt", async ({ page }) => {
+  await registerByApi(page.request);
+  await page.goto("/textos/novo");
+  await page.getByRole("radio", { name: "Arquivo" }).click();
+  const input = page.locator('input[type="file"]');
+
+  await input.setInputFiles({ name: "foto.png", mimeType: "image/png", buffer: Buffer.from("png") });
+  await expect(
+    page.getByText("Formato nao suportado. Use PDF, EPUB, DOCX, MD ou TXT")
+  ).toBeVisible();
+  await expect(page.getByText(/Invalid PDF/)).toHaveCount(0);
+
+  await input.setInputFiles({
+    name: "conto curto.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from(sampleText(30)),
+  });
+  await expect(page.getByRole("textbox", { name: "Titulo" })).toHaveValue("conto curto");
+  await expect(page.getByText("30 palavras")).toBeVisible();
 });

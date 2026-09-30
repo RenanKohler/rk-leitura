@@ -152,6 +152,54 @@ describe("extractTextFromHtml: titulo", () => {
     expect(extractTextFromHtml(html).title).toBe("Fim - Nome do Site");
   });
 
+  it("na Wikipedia usa o nome do artigo, e nao a descricao curta do headline", () => {
+    // Recorte do JSON-LD real de um artigo da Wikipedia: `headline` e a
+    // descricao curta do Wikidata; `name` e o titulo que a pagina mostra.
+    const html = `<!doctype html><html><head>
+      <title>Brasil – Wikipédia, a enciclopédia livre</title>
+      <meta property="og:title" content="Brasil – Wikipédia, a enciclopédia livre">
+      <script type="application/ld+json">${JSON.stringify({
+        "@context": "https://schema.org",
+        "@type": "Article",
+        name: "Brasil",
+        url: "https://pt.wikipedia.org/wiki/Brasil",
+        sameAs: "http://www.wikidata.org/entity/Q155",
+        mainEntity: "http://www.wikidata.org/entity/Q155",
+        author: { "@type": "Organization", name: "Contribuidores dos projetos da Wikimedia" },
+        publisher: { "@type": "Organization", name: "Wikimedia Foundation, Inc." },
+        datePublished: "2001-06-26T19:05:36Z",
+        headline: "país da América do Sul",
+      })}</script>
+    </head><body><div itemprop="articleBody">${paragrafos(CORPO)}</div></body></html>`;
+
+    expect(extractTextFromHtml(html).title).toBe("Brasil");
+  });
+
+  it("sem name correspondente, cai no og:title quando o headline difere", () => {
+    const html = `<!doctype html><html><head>
+      <meta property="og:title" content="Titulo mostrado na pagina">
+      <script type="application/ld+json">${JSON.stringify({
+        "@type": "Article",
+        headline: "Descricao que nao e o titulo",
+      })}</script>
+    </head><body><div itemprop="articleBody">${paragrafos(CORPO)}</div></body></html>`;
+
+    expect(extractTextFromHtml(html).title).toBe("Titulo mostrado na pagina");
+  });
+
+  it("mantem o headline quando ele aparece no titulo da pagina", () => {
+    const html = `<!doctype html><html><head>
+      <title>Uma historia na cabana | Nome do Jornal</title>
+      <script type="application/ld+json">${JSON.stringify({
+        "@type": "NewsArticle",
+        headline: "Uma historia na cabana",
+        name: "Nome do Jornal",
+      })}</script>
+    </head><body><div itemprop="articleBody">${paragrafos(CORPO)}</div></body></html>`;
+
+    expect(extractTextFromHtml(html).title).toBe("Uma historia na cabana");
+  });
+
   it("usa um rotulo proprio quando nao ha titulo algum", () => {
     expect(extractTextFromHtml("<html><body><p>oi</p></body></html>").title).toBe("Sem titulo");
   });

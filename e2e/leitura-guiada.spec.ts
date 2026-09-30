@@ -70,7 +70,7 @@ test("largar tira o texto da lista e retomar o devolve", async ({ page }) => {
   await expect(page.getByText("Texto que vai ser largado")).toBeVisible();
 
   await page.getByRole("button", { name: "Retomar" }).click();
-  await page.getByRole("button", { name: "Todos" }).click();
+  await page.getByRole("button", { name: "Ativos" }).click();
   await expect(page.getByText("Texto que vai ser largado")).toBeVisible();
 });
 

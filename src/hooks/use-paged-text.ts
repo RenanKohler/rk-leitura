@@ -22,7 +22,13 @@ const MAX_WORDS_PER_PAGE = 800;
  * Cada pagina comeca no inicio de uma linha, entao o que foi medido e
  * exatamente o que aparece na tela.
  */
-export function usePagedText(paragraphs: Paragraph[], totalWords: number, emphasis = false) {
+export function usePagedText(
+  paragraphs: Paragraph[],
+  totalWords: number,
+  emphasis = false,
+  /** Tipografia (tamanho, fonte, entrelinha): muda a quebra sem mudar o quadro. */
+  layoutKey = ""
+) {
   // Ref de callback em vez de objeto: o modo Paginas so monta depois que as
   // preferencias chegam do servidor, entao ao abrir o leitor direto pela URL o
   // efeito rodava com a referencia ainda vazia e nunca voltava a rodar - nenhuma
@@ -31,6 +37,10 @@ export function usePagedText(paragraphs: Paragraph[], totalWords: number, emphas
   const rulerRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<number[]>([0]);
   const [ready, setReady] = useState(false);
+  // Medidas da ultima paginacao. O ResizeObserver dispara por qualquer
+  // mudanca de caixa - inclusive as que nao mudam o tamanho -, e paginar o
+  // texto inteiro de novo custa segundos em textos longos.
+  const measuredRef = useRef<{ key: string } | null>(null);
 
   const measure = useCallback(() => {
     const ruler = rulerRef.current;
@@ -38,6 +48,10 @@ export function usePagedText(paragraphs: Paragraph[], totalWords: number, emphas
 
     const height = frame.clientHeight;
     if (height <= 0) return;
+
+    const key = `${frame.clientWidth}x${height}:${fontsKey()}:${layoutKey}`;
+    if (measuredRef.current?.key === key) return;
+    measuredRef.current = { key };
 
     if (totalWords === 0) {
       setPages([0]);
@@ -47,7 +61,13 @@ export function usePagedText(paragraphs: Paragraph[], totalWords: number, emphas
 
     setPages(computePageStarts(ruler, paragraphs, totalWords, height, emphasis));
     setReady(true);
-  }, [frame, paragraphs, totalWords, emphasis]);
+  }, [frame, paragraphs, totalWords, emphasis, layoutKey]);
+
+  // Texto, enfase ou tipografia novos invalidam a medida guardada, mesmo com
+  // o quadro do mesmo tamanho.
+  useEffect(() => {
+    measuredRef.current = null;
+  }, [paragraphs, totalWords, emphasis, layoutKey]);
 
   useEffect(() => {
     if (!frame) return;
@@ -85,7 +105,7 @@ function computePageStarts(
 
   while (start < totalWords) {
     const fitting = wordsThatFit(ruler, paragraphs, totalWords, start, height, emphasis);
-    const next = start + fitting;
+    const next = withoutOrphanHeading(paragraphs, start, start + fitting);
     if (next >= totalWords) break;
     starts.push(next);
     start = next;
@@ -93,6 +113,34 @@ function computePageStarts(
 
   ruler.replaceChildren();
   return starts;
+}
+
+/**
+ * Fim de pagina que nao deixa um titulo sozinho no pe: o titulo desce para a
+ * pagina seguinte junto com o bloco que ele abre. So quando sobra conteudo
+ * antes dele - senao a pagina ficaria vazia.
+ */
+function withoutOrphanHeading(paragraphs: Paragraph[], start: number, end: number): number {
+  const slice = sliceParagraphs(paragraphs, start, end);
+  const last = slice[slice.length - 1];
+  if (!last || slice.length < 2) return end;
+  const isHeading = last.kind === "h1" || last.kind === "h2" || last.kind === "h3";
+  const complete = !last.continued && last.start + last.words.length === end;
+  return isHeading && complete ? last.start : end;
+}
+
+/**
+ * Chave das fontes carregadas: a fonte web que chega depois muda a quebra de
+ * linha e precisa invalidar a medida mesmo sem mudar o tamanho do quadro.
+ */
+function fontsKey(): string {
+  const fonts = typeof document !== "undefined" ? document.fonts : undefined;
+  if (!fonts) return "";
+  let loaded = 0;
+  fonts.forEach((face) => {
+    if (face.status === "loaded") loaded += 1;
+  });
+  return String(loaded);
 }
 
 /** Maior quantidade de palavras a partir de `start` que cabe em `height`. */

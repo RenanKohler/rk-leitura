@@ -10,6 +10,7 @@
  */
 
 import { countWords, tokenize } from "@/lib/reading";
+import { sentenceBounds } from "@/lib/sentences";
 
 export const MAX_NOTE_CHARS = 2_000;
 
@@ -84,26 +85,17 @@ function insideWord(text: string, cut: number): boolean {
   return !/\s/.test(text[cut - 1] ?? " ");
 }
 
-/** Fim de frase: pontuacao terminal, com aspas ou parenteses de fecho depois. */
-const SENTENCE_END = /[.!?…][")'\]»”’]*$/;
-
 /**
- * Frase que contem a palavra `index`.
+ * Frase que contem a palavra `index`, pelo segmentador unico: "O Sr. Silva
+ * chegou." e uma frase so, como no ritmo e na navegacao.
  *
- * Serve ao modo Foco, onde nao ha o que selecionar: a unidade que o leitor
+ * Serve ao Word Runner, onde nao ha o que selecionar: a unidade que o leitor
  * consegue apontar sem parar a leitura e a frase.
  */
-export function sentenceRange(words: string[], index: number): Span | null {
+export function sentenceRange(words: string[], index: number, language?: string): Span | null {
   if (words.length === 0) return null;
   const position = Math.max(0, Math.min(words.length - 1, Math.trunc(index)));
-
-  let start = position;
-  while (start > 0 && !SENTENCE_END.test(words[start - 1]!)) start -= 1;
-
-  let end = position;
-  while (end < words.length && !SENTENCE_END.test(words[end]!)) end += 1;
-  // `end` parou na palavra que fecha a frase; o intervalo e exclusivo.
-  end = Math.min(words.length, end + 1);
+  let { start, end } = sentenceBounds(words, position, language);
 
   // Um paragrafo inteiro sem pontuacao terminal viraria um destaque gigante.
   if (end - start > MAX_HIGHLIGHT_WORDS) {
@@ -260,10 +252,3 @@ export function segmentsOf(
   return segments;
 }
 
-/** Destaque que cobre a palavra `index`, se houver. */
-export function markCovering(
-  marks: StoredHighlight[],
-  index: number
-): StoredHighlight | null {
-  return marks.find((mark) => mark.start <= index && index < mark.end) ?? null;
-}

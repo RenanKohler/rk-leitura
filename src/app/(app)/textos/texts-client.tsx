@@ -5,9 +5,9 @@ import { useEffect, useState } from "react";
 import { useResource } from "@/hooks/use-resource";
 import { apiGet, apiSend } from "@/lib/client";
 import { useSettings, useToast } from "@/components/providers";
-import { ImportCard } from "@/components/import-card";
 import { TagPicker } from "@/components/tag-picker";
 import { TagManagerSheet } from "@/components/tag-manager-sheet";
+import { ContentSearchResults } from "@/components/content-search-results";
 import {
   Alert,
   Button,
@@ -31,6 +31,7 @@ import {
   ChevronIcon,
   CheckIcon,
   MarkIcon,
+  MoreIcon,
   QueueIcon,
   RestoreIcon,
   SeriesIcon,
@@ -55,8 +56,11 @@ import type {
   TextSummary,
 } from "@/lib/types";
 
+// "Ativos", e nao "Todos": o filtro padrao deixa de fora os largados, e o
+// numero ao lado dele precisava bater com o do painel e o das etiquetas
+// (APP-13).
 const STATUS_OPTIONS: { value: TextStatus; label: string }[] = [
-  { value: "todos", label: "Todos" },
+  { value: "todos", label: "Ativos" },
   { value: "nao-iniciados", label: "Nao lidos" },
   { value: "em-andamento", label: "Lendo" },
   { value: "concluidos", label: "Lidos" },
@@ -213,6 +217,7 @@ export function TextsClient({
   // os destaques e a posicao de leitura vao embora.
   const [original, setOriginal] = useState("");
   const [pendingDelete, setPendingDelete] = useState<TextSummary | null>(null);
+  const [menuText, setMenuText] = useState<TextSummary | null>(null);
   const [busy, setBusy] = useState(false);
 
   const items = resource.data?.items ?? [];
@@ -317,16 +322,18 @@ export function TextsClient({
 
       {/* Arquivar nao e um filtro somado aos outros: um texto esta na lista
           principal ou fora dela. Por isso aba, e nao mais uma opcao ao lado
-          de "Lidos". */}
+          de "Lidos". O titulo da pagina ja diz o que e, dai o rotulo so para
+          leitor de tela. */}
       <Segmented<TextScope>
         label="Aba da biblioteca"
+        hideLabel
         value={scope}
         onChange={(value) => changeFilter(() => setScope(value))}
         options={SCOPE_OPTIONS}
       />
 
-      {archived ? null : <ImportCard onImported={() => resource.reload()} />}
-
+      {/* O cartao de importar saiu daqui (APP-14): o + da navegacao ja leva a
+          Novo texto, e ele empurrava a lista para fora da primeira tela. */}
       <div className="space-y-3">
         <Field
           label="Buscar"
@@ -337,53 +344,55 @@ export function TextsClient({
           autoCorrect="off"
           spellCheck={false}
           maxLength={MAX_QUERY_CHARS}
-          placeholder="Titulo do texto"
+          placeholder="Titulo ou trecho do texto"
           value={query}
           onChange={(event) => changeFilter(() => setQuery(event.target.value))}
         />
-        <Segmented<TextStatus>
-          label="Filtrar por leitura"
-          value={status}
-          onChange={(value) => changeFilter(() => setStatus(value))}
-          options={STATUS_OPTIONS}
-        />
 
-        {tags.length > 0 ? (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-muted">Etiquetas</p>
+        {/* Status e etiquetas numa linha so de chips, com rolagem horizontal:
+            antes eram duas faixas empilhadas, e no celular sobrava lugar para
+            um unico texto na primeira tela. A rolagem fica dentro da faixa,
+            sem estourar a largura da pagina em 320px (A11Y-17). */}
+        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1">
+          <div role="group" aria-label="Filtrar por leitura" className="flex shrink-0 gap-2">
+            {STATUS_OPTIONS.map((option) => (
+              <Chip
+                key={option.value}
+                pressed={status === option.value}
+                onClick={() => changeFilter(() => setStatus(option.value))}
+              >
+                {option.label}
+              </Chip>
+            ))}
+          </div>
+
+          {tags.length > 0 ? (
+            <>
+              <span aria-hidden="true" className="h-6 w-px shrink-0 bg-border" />
+              <div role="group" aria-label="Filtrar por etiqueta" className="flex shrink-0 gap-2">
+                {tags.map((tag) => (
+                  <Chip
+                    key={tag.id}
+                    pressed={tagId === tag.id}
+                    onClick={() =>
+                      changeFilter(() => setTagId(tagId === tag.id ? null : tag.id))
+                    }
+                  >
+                    {tag.name}
+                    <span className="tabular text-xs text-faint">{tag.texts}</span>
+                  </Chip>
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={() => setManagingTags(true)}
-                className="text-sm font-medium text-accent"
+                className="flex min-h-11 shrink-0 items-center px-2 text-sm font-medium text-accent"
               >
-                Organizar
+                Organizar etiquetas
               </button>
-            </div>
-            {/* Rolagem horizontal: com dez etiquetas, uma grade empurraria a
-                lista de textos para fora da primeira tela no celular. */}
-            <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-              {tags.map((tag) => (
-                <button
-                  key={tag.id}
-                  type="button"
-                  aria-pressed={tagId === tag.id}
-                  onClick={() =>
-                    changeFilter(() => setTagId(tagId === tag.id ? null : tag.id))
-                  }
-                  className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors ${
-                    tagId === tag.id
-                      ? "border-accent bg-accent-soft text-ink"
-                      : "border-border text-muted"
-                  }`}
-                >
-                  {tag.name}
-                  <span className="tabular text-xs text-faint">{tag.texts}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
+            </>
+          ) : null}
+        </div>
       </div>
 
       {resource.loading ? (
@@ -415,7 +424,7 @@ export function TextsClient({
             <EmptyState
               icon={<LibraryIcon className="size-7" />}
               title="Nada por aqui ainda"
-              description="Importe um artigo pelo link acima ou cole um texto seu."
+              description="Importe um artigo pelo link, cole um texto seu ou escolha um arquivo."
               action={<LinkButton href="/textos/novo">Adicionar texto</LinkButton>}
             />
           )}
@@ -440,11 +449,8 @@ export function TextsClient({
                   text={item.text}
                   wpm={settings.baseWpm}
                   index={index}
-                  onEdit={() => openEditor(item.text)}
-                  onDelete={() => setPendingDelete(item.text)}
-                  onToggleArchive={() => void toggleArchive(item.text)}
+                  onMore={() => setMenuText(item.text)}
                   onResume={() => void resumeText(item.text)}
-                  onQueue={() => void toggleQueue(item.text)}
                   onTag={(name) => changeFilter(() => setTagId(tagIdByName(name)))}
                 />
               )
@@ -461,6 +467,19 @@ export function TextsClient({
           />
         </>
       )}
+
+      {/* Busca no conteudo (APP-16): a parte, porque varre o texto inteiro de
+          cada item e leva direto a palavra encontrada. */}
+      {searched && !archived ? <ContentSearchResults query={searched} /> : null}
+
+      <TextActionsSheet
+        text={menuText}
+        onClose={() => setMenuText(null)}
+        onEdit={(text) => void openEditor(text)}
+        onDelete={setPendingDelete}
+        onToggleArchive={(text) => void toggleArchive(text)}
+        onQueue={(text) => void toggleQueue(text)}
+      />
 
       <TagManagerSheet
         open={managingTags}
@@ -572,28 +591,78 @@ export function TextsClient({
   );
 }
 
-function TextCard({
+/**
+ * Acoes secundarias de um texto (APP-14), numa folha so para a lista toda.
+ *
+ * Fica fora do cartao de proposito: o cartao anima com opacidade, o que cria
+ * um contexto de empilhamento, e uma folha la dentro ficaria por baixo da
+ * barra de navegacao e dos cartoes seguintes.
+ */
+function TextActionsSheet({
   text,
-  wpm,
-  index,
+  onClose,
   onEdit,
   onDelete,
   onToggleArchive,
   onQueue,
+}: {
+  text: TextSummary | null;
+  onClose: () => void;
+  onEdit: (text: TextSummary) => void;
+  onDelete: (text: TextSummary) => void;
+  onToggleArchive: (text: TextSummary) => void;
+  onQueue: (text: TextSummary) => void;
+}) {
+  const archived = text?.archivedAt != null;
+
+  // Cada acao fecha a folha antes: editar e remover abrem outra folha, e duas
+  // abertas ao mesmo tempo brigariam pelo foco.
+  const act = (action: (text: TextSummary) => void) => () => {
+    if (!text) return;
+    onClose();
+    action(text);
+  };
+
+  return (
+    <Sheet open={text !== null} onClose={onClose} title={text?.title ?? ""}>
+      <ul className="space-y-1">
+        {!archived && !text?.abandoned ? (
+          <MenuAction icon={<QueueIcon className="size-5" />} onClick={act(onQueue)}>
+            {text?.queuePosition == null ? "Adicionar a fila" : "Tirar da fila"}
+          </MenuAction>
+        ) : null}
+        <MenuAction
+          icon={archived ? <RestoreIcon className="size-5" /> : <ArchiveIcon className="size-5" />}
+          onClick={act(onToggleArchive)}
+        >
+          {archived ? "Voltar a biblioteca" : "Arquivar"}
+        </MenuAction>
+        <MenuAction icon={<EditIcon className="size-5" />} onClick={act(onEdit)}>
+          Editar
+        </MenuAction>
+        <MenuAction icon={<TrashIcon className="size-5" />} onClick={act(onDelete)} danger>
+          Remover
+        </MenuAction>
+      </ul>
+    </Sheet>
+  );
+}
+
+function TextCard({
+  text,
+  wpm,
+  index,
+  onMore,
   onTag,
   onResume,
 }: {
   text: TextSummary;
   wpm: number;
   index: number;
-  onEdit: () => void;
-  onDelete: () => void;
-  onToggleArchive: () => void;
-  onQueue?: () => void;
+  onMore: () => void;
   onTag?: (name: string) => void;
   onResume?: () => void;
 }) {
-  const archived = text.archivedAt !== null;
   const percent =
     text.wordCount > 0 ? Math.round((text.progressIndex / text.wordCount) * 100) : 0;
 
@@ -615,34 +684,18 @@ function TextCard({
             ) : null}
           </Link>
 
-          {/* Botoes sempre visiveis: a versao anterior os escondia atras de
-              :hover, inalcancavel em tela de toque. */}
+          {/* Uma acao visivel, a principal quando existe; o resto num menu
+              (APP-14). Cinco icones por cartao espremiam o titulo em duas
+              palavras por linha no celular. O menu e uma folha, e nao um
+              hover: alcancavel no toque e no teclado. */}
           <div className="flex shrink-0 gap-1">
             {text.abandoned && onResume ? (
               <IconButton label="Retomar" onClick={onResume}>
                 <RestoreIcon className="size-5" />
               </IconButton>
             ) : null}
-            {onQueue && !archived && !text.abandoned ? (
-              <IconButton
-                label={text.queuePosition === null ? "Adicionar a fila" : "Tirar da fila"}
-                onClick={onQueue}
-                active={text.queuePosition !== null}
-              >
-                <QueueIcon className="size-5" />
-              </IconButton>
-            ) : null}
-            <IconButton
-              label={archived ? "Voltar a biblioteca" : "Arquivar"}
-              onClick={onToggleArchive}
-            >
-              {archived ? <RestoreIcon className="size-5" /> : <ArchiveIcon className="size-5" />}
-            </IconButton>
-            <IconButton label="Editar" onClick={onEdit}>
-              <EditIcon className="size-5" />
-            </IconButton>
-            <IconButton label="Remover" onClick={onDelete} danger>
-              <TrashIcon className="size-5" />
+            <IconButton label={`Mais acoes: ${text.title}`} onClick={onMore}>
+              <MoreIcon className="size-5" />
             </IconButton>
           </div>
         </div>
@@ -807,6 +860,60 @@ function NewBadge() {
     <span className="mr-1.5 inline-flex rounded-full bg-accent-soft px-2 py-0.5 align-middle text-xs font-semibold text-accent">
       Novo
     </span>
+  );
+}
+
+/** Filtro da faixa de chips: alterna, e diz se esta ligado. */
+function Chip({
+  pressed,
+  onClick,
+  children,
+}: {
+  pressed: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={`flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-medium transition-colors ${
+        pressed
+          ? "border-accent bg-accent-soft text-ink ring-1 ring-accent ring-inset"
+          : "border-border text-muted hover:text-ink"
+      }`}
+    >
+      {pressed ? <CheckIcon className="size-4" /> : null}
+      {children}
+    </button>
+  );
+}
+
+function MenuAction({
+  icon,
+  onClick,
+  danger,
+  children,
+}: {
+  icon: React.ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left font-medium hover:bg-surface-2 ${
+          danger ? "text-danger" : "text-ink"
+        }`}
+      >
+        {icon}
+        {children}
+      </button>
+    </li>
   );
 }
 

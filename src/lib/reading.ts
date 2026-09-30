@@ -3,11 +3,10 @@
  * Nao importar nada de servidor aqui.
  */
 import { parseMarkdown, type BlockKind } from "@/lib/markdown";
+import { pauseOverhead } from "@/lib/pauses";
 
 export const MIN_WPM = 100;
 export const MAX_WPM = 1200;
-export const MIN_CHUNK = 1;
-export const MAX_CHUNK = 6;
 /**
  * Intensidade do destaque, em fracao. O minimo deixa o trecho perceptivel sem
  * pesar; acima do maximo o fundo cobre a palavra e a leitura piora.
@@ -17,7 +16,8 @@ export const MAX_HIGHLIGHT = 0.8;
 
 /** Tipografia da area de leitura, em niveis em vez de pixels. */
 export const MIN_FONT_SCALE = 1;
-export const MAX_FONT_SCALE = 5;
+/** Nove degraus: 1rem a 2rem, o dobro do corpo base, como o zoom de 200%. */
+export const MAX_FONT_SCALE = 9;
 export const MIN_LINE_HEIGHT = 1;
 export const MAX_LINE_HEIGHT = 3;
 
@@ -37,9 +37,13 @@ export function typographyVars(settings: {
   const scale = clamp(settings.fontScale, MIN_FONT_SCALE, MAX_FONT_SCALE);
   const leading = clamp(settings.lineHeightStep, MIN_LINE_HEIGHT, MAX_LINE_HEIGHT);
 
+  const size = 1 + (scale - 1) * 0.125;
   return {
-    // 1rem a 1.5rem em cinco degraus.
-    "--reader-size": `${(1 + (scale - 1) * 0.125).toFixed(3)}rem`,
+    // 1rem a 2rem em nove degraus.
+    "--reader-size": `${size.toFixed(3)}rem`,
+    // A palavra do Word Runner acompanha o tamanho escolhido, relativa ao
+    // padrao (degrau 3, 1.25rem): no padrao ela fica como sempre foi.
+    "--reader-scale": (size / 1.25).toFixed(3),
     "--reader-leading": ["1.6", "1.85", "2.1"][leading - 1]!,
     "--reader-font": `var(--reader-font-${settings.fontFamily})`,
     // A pilha "legivel" pede folga entre letras; as outras nao.
@@ -52,24 +56,55 @@ export function typographyVars(settings: {
  * cheia ao longo das primeiras palavras.
  *
  * Sem ela as primeiras frases passam antes de o olho se ajustar ao ritmo, o
- * que custa justamente a abertura do texto - a parte que orienta o resto.
+ * que custa justamente a abertura do texto - a parte que orienta o resto. O
+ * olho se ajusta em poucas frases: com 50 palavras a rampa durava ~13 s a
+ * 300 ppm e parecia lentidao, nao aquecimento; 25 cobre as duas primeiras
+ * frases.
  */
-export const WARMUP_WORDS = 50;
+export const WARMUP_WORDS = 25;
 export const WARMUP_START = 0.6;
 
-/** Fracao da velocidade configurada a ser aplicada na posicao `wordsIntoRun`. */
-export function warmupFactor(wordsIntoRun: number): number {
-  if (wordsIntoRun >= WARMUP_WORDS) return 1;
-  const progress = clamp(wordsIntoRun / WARMUP_WORDS, 0, 1);
-  return WARMUP_START + (1 - WARMUP_START) * progress;
+/** Pausa abaixo da qual retomar nao reaquece: o olho ainda esta no ritmo. */
+export const WARMUP_SKIP_MS = 3_000;
+/** Ate aqui a retomada reaquece de leve. */
+export const WARMUP_SHORT_MS = 30_000;
+/** Acima disso a retomada reaquece como uma abertura. */
+export const WARMUP_LONG_MS = 120_000;
+/** Fator inicial da retomada depois de uma pausa curta. */
+export const WARMUP_SHORT_START = 0.85;
+
+/**
+ * Fator inicial da rampa conforme a pausa que antecede a leitura.
+ *
+ * Abrir o texto (sem pausa previa - `undefined`, ou 0, que e como o leitor
+ * marca "ainda nao pausou") e voltar depois de mais de 2 minutos comecam em
+ * 0,6. Uma pausa de 3 a 30 s comeca em 0,85; de 30 s a 2 min, o fator desce
+ * de 0,85 a 0,6. Menos de 3 s nao tem rampa (1): tirar o dedo da tela por um
+ * instante nao desfaz a adaptacao ao ritmo.
+ */
+export function warmupStart(pausedMs?: number | null): number {
+  if (pausedMs === undefined || pausedMs === null || !Number.isFinite(pausedMs) || pausedMs <= 0) {
+    return WARMUP_START;
+  }
+  if (pausedMs < WARMUP_SKIP_MS) return 1;
+  if (pausedMs <= WARMUP_SHORT_MS) return WARMUP_SHORT_START;
+  if (pausedMs >= WARMUP_LONG_MS) return WARMUP_START;
+  const progress = (pausedMs - WARMUP_SHORT_MS) / (WARMUP_LONG_MS - WARMUP_SHORT_MS);
+  return WARMUP_SHORT_START + (WARMUP_START - WARMUP_SHORT_START) * progress;
 }
 
 /**
- * rsvp  - uma palavra por vez no centro da tela
- * flow  - texto corrido com rolagem e destaque do trecho atual
- * page  - paginado, uma tela cheia por vez, sem rolagem
+ * Fracao da velocidade configurada a ser aplicada na posicao `wordsIntoRun`,
+ * subindo linearmente de `start` a 1 ao longo de `WARMUP_WORDS` palavras.
+ * Posicao negativa (o leitor voltou para antes de onde a rampa comecou) conta
+ * como o inicio da rampa.
  */
-export type ReadingMode = "rsvp" | "flow" | "page";
+export function warmupFactor(wordsIntoRun: number, start: number = WARMUP_START): number {
+  const from = clamp(start, WARMUP_START, 1);
+  if (wordsIntoRun >= WARMUP_WORDS || from >= 1) return 1;
+  const progress = clamp(wordsIntoRun / WARMUP_WORDS, 0, 1);
+  return from + (1 - from) * progress;
+}
 
 /**
  * Divide o texto em palavras preservando acentuacao e pontuacao.
@@ -224,52 +259,10 @@ export function paragraphRange(
   return { start: paragraph.start, end: paragraph.start + paragraph.words.length };
 }
 
-/**
- * Inicio estavel da janela renderizada da rolagem para uma posicao alvo.
- *
- * Se o inicio acompanhasse a leitura palavra a palavra, o paragrafo do topo
- * perderia uma palavra a cada passo e se redistribuiria o tempo todo. O
- * inicio so avanca em paragrafos inteiros e, dentro de um paragrafo longo,
- * em saltos de `step` palavras.
- */
-export function windowStart(paragraphs: Paragraph[], target: number, step: number): number {
-  if (target <= 0 || paragraphs.length === 0) return 0;
-  const paragraphStart = paragraphs[paragraphAt(paragraphs, target)]!.start;
-  return Math.max(paragraphStart, Math.floor(target / step) * step);
-}
-
 /** A palavra `index` abre um paragrafo (ou titulo, item, citacao). */
 export function startsParagraph(paragraphs: Paragraph[], index: number): boolean {
   if (paragraphs.length === 0) return false;
   return paragraphs[paragraphAt(paragraphs, index)]!.start === index;
-}
-
-/**
- * Tamanho do bloco que comeca em `index`: ate `size` palavras, sem atravessar
- * o fim do paragrafo. Assim o fim de um paragrafo e o comeco do seguinte
- * nunca aparecem juntos na mesma tela.
- */
-export function chunkLength(paragraphs: Paragraph[], index: number, size: number): number {
-  if (paragraphs.length === 0) return size;
-  const paragraph = paragraphs[paragraphAt(paragraphs, index)]!;
-  const remaining = paragraph.start + paragraph.words.length - index;
-  return Math.max(1, Math.min(size, remaining));
-}
-
-/**
- * Milissegundos que cada bloco de palavras fica na tela.
- *
- * `speedFactor` existe para a rampa de aquecimento entrar sem estado escondido:
- * quem chama decide a fracao, a funcao continua pura e testavel.
- */
-export function chunkDurationMs(
-  wpm: number,
-  wordsPerChunk: number,
-  speedFactor = 1
-): number {
-  const safeWpm = clamp(wpm, MIN_WPM, MAX_WPM) * clamp(speedFactor, WARMUP_START, 1);
-  const safeChunk = clamp(wordsPerChunk, MIN_CHUNK, MAX_CHUNK);
-  return (60_000 / safeWpm) * safeChunk;
 }
 
 export function clamp(value: number, min: number, max: number): number {
@@ -277,16 +270,47 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-/**
- * Ponto otimo de reconhecimento: a letra em que o olho se fixa para
- * identificar a palavra sem varrer. Fica levemente a esquerda do centro.
- */
-export function orpIndex(word: string): number {
-  const length = word.length;
+/** Parte de pontuacao no inicio e no fim de uma palavra (aspas, parenteses...). */
+const EDGE = /[^\p{L}\p{N}]/u;
+
+/** Posicao do ponto de fixacao dentro do nucleo de letras, por tamanho. */
+function coreOrp(length: number): number {
   if (length <= 1) return 0;
   if (length <= 5) return 1;
   if (length <= 9) return 2;
-  return 3;
+  if (length <= 13) return 3;
+  return 4;
+}
+
+/**
+ * Ponto otimo de reconhecimento: a letra em que o olho se fixa para
+ * identificar a palavra sem varrer. Fica levemente a esquerda do centro.
+ *
+ * A pontuacao nao conta: em `"casa` o pivo e o "a" de casa, nao o "c" - com a
+ * aspa no calculo a palavra ficava deslocada uma casa. O indice e em code
+ * points da forma NFC (a de `Array.from(word.normalize("NFC"))`), para um
+ * acento decomposto nao ser partido da letra; `orpParts` ja devolve os
+ * pedacos prontos.
+ */
+export function orpIndex(word: string): number {
+  const chars = Array.from(word.normalize("NFC"));
+  let lead = 0;
+  while (lead < chars.length && EDGE.test(chars[lead]!)) lead += 1;
+  if (lead === chars.length) return 0;
+  let trail = 0;
+  while (trail < chars.length - lead && EDGE.test(chars[chars.length - 1 - trail]!)) trail += 1;
+  return lead + coreOrp(chars.length - lead - trail);
+}
+
+/** A palavra (em NFC) partida em antes do pivo, o pivo e depois dele. */
+export function orpParts(word: string): { before: string; pivot: string; after: string } {
+  const chars = Array.from(word.normalize("NFC"));
+  const index = orpIndex(word);
+  return {
+    before: chars.slice(0, index).join(""),
+    pivot: chars[index] ?? "",
+    after: chars.slice(index + 1).join(""),
+  };
 }
 
 export function formatDuration(ms: number): string {
@@ -307,8 +331,17 @@ export function formatClock(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-export function estimatedMinutes(wordCount: number, wpm: number): number {
-  return Math.max(1, Math.round(wordCount / clamp(wpm, MIN_WPM, MAX_WPM)));
+/**
+ * Minutos de relogio para ler `wordCount` palavras.
+ *
+ * O ppm e o das palavras, sem as pausas de pontuacao (e assim que o leitor
+ * grava as sessoes); com o ritmo dinamico ligado a tela ainda pausa em
+ * virgulas e fins de frase, entao o tempo leva o acrescimo medio delas.
+ */
+export function estimatedMinutes(wordCount: number, wpm: number, adaptive = true): number {
+  const safeWpm = clamp(wpm, MIN_WPM, MAX_WPM);
+  const factor = adaptive ? pauseOverhead(safeWpm) : 1;
+  return Math.max(1, Math.round((wordCount / safeWpm) * factor));
 }
 
 export function formatNumber(value: number): string {

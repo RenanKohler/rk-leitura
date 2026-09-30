@@ -40,6 +40,16 @@
    */
   --color-mark: #8a6a07;
   --color-mark-soft: #f7e79d;
+  /*
+   * Avisos flutuantes (A11Y-3). Tokens proprios porque `positive` e `danger`
+   * sao cores de TEXTO: no tema escuro elas clareiam para ler sobre fundo
+   * escuro, e usadas como fundo com letra branca davam 1,74:1 e 2,55:1. Cada
+   * par abaixo passa de 4,5:1 no seu tema.
+   */
+  --color-toast-success: #1f7a4d;
+  --color-toast-success-ink: #ffffff;
+  --color-toast-error: #b3301b;
+  --color-toast-error-ink: #ffffff;
 
   --radius-card: 1rem;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -70,6 +80,10 @@
     --color-chart-soft: #4a2418;
     --color-mark: #e0bb4e;
     --color-mark-soft: #413616;
+    --color-toast-success: #4ade80;
+    --color-toast-success-ink: #06240f;
+    --color-toast-error: #ff7a66;
+    --color-toast-error-ink: #2a0a05;
 
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.8);
     --shadow-float: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 16px 40px -20px rgb(0 0 0 / 0.9);
@@ -101,6 +115,10 @@
     --color-chart-soft: #f2c9b8;
     --color-mark: #5a4500;
     --color-mark-soft: #fff0a8;
+    --color-toast-success: #0a5a2e;
+    --color-toast-success-ink: #ffffff;
+    --color-toast-error: #8f1400;
+    --color-toast-error-ink: #ffffff;
 
     --shadow-card: none;
     --shadow-float: 0 0 0 2px #000000;
@@ -198,6 +216,34 @@ a,
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Posicao dos avisos flutuantes.
+ *
+ * `--toast-offset` e a distancia ate a borda de baixo; quem tem um rodape
+ * fixo (o leitor) define a variavel no body para os avisos subirem acima
+ * dele. `--toast-nav` soma a barra de navegacao do celular, que so existe
+ * fora do leitor e abaixo de lg.
+ */
+.toast-region {
+  bottom: calc(var(--toast-offset, 1rem) + var(--toast-nav, 0px) + env(safe-area-inset-bottom, 0px));
+}
+
+body:has([data-tabbar]) {
+  --toast-nav: 4rem;
+}
+
+@media (min-width: 64rem) {
+  body:has([data-tabbar]) {
+    --toast-nav: 0px;
+  }
+}
+
+/* Folha aberta ocupa o rodape: o aviso vai para o topo. */
+body[data-sheet="aberta"] .toast-region {
+  top: 1rem;
+  bottom: auto;
+}
+
 /* Quebra URLs longas em vez de estourar a largura da tela. */
 .break-anywhere {
   overflow-wrap: anywhere;
@@ -218,39 +264,15 @@ a,
   letter-spacing: -0.02em;
 }
 
-/* Palavras ja lidas / bloco ativo no modo texto corrido. */
-.flow-word {
-  border-radius: 0.25rem;
-  padding: 0.1em 0.05em;
-  transition: background-color 120ms ease, color 120ms ease;
+/* Palavra do Word Runner: acompanha o tamanho de letra escolhido. */
+.runner-word {
+  font-size: calc(clamp(2rem, 11vw, 4rem) * var(--reader-scale, 1));
 }
 
-/*
- * A intensidade vem de `--highlight-opacity`, definida pelo leitor a partir
- * das preferencias. O texto segue com a tinta normal em vez da tinta do
- * acento: com o fundo translucido e ela que tem contraste - 10 para 1 no
- * ajuste padrao, contra menos de 2 para 1 da outra. O contorno mantem o trecho
- * localizavel na intensidade mais baixa, onde o fundo quase some.
- */
-.flow-word[data-state="active"] {
-  background-color: color-mix(
-    in srgb,
-    var(--color-accent) calc(var(--highlight-opacity, 0.35) * 100%),
-    transparent
-  );
-  box-shadow: 0 0 0 1px
-    color-mix(in srgb, var(--color-accent) calc(var(--highlight-opacity, 0.35) * 60%), transparent);
-}
-
-.flow-word[data-state="read"] {
-  color: var(--color-faint);
-}
-
-/* No alto contraste o trecho atual nao depende so da cor (US-76). */
-:root[data-theme="contrast"] .flow-word[data-state="active"] {
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 0.2em;
+/* Destaque focavel pelo teclado. */
+.mark:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /*
@@ -266,33 +288,6 @@ a,
   box-shadow: inset 0 -0.12em 0 var(--color-mark);
   border-radius: 0.15rem;
   cursor: pointer;
-}
-
-/*
- * No modo Rolagem cada palavra e uma `<span>` propria, entao um destaque de
- * oito palavras seriam oito caixas arredondadas em fila - lido como oito
- * marcacoes, nao uma. So as pontas do trecho ficam arredondadas.
- */
-.mark[data-edge="inicio"],
-.mark[data-edge="meio"] {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.mark[data-edge="fim"],
-.mark[data-edge="meio"] {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-/*
- * Um trecho destacado nao desbota junto com o que ja foi lido. O apagamento
- * serve para mostrar onde a leitura esta; sobre a marca ele deixaria o texto
- * em 2,3 para 1 de contraste, justamente no trecho que o leitor marcou para
- * voltar depois.
- */
-.mark[data-state="read"] {
-  color: var(--color-ink);
 }
 
 /* Bolinha de "tem nota", colada no fim do trecho. */
@@ -399,8 +394,13 @@ a,
     color-mix(in srgb, var(--color-accent) calc(var(--highlight-opacity, 0.35) * 60%), transparent);
 }
 
-:root[data-theme="contrast"] .current-word {
+/*
+ * Sublinhado no acento solido em todos os temas: so o fundo translucido
+ * ficava em 1,7:1 no ajuste padrao, quase invisivel (US-76).
+ */
+.current-word {
   text-decoration: underline;
+  text-decoration-color: var(--color-accent);
   text-decoration-thickness: 2px;
   text-underline-offset: 0.2em;
 }
@@ -551,21 +551,6 @@ a,
   /* Sem webfont: pilha de sistema com altura de x grande e formas distintas
      entre si, mais folga entre letras - o que a leitura com dislexia pede. */
   --reader-font-legivel: Verdana, Tahoma, "DejaVu Sans", sans-serif;
-}
-
-/*
- * Linhas fora da atual apagadas (US-103). A palavra ativa nunca apaga, mesmo
- * quando o bloco quebra em duas linhas. No alto contraste o apagado e mais
- * leve, para o texto seguir acima de 4,5:1.
- */
-[data-dim] .flow-word:not([data-line]):not([data-state="active"]) {
-  opacity: 0.45;
-  transition: opacity 150ms ease;
-}
-
-:root[data-theme="contrast"] [data-dim] .flow-word:not([data-line]):not([data-state="active"]) {
-  /* 0,75 sobre o cinza das palavras ja lidas (#3d3d3d) da #6e6e6e: 5,1:1. */
-  opacity: 0.75;
 }
 
 /* Calendario do ano (US-102): cinco niveis sobre a cor de acento. */

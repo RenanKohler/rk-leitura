@@ -15,7 +15,7 @@ async function createText(page: Page, content: string, format = "plain") {
 }
 
 const position = (page: Page) =>
-  page.locator("header p.tabular").innerText().then((text) => Number(text.split("/")[0]!.trim()));
+  page.locator("header .tabular").innerText().then((text) => Number(text.split("/")[0]!.trim()));
 
 /** US-90: busca ignora acento e caixa, conta e circula pelos resultados. */
 test("busca no texto posiciona a leitura no resultado", async ({ page }) => {
@@ -84,9 +84,9 @@ test("tocar na palavra, voltar a frase e atalhos de teclado", async ({ page }) =
   await expect(page.getByText("325 ppm").first()).toBeVisible();
 
   await page.keyboard.press("?");
-  await expect(page.getByRole("dialog", { name: "Atalhos de teclado" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Como usar o leitor" })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog", { name: "Atalhos de teclado" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Como usar o leitor" })).toHaveCount(0);
 });
 
 /** No Word Runner, os botoes andam por frase sem parar a leitura. */
@@ -130,20 +130,21 @@ test("sumario leva ao titulo e marcador guarda a posicao", async ({ page }) => {
   await expect(page.getByRole("button", { name: /^Ponto chave/ })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  // Na primeira pagina, "pagina anterior" volta ao inicio do texto.
-  await page.keyboard.press("ArrowLeft");
-  expect(await position(page)).toBe(1);
+  // Sai da posicao marcada (voltar a frase) antes de usar o marcador.
+  await page.keyboard.press("Shift+ArrowLeft");
+  expect(await position(page)).toBeLessThan(6);
 
   await page.getByRole("button", { name: "Navegar no texto" }).click();
   await page.getByRole("button", { name: /^Ponto chave/ }).click();
   expect(await position(page)).toBe(6);
 });
 
-/** US-95: depois de uma pausa longa, a leitura recomeca algumas palavras antes. */
-test("retomar depois de pausa longa recua ate 5 palavras", async ({ page }) => {
+/** US-95 e ALG-17: depois de uma pausa de 5 s ou mais, a leitura recomeca no inicio da frase. */
+test("retomar depois de pausa longa volta ao inicio da frase", async ({ page }) => {
   await registerByApi(page.request);
-  await updateSettings(page.request, { baseWpm: 150, warmup: false });
-  const words = Array.from({ length: 60 }, (_, i) => `termo${i}`).join(" ");
+  await updateSettings(page.request, { baseWpm: 150, warmup: false, resumeRewind: true });
+  // Frases de 10 palavras: o inicio de cada uma e a posicao 1, 11, 21...
+  const words = Array.from({ length: 60 }, (_, i) => `termo${i}${i % 10 === 9 ? "." : ""}`).join(" ");
   const text = await createText(page, words);
 
   await openReader(page, text.id);
@@ -155,5 +156,6 @@ test("retomar depois de pausa longa recua ate 5 palavras", async ({ page }) => {
 
   await page.waitForTimeout(5_300);
   await page.getByRole("button", { name: "Iniciar leitura" }).click();
-  expect(await position(page)).toBe(paused - 5);
+  const sentenceStart = Math.floor((paused - 1) / 10) * 10 + 1;
+  expect(await position(page)).toBe(sentenceStart);
 });

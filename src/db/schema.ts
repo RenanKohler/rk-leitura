@@ -4,6 +4,7 @@ import {
   date,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   real,
@@ -132,6 +133,21 @@ export const readingSessions = pgTable(
     // Tempo previsto quando a leitura veio de uma sugestao por tempo livre
     // (US-85); a duracao real ao lado dela mede o acerto da previsao.
     plannedMs: integer("planned_ms"),
+    /**
+     * Como a sessao foi lida: "runner" (Foco e Rolagem guiada), "narracao"
+     * (voz do aparelho) ou "pagina" (virando paginas no proprio ritmo).
+     * Separar o ritmo por modo e o que da sentido a media: 450 ppm narrados e
+     * 450 ppm no runner nao medem a mesma coisa. `narrated` continua existindo
+     * por compatibilidade e anda junto com "narracao".
+     */
+    mode: text("mode").notNull().default("runner"),
+    /**
+     * Posicoes (indice de palavra) em que o leitor freou ou recuou durante a
+     * sessao (PROD-10). Nulo quando a tela nao mediu - sessoes antigas e as
+     * gravadas por versoes do leitor sem a contagem. Serve a sugestao de
+     * reduzir a velocidade em `lib/difficulty.ts`.
+     */
+    brakes: jsonb("brakes").$type<number[]>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("reading_sessions_user_created_idx").on(table.userId, table.createdAt.desc())]
@@ -145,9 +161,12 @@ export const speedSettings = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     baseWpm: integer("base_wpm").notNull().default(300),
+    // Sem uso desde o leitor unificado (o Word Runner mostra uma palavra por
+    // vez). A coluna fica para uma migracao futura que a remova.
     wordsPerChunk: integer("words_per_chunk").notNull().default(1),
     highlightOpacity: real("highlight_opacity").notNull().default(0.35),
-    // "rsvp" (uma palavra por vez) ou "flow" (texto corrido com destaque).
+    // Sem uso desde o leitor unificado: nao ha mais modos (Foco, Rolagem,
+    // Paginas). A coluna fica para uma migracao futura que a remova.
     readingMode: text("reading_mode").notNull().default("rsvp"),
     theme: text("theme").notNull().default("system"),
     // Tipografia da area de leitura. Guardada por nivel, nao em pixels: a
@@ -162,16 +181,16 @@ export const speedSettings = pgTable(
      * padrao: o apoio ajuda alguns leitores e atrapalha outros.
      */
     wordEmphasis: boolean("word_emphasis").notNull().default(false),
-    // Ritmo pela densidade do trecho no modo Foco (US-87). Ligado por padrao
+    // Ritmo dinamico do Word Runner (US-87). Ligado por padrao
     // porque inclui a pausa em pontuacao que o leitor ja tinha.
     adaptiveRhythm: boolean("adaptive_rhythm").notNull().default(true),
     // "Isso ainda vale?" a 25, 50 e 75% do texto (US-80). Desligado por padrao.
     askCheckpoints: boolean("ask_checkpoints").notNull().default(false),
-    // Pausa extra na troca de paragrafo no modo Foco (US-94). Desligada por padrao.
+    // Sem uso: a pausa de paragrafo faz parte do ritmo dinamico (US-94).
     paragraphPause: boolean("paragraph_pause").notNull().default(false),
-    // Recuo de ate 5 palavras ao retomar depois de uma pausa longa (US-95).
+    // Recuo ao retomar, escalonado pelo tempo parado (US-95).
     resumeRewind: boolean("resume_rewind").notNull().default(true),
-    // Linhas fora da atual apagadas nos modos Rolagem e Paginas (US-103).
+    // Sem uso desde o leitor unificado (US-103 dependia da Rolagem).
     dimLines: boolean("dim_lines").notNull().default(false),
     // Aviso para descansar a vista a cada 20 minutos de leitura (US-104).
     eyeRest: boolean("eye_rest").notNull().default(false),
@@ -202,6 +221,11 @@ export const speedSettings = pgTable(
     reminderHour: integer("reminder_hour"),
     /** Ultimo dia em que o lembrete foi enviado, no fuso do leitor. */
     reminderSentOn: date("reminder_sent_on"),
+    /**
+     * Guia de primeiro uso do leitor ja visto. Por conta e nao por aparelho:
+     * quem ja aprendeu os gestos no celular nao precisa do guia no computador.
+     */
+    readerTipsSeen: boolean("reader_tips_seen").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -285,10 +309,23 @@ export const highlights = pgTable(
     endIndex: integer("end_index").notNull(),
     /** Comentario de quem leu. Nulo quando o destaque e so a marcacao. */
     note: text("note"),
+    /**
+     * Revisao espacada do destaque (PROD-4), com a mesma regra das palavras
+     * (`lib/vocabulary.ts`). Nulo enquanto nunca foi revisado: nesse caso ele
+     * entra na revisao um dia depois de criado.
+     */
+    reviewDueOn: date("review_due_on"),
+    /** Intervalo atual, em dias; 0 enquanto nunca foi revisado. */
+    reviewInterval: integer("review_interval").notNull().default(0),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("highlights_text_start_idx").on(table.textId, table.startIndex)]
+  (table) => [
+    index("highlights_text_start_idx").on(table.textId, table.startIndex),
+    // A revisao do dia procura por conta e data, nao por texto.
+    index("highlights_user_review_idx").on(table.userId, table.reviewDueOn),
+  ]
 );
 
 /**
@@ -422,6 +459,11 @@ export const savedWords = pgTable(
     nextReviewOn: date("next_review_on"),
     /** Etapa na sequencia de intervalos de `lib/vocabulary.ts`. */
     reviewStep: integer("review_step").notNull().default(0),
+    /**
+     * Intervalo atual em dias (PROD-7). Nulo nas palavras revisadas so pelo
+     * esquema antigo de etapas: ai o intervalo sai de `reviewStep`.
+     */
+    reviewInterval: integer("review_interval"),
     /** Marcada como aprendida: sai da revisao, continua na lista (US-66). */
     learnedAt: timestamp("learned_at", { withTimezone: true }),
     /** Texto em que a palavra foi encontrada; nulo se ele for apagado. */
@@ -485,6 +527,31 @@ export const rateLimits = pgTable("rate_limits", {
   /** Quando a janela termina e a contagem recomeca. */
   resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
 });
+
+/**
+ * Respostas dadas nas revisoes de palavras e destaques (PROD-7).
+ *
+ * Uma linha por resposta, e nao um contador na propria palavra: a retencao
+ * dos ultimos 30 dias precisa saber quando cada resposta aconteceu. O item
+ * nao tem chave estrangeira porque aponta para duas tabelas; apagar a
+ * palavra deixa as respostas, que continuam valendo para a taxa.
+ */
+export const reviewAnswers = pgTable(
+  "review_answers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** "palavra" ou "destaque". */
+    kind: text("kind").notNull(),
+    itemId: uuid("item_id").notNull(),
+    /** "errei", "dificil", "bom" ou "facil". */
+    grade: text("grade").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("review_answers_user_created_idx").on(table.userId, table.kind, table.createdAt)]
+);
 
 export type User = typeof users.$inferSelect;
 export type Text = typeof texts.$inferSelect;

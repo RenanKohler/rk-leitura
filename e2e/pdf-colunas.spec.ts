@@ -15,7 +15,7 @@ test("PDF de artigo em duas colunas chega na ordem de leitura", async ({ page })
   await registerByApi(page.request);
 
   await page.goto("/textos/novo");
-  await page.getByRole("button", { name: "Arquivo" }).click();
+  await page.getByRole("radio", { name: "Arquivo" }).click();
   await page
     .locator('input[type="file"]')
     .setInputFiles(path.join(__dirname, "fixtures", "artigo-duas-colunas.pdf"));

@@ -1,20 +1,32 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import { pageOfWord, usePagedText } from "@/hooks/use-paged-text";
-import { useSettings, useToast } from "@/components/providers";
+import { useSettings, useTheme, useToast, type ThemePreference } from "@/components/providers";
 import { useOffline } from "@/components/offline-provider";
 import { NEEDS_NETWORK } from "@/lib/offline";
-import { Alert, Button, Card, Segmented, Sheet, Slider, Spinner } from "@/components/ui";
+import { Button, Card, Segmented, Sheet, Slider, Spinner } from "@/components/ui";
 import {
   BackIcon,
   CheckIcon,
   CloseIcon,
+  ContrastIcon,
   FastForwardIcon,
   MarkIcon,
+  MoonIcon,
   PauseIcon,
   PlayIcon,
   ForwardIcon,
@@ -23,27 +35,36 @@ import {
   SearchIcon,
   SettingsIcon,
   SparkIcon,
+  SunIcon,
   VoiceIcon,
 } from "@/components/icons";
 import {
   clamp,
+  FONT_FAMILIES,
   typographyVars,
   warmupFactor,
+  warmupStart,
   WARMUP_WORDS,
   formatClock,
   formatNumber,
   isCompound,
+  MAX_FONT_SCALE,
+  MAX_LINE_HEIGHT,
   MAX_WPM,
+  MIN_FONT_SCALE,
+  MIN_LINE_HEIGHT,
   MIN_WPM,
-  orpIndex,
+  orpParts,
   parseParagraphs,
   sliceParagraphs,
   splitEmphasis,
   startsParagraph,
+  type FontFamily,
   type Paragraph,
 } from "@/lib/reading";
 import { STYLE, styleClass } from "@/lib/markdown";
-import { apiSend } from "@/lib/client";
+import { apiGet, apiSend } from "@/lib/client";
+import { SPEED_BAND_LABELS, speedBand, speedBandWarning } from "@/lib/speed-bands";
 import { QuizSheet } from "@/components/quiz-sheet";
 import { NavigateSheet } from "@/components/navigate-sheet";
 import { countCitations } from "@/lib/citations";
@@ -63,12 +84,8 @@ import { useWordSelection, wordIndexFromPoint } from "@/hooks/use-word-selection
 import { useWordTouch } from "@/hooks/use-word-touch";
 import { useSpeech } from "@/hooks/use-speech";
 import { rateNotice } from "@/lib/speech";
-import {
-  segmentsOf,
-  sentenceRange,
-  type Span,
-  type StoredHighlight,
-} from "@/lib/highlights";
+import { normalizeWord, trimContext } from "@/lib/dictionary";
+import { segmentsOf, sentenceRange, type Span, type StoredHighlight } from "@/lib/highlights";
 import type { ContinuationResult, HighlightItem, NextUp, TextDetail } from "@/lib/types";
 import {
   checkpointCrossed,
@@ -79,20 +96,71 @@ import {
   RHYTHM_HINTS,
   runnerDelayMs,
   wordKeyForPace,
+  type PauseKind,
 } from "@/lib/pacing";
+import {
+  addBrake,
+  addPage,
+  addWords,
+  createMeter,
+  running,
+  startClock,
+  stopClock,
+  takeRecord,
+  wallMs,
+  MIN_WORDS_TO_RECORD,
+  type SessionRecord,
+} from "@/lib/reader-session";
 
 /*
  * Uma tela so. Parado, o texto aparece em paginas, como num e-reader; ao
  * iniciar, o Word Runner cobre a pagina e mostra uma palavra por vez, com a
- * frase em volta embaixo. Pausar devolve a pagina onde a leitura esta, com a
- * palavra atual marcada.
+ * frase em volta embaixo (ou, no "guia na pagina", a palavra anda marcada na
+ * propria pagina). Pausar devolve a pagina onde a leitura esta, com a palavra
+ * atual marcada.
+ *
+ * O motor tem tres estados - parado, Word Runner e narracao - e toda parada
+ * passa por `pause(motivo)`: freio, folha aberta, aba escondida, marco, ponto
+ * de parada e descanso atualizam os mesmos acumuladores. Antes cada caminho
+ * tinha a sua copia, e elas divergiam (sessao perdida, relogio congelado,
+ * runner correndo atras das folhas).
  */
 
-const MIN_WORDS_TO_RECORD = 10;
 const PROGRESS_SAVE_INTERVAL_MS = 5_000;
 
 /** Abaixo disso, retomar nao reinicia a rampa de aquecimento. */
 const SHORT_PAUSE_MS = 3000;
+
+/**
+ * Depois do freio, o toque seguinte na pagina e ignorado por este tempo: o
+ * segundo toque de um toque duplo no freio virava a pagina e pulava texto.
+ */
+const BRAKE_GUARD_MS = 450;
+
+/**
+ * Quanto a tela fica acesa depois do ultimo toque na pagina. Na leitura a
+ * mao o leitor passa minutos sem tocar, e a tela apagava no meio da pagina.
+ */
+const PAGE_AWAKE_MS = 3 * 60_000;
+
+/** Fracao da largura, em cada borda, em que o toque vira a pagina. */
+const EDGE_FRACTION = 0.12;
+
+/** Atraso para gravar a velocidade: um arraste do controle virava 19 PUTs. */
+const SAVE_WPM_DELAY_MS = 400;
+
+const PLAY_MODE_KEY = "rk-leitura:play-mode";
+type PlayMode = "runner" | "guia";
+
+type PauseReason =
+  | "freio"
+  | "folha"
+  | "oculta"
+  | "marco"
+  | "parada"
+  | "descanso"
+  | "narracao"
+  | "fim";
 
 interface ReaderProps {
   text: TextDetail;
@@ -111,6 +179,34 @@ export function ReaderClient(props: ReaderProps) {
   return <Reader key={props.text.id} {...props} />;
 }
 
+/** Resumo da sessao que acabou, para a tela de conclusao. */
+interface Summary {
+  wordsRead: number;
+  /** Relogio, com as pausas de pontuacao. */
+  wallMs: number;
+  /** Ppm configurado durante a leitura. */
+  configuredWpm: number;
+}
+
+const PLAY_MODE_EVENT = "rk-leitura:play-mode";
+
+function subscribePlayMode(onChange: () => void): () => void {
+  window.addEventListener(PLAY_MODE_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(PLAY_MODE_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+function readPlayMode(): PlayMode {
+  try {
+    return localStorage.getItem(PLAY_MODE_KEY) === "guia" ? "guia" : "runner";
+  } catch {
+    return "runner";
+  }
+}
+
 function Reader({
   text: initialText,
   highlights,
@@ -121,6 +217,7 @@ function Reader({
   knownWords = [],
 }: ReaderProps) {
   const { settings, save } = useSettings();
+  const { preference: themePreference, setPreference: setThemePreference } = useTheme();
   const notify = useToast();
   const { online } = useOffline();
 
@@ -145,20 +242,92 @@ function Reader({
         : null,
     [paragraphs]
   );
+  // Paragrafo de cada palavra: o Word Runner mostra o tipo do bloco (titulo,
+  // item, citacao) sem buscar a cada palavra.
+  const paragraphOf = useMemo(() => {
+    const map = new Int32Array(total);
+    paragraphs.forEach((paragraph, position) => {
+      map.fill(position, paragraph.start, paragraph.start + paragraph.words.length);
+    });
+    return map;
+  }, [paragraphs, total]);
 
   // Ritmo dinamico (US-87, US-88): o peso de cada palavra, normalizado para
   // a media do texto continuar na velocidade escolhida, e a pausa de
   // pontuacao depois dela. Desligado, toda palavra dura o mesmo.
   const adaptive = settings.adaptiveRhythm;
+  // As regras de abreviatura e de fim de frase sao as do idioma do texto.
+  const language = text.language;
   const weights = useMemo(() => {
     if (!adaptive) return null;
     const known = new Set(knownWords.map(wordKeyForPace));
-    return normalizedWeights(words, known);
-  }, [adaptive, words, knownWords]);
+    return normalizedWeights(words, known, paragraphs, language);
+  }, [adaptive, words, knownWords, paragraphs, language]);
   const pauses = useMemo(
-    () => (adaptive ? pauseKinds(words, paragraphs) : null),
-    [adaptive, words, paragraphs]
+    () => (adaptive ? pauseKinds(words, paragraphs, language) : null),
+    [adaptive, words, paragraphs, language]
   );
+
+  /* --- velocidade -------------------------------------------------------- */
+  // O valor em uso muda na hora; a gravacao na conta espera o arraste parar.
+  const [pendingWpm, setPendingWpm] = useState<number | null>(null);
+  const wpm = pendingWpm ?? settings.baseWpm;
+  const saveWpmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const changeWpm = useCallback(
+    (value: number) => {
+      const next = clamp(Math.round(value), MIN_WPM, MAX_WPM);
+      setPendingWpm(next);
+      if (saveWpmTimer.current) clearTimeout(saveWpmTimer.current);
+      saveWpmTimer.current = setTimeout(() => {
+        void save({ baseWpm: next }).finally(() =>
+          setPendingWpm((current) => (current === next ? null : current))
+        );
+      }, SAVE_WPM_DELAY_MS);
+    },
+    [save]
+  );
+  const warmup = settings.warmup;
+
+  // Sugestao de desacelerar quando as ultimas sessoes tiveram muitos freios e
+  // recuos (PROD-10). So sugere: mudar a velocidade e sempre do leitor.
+  const [slowdown, setSlowdown] = useState<{ message: string; wpm: number } | null>(null);
+  useEffect(() => {
+    let active = true;
+    void apiGet<{ suggestion: { message: string } | null; suggestedWpm: number | null }>(
+      "/api/reading-sessions/sugestao"
+    )
+      .then((data) => {
+        if (active && data.suggestion && data.suggestedWpm) {
+          setSlowdown({ message: data.suggestion.message, wpm: data.suggestedWpm });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Guia de primeiro uso (UX-10, APP-5): uma vez por conta, na primeira
+  // abertura do leitor.
+  const [tipsDismissed, setTipsDismissed] = useState(false);
+  const dismissTips = useCallback(() => {
+    setTipsDismissed(true);
+    void save({ readerTipsSeen: true });
+  }, [save]);
+
+  // Tempo de cada palavra na velocidade atual, acumulado: da o tempo que falta
+  // e o ritmo real (com as pausas) sem percorrer o texto a cada render.
+  const timeline = useMemo(() => {
+    const sums = new Float64Array(total + 1);
+    for (let position = 0; position < total; position += 1) {
+      sums[position + 1] =
+        sums[position]! +
+        runnerDelayMs(wpm, weights?.[position] ?? 1, pauses?.[position] ?? "none", 1);
+    }
+    return sums;
+  }, [total, wpm, weights, pauses]);
+  const realWpm =
+    total > 0 && timeline[total]! > 0 ? Math.round((total * 60_000) / timeline[total]!) : wpm;
 
   // `startAt` vem da lista de destaques: abrir um destaque posiciona a
   // leitura nele, em vez de onde a leitura tinha parado.
@@ -166,15 +335,36 @@ function Reader({
     clamp(startAt ?? text.progressIndex, 0, Math.max(0, total - 1))
   );
   const [playing, setPlaying] = useState(false);
-  // Posicao em que a leitura corrente comecou: a rampa de aquecimento conta a
-  // partir dela, nao do inicio do texto - senao retomar no meio ja chegaria
-  // acelerado, que e justamente o que a rampa evita.
-  const warmupOriginRef = useRef(0);
-  // Quando a leitura parou. Uma pausa curta nao reinicia a rampa: tirar o dedo
-  // da tela por um segundo nao desfaz a adaptacao ao ritmo.
-  const pausedAtRef = useRef(0);
-  const [showSettings, setShowSettings] = useState(false);
   const [finished, setFinished] = useState(false);
+  // Preferencia do aparelho, lida como loja externa: o HTML do servidor e o
+  // primeiro render do cliente saem iguais ("runner"), e a troca vale na hora.
+  const playMode = useSyncExternalStore(subscribePlayMode, readPlayMode, () => "runner" as PlayMode);
+  const setPlayMode = useCallback((mode: PlayMode) => {
+    try {
+      localStorage.setItem(PLAY_MODE_KEY, mode);
+    } catch {
+      // Sem armazenamento: a preferencia nao persiste.
+    }
+    window.dispatchEvent(new Event(PLAY_MODE_EVENT));
+  }, []);
+  const runnerVisible = playing && playMode === "runner";
+
+  // Posicao em que a leitura corrente comecou: a rampa de aquecimento conta a
+  // partir dela, nao do inicio do texto.
+  const warmupOriginRef = useRef(0);
+  // Fator em que a rampa comeca: proporcional ao tempo parado (60% na
+  // abertura ou depois de 2 minutos, 85% depois de uma pausa curta).
+  const warmupStartRef = useRef(warmupStart(null));
+  // Quando a leitura parou. Uma pausa curta nao reinicia a rampa.
+  const pausedAtRef = useRef(0);
+  // Posicao em que a leitura parou: o recuo ao retomar (US-95) so vale se o
+  // leitor nao escolheu outra posicao durante a pausa.
+  const pausedIndexRef = useRef(-1);
+  // Inicio da palavra atual no relogio do Word Runner. O prazo de cada
+  // palavra e absoluto (inicio + duracao): o custo de render nao se acumula,
+  // e mudar a velocidade no meio nao reinicia a palavra.
+  const wordStartRef = useRef(0);
+  const brakeAtRef = useRef(0);
 
   // Recapitulacao ao retomar um texto parado (US-77). Decidida uma vez, na
   // abertura: e o intervalo desde a ultima leitura que conta, nao o de agora.
@@ -188,34 +378,116 @@ function Reader({
     )
   );
   const [recapPlaying, setRecapPlaying] = useState(false);
-
-  const wpm = settings.baseWpm;
-  const warmup = settings.warmup;
-
-  useWakeLock(playing);
+  // Recapitulacao do capitulo anterior de uma serie (PROD-12): vem pronta do
+  // servidor quando este capitulo abre do inicio e o anterior ficou para tras.
+  const [chapterRecap, setChapterRecap] = useState(() =>
+    recap ? null : (text.previousChapter ?? null)
+  );
+  const [chapterRecapPlaying, setChapterRecapPlaying] = useState(false);
+  const chapterRecapWords = useMemo(
+    () => (chapterRecap ? chapterRecap.tail.join(" ").split(/\s+/).filter(Boolean) : []),
+    [chapterRecap]
+  );
 
   // A pagina fica montada (so invisivel) enquanto o Word Runner roda: assim a
   // paginacao continua medida e pausar mostra a pagina certa na hora.
   const emphasis = settings.wordEmphasis;
+  const layoutKey = `${settings.fontScale}:${settings.fontFamily}:${settings.lineHeightStep}`;
   const { frameRef, rulerRef, pages, ready: pagesReady } = usePagedText(
     paragraphs,
     total,
-    emphasis
+    emphasis,
+    layoutKey
   );
   const currentPage = pageOfWord(pages, index);
   const pageStart = pages[currentPage] ?? 0;
   const pageEnd = pages[currentPage + 1] ?? total;
 
+  /* --- espelho para handlers fora do render ------------------------------- */
+  const stateRef = useRef({ index, playing, total, textId: text.id, narrating: false });
+  useEffect(() => {
+    stateRef.current.index = index;
+    stateRef.current.playing = playing;
+    stateRef.current.total = total;
+    stateRef.current.textId = text.id;
+  }, [index, playing, total, text.id]);
+
   /* --- contabilidade da sessao ------------------------------------------ */
-  // Refs em vez de estado: o cronometro nao precisa re-renderizar a cada tick.
-  const startedAtRef = useRef<number | null>(null);
-  const elapsedRef = useRef(0);
-  const wordsReadRef = useRef(0);
+  const meterRef = useRef(createMeter());
   const savedIndexRef = useRef(index);
-  const [displayMs, setDisplayMs] = useState(0);
-  const [summary, setSummary] = useState<{ durationMs: number; wordsRead: number } | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [quizOpen, setQuizOpen] = useState(false);
   const [comprehension, setComprehension] = useState<number | null>(null);
+  // Tempo lido nesta visita, somado a cada sessao fechada: o cabecalho nao
+  // pode voltar a 0:00 so porque uma sessao foi gravada.
+  const visitMsRef = useRef(0);
+  const [displayMs, setDisplayMs] = useState(0);
+
+  /**
+   * Tempo previsto do trecho sugerido (US-85). Vai so na primeira sessao
+   * gravada: a que cobre o trecho; o que se le depois dele nao foi previsto.
+   */
+  const plannedRef = useRef(plannedMs);
+
+  const saveProgress = useCallback(
+    (position: number, useKeepalive = false) => {
+      if (position === savedIndexRef.current) return;
+      savedIndexRef.current = position;
+      void fetch(`/api/texts/${text.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        // A hora do aparelho acompanha a posicao: o que ficou na fila offline
+        // pode chegar depois de outro aparelho ja ter gravado aqui.
+        body: JSON.stringify({ progressIndex: position, at: new Date().toISOString() }),
+        keepalive: useKeepalive,
+      }).catch(() => undefined);
+    },
+    [text.id]
+  );
+
+  const postRecord = useCallback(
+    (record: SessionRecord | null, completed: boolean, useKeepalive = false) => {
+      if (!record) return;
+      visitMsRef.current += record.wallMs;
+      const planned = plannedRef.current;
+      plannedRef.current = undefined;
+      void fetch("/api/reading-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          textId: text.id,
+          wordsRead: record.wordsRead,
+          durationMs: record.durationMs,
+          completed,
+          narrated: record.mode === "narracao",
+          mode: record.mode,
+          brakes: record.brakes,
+          plannedMs: planned,
+        }),
+        keepalive: useKeepalive,
+      }).catch(() => undefined);
+    },
+    [text.id]
+  );
+
+  /** Grava a sessao aberta (se houver o que gravar). O relogio segue como estava. */
+  const flushSession = useCallback(
+    (completed: boolean, useKeepalive = false) => {
+      const meter = meterRef.current;
+      const now = Date.now();
+      // Sessao curta demais para gravar ainda conta no relogio da visita.
+      const wall = wallMs(meter, now);
+      const record = takeRecord(meter, now);
+      if (record) postRecord(record, completed, useKeepalive);
+      else visitMsRef.current += wall;
+    },
+    [postRecord]
+  );
+
+  /* --- avisos para leitor de tela ------------------------------------------ */
+  // A palavra do Word Runner nao e anunciada (a 300 ppm inundaria o leitor de
+  // tela); o que se anuncia e a mudanca de estado.
+  const [announcement, setAnnouncement] = useState("");
 
   /* --- destaques --------------------------------------------------------- */
   const [marks, setMarks] = useState<HighlightItem[]>(highlights);
@@ -223,7 +495,7 @@ function Reader({
   const [marking, setMarking] = useState(false);
   // Selecionar texto so faz sentido com a pagina na tela; no Word Runner a
   // unidade que da para apontar sem parar a leitura e a frase.
-  const selectable = !playing && !finished;
+  const selectable = !runnerVisible && !finished;
   const { span: selection, clear: clearSelection } = useWordSelection(selectable);
 
   const stored: StoredHighlight[] = useMemo(
@@ -241,7 +513,10 @@ function Reader({
           range
         );
         setMarks(data.highlights);
-        notify("Trecho destacado.", "success");
+        // Durante o Word Runner o aviso e so para leitor de tela: um aviso
+        // visual cobria o botao de pausa por 4 segundos.
+        if (stateRef.current.playing) setAnnouncement("Frase destacada.");
+        else notify("Trecho destacado.", "success");
       } catch (cause) {
         notify(cause instanceof Error ? cause.message : "Nao consegui destacar.", "error");
       } finally {
@@ -271,6 +546,15 @@ function Reader({
       setMarks((current) => current.filter((item) => item.id !== markId));
     },
     [text.id]
+  );
+
+  /** Destaca a frase que contem a palavra atual, sem parar a leitura. */
+  const markSentenceAt = useCallback(
+    (position: number) => {
+      const range = sentenceRange(words, position, language);
+      if (range) void createMark(range);
+    },
+    [words, createMark, language]
   );
 
   /* --- proxima leitura --------------------------------------------------- */
@@ -315,83 +599,42 @@ function Reader({
 
   /* --- dicionario -------------------------------------------------------- */
   // Toque longo so com a pagina na tela; no Word Runner o toque e o freio.
-  const word = useWordTouch(!playing && !finished);
-  /** Destaca a frase que contem a palavra atual, sem parar a leitura. */
-  const markSentence = useCallback(() => {
-    const range = sentenceRange(words, index);
-    if (range) void createMark(range);
-  }, [words, index, createMark]);
+  const word = useWordTouch(!runnerVisible && !finished);
 
-  // As pausas de pontuacao contam no tempo da sessao: o ritmo medido e o real,
-  // e e dele que saem as estimativas de tempo (US-83).
-  const elapsedMs = useCallback(
-    () =>
-      Math.max(0, elapsedRef.current + (startedAtRef.current ? Date.now() - startedAtRef.current : 0)),
-    []
-  );
+  /* --- leitura na pagina ------------------------------------------------- */
+  // Quando a pagina atual entrou na tela e de que palavra a leitura dela
+  // comecou. Virar para a frente conta a pagina como lida (PROD-2).
+  const pageEnteredRef = useRef({ at: 0, from: index });
+  useEffect(() => {
+    pageEnteredRef.current = { at: Date.now(), from: stateRef.current.index };
+  }, []);
+  const [pageAwake, setPageAwake] = useState(true);
+  const awakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchPage = useCallback(() => {
+    setPageAwake(true);
+    if (awakeTimer.current) clearTimeout(awakeTimer.current);
+    awakeTimer.current = setTimeout(() => setPageAwake(false), PAGE_AWAKE_MS);
+  }, []);
+  useEffect(() => {
+    awakeTimer.current = setTimeout(() => setPageAwake(false), PAGE_AWAKE_MS);
+    return () => {
+      if (awakeTimer.current) clearTimeout(awakeTimer.current);
+    };
+  }, []);
 
-  const saveProgress = useCallback(
-    (position: number, useKeepalive = false) => {
-      if (position === savedIndexRef.current) return;
-      savedIndexRef.current = position;
-      void fetch(`/api/texts/${text.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        // A hora do aparelho acompanha a posicao: o que ficou na fila offline
-        // pode chegar depois de outro aparelho ja ter gravado aqui.
-        body: JSON.stringify({ progressIndex: position, at: new Date().toISOString() }),
-        keepalive: useKeepalive,
-      }).catch(() => undefined);
-    },
-    [text.id]
-  );
+  /* --- voz alta ---------------------------------------------------------- */
+  // A voz e a do idioma do texto, nao a da interface (US-68).
+  const speech = useSpeech(text.language);
+  const narrating = speech.state === "falando";
+  useEffect(() => {
+    stateRef.current.narrating = narrating;
+  }, [narrating]);
 
-  /**
-   * Tempo previsto do trecho sugerido (US-85). Vai so na primeira sessao
-   * gravada: a que cobre o trecho; o que se le depois dele nao foi previsto.
-   */
-  const plannedRef = useRef(plannedMs);
-
-  /** Grava a sessao e zera os acumuladores. Devolve o que foi contabilizado. */
-  const flushSession = useCallback(
-    (completed: boolean, useKeepalive = false, narrated = false) => {
-      const duration = elapsedMs();
-      const wordsRead = wordsReadRef.current;
-
-      elapsedRef.current = 0;
-      startedAtRef.current = null;
-      wordsReadRef.current = 0;
-
-      if (wordsRead < MIN_WORDS_TO_RECORD || duration < 1000) {
-        return { durationMs: duration, wordsRead };
-      }
-
-      const planned = plannedRef.current;
-      plannedRef.current = undefined;
-
-      void fetch("/api/reading-sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          textId: text.id,
-          wordsRead,
-          durationMs: duration,
-          completed,
-          narrated,
-          plannedMs: planned,
-        }),
-        keepalive: useKeepalive,
-      }).catch(() => undefined);
-
-      return { durationMs: duration, wordsRead };
-    },
-    [text.id, elapsedMs]
-  );
+  useWakeLock(playing || narrating || (pageAwake && !finished));
 
   /* --- paradas no meio da leitura ---------------------------------------- */
-  // Fim do trecho sugerido por tempo livre (US-85) e "isso ainda vale?"
-  // (US-80). As duas pausam a leitura e abrem uma folha.
   const initialWpmRef = useRef(wpm);
+  const [stopReached, setStopReached] = useState(false);
   const stopReachedRef = useRef(false);
   const [stopInfo, setStopInfo] = useState<{ realMs: number; speedChanged: boolean } | null>(
     null
@@ -401,65 +644,177 @@ function Reader({
   const askCheckpoints = settings.askCheckpoints && !text.abandoned;
   const resumeRewind = settings.resumeRewind;
   const eyeRest = settings.eyeRest;
-  // Posicao em que a leitura parou: o recuo ao retomar (US-95) so vale se o
-  // leitor nao escolheu outra posicao durante a pausa.
-  const pausedIndexRef = useRef(-1);
+
+  // Descanso da vista (US-104): tempo de leitura continua desde a ultima
+  // parada longa. Parar por menos de 2 minutos nao conta como descanso.
+  const restAccumRef = useRef(0);
+  const restStartRef = useRef<number | null>(null);
+  const [resting, setResting] = useState(false);
+
+  // Onde a leitura estava antes de um salto (PROD-15): a pagina virada a mao
+  // para tras, a busca ou o sumario nao podem fazer perder o lugar.
+  const [anchor, setAnchor] = useState(index);
+  // Palavra escolhida por toque: fica marcada mesmo sendo a primeira da pagina.
+  const [tapped, setTapped] = useState<number | null>(null);
+
+  const playButtonRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Para o Word Runner, por qualquer motivo. Unico caminho de parada: todos
+   * os acumuladores (sessao, descanso, recuo, rampa) andam juntos.
+   */
+  const pause = useCallback(
+    (reason: PauseReason) => {
+      if (!stateRef.current.playing) return;
+      const now = Date.now();
+      const position = stateRef.current.index;
+      stopClock(meterRef.current, now);
+      pausedAtRef.current = now;
+      pausedIndexRef.current = position;
+      if (reason === "freio") {
+        addBrake(meterRef.current, position);
+        brakeAtRef.current = now;
+      }
+      if (restStartRef.current !== null) restAccumRef.current += now - restStartRef.current;
+      restStartRef.current = null;
+      saveProgress(position);
+      pageEnteredRef.current = { at: now, from: position };
+      stateRef.current.playing = false;
+      setPlaying(false);
+      setAnchor(position);
+      touchPage();
+      setAnnouncement(
+        `Pausado na palavra ${formatNumber(position + 1)} de ${formatNumber(stateRef.current.total)}.`
+      );
+    },
+    [saveProgress, touchPage]
+  );
+
+  /** Fim do texto, por qualquer caminho: Word Runner, narracao ou pagina. */
+  const finish = useCallback(
+    (configured: number) => {
+      const meter = meterRef.current;
+      const now = Date.now();
+      stopClock(meter, now);
+      const done: Summary = {
+        wordsRead: meter.words,
+        wallMs: wallMs(meter, now),
+        configuredWpm: configured,
+      };
+      stateRef.current.playing = false;
+      setPlaying(false);
+      setIndex(stateRef.current.total);
+      setFinished(true);
+      saveProgress(stateRef.current.total);
+      setSummary(done);
+      flushSession(true);
+      setAnnouncement("Leitura concluida.");
+    },
+    [saveProgress, flushSession]
+  );
+
+  /** Liga o Word Runner (ou o guia na pagina) na posicao atual. */
+  const narrationStopRef = useRef<() => void>(() => undefined);
+  const start = useCallback(() => {
+    if (stateRef.current.playing) return;
+    if (stateRef.current.index >= stateRef.current.total) return;
+    if (stateRef.current.narrating) narrationStopRef.current();
+    speech.clearError();
+
+    const now = Date.now();
+    const pausedMs = pausedAtRef.current > 0 ? now - pausedAtRef.current : Number.POSITIVE_INFINITY;
+    const moved = pausedIndexRef.current !== stateRef.current.index;
+
+    // Recua algumas palavras depois de uma pausa longa (US-95), desde que a
+    // posicao seja a mesma em que a leitura parou.
+    let from = stateRef.current.index;
+    if (resumeRewind && !moved && Number.isFinite(pausedMs)) {
+      const target = resumeTarget(words, from, pausedMs, paragraphs, wpm, language);
+      if (target !== from) {
+        from = target;
+        stateRef.current.index = target;
+        setIndex(target);
+      }
+    }
+    pausedIndexRef.current = -1;
+
+    // Pausa curta sem mudar de lugar nao reinicia a rampa. Mudou de lugar (ou
+    // recuou), a rampa recomeca dali: antes ela ficava presa em 60% quando a
+    // posicao voltava para antes da origem.
+    if (pausedMs >= SHORT_PAUSE_MS || moved || from < warmupOriginRef.current) {
+      warmupOriginRef.current = from;
+      warmupStartRef.current = warmupStart(moved ? null : pausedMs);
+    }
+
+    if (pausedAtRef.current === 0 || pausedMs >= EYE_REST_RESET_MS) restAccumRef.current = 0;
+    restStartRef.current = now;
+
+    postRecord(startClock(meterRef.current, "runner", now), false);
+    wordStartRef.current = performance.now();
+    stateRef.current.playing = true;
+    setFinished(false);
+    setTapped(null);
+    setPlaying(true);
+    setAnnouncement(playMode === "guia" ? "Guia na pagina iniciado." : "Word Runner iniciado.");
+  }, [resumeRewind, words, paragraphs, wpm, language, postRecord, playMode, speech]);
+
+  const togglePlay = useCallback(() => {
+    if (stateRef.current.playing) pause("freio");
+    else start();
+  }, [pause, start]);
 
   /* --- motor de avanco --------------------------------------------------- */
   useEffect(() => {
     if (!playing) return;
-
-    // Ja no fim: nada a agendar. A conclusao e tratada no callback abaixo.
     if (index >= total) return;
 
-    // Word Runner: uma palavra por vez. A rampa de aquecimento vale a partir
-    // de onde a leitura corrente comecou.
-    const factor = warmup ? warmupFactor(index - warmupOriginRef.current) : 1;
-    const delay = runnerDelayMs(wpm, weights?.[index] ?? 1, pauses?.[index] ?? "none", factor);
-    const step = 1;
+    // Uma palavra por vez. A rampa de aquecimento vale a partir de onde a
+    // leitura corrente comecou.
+    const factor = warmup
+      ? warmupFactor(index - warmupOriginRef.current, warmupStartRef.current)
+      : 1;
+    const weight = weights?.[index] ?? 1;
+    const kind: PauseKind = pauses?.[index] ?? "none";
+    const delay = runnerDelayMs(wpm, weight, kind, factor);
+    // O que passa da duracao nominal da palavra e pausa ou rampa: sai do
+    // tempo da sessao, para o ritmo medido ser o das palavras.
+    const credit = Math.max(0, delay - (60_000 / wpm) * weight);
+
+    const now = performance.now();
+    let due = wordStartRef.current + delay;
+    // Muito atrasado (aba em segundo plano, aparelho lento): recomeca o
+    // relogio em vez de disparar uma rajada de palavras para alcancar.
+    if (due < now - 250) due = now;
 
     const timer = setTimeout(() => {
-      wordsReadRef.current += Math.min(step, total - index);
-      const next = index + step;
+      wordStartRef.current = due;
+      addWords(meterRef.current, 1, credit);
+      const next = index + 1;
 
       if (next >= total) {
-        setIndex(total);
-        setPlaying(false);
-        setFinished(true);
-        saveProgress(total);
-        // Guarda os numeros antes do flush zerar os acumuladores: a tela final
-        // mostra a sessao que acabou de terminar.
-        setSummary(flushSession(true));
-      } else {
-        setIndex(next);
-
-        if (stopAt !== undefined && !stopReachedRef.current && next >= stopAt) {
-          // O real e o tempo lido desde a abertura, antes de o flush zera-lo.
-          stopReachedRef.current = true;
-          const realMs = elapsedMs();
-          pausedAtRef.current = Date.now();
-          pausedIndexRef.current = next;
-          setPlaying(false);
-          saveProgress(next);
-          flushSession(false);
-          setStopInfo({ realMs, speedChanged: wpm !== initialWpmRef.current });
-          return;
-        }
-
-        const marker = askCheckpoints
-          ? checkpointCrossed(next, total, answeredRef.current)
-          : null;
-        if (marker !== null) {
-          elapsedRef.current += startedAtRef.current ? Date.now() - startedAtRef.current : 0;
-          startedAtRef.current = null;
-          pausedAtRef.current = Date.now();
-          pausedIndexRef.current = next;
-          setPlaying(false);
-          saveProgress(next);
-          setCheckpoint(marker);
-        }
+        finish(wpm);
+        return;
       }
-    }, delay);
+
+      stateRef.current.index = next;
+      setIndex(next);
+
+      if (stopAt !== undefined && !stopReachedRef.current && next >= stopAt) {
+        stopReachedRef.current = true;
+        setStopReached(true);
+        const realMs = wallMs(meterRef.current, Date.now());
+        pause("parada");
+        flushSession(false);
+        setStopInfo({ realMs, speedChanged: wpm !== initialWpmRef.current });
+        return;
+      }
+
+      const marker = askCheckpoints ? checkpointCrossed(next, total, answeredRef.current) : null;
+      if (marker !== null) {
+        pause("marco");
+        setCheckpoint(marker);
+      }
+    }, Math.max(0, due - now));
 
     return () => clearTimeout(timer);
   }, [
@@ -472,183 +827,174 @@ function Reader({
     pauses,
     stopAt,
     askCheckpoints,
-    elapsedMs,
-    saveProgress,
+    finish,
+    pause,
     flushSession,
   ]);
 
   /* --- cronometro visivel ------------------------------------------------ */
   useEffect(() => {
-    if (!playing) {
-      setDisplayMs(elapsedRef.current);
-      return;
-    }
-    setDisplayMs(elapsedMs());
-    const timer = setInterval(() => setDisplayMs(elapsedMs()), 500);
+    const tick = () => setDisplayMs(visitMsRef.current + wallMs(meterRef.current, Date.now()));
+    tick();
+    if (!playing && !narrating) return;
+    const timer = setInterval(tick, 500);
     return () => clearInterval(timer);
-  }, [playing, elapsedMs]);
+  }, [playing, narrating, index]);
 
   /* --- persistencia ------------------------------------------------------ */
   useEffect(() => {
-    if (!playing) return;
-    const timer = setInterval(() => saveProgress(index), PROGRESS_SAVE_INTERVAL_MS);
+    if (!playing && !narrating) return;
+    const timer = setInterval(
+      () => saveProgress(stateRef.current.index),
+      PROGRESS_SAVE_INTERVAL_MS
+    );
     return () => clearInterval(timer);
-  }, [playing, index, saveProgress]);
+  }, [playing, narrating, saveProgress]);
 
-  // Espelho do estado atual para os handlers que rodam fora do ciclo de
-  // render (visibilitychange, teclado, unmount).
-  const stateRef = useRef({ index, playing, total, textId: text.id });
-
-  useEffect(() => {
-    stateRef.current = { index, playing, total, textId: text.id };
-  }, [index, playing, total, text.id]);
-
-  // Fechar a aba no meio da leitura nao pode perder a posicao nem a sessao.
+  // Aba escondida, aparelho bloqueado ou pagina fechada: o Word Runner para
+  // (ninguem le uma tela apagada) e a sessao e gravada, com ou sem leitura em
+  // andamento. A narracao continua tocando, e o relogio dela tambem.
   useEffect(() => {
     const onHide = () => {
-      if (document.visibilityState !== "hidden") return;
-      saveProgress(stateRef.current.index, true);
-      if (stateRef.current.playing) flushSession(false, true);
-    };
-    document.addEventListener("visibilitychange", onHide);
-    return () => {
-      document.removeEventListener("visibilitychange", onHide);
+      if (document.visibilityState !== "hidden") {
+        // De volta: o tempo com a aba escondida nao e leitura de pagina.
+        pageEnteredRef.current = { at: Date.now(), from: stateRef.current.index };
+        return;
+      }
+      pause("oculta");
       saveProgress(stateRef.current.index, true);
       flushSession(false, true);
     };
-  }, [saveProgress, flushSession]);
+    const onPageHide = () => {
+      pause("oculta");
+      saveProgress(stateRef.current.index, true);
+      flushSession(false, true);
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [pause, saveProgress, flushSession]);
 
-  /* --- acoes ------------------------------------------------------------- */
-  // Descanso da vista (US-104): tempo de leitura continua desde a ultima
-  // parada longa. Parar por menos de 2 minutos nao conta como descanso.
-  const restAccumRef = useRef(0);
-  const restStartRef = useRef<number | null>(null);
-  const [resting, setResting] = useState(false);
-
-  const togglePlay = useCallback(() => {
-    const now = Date.now();
-    if (stateRef.current.playing) {
-      elapsedRef.current += startedAtRef.current ? now - startedAtRef.current : 0;
-      startedAtRef.current = null;
-      pausedAtRef.current = now;
-      pausedIndexRef.current = stateRef.current.index;
-      if (restStartRef.current !== null) restAccumRef.current += now - restStartRef.current;
-      restStartRef.current = null;
-      saveProgress(stateRef.current.index);
-      setPlaying(false);
-      return;
-    }
-
-    if (stateRef.current.index >= total) return;
-
-    const pausedMs = pausedAtRef.current > 0 ? now - pausedAtRef.current : 0;
-
-    // Recua algumas palavras depois de uma pausa longa (US-95), desde que a
-    // posicao seja a mesma em que a leitura parou.
-    let from = stateRef.current.index;
-    if (resumeRewind && pausedIndexRef.current === from) {
-      const target = resumeTarget(words, from, pausedMs);
-      if (target !== from) {
-        from = target;
-        stateRef.current.index = target;
-        setIndex(target);
-      }
-    }
-    pausedIndexRef.current = -1;
-
-    // Pausa curta nao reinicia a rampa. O numero e o que separa "parei para
-    // ajustar a tela" de "voltei ao texto depois de um tempo".
-    const brief = now - pausedAtRef.current < SHORT_PAUSE_MS;
-    if (!brief) warmupOriginRef.current = from;
-
-    if (pausedAtRef.current === 0 || pausedMs >= EYE_REST_RESET_MS) restAccumRef.current = 0;
-    restStartRef.current = now;
-
-    startedAtRef.current = now;
-    setFinished(false);
-    setPlaying(true);
-  }, [total, saveProgress, resumeRewind, words]);
+  // Sair do leitor pela navegacao do app (desmontar) tambem grava.
+  useEffect(
+    () => () => {
+      const meter = meterRef.current;
+      stopClock(meter, Date.now());
+      saveProgress(stateRef.current.index, true);
+      postRecord(takeRecord(meter, Date.now()), false, true);
+    },
+    [saveProgress, postRecord]
+  );
 
   // Aviso de descanso: agenda para quando a leitura continua completar o
   // intervalo; pausar desarma, e o tempo ja lido fica acumulado.
   useEffect(() => {
     if (!playing || !eyeRest) return;
-    const running = restStartRef.current !== null ? Date.now() - restStartRef.current : 0;
-    const remaining = Math.max(0, EYE_REST_AFTER_MS - restAccumRef.current - running);
+    const runningFor = restStartRef.current !== null ? Date.now() - restStartRef.current : 0;
+    const remaining = Math.max(0, EYE_REST_AFTER_MS - restAccumRef.current - runningFor);
     const timer = setTimeout(() => {
       if (!stateRef.current.playing) return;
-      togglePlay();
+      pause("descanso");
       setResting(true);
     }, remaining);
     return () => clearTimeout(timer);
-  }, [playing, eyeRest, togglePlay]);
+  }, [playing, eyeRest, pause]);
 
-  // Consultar uma palavra pausa a leitura, e fechar o painel nao a retoma
-  // sozinha: quem parou para entender uma palavra decide quando voltar.
-  const wordOpen = word.touched !== null;
+  /* --- narracao ------------------------------------------------------------ */
+  // Posicao anterior da propria narracao: a contagem anda por ela, nao pelo
+  // espelho de estado, que so e atualizado por um efeito.
+  const narratedFromRef = useRef(0);
 
-  useEffect(() => {
-    if (wordOpen && stateRef.current.playing) togglePlay();
-  }, [wordOpen, togglePlay]);
-
-  /* --- voz alta ---------------------------------------------------------- */
-  // A voz e a do idioma do texto, nao a da interface (US-68).
-  const speech = useSpeech(text.language);
-  const narratingRef = useRef(false);
-
-  /**
-   * Liga e desliga a narracao.
-   *
-   * A fala conduz a posicao: o avanco automatico fica parado enquanto ela
-   * dura, senao dois relogios disputariam o mesmo indice. Pausar, avancar e
-   * voltar continuam valendo - a narracao recomeca da posicao nova.
-   */
-  const toggleSpeech = useCallback(() => {
-    if (speech.state === "falando") {
-      speech.stop();
-      narratingRef.current = false;
-      elapsedRef.current += startedAtRef.current ? Date.now() - startedAtRef.current : 0;
-      startedAtRef.current = null;
-      saveProgress(stateRef.current.index);
-      return;
-    }
-
-    if (stateRef.current.index >= total) return;
-    if (stateRef.current.playing) togglePlay();
-
-    // A contagem anda pela posicao anterior da propria narracao, nao pelo
-    // espelho de estado: ele so e atualizado por um efeito, e entre dois
-    // renders chegam dezenas de eventos de palavra - somar contra um indice
-    // defasado contava a mesma leitura varias vezes.
-    let narratedFrom = stateRef.current.index;
-
-    const began = speech.start({
-      from: narratedFrom,
-      wpm,
-      words,
-      onWord: (position) => {
-        wordsReadRef.current += Math.max(0, position - narratedFrom);
-        narratedFrom = position;
-        setIndex(position);
-      },
-      onEnd: () => {
-        narratingRef.current = false;
-        wordsReadRef.current += Math.max(0, total - narratedFrom);
-        setIndex(total);
-        setFinished(true);
-        saveProgress(total);
-        setSummary(flushSession(true, false, true));
-      },
-    });
-
-    if (began) {
-      narratingRef.current = true;
-      startedAtRef.current = Date.now();
+  const startNarration = useCallback(
+    (from: number) => {
+      narratedFromRef.current = from;
+      const began = speech.start({
+        from,
+        wpm,
+        words,
+        onWord: (position) => {
+          addWords(meterRef.current, Math.max(0, position - narratedFromRef.current));
+          narratedFromRef.current = position;
+          stateRef.current.index = position;
+          setIndex(position);
+        },
+        onEnd: () => {
+          addWords(meterRef.current, Math.max(0, stateRef.current.total - narratedFromRef.current));
+          finish(wpm);
+        },
+      });
+      if (!began) return false;
+      postRecord(startClock(meterRef.current, "narracao", Date.now()), false);
       setFinished(false);
       const notice = rateNotice(wpm);
       if (notice) notify(notice, "info");
+      return true;
+    },
+    [speech, wpm, words, finish, postRecord, notify]
+  );
+
+  const stopNarration = useCallback(() => {
+    speech.stop();
+    const now = Date.now();
+    stopClock(meterRef.current, now);
+    flushSession(false);
+    saveProgress(stateRef.current.index);
+    pageEnteredRef.current = { at: now, from: stateRef.current.index };
+    setAnchor(stateRef.current.index);
+  }, [speech, flushSession, saveProgress]);
+  useEffect(() => {
+    narrationStopRef.current = stopNarration;
+  }, [stopNarration]);
+
+  // A fala parou sozinha (erro, fim da fila de uma voz): o relogio para junto.
+  useEffect(() => {
+    if (narrating) return;
+    const meter = meterRef.current;
+    if (meter.mode === "narracao" && running(meter)) {
+      stopClock(meter, Date.now());
+      flushSession(false);
     }
-  }, [speech, total, wpm, words, togglePlay, saveProgress, flushSession, notify]);
+  }, [narrating, flushSession]);
+
+  /**
+   * Liga e desliga a narracao. A fala conduz a posicao: o Word Runner para
+   * antes, senao dois relogios disputariam o mesmo indice.
+   */
+  const toggleSpeech = useCallback(() => {
+    if (stateRef.current.narrating) {
+      stopNarration();
+      return;
+    }
+    if (stateRef.current.index >= stateRef.current.total) return;
+    if (stateRef.current.playing) pause("narracao");
+    startNarration(stateRef.current.index);
+  }, [stopNarration, startNarration, pause]);
+
+  /* --- posicao ---------------------------------------------------------- */
+  /**
+   * Muda a posicao de leitura. Unico caminho, para que a narracao recomece da
+   * posicao nova (antes a fala desfazia a mudanca) e o Word Runner siga dali.
+   */
+  const seek = useCallback(
+    (position: number) => {
+      const target = clamp(position, 0, Math.max(0, stateRef.current.total - 1));
+      const now = Date.now();
+      stateRef.current.index = target;
+      setIndex(target);
+      setFinished(false);
+      pageEnteredRef.current = { at: now, from: target };
+      if (stateRef.current.playing) {
+        // Correndo, a navegacao por frase nao reinicia a rampa.
+        wordStartRef.current = performance.now();
+        warmupOriginRef.current = target - WARMUP_WORDS;
+      }
+      if (stateRef.current.narrating) startNarration(target);
+    },
+    [startNarration]
+  );
 
   /**
    * Busca a continuacao do conto na origem: a URL importada com ?page= da
@@ -676,6 +1022,7 @@ function Reader({
         const resumeAt = stateRef.current.total;
         setText(result.text);
         setFinished(false);
+        stateRef.current.index = resumeAt;
         setIndex(resumeAt);
         notify(
           `Parte ${result.page} carregada: mais ${formatNumber(result.addedWords ?? 0)} palavras.`,
@@ -697,48 +1044,101 @@ function Reader({
     }
   }, [loadingMore, online, notify]);
 
-  /** Vira a pagina. A leitura seguinte comeca no topo da pagina nova. */
+  /**
+   * Vira a pagina. Para a frente, a pagina deixada conta como lida quando o
+   * tempo nela foi plausivel; da ultima pagina, a leitura termina. A leitura
+   * seguinte comeca no topo da pagina nova.
+   */
   const turnPage = useCallback(
     (direction: 1 | -1) => {
-      const page = pageOfWord(pages, stateRef.current.index);
+      const now = Date.now();
+      if (now - brakeAtRef.current < BRAKE_GUARD_MS) return;
+      touchPage();
+      setTapped(null);
+      const position = stateRef.current.index;
+      const page = pageOfWord(pages, position);
       const target = pages[page + direction];
 
+      if (direction === 1 && !stateRef.current.playing && !stateRef.current.narrating) {
+        const from = Math.max(pages[page] ?? 0, pageEnteredRef.current.from);
+        const end = pages[page + 1] ?? stateRef.current.total;
+        const { closed } = addPage(meterRef.current, end - from, now - pageEnteredRef.current.at, now);
+        postRecord(closed, false);
+      }
+
       if (target === undefined) {
-        // Fim do que ja foi importado: tenta trazer a proxima parte da origem.
-        if (direction === 1) void continueFromSource();
-        else setIndex(0);
+        if (direction === -1) {
+          // Na primeira pagina, voltar nao mexe na posicao escolhida.
+          notify("Inicio do texto.", "info");
+          return;
+        }
+        // Fim do que ja foi importado: tenta trazer a proxima parte da origem;
+        // texto colado ou sem mais partes termina aqui.
+        if (text.sourceUrl) {
+          void continueFromSource().then((appended) => {
+            if (!appended) finish(wpm);
+          });
+        } else {
+          finish(wpm);
+        }
         return;
       }
 
-      setFinished(false);
-      setIndex(target);
+      // Para a frente, uma pagina: e leitura, o lugar anda junto. Para tras,
+      // o lugar fica, e o atalho de volta aparece.
+      if (direction === 1 && Math.abs(pageOfWord(pages, anchor) - page) <= 1) setAnchor(target);
+      seek(target);
     },
-    [pages, continueFromSource]
+    [pages, anchor, seek, touchPage, postRecord, notify, text.sourceUrl, continueFromSource, finish, wpm]
+  );
+
+  /** Toque na pagina: borda vira, palavra passa a ser o inicio da leitura. */
+  const onPageTap = useCallback(
+    (position: number | null, edge: -1 | 0 | 1) => {
+      if (Date.now() - brakeAtRef.current < BRAKE_GUARD_MS) return;
+      if (word.recentLongPress()) return;
+      if (edge !== 0) {
+        turnPage(edge);
+        return;
+      }
+      if (position === null) return;
+      touchPage();
+      seek(position);
+      setTapped(position);
+      setAnchor(position);
+    },
+    [turnPage, seek, touchPage, word]
   );
 
   /** Volta ao inicio da frase, ou da anterior quando ja esta no inicio (US-91). */
   const backSentence = useCallback(() => {
-    setIndex(sentenceBackTarget(words, stateRef.current.index));
-    setFinished(false);
-  }, [words]);
+    if (stateRef.current.playing) addBrake(meterRef.current, stateRef.current.index);
+    seek(sentenceBackTarget(words, stateRef.current.index, language));
+  }, [words, seek, language]);
 
   /** Avanca para o inicio da proxima frase, como as setas do Word Runner. */
   const forwardSentence = useCallback(() => {
-    setIndex(sentenceForwardTarget(words, stateRef.current.index));
-    setFinished(false);
-  }, [words]);
+    seek(sentenceForwardTarget(words, stateRef.current.index, language));
+  }, [words, seek, language]);
 
   /** Vai para uma posicao escolhida na navegacao, com a leitura pausada. */
   const goTo = useCallback(
     (position: number) => {
-      if (stateRef.current.playing) togglePlay();
-      setIndex(clamp(position, 0, Math.max(0, total - 1)));
-      setFinished(false);
+      if (stateRef.current.playing) pause("folha");
+      seek(position);
     },
-    [togglePlay, total]
+    [pause, seek]
   );
 
   const [navigating, setNavigating] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [confirmRestart, setConfirmRestart] = useState(false);
+  const [speedOpen, setSpeedOpen] = useState(false);
+
+  // Consultar uma palavra pausa a leitura, e fechar o painel nao a retoma
+  // sozinha: quem parou para entender uma palavra decide quando voltar.
+  const wordOpen = word.touched !== null;
 
   /* --- referencias (texto ja salvo) -------------------------------------- */
   // Conta so quando a folha de ajustes abre: e uma varredura do texto inteiro.
@@ -763,24 +1163,26 @@ function Reader({
           return;
         }
         // O texto inteiro muda de indices: recarregar e o jeito seguro de o
-        // leitor, os destaques e a posicao voltarem juntos.
+        // leitor, os destaques e a posicao voltarem juntos. A sessao aberta
+        // e gravada antes - o reload nao passa pelo desmontar.
+        flushSession(false, true);
         window.location.reload();
       } catch (cause) {
         notify(cause instanceof Error ? cause.message : "Nao consegui reprocessar.", "error");
         setReprocessing(false);
       }
     },
-    [text.id, notify, saveProgress]
+    [text.id, notify, saveProgress, flushSession]
   );
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const restart = useCallback(() => {
-    setPlaying(false);
+    pause("folha");
     setFinished(false);
     setSummary(null);
-    setIndex(0);
+    setAnchor(0);
+    seek(0);
     saveProgress(0);
-  }, [saveProgress]);
+  }, [pause, seek, saveProgress]);
 
   /* --- recapitulacao, desistencia e parada prevista ------------------------ */
   const recapMarks = useMemo(
@@ -799,15 +1201,31 @@ function Reader({
       setRecapPlaying(false);
       if (!continueReading) return;
       pausedAtRef.current = Date.now();
+      pausedIndexRef.current = stateRef.current.index;
       warmupOriginRef.current = stateRef.current.index - WARMUP_WORDS;
-      togglePlay();
+      start();
     },
-    [togglePlay]
+    [start]
   );
 
   const [abandoning, setAbandoning] = useState(false);
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const concluded = text.wordCount > 0 && text.progressIndex >= text.wordCount;
+
+  // Qualquer folha aberta para o Word Runner: antes ele seguia correndo atras
+  // dos Ajustes e da navegacao, e as palavras contavam como lidas.
+  const sheetOpen =
+    showSettings ||
+    navigating ||
+    shortcutsOpen ||
+    openMark !== null ||
+    wordOpen ||
+    confirmAbandon ||
+    confirmRestart ||
+    quizOpen;
+  useEffect(() => {
+    if (sheetOpen && stateRef.current.playing) pause("folha");
+  }, [sheetOpen, pause]);
 
   /** Larga o texto (US-79): sai da biblioteca e da fila, volta a lista. */
   const abandon = useCallback(async () => {
@@ -841,8 +1259,17 @@ function Reader({
     if (marker === null) return;
     answeredRef.current = Math.max(answeredRef.current, marker);
     void apiSend(`/api/texts/${text.id}/marco`, "POST", { marker }).catch(() => undefined);
-    togglePlay();
-  }, [checkpoint, text.id, togglePlay]);
+    start();
+  }, [checkpoint, text.id, start]);
+
+  /** Consulta a palavra atual no dicionario, sem ponteiro (teclado). */
+  const lookupCurrent = useCallback(() => {
+    const position = Math.min(stateRef.current.index, words.length - 1);
+    const current = normalizeWord(words[position]);
+    if (!current) return;
+    const around = words.slice(Math.max(0, position - 12), position + 12).join(" ");
+    word.open({ word: current, context: trimContext(around), index: position });
+  }, [words, word]);
 
   /* --- teclado (desktop) -------------------------------------------------- */
   useEffect(() => {
@@ -851,9 +1278,20 @@ function Reader({
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
       // Com uma folha aberta, as teclas sao dela (Esc fecha, Tab navega).
       if (document.body.dataset.sheet) return;
+      // Na recapitulacao nada de atalho: o Espaco ligava o Word Runner
+      // escondido atras dela.
+      if (recapPlaying) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
 
-      if (event.code === "Space") {
+      if (event.code === "Space" || event.key === "k" || event.key === "K") {
+        // Espaco num botao ou controle e do botao: so e play/pausa quando o
+        // foco esta no texto ou em lugar nenhum.
+        if (
+          event.code === "Space" &&
+          target?.closest("button, a, [role=button], [role=slider], [role=radio], [role=tab], summary")
+        ) {
+          return;
+        }
         event.preventDefault();
         togglePlay();
       } else if (event.key === "ArrowLeft" && event.shiftKey) {
@@ -862,13 +1300,16 @@ function Reader({
       } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         // Velocidade pelo teclado (US-93), nos mesmos limites do controle.
         event.preventDefault();
-        const next = clamp(wpm + (event.key === "ArrowUp" ? 25 : -25), MIN_WPM, MAX_WPM);
-        if (next !== wpm) void save({ baseWpm: next });
+        changeWpm(wpm + (event.key === "ArrowUp" ? 25 : -25));
       } else if (event.key === "?") {
         setShortcutsOpen(true);
       } else if (event.key === "/") {
         event.preventDefault();
         setNavigating(true);
+      } else if (event.key === "d" || event.key === "D") {
+        lookupCurrent();
+      } else if (event.key === "h" || event.key === "H") {
+        markSentenceAt(stateRef.current.index);
       } else if (event.key === "ArrowLeft") {
         // Correndo, as setas andam por frase; parado, viram a pagina.
         if (stateRef.current.playing) backSentence();
@@ -887,15 +1328,60 @@ function Reader({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [togglePlay, turnPage, backSentence, forwardSentence, wpm, save]);
+  }, [
+    togglePlay,
+    turnPage,
+    backSentence,
+    forwardSentence,
+    wpm,
+    changeWpm,
+    recapPlaying,
+    lookupCurrent,
+    markSentenceAt,
+  ]);
+
+  // Pausar pelo toque no Word Runner tira o foco da tela: ele volta para o
+  // botao de play, onde quem usa teclado continua.
+  const brakeFromRunner = useCallback(() => {
+    pause("freio");
+    requestAnimationFrame(() => playButtonRef.current?.focus({ preventScroll: true }));
+  }, [pause]);
+
+  // Os avisos flutuantes ficam acima do rodape do leitor, sem cobrir o play.
+  const footerRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const footer = footerRef.current;
+    const root = document.documentElement;
+    if (!footer) return;
+    const apply = () =>
+      root.style.setProperty("--toast-offset", `${Math.round(footer.offsetHeight + 8)}px`);
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(footer);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--toast-offset");
+    };
+  }, [finished, recapPlaying]);
 
   const progress = total > 0 ? Math.min(100, (index / total) * 100) : 0;
   // A primeira palavra do texto nao precisa de aviso: nao ha paragrafo antes.
   const paragraphStart = index > 0 && startsParagraph(paragraphs, index);
-  const narrating = speech.state === "falando";
-  // Na pagina, a palavra atual so e marcada quando ela nao e o topo da pagina:
-  // depois de pausar o Word Runner ou durante a narracao.
-  const currentOnPage = narrating || index > pageStart ? index : null;
+  // Na pagina, a palavra atual e marcada depois de pausar, durante a narracao
+  // e no guia; e a palavra tocada, mesmo sendo a primeira da pagina.
+  const currentOnPage = runnerVisible
+    ? null
+    : playing || narrating || index > pageStart || tapped === index
+      ? index
+      : null;
+  const remainingMs = Math.max(0, timeline[total]! - timeline[Math.min(index, total)]!);
+  const anchorPage = pageOfWord(pages, anchor);
+  const showReturn =
+    !playing && !narrating && !finished && pagesReady && anchorPage !== currentPage && anchor < total;
+  const stopPage = stopAt !== undefined ? pageOfWord(pages, stopAt) + 1 : null;
+  const [clockMode, setClockMode] = useState<"restante" | "lido">("restante");
+
+  const onSpeedChange = useCallback((value: number) => changeWpm(value), [changeWpm]);
 
   if (total === 0) {
     return (
@@ -909,9 +1395,13 @@ function Reader({
     );
   }
 
+  const currentParagraph = paragraphs[paragraphOf[Math.min(index, total - 1)] ?? 0];
+
   return (
     <div
-      className="min-h-dvh flex flex-col bg-bg"
+      // Altura fixa: nada que entra ou sai (avisos, barra de selecao, linha
+      // da pagina) muda o tamanho do quadro e dispara a paginacao de novo.
+      className="flex h-dvh flex-col overflow-hidden bg-bg"
       // A intensidade do destaque desce por variavel CSS: quem pinta o trecho
       // atual e uma regra de estilo, nao o React, entao mudar o ajuste nao
       // rerrenderiza palavra nenhuma.
@@ -922,7 +1412,7 @@ function Reader({
         } as React.CSSProperties
       }
     >
-      <header className="pt-safe sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur">
+      <header className="pt-safe z-20 shrink-0 border-b border-border bg-bg/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-2 py-2">
           <Link
             href="/textos"
@@ -932,11 +1422,22 @@ function Reader({
             <BackIcon className="size-5" />
           </Link>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{text.title}</p>
-            <p className="tabular text-xs text-muted">
+            <h1 className="truncate text-sm font-medium">{text.title}</h1>
+            <button
+              type="button"
+              onClick={() => setClockMode((mode) => (mode === "restante" ? "lido" : "restante"))}
+              className="tabular -mx-1 block max-w-full truncate rounded px-1 text-left text-xs text-muted hover:text-ink"
+              aria-label={
+                clockMode === "restante"
+                  ? "Mostrar o tempo lido"
+                  : "Mostrar o tempo que falta"
+              }
+            >
               {formatNumber(Math.min(index + 1, total))} / {formatNumber(total)} &middot;{" "}
-              {formatClock(displayMs)}
-            </p>
+              {clockMode === "restante"
+                ? `faltam ${formatRemaining(remainingMs)}`
+                : `${formatClock(displayMs)} lidos`}
+            </button>
           </div>
           {/* So aparece quando ha o que revisar: um atalho para uma lista
               vazia seria ruido em uma barra ja estreita. */}
@@ -971,16 +1472,44 @@ function Reader({
             <SettingsIcon className="size-5" />
           </button>
         </div>
-        <div className="h-0.5 bg-surface-2">
+        <div className="relative h-0.5 bg-surface-2">
           <div
             className="h-full bg-accent transition-[width] duration-200"
             style={{ width: `${progress}%` }}
           />
+          {stopAt !== undefined && !stopReached ? (
+            <span
+              aria-hidden="true"
+              className="absolute -top-1 h-2.5 w-0.5 rounded bg-ink"
+              style={{ left: `${Math.min(100, (stopAt / total) * 100)}%` }}
+            />
+          ) : null}
         </div>
       </header>
 
-      <main className="relative flex flex-1 flex-col">
-        {recapPlaying && recap ? (
+      <p className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </p>
+
+      <main
+        className={`relative flex min-h-0 flex-1 flex-col ${finished || recapPlaying || chapterRecapPlaying ? "overflow-y-auto" : ""}`}
+      >
+        {chapterRecapPlaying && chapterRecap ? (
+          <RecapPlayer
+            marks={chapterRecap.highlights}
+            words={chapterRecapWords}
+            wpm={wpm}
+            title={`Antes: ${chapterRecap.title}`}
+            onDone={() => {
+              setChapterRecap(null);
+              setChapterRecapPlaying(false);
+            }}
+            onSkip={() => {
+              setChapterRecap(null);
+              setChapterRecapPlaying(false);
+            }}
+          />
+        ) : recapPlaying && recap ? (
           <RecapPlayer
             marks={recapMarks}
             words={words.slice(recap.from, recap.to)}
@@ -991,8 +1520,7 @@ function Reader({
         ) : finished ? (
           <Finished
             total={total}
-            durationMs={summary?.durationMs ?? 0}
-            wordsRead={summary?.wordsRead ?? total}
+            summary={summary}
             onRestart={restart}
             canContinue={Boolean(text.sourceUrl)}
             loadingMore={loadingMore}
@@ -1017,83 +1545,187 @@ function Reader({
               marks={stored}
               emphasis={emphasis}
               current={currentOnPage}
-              hidden={playing}
+              hidden={runnerVisible}
               touch={word.handlers}
               onTurn={turnPage}
-              onSeek={(position) => {
-                setIndex(clamp(position, 0, Math.max(0, total - 1)));
-                setFinished(false);
-              }}
+              onTap={onPageTap}
               onOpenMark={setOpenMark}
             />
-            {playing ? (
+            {!settings.readerTipsSeen &&
+            !tipsDismissed &&
+            pagesReady &&
+            !playing &&
+            !narrating &&
+            !sheetOpen ? (
+              <ReaderTips onDone={dismissTips} />
+            ) : null}
+            {runnerVisible ? (
               <RunnerStage
                 words={words}
                 paragraphs={paragraphs}
                 index={index}
                 style={wordStyles?.[index] ?? 0}
                 paragraphStart={paragraphStart}
-                onBrake={togglePlay}
+                block={currentParagraph}
+                language={language}
+                onBrake={brakeFromRunner}
               />
             ) : null}
           </>
         )}
       </main>
 
-      {text.abandoned && !resumed ? (
-        <div className="sticky bottom-0 z-30 px-4 pb-2">
-          <div className="mx-auto flex max-w-3xl items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-float">
-            <p className="flex-1 text-sm">Voce largou este texto. Ele esta fora da biblioteca.</p>
-            <Button size="sm" onClick={() => void resume()}>
-              Retomar
-            </Button>
+      {!finished && !recapPlaying && !chapterRecapPlaying ? (
+        <footer
+          ref={footerRef}
+          className="pb-safe relative z-20 shrink-0 border-t border-border bg-bg/95 backdrop-blur"
+        >
+          {/* Tudo o que aparece por cima (avisos, barra de selecao, voltar ao
+              lugar) flutua acima do rodape, fora do fluxo: entrar ou sair nao
+              muda a altura do quadro nem refaz as paginas. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-full flex flex-col items-center gap-2 px-4 pb-2">
+            {text.abandoned && !resumed ? (
+              <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-float">
+                <p className="flex-1 text-sm">Voce largou este texto. Ele esta fora da biblioteca.</p>
+                <Button size="sm" onClick={() => void resume()}>
+                  Retomar
+                </Button>
+              </div>
+            ) : null}
+
+            {recap && !playing ? (
+              <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
+                <div>
+                  <p className="font-medium">Recapitular o contexto</p>
+                  <p className="text-sm text-muted">
+                    Faz tempo desde a ultima leitura. Reveja o trecho anterior antes de continuar.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="secondary" onClick={() => endRecap(false)}>
+                    Pular
+                  </Button>
+                  <Button onClick={() => setRecapPlaying(true)}>Recapitular</Button>
+                </div>
+              </div>
+            ) : null}
+
+            {chapterRecap && !recap && !playing && !narrating ? (
+              <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
+                <div>
+                  <p className="font-medium">Recapitular o capitulo anterior</p>
+                  <p className="text-sm text-muted">
+                    {`Faz tempo desde "${chapterRecap.title}". Reveja os destaques e o final antes de seguir.`}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="secondary" onClick={() => setChapterRecap(null)}>
+                    Pular
+                  </Button>
+                  <Button onClick={() => setChapterRecapPlaying(true)}>Recapitular</Button>
+                </div>
+              </div>
+            ) : null}
+
+            {slowdown && !playing && !narrating && !recap && !chapterRecap ? (
+              <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface p-3 text-sm shadow-float">
+                <p className="flex-1">{slowdown.message}</p>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    changeWpm(slowdown.wpm);
+                    setSlowdown(null);
+                  }}
+                >
+                  {`Usar ${slowdown.wpm} ppm`}
+                </Button>
+                <button
+                  type="button"
+                  aria-label="Dispensar sugestao"
+                  onClick={() => setSlowdown(null)}
+                  className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+                >
+                  <CloseIcon className="size-5" />
+                </button>
+              </div>
+            ) : null}
+
+            {speech.error ? (
+              <div
+                role="alert"
+                className="pointer-events-auto flex w-full max-w-3xl items-start gap-2 rounded-2xl border border-danger/40 bg-surface p-3 text-sm shadow-float"
+              >
+                <p className="flex-1">
+                  {speech.error}{" "}
+                  <Link href="/ajustes#vozes" className="font-medium text-accent underline">
+                    Vozes em Ajustes
+                  </Link>
+                </p>
+                <button
+                  type="button"
+                  aria-label="Fechar aviso"
+                  onClick={speech.clearError}
+                  className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+                >
+                  <CloseIcon className="size-5" />
+                </button>
+              </div>
+            ) : null}
+
+            {selection && !finished ? (
+              <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border bg-surface p-1 shadow-float">
+                <Button size="md" loading={marking} onClick={() => void createMark(selection)}>
+                  <MarkIcon className="size-5" />
+                  Destacar
+                </Button>
+                <ControlButton label="Cancelar selecao" onClick={clearSelection}>
+                  <CloseIcon className="size-5" />
+                </ControlButton>
+              </div>
+            ) : null}
+
+            {showReturn && !selection ? (
+              <button
+                type="button"
+                onClick={() => seek(anchor)}
+                className="pointer-events-auto min-h-11 rounded-full border border-border bg-surface px-4 text-sm font-medium shadow-float"
+              >
+                {`Voltar para onde parou (p. ${anchorPage + 1})`}
+              </button>
+            ) : null}
+
+            {speedOpen ? (
+              <div className="pointer-events-auto w-full max-w-3xl rounded-2xl border border-border bg-surface p-4 shadow-float">
+                <Slider
+                  label="Velocidade"
+                  display={`${wpm} ppm`}
+                  min={MIN_WPM}
+                  max={MAX_WPM}
+                  step={10}
+                  hint={speedHint(wpm, adaptive ? realWpm : null)}
+                  value={wpm}
+                  onChange={onSpeedChange}
+                />
+              </div>
+            ) : null}
           </div>
-        </div>
-      ) : null}
 
-      {recap && !recapPlaying && !playing && !finished ? (
-        <div className="sticky bottom-0 z-30 px-4 pb-2">
-          <div className="mx-auto max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
-            <div>
-              <p className="font-medium">Recapitular o contexto</p>
-              <p className="text-sm text-muted">
-                Faz tempo desde a ultima leitura. Reveja o trecho anterior antes de continuar.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" onClick={() => endRecap(false)}>
-                Pular
-              </Button>
-              <Button onClick={() => setRecapPlaying(true)}>Recapitular</Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+          <div className="mx-auto w-full max-w-3xl px-4 py-2">
+            {/* Grade fixa: parado e correndo tem os mesmos lugares, e o play
+                nao sai do centro, onde o polegar o procura. */}
+            <div className="grid grid-cols-5 items-center justify-items-center">
+              {!playing ? (
+                <ControlButton
+                  label={narrating ? "Parar a narracao" : "Ler em voz alta"}
+                  onClick={toggleSpeech}
+                  active={narrating}
+                >
+                  <VoiceIcon className="size-5" />
+                </ControlButton>
+              ) : (
+                <span aria-hidden="true" className="size-12" />
+              )}
 
-      {speech.error ? (
-        <div className="sticky bottom-0 z-30 px-4 pb-2">
-          <Alert>{speech.error}</Alert>
-        </div>
-      ) : null}
-
-      {selection && !finished ? (
-        <div className="pointer-events-none sticky bottom-0 z-30 flex justify-center px-4">
-          <div className="pointer-events-auto mb-2 flex items-center gap-1 rounded-full border border-border bg-surface p-1 shadow-float">
-            <Button size="md" loading={marking} onClick={() => void createMark(selection)}>
-              <MarkIcon className="size-5" />
-              Destacar
-            </Button>
-            <ControlButton label="Cancelar selecao" onClick={clearSelection}>
-              <CloseIcon className="size-5" />
-            </ControlButton>
-          </div>
-        </div>
-      ) : null}
-
-      {!finished && !recapPlaying ? (
-        <footer className="pb-safe sticky bottom-0 border-t border-border bg-bg/95 backdrop-blur">
-          <div className="mx-auto w-full max-w-3xl px-4 py-3">
-            <div className="relative flex items-center justify-center gap-3">
               {playing ? (
                 <ControlButton label="Voltar a frase" onClick={backSentence}>
                   <RewindIcon className="size-5" />
@@ -1105,6 +1737,7 @@ function Reader({
               )}
 
               <button
+                ref={playButtonRef}
                 type="button"
                 onClick={togglePlay}
                 aria-label={playing ? "Pausar" : "Iniciar leitura"}
@@ -1123,48 +1756,36 @@ function Reader({
                 </ControlButton>
               )}
 
-              {/* A narracao acompanha a pagina, com a palavra atual marcada. */}
-              {!playing ? (
-                <div className="absolute left-0">
-                  <ControlButton
-                    label={narrating ? "Parar a narracao" : "Ler em voz alta"}
-                    onClick={toggleSpeech}
-                    active={narrating}
-                  >
-                    <VoiceIcon className="size-5" />
-                  </ControlButton>
-                </div>
-              ) : null}
-
-              {/* No Word Runner nao ha texto na tela para selecionar: a unidade
-                  que da para apontar sem parar a leitura e a frase. Fica
-                  absoluto na borda para nao tirar o botao de play do centro,
-                  que e onde o polegar o procura. */}
-              {playing ? (
-                <div className="absolute right-0">
-                  <ControlButton label="Destacar frase" onClick={markSentence}>
-                    <MarkIcon className="size-5" />
-                  </ControlButton>
-                </div>
-              ) : null}
+              <ControlButton label="Destacar frase" onClick={() => markSentenceAt(index)}>
+                <MarkIcon className="size-5" />
+              </ControlButton>
             </div>
 
-            {!playing && pagesReady ? (
-              <p className="tabular mt-2 text-center text-sm text-muted">
-                {`Pagina ${currentPage + 1} de ${pages.length}`}
+            <div className="mt-1 flex min-h-11 items-center justify-between gap-2 text-sm">
+              <button
+                type="button"
+                onClick={() => setSpeedOpen((open) => !open)}
+                aria-expanded={speedOpen}
+                aria-label={`Velocidade: ${wpm} ppm`}
+                className={`tabular min-h-11 shrink-0 rounded-full border px-3 font-medium ${
+                  speedOpen ? "border-accent text-accent" : "border-border text-muted"
+                }`}
+              >
+                {`${wpm} ppm`}
+              </button>
+              <p className="tabular min-w-0 flex-1 truncate text-right text-muted">
+                {playing
+                  ? adaptive
+                    ? `~${realWpm} ppm reais`
+                    : `${wpm} ppm`
+                  : pagesReady
+                    ? stopPage !== null && !stopReached
+                      ? `Pagina ${currentPage + 1} de ${pages.length} · trecho ate a p. ${stopPage}${
+                          plannedMs ? ` (~${formatClock(plannedMs)})` : ""
+                        }`
+                      : `Pagina ${currentPage + 1} de ${pages.length}`
+                    : ""}
               </p>
-            ) : null}
-
-            <div className="mt-2">
-              <Slider
-                label="Velocidade"
-                display={`${wpm} ppm`}
-                min={MIN_WPM}
-                max={MAX_WPM}
-                step={10}
-                value={wpm}
-                onChange={(value) => void save({ baseWpm: value })}
-              />
             </div>
           </div>
         </footer>
@@ -1177,6 +1798,35 @@ function Reader({
           context={word.touched.context}
           textId={text.id}
           onClose={word.clear}
+          actions={
+            word.touched.index !== undefined ? (
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    const position = word.touched?.index;
+                    word.clear();
+                    if (position === undefined) return;
+                    seek(position);
+                    setTapped(position);
+                    setAnchor(position);
+                  }}
+                >
+                  Comecar daqui
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    const position = word.touched?.index;
+                    word.clear();
+                    if (position !== undefined) markSentenceAt(position);
+                  }}
+                >
+                  Destacar frase
+                </Button>
+              </div>
+            ) : null
+          }
         />
       ) : null}
 
@@ -1200,19 +1850,29 @@ function Reader({
         onGo={goTo}
       />
 
-      <Sheet open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} title="Atalhos de teclado">
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-          {SHORTCUTS.map(([keys, action]) => (
-            <div key={keys} className="contents">
-              <dt>
-                <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-xs">
-                  {keys}
-                </kbd>
-              </dt>
-              <dd className="text-muted">{action}</dd>
-            </div>
-          ))}
-        </dl>
+      <Sheet open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} title="Como usar o leitor">
+        <div className="space-y-5">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            {GESTURES.map(([gesture, action]) => (
+              <div key={gesture} className="contents">
+                <dt className="font-medium">{gesture}</dt>
+                <dd className="text-muted">{action}</dd>
+              </div>
+            ))}
+          </dl>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+            {SHORTCUTS.map(([keys, action]) => (
+              <div key={keys} className="contents">
+                <dt>
+                  <kbd className="rounded border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-xs">
+                    {keys}
+                  </kbd>
+                </dt>
+                <dd className="text-muted">{action}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </Sheet>
 
       <EyeRestSheet
@@ -1221,6 +1881,11 @@ function Reader({
           // O descanso zera a contagem: os proximos 20 minutos comecam agora.
           restAccumRef.current = 0;
           setResting(false);
+        }}
+        onContinue={() => {
+          restAccumRef.current = 0;
+          setResting(false);
+          start();
         }}
       />
 
@@ -1239,9 +1904,9 @@ function Reader({
             min={MIN_WPM}
             max={MAX_WPM}
             step={10}
-            hint="Palavras por minuto no Word Runner."
+            hint={speedHint(wpm, adaptive ? realWpm : null)}
             value={wpm}
-            onChange={(value) => void save({ baseWpm: value })}
+            onChange={onSpeedChange}
           />
 
           <div className="space-y-2">
@@ -1257,13 +1922,89 @@ function Reader({
             <p className="text-sm text-faint">{RHYTHM_HINTS[adaptive ? "dinamico" : "uniforme"]}</p>
           </div>
 
+          <div className="space-y-2">
+            <Segmented<PlayMode>
+              label="Ao tocar play"
+              value={playMode}
+              onChange={setPlayMode}
+              options={[
+                { value: "runner", label: "Word Runner" },
+                { value: "guia", label: "Guia na pagina" },
+              ]}
+            />
+            <p className="text-sm text-faint">
+              {playMode === "runner"
+                ? "Uma palavra por vez no centro da tela, com a frase em volta embaixo."
+                : "A palavra atual anda marcada na propria pagina, no mesmo ritmo, e a pagina vira sozinha."}
+            </p>
+          </div>
+
+          <section className="space-y-4" aria-labelledby="ajustes-aa">
+            <h3 id="ajustes-aa" className="text-sm font-semibold">
+              Texto
+            </h3>
+            <Slider
+              label="Tamanho da letra"
+              display={`${settings.fontScale} de ${MAX_FONT_SCALE}`}
+              min={MIN_FONT_SCALE}
+              max={MAX_FONT_SCALE}
+              value={settings.fontScale}
+              onChange={(value) => void save({ fontScale: value })}
+            />
+            <Segmented<FontFamily>
+              label="Fonte"
+              value={settings.fontFamily}
+              onChange={(value) => void save({ fontFamily: value })}
+              options={FONT_FAMILIES.map((family) => ({ value: family, label: FONT_LABELS[family] }))}
+            />
+            <Slider
+              label="Entrelinha"
+              display={LINE_HEIGHT_LABELS[settings.lineHeightStep - 1] ?? ""}
+              min={MIN_LINE_HEIGHT}
+              max={MAX_LINE_HEIGHT}
+              value={settings.lineHeightStep}
+              onChange={(value) => void save({ lineHeightStep: value })}
+            />
+            <Segmented<ThemePreference>
+              label="Tema"
+              value={themePreference}
+              onChange={(value) => {
+                setThemePreference(value);
+                void save({ theme: value });
+              }}
+              options={[
+                { value: "light", label: "Claro", icon: <SunIcon className="size-4" /> },
+                { value: "dark", label: "Escuro", icon: <MoonIcon className="size-4" /> },
+                { value: "contrast", label: "Contraste", icon: <ContrastIcon className="size-4" /> },
+                { value: "system", label: "Sistema", icon: <SettingsIcon className="size-4" /> },
+              ]}
+            />
+          </section>
+
           <Button
             variant="secondary"
             full
             onClick={() => {
-              restart();
               setShowSettings(false);
-              notify("Leitura reiniciada.");
+              setShortcutsOpen(true);
+            }}
+          >
+            Como usar o leitor
+          </Button>
+
+          <Button
+            variant="secondary"
+            full
+            onClick={() => {
+              setShowSettings(false);
+              // Perder a posicao de um texto longo por um toque errado nao
+              // tem volta: acima de 5% pede confirmacao.
+              if (total > 0 && index / total > 0.05) {
+                setConfirmRestart(true);
+              } else {
+                restart();
+                notify("Leitura reiniciada.");
+              }
             }}
           >
             <RestartIcon className="size-5" />
@@ -1287,6 +2028,12 @@ function Reader({
           >
             Historico deste texto
           </Link>
+          <Link
+            href="/ajustes"
+            className="flex min-h-11 items-center justify-center rounded-full text-sm font-medium text-muted hover:bg-surface-2 hover:text-ink"
+          >
+            Mais ajustes
+          </Link>
 
           {/* Concluido nao se larga; largado ja esta fora da lista. */}
           {!concluded && !finished && !text.abandoned ? (
@@ -1301,6 +2048,29 @@ function Reader({
               Largar texto
             </Button>
           ) : null}
+        </div>
+      </Sheet>
+
+      <Sheet open={confirmRestart} onClose={() => setConfirmRestart(false)} title="Comecar do inicio?">
+        <div className="space-y-4">
+          <p className="text-sm text-muted">
+            {`A leitura esta em ${Math.round((index / total) * 100)}%. Voltar ao inicio troca a posicao salva.`}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="secondary" size="lg" onClick={() => setConfirmRestart(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="lg"
+              onClick={() => {
+                setConfirmRestart(false);
+                restart();
+                notify("Leitura reiniciada.");
+              }}
+            >
+              Comecar do inicio
+            </Button>
+          </div>
         </div>
       </Sheet>
 
@@ -1320,11 +2090,9 @@ function Reader({
         </div>
       </Sheet>
 
-      <Sheet
-        open={checkpoint !== null}
-        onClose={keepReading}
-        title="Isso ainda vale?"
-      >
+      {/* Fechar (Esc, X, fundo) so fecha: a leitura fica parada e o marco nao
+          e dado como respondido. Continuar e o botao. */}
+      <Sheet open={checkpoint !== null} onClose={() => setCheckpoint(null)} title="Isso ainda vale?">
         <div className="space-y-4">
           <p className="text-sm text-muted">
             {`Voce leu ${checkpoint ?? 0}% de "${text.title}". Se o texto deixou de interessar, largar agora economiza o resto do tempo.`}
@@ -1378,7 +2146,7 @@ function Reader({
                 size="lg"
                 onClick={() => {
                   setStopInfo(null);
-                  togglePlay();
+                  start();
                 }}
               >
                 Continuar
@@ -1393,13 +2161,51 @@ function Reader({
 
 /* -------------------------------------------------------------------------- */
 
+const FONT_LABELS: Record<FontFamily, string> = {
+  sans: "Sem serifa",
+  serif: "Com serifa",
+  legivel: "Legivel",
+};
+
+const LINE_HEIGHT_LABELS = ["Compacto", "Normal", "Folgado"];
+
+/** "~12 min", "~1 h 5 min" ou "< 1 min". */
+function formatRemaining(ms: number): string {
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 1) return "< 1 min";
+  if (minutes < 60) return `~${minutes} min`;
+  return `~${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
+
+/**
+ * Dica da velocidade: a faixa (leitura, rapida, varredura) e o ritmo real com
+ * as pausas de pontuacao, que fica abaixo do configurado no ritmo Dinamico.
+ */
+function speedHint(wpm: number, real: number | null): string {
+  const band = `Faixa: ${SPEED_BAND_LABELS[speedBand(wpm)]}.`;
+  const warning = speedBandWarning(wpm);
+  const parts = [band, warning, real !== null ? `Com as pausas de pontuacao, ~${real} ppm neste texto.` : null];
+  return parts.filter(Boolean).join(" ");
+}
+
+const GESTURES: [string, string][] = [
+  ["Play", "Inicia o Word Runner (ou o guia na pagina) da palavra atual"],
+  ["Tocar no Word Runner", "Freia: volta a pagina com a palavra atual marcada"],
+  ["Tocar numa palavra", "A leitura seguinte comeca dela"],
+  ["Tocar na borda ou deslizar", "Vira a pagina"],
+  ["Tocar e segurar", "Mostra o significado da palavra"],
+  ["Arrastar sobre o texto", "Seleciona para destacar"],
+];
+
 const SHORTCUTS: [string, string][] = [
-  ["Espaco", "Iniciar ou pausar o Word Runner"],
+  ["Espaco ou K", "Iniciar ou pausar o Word Runner"],
   ["Seta para cima / baixo", "Mais ou menos 25 ppm"],
   ["Seta para a esquerda / direita", "Pagina anterior ou seguinte; no Word Runner, frase"],
   ["Shift + seta para a esquerda", "Voltar ao inicio da frase"],
+  ["D", "Significado da palavra atual"],
+  ["H", "Destacar a frase atual"],
   ["/", "Buscar e navegar no texto"],
-  ["?", "Esta lista"],
+  ["?", "Esta ajuda"],
   ["Esc", "Fechar a janela aberta"],
 ];
 
@@ -1407,7 +2213,16 @@ const SHORTCUTS: [string, string][] = [
  * Pausa para descansar a vista (US-104). A contagem regressiva nao retoma a
  * leitura sozinha: quem decide a volta e o leitor.
  */
-function EyeRestSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function EyeRestSheet({
+  open,
+  onClose,
+  onContinue,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** "Continuar" retoma a leitura: e a decisao do leitor, como nas outras folhas. */
+  onContinue: () => void;
+}) {
   const [left, setLeft] = useState(EYE_REST_SECONDS);
 
   useEffect(() => {
@@ -1432,8 +2247,8 @@ function EyeRestSheet({ open, onClose }: { open: boolean; onClose: () => void })
           {left > 0 ? left : "Pronto"}
         </p>
         {left === 0 ? (
-          <Button size="lg" full onClick={onClose}>
-            Continuar
+          <Button size="lg" full onClick={onContinue}>
+            Continuar a leitura
           </Button>
         ) : (
           <p className="text-sm text-muted">A leitura esta pausada.</p>
@@ -1471,14 +2286,47 @@ function ControlButton({
   );
 }
 
+/** Rotulo do tipo de bloco no Word Runner: o Markdown nao perde a estrutura. */
+function blockLabel(block: Paragraph | undefined): string | null {
+  switch (block?.kind) {
+    case "h1":
+    case "h2":
+    case "h3":
+      return "Titulo";
+    case "li":
+      return "Item de lista";
+    case "oli":
+      return block.marker ? `Item ${block.marker}` : "Item de lista";
+    case "quote":
+      return "Citacao";
+    case "code":
+      return "Codigo";
+    default:
+      return null;
+  }
+}
+
+/** URL e token enorme sem espaco: no Word Runner vale a forma curta. */
+function displayToken(word: string): string {
+  const url = /^(?:https?:\/\/)?(?:www\.)?([^/\s]+\.[a-z]{2,})(?:[/?#].*)?$/i.exec(word);
+  if (url && (word.includes("/") || word.startsWith("http")) && word.length > 25) {
+    return `${url[1]}/\u2026`;
+  }
+  return word;
+}
+
 /**
  * Word Runner: uma palavra por vez, parada no centro, com a letra do ponto
  * otimo de reconhecimento alinhada as guias para o olho nao precisar varrer.
  *
  * Embaixo, a frase em volta em letra menor, com a palavra atual em cor cheia:
- * e o contexto que falta ao RSVP puro - da para ver onde a frase vai e
- * reencontrar o fio depois de uma distracao sem parar a leitura. Tocar em
- * qualquer ponto freia (pausa) e devolve a pagina.
+ * e o contexto que falta ao RSVP puro. A grade fixa (espaco em cima, palavra,
+ * contexto embaixo) mantem a palavra no mesmo lugar qualquer que seja o
+ * tamanho da frase. Tocar em qualquer ponto freia e devolve a pagina.
+ *
+ * Para leitor de tela e uma regiao, nao um botao: o botao inteiro escondia a
+ * palavra. A palavra nao e anunciada a cada troca (inundaria o leitor); o
+ * estado (iniciado, pausado na palavra N) e anunciado pelo leitor.
  */
 function RunnerStage({
   words,
@@ -1486,6 +2334,8 @@ function RunnerStage({
   index,
   style,
   paragraphStart,
+  block,
+  language,
   onBrake,
 }: {
   words: string[];
@@ -1495,20 +2345,32 @@ function RunnerStage({
   style: number;
   /** A palavra abre um paragrafo novo. */
   paragraphStart: boolean;
+  /** Bloco (paragrafo, titulo, item) da palavra atual. */
+  block: Paragraph | undefined;
+  language: string;
   onBrake: () => void;
 }) {
-  const current = words[index] ?? "";
-  const context = runnerContext(words, paragraphs, index);
+  const current = displayToken(words[index] ?? "");
+  const context = runnerContext(words, paragraphs, index, undefined, language);
+  const label = blockLabel(block);
+  const heading = block?.kind === "h1" || block?.kind === "h2" || block?.kind === "h3";
 
   return (
-    <button
-      type="button"
-      onClick={onBrake}
-      aria-label="Pausar"
+    <div
+      role="region"
+      aria-label="Word Runner"
+      aria-roledescription="leitor palavra a palavra"
       data-testid="word-runner"
-      className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-bg px-4 text-center"
+      onClick={onBrake}
+      className="absolute inset-0 z-10 grid cursor-pointer grid-rows-[1fr_auto_1fr] overflow-hidden bg-bg px-4 text-center"
     >
-      <div className="relative w-full max-w-2xl">
+      <div className="flex items-end justify-center pb-2">
+        {label ? (
+          <span className="text-xs font-medium uppercase tracking-wide text-faint">{label}</span>
+        ) : null}
+      </div>
+
+      <div className="relative mx-auto w-full max-w-2xl">
         <div className="absolute inset-x-0 top-0 flex justify-center">
           <span className="h-3 w-px bg-accent/40" />
         </div>
@@ -1523,24 +2385,21 @@ function RunnerStage({
             aria-hidden="true"
             className="paragraph-sign absolute left-0 top-1/2 -translate-y-1/2 text-[clamp(1.5rem,7vw,2.5rem)]"
           >
-            {"\u00b6"}
+            {block?.kind === "quote" ? "\u275d" : "\u00b6"}
           </span>
         ) : null}
 
         <p
           data-testid="palavra-runner"
-          className={`reader-word flex min-h-[4.5rem] items-center justify-center py-6 text-[clamp(2rem,11vw,4rem)] ${
-            style & (STYLE.bold | STYLE.heading) ? "font-extrabold" : "font-semibold"
-          } ${styleClass(style & ~STYLE.bold)}`}
+          className={`runner-word reader-word flex min-h-[4.5rem] items-center justify-center py-6 ${
+            style & (STYLE.bold | STYLE.heading) || heading ? "font-extrabold" : "font-semibold"
+          } ${block?.kind === "quote" ? "italic" : ""} ${styleClass(style & ~STYLE.bold)}`}
         >
           <OrpWord word={current} />
         </p>
       </div>
 
-      <p
-        aria-hidden="true"
-        className="runner-context reader-prose mt-6 w-full max-w-2xl text-balance"
-      >
+      <p aria-hidden="true" className="runner-context reader-prose mx-auto mt-4 w-full max-w-2xl text-balance">
         {context.clippedStart ? "\u2026 " : null}
         {words.slice(context.from, context.to).map((item, offset) => {
           const position = context.from + offset;
@@ -1553,7 +2412,7 @@ function RunnerStage({
         })}
         {context.clippedEnd ? " \u2026" : null}
       </p>
-    </button>
+    </div>
   );
 }
 
@@ -1561,16 +2420,47 @@ function RunnerStage({
  * Alinha a letra de fixacao no centro exato da tela, deslocando o restante da
  * palavra ao redor dela. Precisa de um flex de largura total: em `inline-flex`
  * o container encolhe ate o conteudo, `flex-1` nao tem espaco para distribuir
- * e a letra cai em qualquer posicao - que e justamente o que o modo foco
- * existe para evitar.
+ * e a letra cai em qualquer posicao.
+ *
+ * Palavra longa demais para os dois lados caberem com o pivo no centro tem o
+ * corpo reduzido so ela (ate 50%): antes "otorrinolaringologista" passava da
+ * borda e o pivo saia das guias.
  */
 function OrpWord({ word }: { word: string }) {
-  const pivot = orpIndex(word);
+  // Por code point, nao por unidade UTF-16: letra acentuada nao se parte.
+  const parts = orpParts(word);
+  const rowRef = useRef<HTMLSpanElement>(null);
+  const leftRef = useRef<HTMLSpanElement>(null);
+  const pivotRef = useRef<HTMLSpanElement>(null);
+  const rightRef = useRef<HTMLSpanElement>(null);
+
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    const left = leftRef.current;
+    const center = pivotRef.current;
+    const right = rightRef.current;
+    if (!row || !left || !center || !right) return;
+    row.style.fontSize = "";
+    const available = row.clientWidth / 2;
+    const half = center.offsetWidth / 2;
+    const needed = Math.max(left.scrollWidth + half, right.scrollWidth + half);
+    if (available > 0 && needed > available) {
+      const scale = Math.max(0.5, (available * 0.98) / needed);
+      row.style.fontSize = `${scale}em`;
+    }
+  }, [word]);
+
   return (
-    <span className="flex w-full items-baseline">
-      <span className="flex-1 whitespace-pre text-right">{word.slice(0, pivot)}</span>
-      <span className="orp">{word.slice(pivot, pivot + 1)}</span>
-      <span className="flex-1 whitespace-pre text-left">{word.slice(pivot + 1)}</span>
+    <span ref={rowRef} className="flex w-full items-baseline overflow-hidden" aria-label={word}>
+      <span ref={leftRef} aria-hidden="true" className="flex-1 whitespace-pre text-right">
+        {parts.before}
+      </span>
+      <span ref={pivotRef} aria-hidden="true" className="orp">
+        {parts.pivot}
+      </span>
+      <span ref={rightRef} aria-hidden="true" className="flex-1 whitespace-pre text-left">
+        {parts.after}
+      </span>
     </span>
   );
 }
@@ -1685,9 +2575,16 @@ function WordsAt({
  * trecho continua um paragrafo iniciado antes (sem recuo de primeira linha).
  */
 function blockProps(paragraph: Paragraph) {
+  const level =
+    paragraph.kind === "h1" ? 1 : paragraph.kind === "h2" ? 2 : paragraph.kind === "h3" ? 3 : 0;
   return {
     ...(paragraph.kind && paragraph.kind !== "p"
       ? { "data-kind": paragraph.kind, "data-marker": paragraph.marker }
+      : {}),
+    // Titulo e titulo tambem para leitor de tela; o elemento continua <p>,
+    // que e o que a regua de paginacao mede.
+    ...(level > 0 && !paragraph.continued
+      ? { role: "heading" as const, "aria-level": level + 1 }
       : {}),
     ...(paragraph.continued ? { "data-cont": "" } : {}),
   };
@@ -1765,7 +2662,22 @@ function MarkedText({
               data-start={segment.start}
               data-note={segment.hasNote ? "sim" : undefined}
               className="mark"
-              onClick={() => onOpenMark(segment.id!)}
+              // Destaque existente abre com teclado tambem, nao so com ponteiro.
+              role="button"
+              tabIndex={0}
+              aria-label={`Destaque${segment.hasNote ? " com nota" : ""}: ${words.join(" ").slice(0, 80)}`}
+              onClick={(event) => {
+                // O toque no destaque e dele: nao muda a posicao de leitura.
+                event.stopPropagation();
+                onOpenMark(segment.id!);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onOpenMark(segment.id!);
+                }
+              }}
             >
               <WordsAt
                 words={words}
@@ -1787,10 +2699,18 @@ function MarkedText({
  * Pagina: uma tela cheia de texto por vez, sem rolagem.
  *
  * O frame define a altura disponivel e a regua oculta mede, com a mesma
- * largura e tipografia, quantas palavras cabem nela. Toque na metade direita
- * avanca, na esquerda volta - o mesmo gesto de um e-reader.
+ * largura e tipografia, quantas palavras cabem nela.
+ *
+ * O toque e decidido pelo ponto, sem botoes transparentes por cima do texto:
+ * nas bordas estreitas vira a pagina (o gesto de um e-reader); no resto,
+ * tocar numa palavra faz a leitura comecar dela. Antes, zonas de 25% de cada
+ * lado cobriam 40% das palavras e bloqueavam toque longo, selecao e o toque
+ * para posicionar.
+ *
+ * Memoizada: enquanto o Word Runner roda ela fica escondida e nao pode
+ * re-renderizar a cada palavra.
  */
-function PageStage({
+const PageStage = memo(function PageStage({
   frameRef,
   rulerRef,
   paragraphs,
@@ -1804,7 +2724,7 @@ function PageStage({
   hidden,
   touch,
   onTurn,
-  onSeek,
+  onTap,
   onOpenMark,
 }: {
   frameRef: React.Ref<HTMLDivElement>;
@@ -1821,18 +2741,10 @@ function PageStage({
   hidden: boolean;
   touch: WordTouchHandlers;
   onTurn: (direction: 1 | -1) => void;
-  /** Toque numa palavra: a leitura seguinte comeca nela. */
-  onSeek: (position: number) => void;
+  /** Toque na pagina: a palavra tocada (ou null) e a borda (-1, 0, 1). */
+  onTap: (position: number | null, edge: -1 | 0 | 1) => void;
   onOpenMark: (id: string) => void;
 }) {
-  const onClick = (event: React.MouseEvent) => {
-    // Destaque abre a propria folha; arrastar para selecionar nao e toque.
-    if ((event.target as Element).closest(".mark")) return;
-    if (!window.getSelection()?.isCollapsed) return;
-    const position = wordIndexFromPoint(event.clientX, event.clientY);
-    if (position !== null) onSeek(position);
-  };
-
   const touchStartX = useRef<number | null>(null);
 
   const onTouchStart = (event: React.TouchEvent) => {
@@ -1849,12 +2761,22 @@ function PageStage({
     onTurn(delta < 0 ? 1 : -1);
   };
 
+  const onClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    // Arrastar para selecionar nao e toque.
+    if (!window.getSelection()?.isCollapsed) return;
+    const box = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - box.left) / Math.max(1, box.width);
+    const edge = x < EDGE_FRACTION ? -1 : x > 1 - EDGE_FRACTION ? 1 : 0;
+    onTap(edge === 0 ? wordIndexFromPoint(event.clientX, event.clientY) : null, edge);
+  };
+
   return (
     <div
-      className={`relative flex flex-1 flex-col px-5 py-6${hidden ? " invisible" : ""}`}
+      className={`relative flex min-h-0 flex-1 flex-col px-5 py-6${hidden ? " invisible" : ""}`}
       aria-hidden={hidden || undefined}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
+      onClick={onClick}
       {...touch}
     >
       {/* A altura vem do flex, nao de height:100%: a altura do pai e definida
@@ -1864,7 +2786,7 @@ function PageStage({
         ref={frameRef}
         className="relative mx-auto min-h-0 w-full max-w-2xl flex-1 overflow-hidden"
       >
-        <div className="reader-prose" onClick={onClick}>
+        <div className="reader-prose">
           {ready
             ? sliceParagraphs(paragraphs, pageStart, pageEnd).map((paragraph) => (
                 <p key={paragraph.start} {...blockProps(paragraph)}>
@@ -1895,31 +2817,15 @@ function PageStage({
           Buscando a proxima parte
         </p>
       ) : null}
-
-      {/* Zonas de toque nas bordas: a esquerda volta, a direita avanca. O
-          centro fica livre para tocar numa palavra e comecar dali. */}
-      <button
-        type="button"
-        aria-label="Pagina anterior"
-        onClick={() => onTurn(-1)}
-        className="absolute inset-y-0 left-0 w-1/4"
-      />
-      <button
-        type="button"
-        aria-label="Proxima pagina"
-        onClick={() => onTurn(1)}
-        className="absolute inset-y-0 right-0 w-1/4"
-      />
     </div>
   );
-}
+});
 
 const SWIPE_THRESHOLD_PX = 45;
 
 function Finished({
   total,
-  durationMs,
-  wordsRead,
+  summary,
   onRestart,
   canContinue,
   loadingMore,
@@ -1932,8 +2838,7 @@ function Finished({
   onNext,
 }: {
   total: number;
-  durationMs: number;
-  wordsRead: number;
+  summary: Summary | null;
   onRestart: () => void;
   canContinue: boolean;
   loadingMore: boolean;
@@ -1945,8 +2850,12 @@ function Finished({
   loadingNext: boolean;
   onNext: () => void;
 }) {
-  const minutes = durationMs / 60_000;
-  const wpm = minutes > 0 ? Math.round(wordsRead / minutes) : 0;
+  // Sessao curta demais (um toque, a ultima pagina) nao da numero que preste:
+  // "1 palavras a 3000 ppm" confundia mais do que informava.
+  const measurable =
+    summary !== null && summary.wordsRead >= MIN_WORDS_TO_RECORD && summary.wallMs >= 5_000;
+  const realWpm = measurable ? Math.round(summary.wordsRead / (summary.wallMs / 60_000)) : 0;
+  const columns = (measurable ? 3 : 0) + (comprehension !== null ? 1 : 0);
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-10 text-center">
@@ -1955,29 +2864,46 @@ function Finished({
       </div>
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Leitura concluida</h2>
-        <p className="mt-1 text-muted">{formatNumber(total)} palavras</p>
+        <p className="mt-1 text-muted">
+          {`${formatNumber(total)} ${total === 1 ? "palavra" : "palavras"}`}
+        </p>
       </div>
 
-      <Card
-        className={`grid w-full max-w-sm divide-x divide-border ${
-          comprehension === null ? "grid-cols-2" : "grid-cols-3"
-        }`}
-      >
-        <div className="p-4">
-          <p className="tabular text-2xl font-semibold">{wpm > 0 ? wpm : "--"}</p>
-          <p className="text-sm text-muted">ppm</p>
-        </div>
-        <div className="p-4">
-          <p className="tabular text-2xl font-semibold">{formatClock(durationMs)}</p>
-          <p className="text-sm text-muted">tempo</p>
-        </div>
-        {comprehension !== null ? (
-          <div className="p-4">
-            <p className="tabular text-2xl font-semibold">{comprehension}%</p>
-            <p className="text-sm text-muted">acertos</p>
-          </div>
-        ) : null}
-      </Card>
+      {measurable || comprehension !== null ? (
+        <Card
+          className={`grid w-full max-w-md divide-x divide-border ${
+            columns >= 4 ? "grid-cols-4" : columns === 3 ? "grid-cols-3" : "grid-cols-1"
+          }`}
+        >
+          {measurable ? (
+            <>
+              <div className="p-3">
+                <p className="tabular text-2xl font-semibold">{realWpm}</p>
+                <p className="text-sm text-muted">ppm reais</p>
+              </div>
+              <div className="p-3">
+                <p className="tabular text-2xl font-semibold">{summary.configuredWpm}</p>
+                <p className="text-sm text-muted">configurado</p>
+              </div>
+              <div className="p-3">
+                <p className="tabular text-2xl font-semibold">{formatClock(summary.wallMs)}</p>
+                <p className="text-sm text-muted">tempo</p>
+              </div>
+            </>
+          ) : null}
+          {comprehension !== null ? (
+            <div className="p-3">
+              <p className="tabular text-2xl font-semibold">{comprehension}%</p>
+              <p className="text-sm text-muted">acertos</p>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
+      {measurable ? (
+        <p className="-mt-3 max-w-sm text-xs text-faint">
+          O ritmo real inclui as pausas de pontuacao; o historico e o treino usam o ritmo das palavras.
+        </p>
+      ) : null}
 
       <div className="flex w-full max-w-sm flex-col gap-2">
         {/* Primeiro botao da tela: quem terminou um capitulo quer o proximo,
@@ -2043,23 +2969,32 @@ function RecapPlayer({
   marks,
   words,
   wpm,
+  title,
   onDone,
   onSkip,
 }: {
   marks: { text: string; note: string | null }[];
   words: string[];
   wpm: number;
+  /** Titulo acima do trecho, quando a recapitulacao e de outro capitulo. */
+  title?: string;
   onDone: () => void;
   onSkip: () => void;
 }) {
   const [step, setStep] = useState(0);
   const total = marks.length + words.length;
+  // Em ref: a funcao vem nova a cada render do leitor, e no efeito ela
+  // reiniciaria o relogio de cada passo.
+  const onDoneRef = useRef(onDone);
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
   const mark = step < marks.length ? marks[step] : null;
   const word = mark ? null : words[step - marks.length];
 
   useEffect(() => {
     if (step >= total) {
-      onDone();
+      onDoneRef.current();
       return;
     }
     // Destaque fica o tempo de ser lido, com um minimo para a nota; a palavra,
@@ -2070,10 +3005,11 @@ function RecapPlayer({
       : perWord;
     const timer = setTimeout(() => setStep((current) => current + 1), delay);
     return () => clearTimeout(timer);
-  }, [step, total, mark, wpm, onDone]);
+  }, [step, total, mark, wpm]);
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 text-center">
+      {title ? <p className="text-sm font-semibold">{title}</p> : null}
       <p className="text-sm font-medium text-muted">
         {mark ? "Seus destaques ate aqui" : "Onde voce parou"}
       </p>
@@ -2090,6 +3026,60 @@ function RecapPlayer({
       <Button variant="ghost" onClick={onSkip}>
         Pular a recapitulacao
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Guia de primeiro uso (UX-10, APP-5, PROD-5): tres passos sobre a pagina,
+ * uma vez por conta. Os gestos do leitor nao aparecem em lugar nenhum da
+ * tela, e sem o guia ninguem descobria que tocar na palavra comeca dali.
+ */
+const TIPS: { title: string; body: string }[] = [
+  {
+    title: "O play abre o Word Runner",
+    body: "Uma palavra por vez no centro, com a frase em volta embaixo. Pausas curtas na virgula e maiores no fim da frase e do paragrafo.",
+  },
+  {
+    title: "Toque no Word Runner para frear",
+    body: "A pagina volta com a palavra atual marcada. Durante a leitura, os botoes do rodape voltam e avancam uma frase.",
+  },
+  {
+    title: "Na pagina",
+    body: "Toque numa palavra para comecar dela. Toque na borda ou deslize para virar. Toque e segure para ver o significado.",
+  },
+];
+
+function ReaderTips({ onDone }: { onDone: () => void }) {
+  const [step, setStep] = useState(0);
+  const tip = TIPS[step]!;
+  const last = step === TIPS.length - 1;
+
+  return (
+    <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center p-4">
+      <section
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="dica-titulo"
+        data-testid="guia-leitor"
+        className="w-full max-w-md space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float"
+      >
+        <p className="text-xs font-medium text-faint">{`${step + 1} de ${TIPS.length}`}</p>
+        <h2 id="dica-titulo" className="font-semibold">
+          {tip.title}
+        </h2>
+        <p className="text-sm text-muted">{tip.body}</p>
+        <div className="flex justify-end gap-2">
+          {!last ? (
+            <Button variant="ghost" size="sm" onClick={onDone}>
+              Pular
+            </Button>
+          ) : null}
+          <Button size="sm" onClick={() => (last ? onDone() : setStep(step + 1))}>
+            {last ? "Entendi" : "Proximo"}
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }

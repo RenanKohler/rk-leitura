@@ -11,6 +11,8 @@ import { ShareImport } from "./share-import";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Compartilhar" };
+
 const MIN_WORDS = 10;
 
 /** Campos que o `share_target` do manifest entrega na query. */

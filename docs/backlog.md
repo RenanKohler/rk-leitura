@@ -73,6 +73,7 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Parcial | Parte da story existe; o que falta está no corpo da story. |
 | Proposta | Lacuna identificada, pronta para entrar em uma sprint. |
 | Aguardando pendência | Lacuna identificada que **não pode começar** antes de uma decisão ou contratação externa. A pendência está nomeada na story. |
+| Substituída | Existiu no código e deu lugar a outra story, nomeada no campo de status. Os critérios ficam como registro. |
 
 ## Resumo
 
@@ -111,9 +112,17 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Estatísticas por texto | 2 | 6 | 0 | 2 | 0 |
 | Conforto visual | 2 | 5 | 0 | 1 | 1 |
 | Voz baixável | 1 | 8 | 0 | 1 | 0 |
-| **Total** | **105** | **425** | **43 (41%)** | **42 (40%)** | **20 (19%)** |
+| Leitor em uma tela | 7 | 25 | 2 | 3 | 2 |
+| Aprendizagem sem serviço externo | 7 | 23 | 0 | 3 | 4 |
+| Biblioteca e navegação | 3 | 10 | 0 | 2 | 1 |
+| **Total** | **122** | **483** | **45 (37%)** | **50 (41%)** | **27 (22%)** |
 
-Status: 104 Implementadas, 1 Aguardando pendência.
+Status: 116 Implementadas, 5 Substituídas (US-15, US-16, US-17, US-94 e US-103), 1 Aguardando pendência.
+
+Os três épicos finais (Leitor em uma tela em diante, US-106 a US-122) vêm da
+unificação do leitor e de uma avaliação do app rodando, com achados
+verificados de forma independente. Somam 58 pontos: 2 Must, 8 Should e 7
+Could. Todas implementadas, e nenhuma usa serviço externo.
 
 As seis épicas finais (Navegação no texto em diante, US-89 a US-104) somam 52
 pontos: 7 Must, 6 Should e 3 Could. Nenhuma usa serviço externo. Todas implementadas.
@@ -468,7 +477,7 @@ Como leitor, eu quero que uma importação disparada por outro site exija meu to
 **Épico:** Leitor
 **Prioridade:** Must
 **Story points:** 8
-**Status:** Implementada
+**Status:** Substituída pela US-106 (leitor em uma tela, commits `ce43566` e `8e328f3`)
 **Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx` (`pauseFactor`, `orpIndex`), `src/lib/reading.ts`
 
 Como leitor, eu quero ver o texto em blocos de palavras no centro da tela, com a letra de fixação destacada, para que eu leia mais rápido sem mover os olhos.
@@ -485,7 +494,7 @@ Como leitor, eu quero ver o texto em blocos de palavras no centro da tela, com a
 **Épico:** Leitor
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Implementada
+**Status:** Substituída pela US-106 (leitor em uma tela, commits `ce43566` e `8e328f3`)
 **Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx` (`SCREENFUL_WORDS`), `src/lib/reading.ts` (`sliceParagraphs`)
 
 Como leitor, eu quero ver o texto corrido com o trecho atual destacado, para que eu mantenha o contexto dos parágrafos enquanto sigo o ritmo.
@@ -500,7 +509,7 @@ Como leitor, eu quero ver o texto corrido com o trecho atual destacado, para que
 **Épico:** Leitor
 **Prioridade:** Should
 **Story points:** 8
-**Status:** Implementada
+**Status:** Substituída pela US-106 (leitor em uma tela, commits `ce43566` e `8e328f3`)
 **Evidência:** `src/hooks/use-paged-text.ts`, `src/app/(app)/leitor/[id]/reader-client.tsx`
 
 Como leitor, eu quero ler uma tela cheia por vez, sem rolagem, para que a experiência seja parecida com a de um leitor de livros digitais.
@@ -1759,6 +1768,8 @@ Como leitor no modo Foco, eu quero que palavras curtas passem mais rápido e nú
 
 **Antes desta story:** pausa adicional de 60% em fim de frase, de 30% em vírgula, ponto e vírgula e dois-pontos, e de 25% em blocos com palavra acima de 12 letras. Como o ajuste só acrescenta tempo, a velocidade média efetiva fica abaixo da configurada.
 
+> **Revisão (US-107):** as pausas de pontuação deixaram de fazer parte do peso normalizado e viraram tempo somado à palavra; o critério 3 (média perto da velocidade escolhida) vale para o peso lexical, e o tempo das pausas é descontado da sessão.
+
 **Critérios de aceitação**
 1. Dado que leio no modo Foco, quando aparecem palavras de até 3 letras sem pontuação, então elas recebem tempo menor que o de uma palavra de 6 letras.
 2. Dado que leio no modo Foco, quando aparece um número ou um nome próprio no meio da frase, então ele recebe tempo maior que uma palavra comum do mesmo comprimento.
@@ -1880,6 +1891,8 @@ Como leitor, eu quero marcar posições no texto com um nome curto, para que eu 
 
 Como leitor no computador, eu quero mudar a velocidade, o modo e a posição pelo teclado, para que eu não tire a mão do teclado durante a leitura.
 
+> **Revisão (US-106):** não há mais modos; as teclas 1, 2 e 3 saíram. As setas laterais viram a página ou, com o Word Runner correndo, andam por frase.
+
 **Critérios de aceitação**
 1. Dado o leitor aberto, quando pressiono seta para cima ou para baixo, então a velocidade sobe ou desce 25 ppm, respeitando `MIN_WPM` e `MAX_WPM`.
 2. Dado o leitor aberto, quando pressiono 1, 2 ou 3, então o modo muda para Foco, Rolagem ou Páginas.
@@ -1893,7 +1906,7 @@ Como leitor no computador, eu quero mudar a velocidade, o modo e a posição pel
 **Épico:** Controle da leitura
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Implementada
+**Status:** Substituída pela US-107 (a pausa de parágrafo faz parte do ritmo dinâmico)
 **Evidência:** `src/lib/navigation.ts` (`paragraphPauseMs`), motor do leitor, preferencia `paragraph_pause` (`drizzle/0020`)
 
 Como leitor no modo Foco, eu quero um intervalo um pouco maior ao trocar de parágrafo, para que eu perceba a mudança de assunto antes de a próxima ideia começar.
@@ -1917,6 +1930,8 @@ Como leitor no modo Foco, eu quero um intervalo um pouco maior ao trocar de par�
 **Evidência:** `src/lib/navigation.ts` (`resumeTarget`), `togglePlay` no leitor, preferencia `resume_rewind`
 
 Como leitor, eu quero que a leitura recomece algumas palavras antes de onde parei, para que eu retome com o fio da frase em vez de cair no meio dela.
+
+> **Revisão (US-107):** o recuo passou a ser escalonado pelo tempo parado: de 5 s a 1 min, início da frase; até 10 min, frase anterior; acima disso, início do parágrafo (no máximo 60 palavras).
 
 **Critérios de aceitação**
 1. Dado uma pausa de 5 segundos ou mais, quando retomo, então a posição recua até 5 palavras, sem passar do início da frase atual.
@@ -2080,7 +2095,7 @@ Como leitor, eu quero ver um calendário do ano com a intensidade de leitura de 
 **Épico:** Conforto visual
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Implementada
+**Status:** Substituída pela US-106 (dependia do modo Rolagem, que deixou de existir)
 **Evidência:** `useLayoutEffect` de linha atual em `FlowStage`, regra `[data-dim]` em `src/app/globals.css`, preferencia `dim_lines`
 
 Como leitor nos modos Rolagem e Páginas, eu quero que as linhas fora da linha atual fiquem mais apagadas, para que meu olho não se perca ao voltar para a posição.
@@ -2135,6 +2150,260 @@ Como leitor, eu quero baixar uma voz de melhor qualidade para português e ingl�
 5. Dado um navegador sem suporte, falta de espaço ou falha no download, quando tento baixar, então aparece a mensagem do problema e a voz do sistema continua valendo.
 
 **Notas técnicas:** modelos Piper (`rhasspy/piper-voices`, qualidade média, ~63 MB cada) baixados do Hugging Face para o Cache Storage `leitura-vozes`. O motor (ONNX Runtime Web 1.18 e o conversor de fonemas espeak-ng em wasm, ~30 MB) é servido pelo próprio app a partir de `public/tts`, copiado de `node_modules` no `postinstall`, e baixado junto da primeira voz. A síntese roda em um Web Worker; a posição dentro da frase é estimada pelo tamanho das palavras (`wordOffsets`), porque o modelo não informa onde cada palavra cai. Só entraram vozes com dados em domínio público ou CC0. O espeak-ng embutido no conversor é GPL-3.
+
+## Épico: Leitor em uma tela
+
+### US-106: Ler numa tela única, com páginas e Word Runner
+
+**Épico:** Leitor em uma tela
+**Prioridade:** Must
+**Story points:** 8
+**Status:** Implementada
+**Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx`, `src/hooks/use-paged-text.ts`, `e2e/motor-leitor.spec.ts`
+
+Como leitor, eu quero que o texto abra em páginas e que o play mostre uma palavra por vez com a frase em volta, para que eu leia rápido sem perder o contexto.
+
+**Critérios de aceitação**
+1. Dado que abro um texto, quando a tela carrega, então vejo a página e "Página N de M", sem escolher modo.
+2. Dado que toco no play, quando o Word Runner começa, então vejo uma palavra por vez com a letra de fixação nas guias e a frase atual embaixo, em blocos estáveis de até 18 palavras.
+3. Dado o Word Runner correndo, quando toco nele, então a página volta com a palavra atual marcada, e um segundo toque em até 450 ms não vira a página.
+4. Dado a página, quando toco na borda (12% de cada lado) ou deslizo, então a página vira; quando toco numa palavra fora da borda, a leitura seguinte começa dela.
+5. Dado qualquer folha aberta (ajustes, navegação, dicionário, destaque), quando ela abre, então o Word Runner para.
+6. Dado a aba escondida ou fechada, quando isso acontece, então a leitura para e a sessão é gravada, com ou sem leitura correndo.
+7. Dado uma palavra que não cabe com o pivô no centro, quando é exibida, então o corpo dela diminui até caber (mínimo de 50%).
+
+### US-107: Ritmo dinâmico com pausas de pontuação
+
+**Épico:** Leitor em uma tela
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** `src/lib/pacing.ts`, `src/lib/pauses.ts`, `src/lib/sentences.ts`, `tests/pacing.test.ts`
+
+Como leitor, eu quero que o Word Runner respire na vírgula, no fim da frase e no fim do parágrafo, para que a leitura soe natural como no Kindle.
+
+**Critérios de aceitação**
+1. Dado o ritmo Dinâmico, quando uma palavra termina em vírgula, ponto ou fim de parágrafo, então a pausa depois dela é de 160, 360 e 520 ms a 300 ppm, pela lei `P300 x (duração/200)^0,8`.
+2. Dado "Sr.", "Dra.", "J." ou "p. 12", quando aparecem, então não há pausa de fim de frase; "vitamina D. Depois" e "etc. Depois" têm.
+3. Dado um texto, quando os pesos são normalizados, então a média fica em 1,00 ± 0,01.
+4. Dado uma sessão no Word Runner, quando é gravada, então as pausas e o atraso da rampa saem do tempo, e o ritmo gravado fica perto do escolhido.
+5. Dado uma previsão de tempo (tempo livre, cartões, tempo restante), quando é calculada, então soma as pausas.
+
+### US-108: Ler virando páginas conta como leitura
+
+**Épico:** Leitor em uma tela
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `src/lib/reader-session.ts`, `e2e/motor-leitor.spec.ts`
+
+Como leitor, eu quero que a leitura feita na página conte no histórico e conclua o texto, para que ler sem o Word Runner também valha para a meta.
+
+**Critérios de aceitação**
+1. Dado que viro a página para a frente, quando o tempo nela foi de pelo menos 50 ms por palavra, então as palavras contam numa sessão de modo "pagina", com teto de 2 minutos por página.
+2. Dado a última página, quando viro para a frente, então vejo "Leitura concluída" e a sessão é gravada como concluída.
+3. Dado um texto colado, quando passo da última página, então o app não tenta buscar continuação na origem.
+
+### US-109: Voltar para onde eu estava
+
+**Épico:** Leitor em uma tela
+**Prioridade:** Could
+**Story points:** 2
+**Status:** Implementada
+**Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx` (`anchor`)
+
+Como leitor, eu quero um atalho de volta depois de folhear, buscar ou abrir o sumário, para que eu não perca o lugar da leitura.
+
+**Critérios de aceitação**
+1. Dado que saio da página onde parei por um salto (voltar páginas, busca, sumário), quando a página visível não contém esse lugar, então aparece "Voltar para onde parou (p. N)".
+2. Dado que viro as páginas para a frente uma a uma, quando leio assim, então o lugar anda junto e o atalho não aparece.
+
+### US-110: Guia de ritmo na página
+
+**Épico:** Leitor em uma tela
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx` (`playMode`)
+
+Como leitor, eu quero que o play marque a palavra na própria página no ritmo escolhido, para que eu leia no ritmo sem esconder o texto.
+
+**Critérios de aceitação**
+1. Dado "Ao tocar play: Guia na página" nos ajustes do leitor, quando toco no play, então a palavra atual anda marcada na página e a página vira sozinha.
+2. Dado a escolha feita, quando volto ao leitor no mesmo aparelho, então ela continua valendo.
+
+### US-111: Guia de primeiro uso do leitor
+
+**Épico:** Leitor em uma tela
+**Prioridade:** Should
+**Story points:** 2
+**Status:** Implementada
+**Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx` (`ReaderTips`), `speed_settings.reader_tips_seen`, `src/lib/welcome.ts`
+
+Como leitor novo, eu quero aprender os gestos do leitor na primeira vez, para que eu descubra o Word Runner, o toque na palavra e o dicionário.
+
+**Critérios de aceitação**
+1. Dado uma conta nova, quando abro o leitor pela primeira vez, então vejo três passos sobre a página; ao concluir ou pular, eles não voltam em nenhum aparelho.
+2. Dado uma conta nova, quando abro a biblioteca, então há um texto de boas-vindas que explica o leitor.
+3. Dado os ajustes do leitor, quando toco em "Como usar o leitor", então vejo os gestos e os atalhos.
+
+### US-112: Ajustar o texto sem sair do leitor
+
+**Épico:** Leitor em uma tela
+**Prioridade:** Should
+**Story points:** 2
+**Status:** Implementada
+**Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx`, `src/lib/reading.ts` (`MAX_FONT_SCALE`)
+
+Como leitor, eu quero mudar tamanho, fonte, entrelinha e tema dentro do leitor, para que eu ajuste a leitura sem perder a posição.
+
+**Critérios de aceitação**
+1. Dado a folha de ajustes do leitor, quando mudo tamanho, fonte, entrelinha ou tema, então a página é refeita e continua na mesma palavra.
+2. Dado o tamanho máximo, quando é escolhido, então o texto fica em 2rem e a palavra do Word Runner acompanha a escala.
+
+## Épico: Aprendizagem sem serviço externo
+
+### US-113: Checar a compreensão com lacunas
+
+**Épico:** Aprendizagem sem serviço externo
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** `src/lib/cloze.ts`, `src/app/api/texts/[id]/lacunas/`, `src/components/quiz-sheet.tsx`
+
+Como leitor em treino, eu quero perguntas de lacuna tiradas do próprio texto quando o questionário por IA não está disponível, para que o treino continue checando a compreensão.
+
+**Critérios de aceitação**
+1. Dado um texto de 200 palavras ou mais, quando o questionário por IA falha ou não está configurado, então recebo 2 ou 3 frases com uma palavra escondida e 4 alternativas do próprio texto.
+2. Dado que respondo, quando a nota é gravada, então ela conta para o treino como a do questionário.
+
+### US-114: Revisar destaques com repetição espaçada
+
+**Épico:** Aprendizagem sem serviço externo
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** `src/app/(app)/textos/destaques/revisar/`, `src/app/api/destaques/revisao/route.ts`
+
+Como leitor, eu quero rever meus destaques em intervalos crescentes, para que o que marquei não se perca.
+
+**Critérios de aceitação**
+1. Dado destaques vencidos, quando abro o painel, então vejo o cartão de revisão.
+2. Dado a revisão, quando escolho "lacuna", então a palavra de maior peso do destaque fica escondida; as quatro respostas definem o próximo intervalo.
+
+### US-115: Guardar uma palavra sem definição
+
+**Épico:** Aprendizagem sem serviço externo
+**Prioridade:** Should
+**Story points:** 2
+**Status:** Implementada
+**Evidência:** `src/components/word-sheet.tsx`, `src/app/api/palavras/route.ts`
+
+Como leitor, eu quero guardar uma palavra mesmo quando o dicionário falha, para que ela entre na revisão e eu busque o significado depois.
+
+**Critérios de aceitação**
+1. Dado que a consulta falha, quando toco em "Guardar para revisar", então a palavra é salva com a frase de origem e a definição vazia.
+2. Dado uma palavra sem definição, quando a abro em Palavras, então posso escrever a definição ou buscar de novo.
+
+### US-116: Revisar palavras com quatro respostas
+
+**Épico:** Aprendizagem sem serviço externo
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `src/lib/vocabulary.ts`, `src/app/(app)/palavras/`
+
+Como leitor, eu quero responder Errei, Difícil, Bom ou Fácil na revisão, para que o intervalo acompanhe o quanto eu lembro.
+
+**Critérios de aceitação**
+1. Dado uma revisão, quando respondo, então o intervalo vira 1 dia (Errei), x1,2 (Difícil), x2,5 (Bom) ou x4 (Fácil).
+2. Dado um intervalo acima de 90 dias, quando é calculado, então a palavra conta como aprendida; Palavras mostra a retenção dos últimos 30 dias.
+
+### US-117: Sugestão de reduzir a velocidade
+
+**Épico:** Aprendizagem sem serviço externo
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `src/lib/difficulty.ts`, `src/app/api/reading-sessions/sugestao/route.ts`
+
+Como leitor, eu quero uma sugestão de desacelerar quando freio e recuo muito, para que eu leia num ritmo que acompanho.
+
+**Critérios de aceitação**
+1. Dado que as últimas 3 sessões no Word Runner tiveram mais de 1 freio ou recuo a cada 150 palavras, quando abro o leitor, então vejo a sugestão de 25 ppm a menos, com um toque para aceitar.
+2. Dado a sugestão, quando não aceito, então nada muda: o app nunca ajusta a velocidade sozinho.
+
+### US-118: Ver os nomes do texto
+
+**Épico:** Aprendizagem sem serviço externo
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `src/lib/xray.ts`, `src/components/xray-panel.tsx`, `src/components/navigate-sheet.tsx`
+
+Como leitor de textos longos, eu quero a lista dos nomes que aparecem no texto, para que eu lembre quem é quem.
+
+**Critérios de aceitação**
+1. Dado "Navegar no texto", quando abro "Nomes no texto", então vejo os nomes com 3 ocorrências ou mais e a contagem.
+2. Dado um nome, quando abro as ocorrências e toco numa delas, então a leitura vai até ela.
+
+### US-119: Recapitular o capítulo anterior
+
+**Épico:** Aprendizagem sem serviço externo
+**Prioridade:** Could
+**Story points:** 2
+**Status:** Implementada
+**Evidência:** `src/app/(app)/leitor/[id]/page.tsx`, `src/lib/series.ts` (`recapTail`)
+
+Como leitor de séries, eu quero rever o final e os destaques do capítulo anterior quando volto depois de dias, para que eu retome o fio da história.
+
+**Critérios de aceitação**
+1. Dado um capítulo aberto do início, com o anterior concluído há mais de 48 horas, quando o leitor abre, então é oferecido "Recapitular o capítulo anterior".
+2. Dado que aceito, quando a recapitulação roda, então vejo os destaques do capítulo anterior e o final dele, e depois a leitura segue normalmente.
+
+## Épico: Biblioteca e navegação
+
+### US-120: Buscar no conteúdo da biblioteca
+
+**Épico:** Biblioteca e navegação
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `src/lib/content-search.ts`, `src/app/api/texts/busca/route.ts`
+
+Como leitor, eu quero buscar uma expressão dentro dos textos da biblioteca, para que eu ache um trecho sem lembrar o título.
+
+**Critérios de aceitação**
+1. Dado uma busca de 3 caracteres ou mais, quando ela roda, então vejo até 8 textos com o trecho encontrado.
+2. Dado um resultado, quando toco nele, então o leitor abre na palavra encontrada.
+
+### US-121: Importar links em lote
+
+**Épico:** Biblioteca e navegação
+**Prioridade:** Could
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** `src/lib/batch-links.ts`, `src/app/(app)/textos/novo/`
+
+Como leitor vindo do Pocket, Instapaper ou Readwise, eu quero importar a lista de links exportada, para que eu não recomece a biblioteca do zero.
+
+**Critérios de aceitação**
+1. Dado um CSV com coluna URL ou um HTML com links, quando escolho o arquivo na aba "Lote", então vejo a lista antes de importar (máximo de 200 links).
+2. Dado a importação, quando termina, então vejo quantos entraram e quantos falharam, com a opção de tentar de novo os que falharam.
+
+### US-122: Reunir estatísticas, palavras e treino em "Você"
+
+**Épico:** Biblioteca e navegação
+**Prioridade:** Should
+**Story points:** 2
+**Status:** Implementada
+**Evidência:** `src/app/(app)/voce/page.tsx`, `src/components/app-shell.tsx`
+
+Como leitor, eu quero achar estatísticas, histórico, palavras e treino num só lugar da navegação, para que eles não fiquem escondidos dentro de Ajustes.
+
+**Critérios de aceitação**
+1. Dado a navegação principal, quando toco em "Você", então vejo os atalhos para Estatísticas, Histórico, Palavras e revisão, Treino e Ajustes.
+2. Dado Ajustes, quando a página abre, então há um índice das seções no topo.
 
 ## Fora do escopo (Won't Have)
 

@@ -4,7 +4,11 @@ import { cookies } from "next/headers";
 import { compare, hash } from "bcryptjs";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { authSessions, users } from "@/db/schema";
+import { authSessions, speedSettings, texts, users } from "@/db/schema";
+import { countWords } from "@/lib/reading";
+import { DEFAULT_LANGUAGE } from "@/lib/language";
+import { NEW_ROW_DEFAULTS } from "@/lib/settings-row";
+import { WELCOME_CONTENT, WELCOME_TITLE } from "@/lib/welcome";
 import { isProduction } from "@/lib/env";
 import {
   createToken,
@@ -151,16 +155,36 @@ export async function getUserById(id: string) {
   return user ?? null;
 }
 
+/**
+ * Cria a conta ja com a linha de preferencias e o texto de boas-vindas.
+ *
+ * Tudo na mesma transacao: uma conta sem a linha de `speed_settings` lia o
+ * padrao, mas qualquer escrita parcial nela (o teste de nivelamento, o
+ * treino) atualizava zero linhas sem erro. E a biblioteca vazia deixava a
+ * pessoa sem ter o que abrir para conhecer o leitor.
+ */
 export async function createUser(email: string, password: string, name: string) {
-  const [user] = await db
-    .insert(users)
-    .values({
-      email: normalizeEmail(email),
-      passwordHash: await hashPassword(password),
-      name: name.trim(),
-    })
-    .returning();
-  return user;
+  const passwordHash = await hashPassword(password);
+
+  return db.transaction(async (tx) => {
+    const [user] = await tx
+      .insert(users)
+      .values({ email: normalizeEmail(email), passwordHash, name: name.trim() })
+      .returning();
+
+    await tx.insert(speedSettings).values({ userId: user!.id, ...NEW_ROW_DEFAULTS });
+    await tx.insert(texts).values({
+      userId: user!.id,
+      title: WELCOME_TITLE,
+      content: WELCOME_CONTENT,
+      format: "plain",
+      // A mesma contagem da rota de criacao: e ela que decide o fim do texto.
+      wordCount: countWords(WELCOME_CONTENT, "plain"),
+      language: DEFAULT_LANGUAGE,
+    });
+
+    return user!;
+  });
 }
 
 export async function authenticateUser(email: string, password: string) {

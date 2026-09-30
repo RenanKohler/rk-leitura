@@ -5,7 +5,6 @@ import {
   excerptOf,
   exportFileName,
   MAX_HIGHLIGHT_WORDS,
-  markCovering,
   MAX_NOTE_CHARS,
   normalizeRange,
   segmentsOf,
@@ -102,6 +101,18 @@ describe("sentenceRange", () => {
 
   it("devolve nulo sem palavras", () => {
     expect(sentenceRange([], 0)).toBeNull();
+  });
+
+  it('"O Sr. Silva chegou." e uma frase so no destaque', () => {
+    const { words: sr } = parseParagraphs("O Sr. Silva chegou. Depois saiu.");
+    const range = sentenceRange(sr, 2)!;
+    expect(excerptOf(sr, range.start, range.end)).toBe("O Sr. Silva chegou.");
+  });
+
+  it("abreviatura antes de numero nao parte a frase", () => {
+    const { words: ref } = parseParagraphs("Veja a p. 12 do cap. 3. Depois leia o resto.");
+    const range = sentenceRange(ref, 4)!;
+    expect(excerptOf(ref, range.start, range.end)).toBe("Veja a p. 12 do cap. 3.");
   });
 });
 
@@ -245,16 +256,3 @@ describe("segmentsOf", () => {
   });
 });
 
-describe("markCovering", () => {
-  const marks = [{ id: "a", start: 5, end: 8, note: null }];
-
-  it("acha o destaque que cobre a palavra", () => {
-    expect(markCovering(marks, 5)!.id).toBe("a");
-    expect(markCovering(marks, 7)!.id).toBe("a");
-  });
-
-  it("o fim e exclusivo", () => {
-    expect(markCovering(marks, 8)).toBeNull();
-    expect(markCovering(marks, 4)).toBeNull();
-  });
-});

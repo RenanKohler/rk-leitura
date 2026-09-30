@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { addDays, afterAnswer, firstReview, isDue, wordsCsv } from "@/lib/vocabulary";
+import {
+  addDays,
+  afterAnswer,
+  afterGrade,
+  currentInterval,
+  firstReview,
+  gradeFrom,
+  gradeInterval,
+  GRADUATION_DAYS,
+  isDue,
+  retention,
+  wordsCsv,
+} from "@/lib/vocabulary";
 
 const hoje = "2026-09-22";
 
@@ -82,5 +94,56 @@ describe("exportacao em CSV", () => {
       },
     ]);
     expect(csv.trimEnd().endsWith("a,a,,d,,,")).toBe(true);
+  });
+});
+
+describe("quatro respostas (PROD-7)", () => {
+  it("errei volta a 1 dia, qualquer que seja o intervalo", () => {
+    expect(afterGrade(40, "errei", hoje)).toEqual({
+      interval: 1,
+      nextReviewOn: "2026-09-23",
+      graduated: false,
+    });
+  });
+
+  it("dificil, bom e facil multiplicam por 1,2, 2,5 e 4", () => {
+    expect(gradeInterval(10, "dificil")).toBe(12);
+    expect(gradeInterval(10, "bom")).toBe(25);
+    expect(gradeInterval(10, "facil")).toBe(40);
+  });
+
+  it("resposta certa sempre avanca pelo menos um dia", () => {
+    expect(gradeInterval(1, "dificil")).toBe(2);
+    expect(gradeInterval(1, "bom")).toBe(3);
+    expect(gradeInterval(1, "facil")).toBe(4);
+  });
+
+  it("forma a palavra ao chegar a 90 dias", () => {
+    expect(afterGrade(30, "bom", hoje)).toMatchObject({ interval: 75, graduated: false });
+    const formed = afterGrade(30, "facil", hoje);
+    expect(formed.interval).toBeGreaterThanOrEqual(GRADUATION_DAYS);
+    expect(formed.graduated).toBe(true);
+    expect(formed.nextReviewOn).toBe(addDays(hoje, 120));
+  });
+
+  it("intervalo atual: gravado, ou da etapa antiga, ou 1 dia", () => {
+    expect(currentInterval(17, 0)).toBe(17);
+    expect(currentInterval(null, 3)).toBe(14);
+    expect(currentInterval(null, 0)).toBe(1);
+    expect(currentInterval(0)).toBe(1);
+  });
+
+  it("aceita o lembrei/nao lembrei antigo", () => {
+    expect(gradeFrom({ remembered: true })).toBe("bom");
+    expect(gradeFrom({ remembered: false })).toBe("errei");
+    expect(gradeFrom({ grade: "facil" })).toBe("facil");
+    expect(gradeFrom({ grade: "otimo" })).toBeNull();
+    expect(gradeFrom(null)).toBeNull();
+  });
+
+  it("retencao e a parcela das respostas que nao foram errei", () => {
+    expect(retention([])).toBeNull();
+    expect(retention(["bom", "errei", "facil", "dificil"])).toBe(75);
+    expect(retention(["errei"])).toBe(0);
   });
 });
