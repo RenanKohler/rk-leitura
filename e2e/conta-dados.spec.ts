@@ -178,7 +178,8 @@ test("historico do texto e calendario", async ({ page, browser }) => {
   await expect(summary.getByText("1:00")).toBeVisible();
 
   await page.goto("/estatisticas");
-  await expect(page.getByText(/1 dia com leitura/)).toBeVisible();
+  // Durante o streaming o Next deixa por um instante uma copia oculta no DOM.
+  await expect(page.getByText(/1 dia com leitura/).filter({ visible: true })).toBeVisible();
   await expect(page.getByTestId("calendario").locator('[data-level="1"]')).toHaveCount(1);
 
   // A11Y-9: uma parada de Tab so, e as setas andam por dia e por semana.
