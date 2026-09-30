@@ -43,6 +43,7 @@ import {
   FONT_FAMILIES,
   typographyVars,
   warmupFactor,
+  warmupStart,
   WARMUP_WORDS,
   formatClock,
   formatNumber,
@@ -53,7 +54,7 @@ import {
   MIN_FONT_SCALE,
   MIN_LINE_HEIGHT,
   MIN_WPM,
-  orpIndex,
+  orpParts,
   parseParagraphs,
   sliceParagraphs,
   splitEmphasis,
@@ -254,14 +255,16 @@ function Reader({
   // a media do texto continuar na velocidade escolhida, e a pausa de
   // pontuacao depois dela. Desligado, toda palavra dura o mesmo.
   const adaptive = settings.adaptiveRhythm;
+  // As regras de abreviatura e de fim de frase sao as do idioma do texto.
+  const language = text.language;
   const weights = useMemo(() => {
     if (!adaptive) return null;
     const known = new Set(knownWords.map(wordKeyForPace));
-    return normalizedWeights(words, known);
-  }, [adaptive, words, knownWords]);
+    return normalizedWeights(words, known, paragraphs, language);
+  }, [adaptive, words, knownWords, paragraphs, language]);
   const pauses = useMemo(
-    () => (adaptive ? pauseKinds(words, paragraphs) : null),
-    [adaptive, words, paragraphs]
+    () => (adaptive ? pauseKinds(words, paragraphs, language) : null),
+    [adaptive, words, paragraphs, language]
   );
 
   /* --- velocidade -------------------------------------------------------- */
@@ -321,6 +324,9 @@ function Reader({
   // Posicao em que a leitura corrente comecou: a rampa de aquecimento conta a
   // partir dela, nao do inicio do texto.
   const warmupOriginRef = useRef(0);
+  // Fator em que a rampa comeca: proporcional ao tempo parado (60% na
+  // abertura ou depois de 2 minutos, 85% depois de uma pausa curta).
+  const warmupStartRef = useRef(warmupStart(null));
   // Quando a leitura parou. Uma pausa curta nao reinicia a rampa.
   const pausedAtRef = useRef(0);
   // Posicao em que a leitura parou: o recuo ao retomar (US-95) so vale se o
@@ -507,10 +513,10 @@ function Reader({
   /** Destaca a frase que contem a palavra atual, sem parar a leitura. */
   const markSentenceAt = useCallback(
     (position: number) => {
-      const range = sentenceRange(words, position);
+      const range = sentenceRange(words, position, language);
       if (range) void createMark(range);
     },
-    [words, createMark]
+    [words, createMark, language]
   );
 
   /* --- proxima leitura --------------------------------------------------- */
@@ -685,7 +691,7 @@ function Reader({
     // posicao seja a mesma em que a leitura parou.
     let from = stateRef.current.index;
     if (resumeRewind && !moved && Number.isFinite(pausedMs)) {
-      const target = resumeTarget(words, from, pausedMs);
+      const target = resumeTarget(words, from, pausedMs, paragraphs, wpm, language);
       if (target !== from) {
         from = target;
         stateRef.current.index = target;
@@ -699,6 +705,7 @@ function Reader({
     // posicao voltava para antes da origem.
     if (pausedMs >= SHORT_PAUSE_MS || moved || from < warmupOriginRef.current) {
       warmupOriginRef.current = from;
+      warmupStartRef.current = warmupStart(moved ? null : pausedMs);
     }
 
     if (pausedAtRef.current === 0 || pausedMs >= EYE_REST_RESET_MS) restAccumRef.current = 0;
@@ -711,7 +718,7 @@ function Reader({
     setTapped(null);
     setPlaying(true);
     setAnnouncement(playMode === "guia" ? "Guia na pagina iniciado." : "Word Runner iniciado.");
-  }, [resumeRewind, words, postRecord, playMode, speech]);
+  }, [resumeRewind, words, paragraphs, wpm, language, postRecord, playMode, speech]);
 
   const togglePlay = useCallback(() => {
     if (stateRef.current.playing) pause("freio");
@@ -725,7 +732,9 @@ function Reader({
 
     // Uma palavra por vez. A rampa de aquecimento vale a partir de onde a
     // leitura corrente comecou.
-    const factor = warmup ? warmupFactor(index - warmupOriginRef.current) : 1;
+    const factor = warmup
+      ? warmupFactor(index - warmupOriginRef.current, warmupStartRef.current)
+      : 1;
     const weight = weights?.[index] ?? 1;
     const kind: PauseKind = pauses?.[index] ?? "none";
     const delay = runnerDelayMs(wpm, weight, kind, factor);
@@ -1066,13 +1075,13 @@ function Reader({
   /** Volta ao inicio da frase, ou da anterior quando ja esta no inicio (US-91). */
   const backSentence = useCallback(() => {
     if (stateRef.current.playing) addBrake(meterRef.current, stateRef.current.index);
-    seek(sentenceBackTarget(words, stateRef.current.index));
-  }, [words, seek]);
+    seek(sentenceBackTarget(words, stateRef.current.index, language));
+  }, [words, seek, language]);
 
   /** Avanca para o inicio da proxima frase, como as setas do Word Runner. */
   const forwardSentence = useCallback(() => {
-    seek(sentenceForwardTarget(words, stateRef.current.index));
-  }, [words, seek]);
+    seek(sentenceForwardTarget(words, stateRef.current.index, language));
+  }, [words, seek, language]);
 
   /** Vai para uma posicao escolhida na navegacao, com a leitura pausada. */
   const goTo = useCallback(
@@ -1497,6 +1506,7 @@ function Reader({
                 style={wordStyles?.[index] ?? 0}
                 paragraphStart={paragraphStart}
                 block={currentParagraph}
+                language={language}
                 onBrake={brakeFromRunner}
               />
             ) : null}
@@ -2198,6 +2208,7 @@ function RunnerStage({
   style,
   paragraphStart,
   block,
+  language,
   onBrake,
 }: {
   words: string[];
@@ -2209,10 +2220,11 @@ function RunnerStage({
   paragraphStart: boolean;
   /** Bloco (paragrafo, titulo, item) da palavra atual. */
   block: Paragraph | undefined;
+  language: string;
   onBrake: () => void;
 }) {
   const current = displayToken(words[index] ?? "");
-  const context = runnerContext(words, paragraphs, index);
+  const context = runnerContext(words, paragraphs, index, undefined, language);
   const label = blockLabel(block);
   const heading = block?.kind === "h1" || block?.kind === "h2" || block?.kind === "h3";
 
@@ -2288,7 +2300,8 @@ function RunnerStage({
  * borda e o pivo saia das guias.
  */
 function OrpWord({ word }: { word: string }) {
-  const pivot = orpIndex(word);
+  // Por code point, nao por unidade UTF-16: letra acentuada nao se parte.
+  const parts = orpParts(word);
   const rowRef = useRef<HTMLSpanElement>(null);
   const leftRef = useRef<HTMLSpanElement>(null);
   const pivotRef = useRef<HTMLSpanElement>(null);
@@ -2313,13 +2326,13 @@ function OrpWord({ word }: { word: string }) {
   return (
     <span ref={rowRef} className="flex w-full items-baseline overflow-hidden" aria-label={word}>
       <span ref={leftRef} aria-hidden="true" className="flex-1 whitespace-pre text-right">
-        {word.slice(0, pivot)}
+        {parts.before}
       </span>
       <span ref={pivotRef} aria-hidden="true" className="orp">
-        {word.slice(pivot, pivot + 1)}
+        {parts.pivot}
       </span>
       <span ref={rightRef} aria-hidden="true" className="flex-1 whitespace-pre text-left">
-        {word.slice(pivot + 1)}
+        {parts.after}
       </span>
     </span>
   );
