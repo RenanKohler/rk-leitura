@@ -1267,6 +1267,7 @@ const WINDOW_SUGGESTIONS = 3;
 export async function loadTimeWindow(userId: string, minutes: number): Promise<TimeWindow> {
   const [pace, settings] = await Promise.all([loadPace(userId), loadSettings(userId)]);
   const warmup = settings?.warmup ?? true;
+  const adaptive = settings?.adaptiveRhythm ?? DEFAULT_SETTINGS.adaptiveRhythm;
   const budget = minutes * 60_000;
 
   const readable = and(
@@ -1281,6 +1282,7 @@ export async function loadTimeWindow(userId: string, minutes: number): Promise<T
     title: texts.title,
     content: texts.content,
     format: texts.format,
+    language: texts.language,
     progressIndex: texts.progressIndex,
     wordCount: texts.wordCount,
     queuePosition: texts.queuePosition,
@@ -1302,8 +1304,14 @@ export async function loadTimeWindow(userId: string, minutes: number): Promise<T
 
   const fit = (rows: typeof queued, source: TimeSuggestion["source"]): TimeSuggestion[] =>
     rows.flatMap((row) => {
-      const { paragraphs } = parseParagraphs(row.content, asTextFormat(row.format));
-      const slice = fitParagraphEnd(paragraphs, row.progressIndex, budget, pace.wpm, warmup);
+      const { words, paragraphs } = parseParagraphs(row.content, asTextFormat(row.format));
+      // O ritmo medido nao tem as pausas de pontuacao (o leitor as desconta),
+      // entao a previsao soma as pausas e a rampa como a tela vai executar.
+      const slice = fitParagraphEnd(paragraphs, row.progressIndex, budget, pace.wpm, warmup, {
+        words,
+        adaptive,
+        language: row.language,
+      });
       if (!slice) return [];
       return [
         {

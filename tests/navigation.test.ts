@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseParagraphs } from "@/lib/reading";
 import {
   bookmarkLabel,
+  CONTEXT_BLOCK,
   currentHeading,
   MAX_SEARCH_RESULTS,
   resumeTarget,
@@ -39,20 +40,78 @@ describe("sentenceStart / sentenceBackTarget (US-91)", () => {
   });
 });
 
-describe("resumeTarget (US-95)", () => {
-  it("pausa longa recua ate 5 palavras dentro da frase", () => {
+describe("resumeTarget (US-95, ALG-17)", () => {
+  it("pausa de 5 s a 1 min volta ao inicio da frase", () => {
     expect(resumeTarget(words, 8, 6_000)).toBe(3);
-    const long = Array.from({ length: 20 }, (_, i) => `p${i}`);
-    expect(resumeTarget(long, 12, 6_000)).toBe(7);
+    expect(resumeTarget(words, 8, 59_000)).toBe(3);
   });
 
   it("pausa curta nao muda a posicao", () => {
     expect(resumeTarget(words, 8, 4_999)).toBe(8);
+    expect(resumeTarget(words, 8, 1_000, undefined, 300)).toBe(8);
+  });
+
+  it("a 450 ppm ou mais, ate a pausa curta recua uma palavra, sem sair da frase", () => {
+    expect(resumeTarget(words, 8, 1_000, undefined, 450)).toBe(7);
+    expect(resumeTarget(words, 3, 1_000, undefined, 600)).toBe(3);
+  });
+
+  it("de 1 a 10 min volta ao inicio da frase anterior", () => {
+    expect(resumeTarget(words, 8, 60_000)).toBe(0);
+    expect(resumeTarget(words, 9, 5 * 60_000)).toBe(3);
+  });
+
+  it("mais de 10 min volta ao inicio do paragrafo", () => {
+    const texto = parseParagraphs(
+      "Primeira frase do bloco. Segunda frase do bloco. Terceira frase do bloco.\n\nOutro bloco."
+    );
+    // Na terceira frase (indice 8): o paragrafo comeca no 0.
+    expect(resumeTarget(texto.words, 10, 11 * 60_000, texto.paragraphs)).toBe(0);
+    // Sem os paragrafos, a frase anterior.
+    expect(resumeTarget(texto.words, 10, 11 * 60_000)).toBe(4);
+  });
+
+  it("nunca recua mais de 60 palavras", () => {
+    const longo = parseParagraphs(Array.from({ length: 200 }, (_, i) => `p${i}`).join(" ") + ".");
+    expect(resumeTarget(longo.words, 150, 20 * 60_000, longo.paragraphs)).toBe(90);
+    expect(resumeTarget(longo.words, 150, 10_000)).toBe(90);
   });
 
   it("perto do inicio vai para o zero sem erro", () => {
     expect(resumeTarget(words, 2, 10_000)).toBe(0);
     expect(resumeTarget(words, 0, 10_000)).toBe(0);
+    expect(resumeTarget([], 0, 10_000)).toBe(0);
+  });
+});
+
+describe("frase pelo segmentador unico (ALG-8)", () => {
+  const sr = parseParagraphs("Antes veio isto. O Sr. Silva chegou cedo. Depois saiu.");
+  // 0 Antes 1 veio 2 isto. 3 O 4 Sr. 5 Silva 6 chegou 7 cedo. 8 Depois 9 saiu.
+
+  it('"O Sr. Silva chegou." e uma frase so na navegacao', () => {
+    expect(sentenceStart(sr.words, 6)).toBe(3);
+    expect(sentenceBackTarget(sr.words, 6)).toBe(3);
+    expect(sentenceBackTarget(sr.words, 8)).toBe(3);
+    expect(sentenceForwardTarget(sr.words, 3)).toBe(8);
+    expect(runnerContext(sr.words, sr.paragraphs, 5)).toEqual({
+      from: 3,
+      to: 8,
+      clippedStart: false,
+      clippedEnd: false,
+    });
+    expect(resumeTarget(sr.words, 6, 10_000)).toBe(3);
+  });
+
+  it("abreviatura e inicial tambem nao partem a frase", () => {
+    const texto = parseParagraphs("Veja a p. 12 do cap. 3. Livro de J. R. R. Tolkien. Fim.");
+    expect(sentenceStart(texto.words, 6)).toBe(0);
+    expect(sentenceForwardTarget(texto.words, 0)).toBe(7);
+    expect(sentenceStart(texto.words, 12)).toBe(7);
+  });
+
+  it("vitamina D. e fim de frase", () => {
+    const texto = parseParagraphs("Tomou vitamina D. Depois dormiu.");
+    expect(sentenceStart(texto.words, 4)).toBe(3);
   });
 });
 
@@ -139,9 +198,42 @@ describe("Word Runner: avancar a frase e contexto", () => {
     expect(runnerContext(texto.words, texto.paragraphs, 10)).toMatchObject({ from: 8, to: 12 });
   });
 
-  it("frase longa e recortada em volta da palavra", () => {
+  it("frase longa vira blocos fixos; o bloco so muda quando a palavra sai dele (ALG-9)", () => {
     const longa = parseParagraphs(Array.from({ length: 60 }, (_, i) => `p${i}`).join(" ") + ".");
-    const context = runnerContext(longa.words, longa.paragraphs, 30, 5);
-    expect(context).toEqual({ from: 25, to: 36, clippedStart: true, clippedEnd: true });
+    // 60 palavras em blocos de ate 18: quatro de 15.
+    const blocos = longa.words.map((_, index) => runnerContext(longa.words, longa.paragraphs, index));
+    expect(blocos[0]).toEqual({ from: 0, to: 15, clippedStart: false, clippedEnd: true });
+    expect(blocos[30]).toEqual({ from: 30, to: 45, clippedStart: true, clippedEnd: true });
+    expect(blocos[44]).toEqual(blocos[30]);
+    expect(blocos[59]).toEqual({ from: 45, to: 60, clippedStart: true, clippedEnd: false });
+    // Cada bloco contem a palavra e tem no maximo 18 palavras.
+    blocos.forEach((bloco, index) => {
+      expect(bloco.from).toBeLessThanOrEqual(index);
+      expect(bloco.to).toBeGreaterThan(index);
+      expect(bloco.to - bloco.from).toBeLessThanOrEqual(CONTEXT_BLOCK);
+    });
+    // O bloco so muda nas fronteiras.
+    const mudancas = blocos.filter((bloco, index) => index > 0 && bloco.from !== blocos[index - 1]!.from);
+    expect(mudancas).toHaveLength(3);
+  });
+
+  it("corta de preferencia depois de virgula", () => {
+    const palavras = Array.from({ length: 30 }, (_, i) => `p${i}`);
+    palavras[11] = "p11,";
+    palavras[29] = "p29.";
+    const texto = parseParagraphs(palavras.join(" "));
+    // Ideal seria 15 + 15; a virgula depois da palavra 11 puxa o corte para 12.
+    expect(runnerContext(texto.words, texto.paragraphs, 5)).toMatchObject({ from: 0, to: 12 });
+    expect(runnerContext(texto.words, texto.paragraphs, 12)).toMatchObject({ from: 12, to: 30 });
+  });
+
+  it("o tamanho do bloco e ajustavel", () => {
+    const longa = parseParagraphs(Array.from({ length: 60 }, (_, i) => `p${i}`).join(" ") + ".");
+    expect(runnerContext(longa.words, longa.paragraphs, 30, 5)).toEqual({
+      from: 30,
+      to: 35,
+      clippedStart: true,
+      clippedEnd: true,
+    });
   });
 });

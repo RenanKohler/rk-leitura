@@ -35,7 +35,7 @@ import {
   WARMUP_WORDS,
   type FontFamily,
 } from "@/lib/reading";
-import { RHYTHM_HINTS } from "@/lib/pacing";
+import { effectiveRunnerWpm, RHYTHM_HINTS } from "@/lib/pacing";
 
 const SAMPLE = "A leitura dinamica treina o olho a reconhecer palavras inteiras".split(" ");
 
@@ -92,7 +92,11 @@ export default function SettingsPage() {
           min={MIN_WPM}
           max={MAX_WPM}
           step={10}
-          hint={`Um artigo de 1.000 palavras leva cerca de ${estimatedMinutes(1000, settings.baseWpm)} min nesse ritmo.`}
+          hint={
+            settings.adaptiveRhythm
+              ? `Um artigo de 1.000 palavras leva cerca de ${estimatedMinutes(1000, settings.baseWpm, true)} min nesse ritmo (~${effectiveRunnerWpm(settings.baseWpm)} ppm com as pausas).`
+              : `Um artigo de 1.000 palavras leva cerca de ${estimatedMinutes(1000, settings.baseWpm, false)} min nesse ritmo.`
+          }
           value={settings.baseWpm}
           onChange={(value) => void update({ baseWpm: value })}
         />

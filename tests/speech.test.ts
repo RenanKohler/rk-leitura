@@ -108,6 +108,20 @@ describe("speechChunks", () => {
     const chunks = speechChunks(words, 0);
     expect(chunks.flatMap((chunk) => chunk.words)).toEqual(words);
   });
+
+  it("nao corta a fala depois de tratamento ou abreviatura", () => {
+    const words = "O Sr. Silva chegou. Veja a p. 12 agora.".split(" ");
+    const chunks = speechChunks(words, 0);
+    expect(chunks.map((chunk) => chunk.words.join(" "))).toEqual([
+      "O Sr. Silva chegou.",
+      "Veja a p. 12 agora.",
+    ]);
+  });
+
+  it("usa a lista de abreviaturas do idioma", () => {
+    const words = "Mr. Smith left. Then he came back.".split(" ");
+    expect(speechChunks(words, 0, 40, "en")).toHaveLength(2);
+  });
 });
 
 describe("wordAtCharIndex", () => {

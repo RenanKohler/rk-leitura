@@ -103,6 +103,18 @@ describe("sentenceRange", () => {
   it("devolve nulo sem palavras", () => {
     expect(sentenceRange([], 0)).toBeNull();
   });
+
+  it('"O Sr. Silva chegou." e uma frase so no destaque', () => {
+    const { words: sr } = parseParagraphs("O Sr. Silva chegou. Depois saiu.");
+    const range = sentenceRange(sr, 2)!;
+    expect(excerptOf(sr, range.start, range.end)).toBe("O Sr. Silva chegou.");
+  });
+
+  it("abreviatura antes de numero nao parte a frase", () => {
+    const { words: ref } = parseParagraphs("Veja a p. 12 do cap. 3. Depois leia o resto.");
+    const range = sentenceRange(ref, 4)!;
+    expect(excerptOf(ref, range.start, range.end)).toBe("Veja a p. 12 do cap. 3.");
+  });
 });
 
 describe("absorb", () => {
