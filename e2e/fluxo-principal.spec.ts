@@ -58,8 +58,9 @@ test("a pagina vira por toque lateral e grava a pagina exibida", async ({ page }
   const counter = page.getByText(/^Pagina \d+ de \d+$/);
   await expect(counter).toHaveText(/^Pagina 1 de \d+$/);
 
-  // A zona de toque fica sobre o texto; o botao do rodape tem o mesmo rotulo.
-  await page.locator("main").getByRole("button", { name: "Proxima pagina" }).click();
+  // Toque na borda direita do texto vira a pagina.
+  const box = (await page.locator("main").boundingBox())!;
+  await page.mouse.click(box.x + box.width - 8, box.y + box.height / 2);
   await expect(counter).toHaveText(/^Pagina 2 de \d+$/);
 
   // Sair do leitor grava a posicao.
@@ -92,7 +93,7 @@ test("o Word Runner roda sobre a pagina e pausar volta a ela", async ({ page }) 
   const current = runner.locator("[data-current]");
   await expect(current).toHaveCount(1);
   await expect(current).toHaveText(/^\S+$/);
-  await expect(page.locator("header p.tabular")).toContainText(/^[3-9] \//, { timeout: 10_000 });
+  await expect(page.locator("header .tabular")).toContainText(/^[3-9] \//, { timeout: 10_000 });
 
   await runner.click();
   await expect(runner).toHaveCount(0);

@@ -21,6 +21,7 @@ import {
   windowStart,
   WARMUP_START,
   WARMUP_WORDS,
+  MAX_FONT_SCALE,
 } from "@/lib/reading";
 
 describe("tokenize", () => {
@@ -258,7 +259,9 @@ describe("tipografia", () => {
 
     expect(tamanho(1)).toBeLessThan(tamanho(5));
     expect(tamanho(-5)).toBe(tamanho(1));
-    expect(tamanho(99)).toBe(tamanho(5));
+    expect(tamanho(99)).toBe(tamanho(MAX_FONT_SCALE));
+    // O maior degrau chega a 2rem, o dobro do corpo base.
+    expect(tamanho(MAX_FONT_SCALE)).toBe(2);
   });
 
   it("da entrelinha para todos os degraus", () => {

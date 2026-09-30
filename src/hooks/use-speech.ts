@@ -283,5 +283,14 @@ export function useSpeech(language = "pt-BR") {
   // Sair da tela no meio da fala deixaria a voz tocando em alguns sistemas.
   useEffect(() => stop, [stop]);
 
-  return { state, error, start, stop };
+  /**
+   * Some com o aviso de erro. O aviso nao pode ficar para sempre na tela: ele
+   * chegou a cobrir o rodape e o play so voltava recarregando a pagina.
+   */
+  const clearError = useCallback(() => {
+    setError("");
+    setState((current) => (current === "indisponivel" ? "parada" : current));
+  }, []);
+
+  return { state, error, start, stop, clearError };
 }

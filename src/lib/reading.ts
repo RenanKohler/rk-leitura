@@ -17,7 +17,8 @@ export const MAX_HIGHLIGHT = 0.8;
 
 /** Tipografia da area de leitura, em niveis em vez de pixels. */
 export const MIN_FONT_SCALE = 1;
-export const MAX_FONT_SCALE = 5;
+/** Nove degraus: 1rem a 2rem, o dobro do corpo base, como o zoom de 200%. */
+export const MAX_FONT_SCALE = 9;
 export const MIN_LINE_HEIGHT = 1;
 export const MAX_LINE_HEIGHT = 3;
 
@@ -37,9 +38,13 @@ export function typographyVars(settings: {
   const scale = clamp(settings.fontScale, MIN_FONT_SCALE, MAX_FONT_SCALE);
   const leading = clamp(settings.lineHeightStep, MIN_LINE_HEIGHT, MAX_LINE_HEIGHT);
 
+  const size = 1 + (scale - 1) * 0.125;
   return {
-    // 1rem a 1.5rem em cinco degraus.
-    "--reader-size": `${(1 + (scale - 1) * 0.125).toFixed(3)}rem`,
+    // 1rem a 2rem em nove degraus.
+    "--reader-size": `${size.toFixed(3)}rem`,
+    // A palavra do Word Runner acompanha o tamanho escolhido, relativa ao
+    // padrao (degrau 3, 1.25rem): no padrao ela fica como sempre foi.
+    "--reader-scale": (size / 1.25).toFixed(3),
     "--reader-leading": ["1.6", "1.85", "2.1"][leading - 1]!,
     "--reader-font": `var(--reader-font-${settings.fontFamily})`,
     // A pilha "legivel" pede folga entre letras; as outras nao.
