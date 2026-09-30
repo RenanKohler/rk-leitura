@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiSend } from "@/lib/client";
 import { Alert, Button, Sheet } from "@/components/ui";
 import { BookmarkIcon, TrashIcon } from "@/components/icons";
+import { XrayPanel } from "@/components/xray-panel";
 import {
   bookmarkLabel,
   currentHeading,
@@ -55,6 +56,7 @@ export function NavigateSheet({
   const [label, setLabel] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showNames, setShowNames] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -268,6 +270,30 @@ export function NavigateSheet({
               })}
             </ul>
           )}
+        </section>
+
+        {/* Nomes do texto (PROD-11). Calculado so quando aberto: varre o texto
+            inteiro, e a maioria das consultas a folha e busca ou marcador. */}
+        <section className="space-y-2" aria-label="Nomes">
+          <button
+            type="button"
+            aria-expanded={showNames}
+            onClick={() => setShowNames((value) => !value)}
+            className="flex min-h-11 w-full items-center justify-between rounded-lg px-2 text-left text-sm font-medium text-muted hover:bg-surface-2"
+          >
+            Nomes no texto
+            <span aria-hidden="true">{showNames ? "\u2212" : "+"}</span>
+          </button>
+          {showNames ? (
+            <XrayPanel
+              words={words}
+              paragraphs={paragraphs}
+              onGo={(position) => {
+                onGo(position);
+                onClose();
+              }}
+            />
+          ) : null}
         </section>
       </div>
     </Sheet>

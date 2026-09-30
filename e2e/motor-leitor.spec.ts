@@ -88,3 +88,22 @@ test("toque duplo no Word Runner nao pula texto", async ({ page }) => {
   await page.mouse.dblclick(box.x + box.width - 10, box.y + box.height / 2);
   await expect(page.getByText(/^Pagina 1 de \d+$/)).toBeVisible();
 });
+
+/** Guia de primeiro uso: aparece uma vez por conta. */
+test("guia do leitor aparece na primeira abertura e nao volta", async ({ page }) => {
+  await registerByApi(page.request);
+  const text = await createText(page.request, "Texto do guia", 200);
+
+  await openReader(page, text.id);
+  const guide = page.getByTestId("guia-leitor");
+  await expect(guide).toBeVisible();
+  await guide.getByRole("button", { name: "Proximo" }).click();
+  await guide.getByRole("button", { name: "Proximo" }).click();
+  await guide.getByRole("button", { name: "Entendi" }).click();
+  await expect(guide).toHaveCount(0);
+
+  await expect.poll(async () => (await (await page.request.get("/api/settings")).json()).settings.readerTipsSeen).toBe(true);
+  await openReader(page, text.id);
+  await expect(page.getByText(/^Pagina \d+ de \d+$/)).toBeVisible();
+  await expect(page.getByTestId("guia-leitor")).toHaveCount(0);
+});

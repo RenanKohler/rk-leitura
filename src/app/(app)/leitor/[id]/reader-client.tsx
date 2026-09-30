@@ -63,7 +63,8 @@ import {
   type Paragraph,
 } from "@/lib/reading";
 import { STYLE, styleClass } from "@/lib/markdown";
-import { apiSend } from "@/lib/client";
+import { apiGet, apiSend } from "@/lib/client";
+import { SPEED_BAND_LABELS, speedBand, speedBandWarning } from "@/lib/speed-bands";
 import { QuizSheet } from "@/components/quiz-sheet";
 import { NavigateSheet } from "@/components/navigate-sheet";
 import { countCitations } from "@/lib/citations";
@@ -287,6 +288,33 @@ function Reader({
   );
   const warmup = settings.warmup;
 
+  // Sugestao de desacelerar quando as ultimas sessoes tiveram muitos freios e
+  // recuos (PROD-10). So sugere: mudar a velocidade e sempre do leitor.
+  const [slowdown, setSlowdown] = useState<{ message: string; wpm: number } | null>(null);
+  useEffect(() => {
+    let active = true;
+    void apiGet<{ suggestion: { message: string } | null; suggestedWpm: number | null }>(
+      "/api/reading-sessions/sugestao"
+    )
+      .then((data) => {
+        if (active && data.suggestion && data.suggestedWpm) {
+          setSlowdown({ message: data.suggestion.message, wpm: data.suggestedWpm });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Guia de primeiro uso (UX-10, APP-5): uma vez por conta, na primeira
+  // abertura do leitor.
+  const [tipsDismissed, setTipsDismissed] = useState(false);
+  const dismissTips = useCallback(() => {
+    setTipsDismissed(true);
+    void save({ readerTipsSeen: true });
+  }, [save]);
+
   // Tempo de cada palavra na velocidade atual, acumulado: da o tempo que falta
   // e o ritmo real (com as pausas) sem percorrer o texto a cada render.
   const timeline = useMemo(() => {
@@ -350,6 +378,16 @@ function Reader({
     )
   );
   const [recapPlaying, setRecapPlaying] = useState(false);
+  // Recapitulacao do capitulo anterior de uma serie (PROD-12): vem pronta do
+  // servidor quando este capitulo abre do inicio e o anterior ficou para tras.
+  const [chapterRecap, setChapterRecap] = useState(() =>
+    recap ? null : (text.previousChapter ?? null)
+  );
+  const [chapterRecapPlaying, setChapterRecapPlaying] = useState(false);
+  const chapterRecapWords = useMemo(
+    () => (chapterRecap ? chapterRecap.tail.join(" ").split(/\s+/).filter(Boolean) : []),
+    [chapterRecap]
+  );
 
   // A pagina fica montada (so invisivel) enquanto o Word Runner roda: assim a
   // paginacao continua medida e pausar mostra a pagina certa na hora.
@@ -1454,9 +1492,24 @@ function Reader({
       </p>
 
       <main
-        className={`relative flex min-h-0 flex-1 flex-col ${finished || recapPlaying ? "overflow-y-auto" : ""}`}
+        className={`relative flex min-h-0 flex-1 flex-col ${finished || recapPlaying || chapterRecapPlaying ? "overflow-y-auto" : ""}`}
       >
-        {recapPlaying && recap ? (
+        {chapterRecapPlaying && chapterRecap ? (
+          <RecapPlayer
+            marks={chapterRecap.highlights}
+            words={chapterRecapWords}
+            wpm={wpm}
+            title={`Antes: ${chapterRecap.title}`}
+            onDone={() => {
+              setChapterRecap(null);
+              setChapterRecapPlaying(false);
+            }}
+            onSkip={() => {
+              setChapterRecap(null);
+              setChapterRecapPlaying(false);
+            }}
+          />
+        ) : recapPlaying && recap ? (
           <RecapPlayer
             marks={recapMarks}
             words={words.slice(recap.from, recap.to)}
@@ -1498,6 +1551,14 @@ function Reader({
               onTap={onPageTap}
               onOpenMark={setOpenMark}
             />
+            {!settings.readerTipsSeen &&
+            !tipsDismissed &&
+            pagesReady &&
+            !playing &&
+            !narrating &&
+            !sheetOpen ? (
+              <ReaderTips onDone={dismissTips} />
+            ) : null}
             {runnerVisible ? (
               <RunnerStage
                 words={words}
@@ -1514,7 +1575,7 @@ function Reader({
         )}
       </main>
 
-      {!finished && !recapPlaying ? (
+      {!finished && !recapPlaying && !chapterRecapPlaying ? (
         <footer
           ref={footerRef}
           className="pb-safe relative z-20 shrink-0 border-t border-border bg-bg/95 backdrop-blur"
@@ -1546,6 +1607,46 @@ function Reader({
                   </Button>
                   <Button onClick={() => setRecapPlaying(true)}>Recapitular</Button>
                 </div>
+              </div>
+            ) : null}
+
+            {chapterRecap && !recap && !playing && !narrating ? (
+              <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
+                <div>
+                  <p className="font-medium">Recapitular o capitulo anterior</p>
+                  <p className="text-sm text-muted">
+                    {`Faz tempo desde "${chapterRecap.title}". Reveja os destaques e o final antes de seguir.`}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="secondary" onClick={() => setChapterRecap(null)}>
+                    Pular
+                  </Button>
+                  <Button onClick={() => setChapterRecapPlaying(true)}>Recapitular</Button>
+                </div>
+              </div>
+            ) : null}
+
+            {slowdown && !playing && !narrating && !recap && !chapterRecap ? (
+              <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface p-3 text-sm shadow-float">
+                <p className="flex-1">{slowdown.message}</p>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    changeWpm(slowdown.wpm);
+                    setSlowdown(null);
+                  }}
+                >
+                  {`Usar ${slowdown.wpm} ppm`}
+                </Button>
+                <button
+                  type="button"
+                  aria-label="Dispensar sugestao"
+                  onClick={() => setSlowdown(null)}
+                  className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+                >
+                  <CloseIcon className="size-5" />
+                </button>
               </div>
             ) : null}
 
@@ -1697,6 +1798,35 @@ function Reader({
           context={word.touched.context}
           textId={text.id}
           onClose={word.clear}
+          actions={
+            word.touched.index !== undefined ? (
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    const position = word.touched?.index;
+                    word.clear();
+                    if (position === undefined) return;
+                    seek(position);
+                    setTapped(position);
+                    setAnchor(position);
+                  }}
+                >
+                  Comecar daqui
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    const position = word.touched?.index;
+                    word.clear();
+                    if (position !== undefined) markSentenceAt(position);
+                  }}
+                >
+                  Destacar frase
+                </Button>
+              </div>
+            ) : null
+          }
         />
       ) : null}
 
@@ -2052,13 +2182,10 @@ function formatRemaining(ms: number): string {
  * as pausas de pontuacao, que fica abaixo do configurado no ritmo Dinamico.
  */
 function speedHint(wpm: number, real: number | null): string {
-  const band =
-    wpm <= 400
-      ? "Faixa de leitura."
-      : wpm <= 600
-        ? "Leitura rapida."
-        : "Varredura: acima de ~600 ppm a compreensao costuma cair; faca o teste de compreensao.";
-  return real !== null ? `${band} Com as pausas de pontuacao, ~${real} ppm neste texto.` : band;
+  const band = `Faixa: ${SPEED_BAND_LABELS[speedBand(wpm)]}.`;
+  const warning = speedBandWarning(wpm);
+  const parts = [band, warning, real !== null ? `Com as pausas de pontuacao, ~${real} ppm neste texto.` : null];
+  return parts.filter(Boolean).join(" ");
 }
 
 const GESTURES: [string, string][] = [
@@ -2842,23 +2969,32 @@ function RecapPlayer({
   marks,
   words,
   wpm,
+  title,
   onDone,
   onSkip,
 }: {
   marks: { text: string; note: string | null }[];
   words: string[];
   wpm: number;
+  /** Titulo acima do trecho, quando a recapitulacao e de outro capitulo. */
+  title?: string;
   onDone: () => void;
   onSkip: () => void;
 }) {
   const [step, setStep] = useState(0);
   const total = marks.length + words.length;
+  // Em ref: a funcao vem nova a cada render do leitor, e no efeito ela
+  // reiniciaria o relogio de cada passo.
+  const onDoneRef = useRef(onDone);
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
   const mark = step < marks.length ? marks[step] : null;
   const word = mark ? null : words[step - marks.length];
 
   useEffect(() => {
     if (step >= total) {
-      onDone();
+      onDoneRef.current();
       return;
     }
     // Destaque fica o tempo de ser lido, com um minimo para a nota; a palavra,
@@ -2869,10 +3005,11 @@ function RecapPlayer({
       : perWord;
     const timer = setTimeout(() => setStep((current) => current + 1), delay);
     return () => clearTimeout(timer);
-  }, [step, total, mark, wpm, onDone]);
+  }, [step, total, mark, wpm]);
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 text-center">
+      {title ? <p className="text-sm font-semibold">{title}</p> : null}
       <p className="text-sm font-medium text-muted">
         {mark ? "Seus destaques ate aqui" : "Onde voce parou"}
       </p>
@@ -2889,6 +3026,60 @@ function RecapPlayer({
       <Button variant="ghost" onClick={onSkip}>
         Pular a recapitulacao
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Guia de primeiro uso (UX-10, APP-5, PROD-5): tres passos sobre a pagina,
+ * uma vez por conta. Os gestos do leitor nao aparecem em lugar nenhum da
+ * tela, e sem o guia ninguem descobria que tocar na palavra comeca dali.
+ */
+const TIPS: { title: string; body: string }[] = [
+  {
+    title: "O play abre o Word Runner",
+    body: "Uma palavra por vez no centro, com a frase em volta embaixo. Pausas curtas na virgula e maiores no fim da frase e do paragrafo.",
+  },
+  {
+    title: "Toque no Word Runner para frear",
+    body: "A pagina volta com a palavra atual marcada. Durante a leitura, os botoes do rodape voltam e avancam uma frase.",
+  },
+  {
+    title: "Na pagina",
+    body: "Toque numa palavra para comecar dela. Toque na borda ou deslize para virar. Toque e segure para ver o significado.",
+  },
+];
+
+function ReaderTips({ onDone }: { onDone: () => void }) {
+  const [step, setStep] = useState(0);
+  const tip = TIPS[step]!;
+  const last = step === TIPS.length - 1;
+
+  return (
+    <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center p-4">
+      <section
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="dica-titulo"
+        data-testid="guia-leitor"
+        className="w-full max-w-md space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float"
+      >
+        <p className="text-xs font-medium text-faint">{`${step + 1} de ${TIPS.length}`}</p>
+        <h2 id="dica-titulo" className="font-semibold">
+          {tip.title}
+        </h2>
+        <p className="text-sm text-muted">{tip.body}</p>
+        <div className="flex justify-end gap-2">
+          {!last ? (
+            <Button variant="ghost" size="sm" onClick={onDone}>
+              Pular
+            </Button>
+          ) : null}
+          <Button size="sm" onClick={() => (last ? onDone() : setStep(step + 1))}>
+            {last ? "Entendi" : "Proximo"}
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }
