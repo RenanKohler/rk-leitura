@@ -25,14 +25,14 @@ export async function POST(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const body = await readJson<{ answers?: unknown }>(request);
     const answers = Array.isArray(body?.answers) ? body.answers.map((value) => Number(value)) : null;
     if (!answers) return jsonError("Envie as respostas.", 400);
 
     const text = await loadText(session.id, id);
-    if (!text) return jsonError("Texto nao encontrado.", 404);
+    if (!text) return jsonError("Texto não encontrado.", 404);
 
     const [row] = await db
       .select({ questions: comprehensionQuizzes.questions })
@@ -46,7 +46,7 @@ export async function POST(request: Request, { params }: Params) {
       .limit(1);
 
     const quiz = row ? parseQuiz(row.questions) : null;
-    if (!quiz) return jsonError("Peca o questionario antes de responder.", 409);
+    if (!quiz) return jsonError("Peça o questionário antes de responder.", 409);
 
     const score = scoreQuiz(quiz, answers);
 

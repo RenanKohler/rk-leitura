@@ -21,7 +21,7 @@ test("PDF de artigo em duas colunas chega na ordem de leitura", async ({ page })
     .setInputFiles(path.join(__dirname, "fixtures", "artigo-duas-colunas.pdf"));
 
   // Sem titulo nos metadados, vale o primeiro titulo do documento.
-  await expect(page.getByRole("textbox", { name: "Titulo" })).toHaveValue(
+  await expect(page.getByRole("textbox", { name: "Título" })).toHaveValue(
     "Recent theoretical, neural, and clinical advances in sustained attention research",
     { timeout: 20_000 }
   );
@@ -33,7 +33,7 @@ test("PDF de artigo em duas colunas chega na ordem de leitura", async ({ page })
   // A pagina mostra so o comeco; os demais titulos aparecem no sumario.
   await page.getByRole("button", { name: "Navegar no texto" }).click();
   await expect(
-    page.getByRole("region", { name: "Sumario" }).getByRole("button", { name: /Introduction/ })
+    page.getByRole("region", { name: "Sumário" }).getByRole("button", { name: /Introduction/ })
   ).toBeVisible();
   await page.keyboard.press("Escape");
 

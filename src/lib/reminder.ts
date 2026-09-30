@@ -78,7 +78,7 @@ export function shouldRemind(
 /** Texto do lembrete, com a sequencia quando ela existe. */
 export function reminderBody(streak: number): string {
   if (streak >= 2) {
-    return `Voce esta em ${streak} dias seguidos. Uma leitura curta mantem a sequencia.`;
+    return `Você está em ${streak} dias seguidos. Uma leitura curta mantém a sequência.`;
   }
-  return "Voce ainda nao leu hoje. Que tal alguns minutos agora?";
+  return "Você ainda não leu hoje. Que tal alguns minutos agora?";
 }

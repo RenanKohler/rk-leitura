@@ -208,7 +208,7 @@ export function useSpeech(language = "pt-BR") {
 
       if (typeof window === "undefined" || !window.speechSynthesis) {
         setState("indisponivel");
-        setError("Este navegador nao le em voz alta.");
+        setError("Este navegador não lê em voz alta.");
         return false;
       }
 
@@ -216,7 +216,7 @@ export function useSpeech(language = "pt-BR") {
       if (!voice) {
         setState("indisponivel");
         setError(
-          `Este aparelho nao tem voz instalada para ${languageName(language)}. Instale uma nas configuracoes do sistema.`
+          `Este aparelho não tem voz instalada para ${languageName(language)}. Instale uma nas configurações do sistema.`
         );
         return false;
       }
@@ -265,7 +265,7 @@ export function useSpeech(language = "pt-BR") {
           // acontece. Tratar como falha mostraria um aviso a cada pausa.
           if (session.stopped) return;
           if (event.error === "canceled" || event.error === "interrupted") return;
-          setError("A narracao parou sozinha. Tente de novo.");
+          setError("A narração parou sozinha. Tente de novo.");
           setState("parada");
         };
 

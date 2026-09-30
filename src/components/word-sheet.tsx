@@ -66,11 +66,11 @@ export function WordSheet({
           return;
         }
         const failure = data as LookupFailure;
-        setError(failure.error ?? "Nao consegui consultar.");
+        setError(failure.error ?? "Não consegui consultar.");
         setSaved(failure.saved === true);
       })
       .catch(() => {
-        if (active) setError("Nao consegui consultar.");
+        if (active) setError("Não consegui consultar.");
       });
 
     return () => {
@@ -85,7 +85,7 @@ export function WordSheet({
       await apiSend("/api/palavras", "POST", { word, context, textId });
       setSaved(true);
     } catch (cause) {
-      setSaveError(cause instanceof Error ? cause.message : "Nao consegui guardar.");
+      setSaveError(cause instanceof Error ? cause.message : "Não consegui guardar.");
     } finally {
       setSaving(false);
     }
@@ -99,14 +99,14 @@ export function WordSheet({
             <Alert>{error}</Alert>
             {saved ? (
               <p className="text-sm text-muted" data-testid="palavra-guardada">
-                Guardada para revisar, com a frase de origem. A definicao pode ser buscada de novo
+                Guardada para revisar, com a frase de origem. A definição pode ser buscada de novo
                 ou escrita em Palavras salvas.
               </p>
             ) : (
               <>
                 <p className="text-sm text-muted">
-                  Da para guardar a palavra assim mesmo: ela entra na revisao com a frase em que
-                  apareceu, e a definicao fica para depois.
+                  Dá para guardar a palavra assim mesmo: ela entra na revisão com a frase em que
+                  apareceu, e a definição fica para depois.
                 </p>
                 {saveError ? <Alert>{saveError}</Alert> : null}
                 <Button variant="secondary" size="lg" full loading={saving} onClick={saveForReview}>
@@ -124,7 +124,7 @@ export function WordSheet({
             {/* Palavra de outro idioma: a traducao vem antes da definicao. */}
             {entry.translation ? (
               <p className="font-medium">
-                <span className="text-sm text-muted">Traducao: </span>
+                <span className="text-sm text-muted">Tradução: </span>
                 {entry.translation}
               </p>
             ) : null}
@@ -143,7 +143,7 @@ export function WordSheet({
         {actions ? <div className="space-y-2">{actions}</div> : null}
 
         <Button size="lg" full onClick={onClose}>
-          Voltar a leitura
+          Voltar à leitura
         </Button>
       </div>
     </Sheet>

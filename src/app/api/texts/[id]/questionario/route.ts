@@ -37,21 +37,21 @@ export async function POST(_request: Request, { params }: Params) {
   // contra o usuario.
   const limit = await rateLimit(`quiz:${clientIp(_request)}`, 30, 60 * 60 * 1000);
   if (!limit.allowed) {
-    return jsonError("Muitos questionarios seguidos. Aguarde um pouco.", 429, {
+    return jsonError("Muitos questionários seguidos. Aguarde um pouco.", 429, {
       retryAfter: limit.retryAfterSeconds,
     });
   }
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const text = await loadText(session.id, id);
-    if (!text) return jsonError("Texto nao encontrado.", 404);
+    if (!text) return jsonError("Texto não encontrado.", 404);
 
     if (text.wordCount < MIN_WORDS_FOR_QUIZ) {
       return jsonError(
-        `O questionario precisa de pelo menos ${MIN_WORDS_FOR_QUIZ} palavras.`,
+        `O questionário precisa de pelo menos ${MIN_WORDS_FOR_QUIZ} palavras.`,
         422
       );
     }

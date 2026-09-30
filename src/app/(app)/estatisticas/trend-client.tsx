@@ -27,7 +27,7 @@ export function TrendClient({ trend }: { trend: TrendData }) {
           <EmptyState
             icon={<SpeedIcon className="size-7" />}
             title="Dados insuficientes"
-            description={`Com ${trend.sessions} ${trend.sessions === 1 ? "sessao" : "sessoes"} ainda nao da para falar em evolucao. Leia mais um pouco e o grafico aparece.`}
+            description={`Com ${trend.sessions} ${trend.sessions === 1 ? "sessão" : "sessões"} ainda não dá para falar em evolução. Leia mais um pouco e o gráfico aparece.`}
             action={<LinkButton href="/textos">Ir para a biblioteca</LinkButton>}
           />
         </Card>
@@ -40,7 +40,7 @@ export function TrendClient({ trend }: { trend: TrendData }) {
       <Header />
 
       <Segmented<Period>
-        label="Periodo"
+        label="Período"
         value={period}
         onChange={setPeriod}
         options={[
@@ -65,7 +65,7 @@ export function TrendClient({ trend }: { trend: TrendData }) {
           points={points}
           metric="wpm"
           shape="linha"
-          label="Ritmo medio"
+          label="Ritmo médio"
           unit="ppm"
           weekly={weekly}
         />
@@ -80,7 +80,7 @@ export function TrendClient({ trend }: { trend: TrendData }) {
           className="flex min-h-11 w-full items-center justify-between text-sm font-medium"
           aria-expanded={showTable}
         >
-          Ver os numeros
+          Ver os números
           <span className="text-muted">{showTable ? "Ocultar" : "Mostrar"}</span>
         </button>
 
@@ -127,7 +127,7 @@ export function TrendClient({ trend }: { trend: TrendData }) {
 function Header() {
   return (
     <header className="pt-2">
-      <h1 className="text-2xl font-semibold tracking-tight">Estatisticas</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Estatísticas</h1>
       <p className="mt-1 text-sm text-muted">Como o seu ritmo mudou ao longo do tempo.</p>
     </header>
   );

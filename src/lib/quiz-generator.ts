@@ -34,12 +34,12 @@ export class QuizUnavailable extends Error {
 }
 
 const QuestionSchema = z.object({
-  prompt: z.string().describe("A pergunta, em portugues do Brasil."),
+  prompt: z.string().describe("A pergunta, em português do Brasil."),
   choices: z
     .array(z.string())
     .length(CHOICES_PER_QUESTION)
-    .describe("Alternativas plausiveis; apenas uma correta."),
-  answer: z.number().int().describe("Indice da alternativa correta, comecando em zero."),
+    .describe("Alternativas plausíveis; apenas uma correta."),
+  answer: z.number().int().describe("Índice da alternativa correta, começando em zero."),
   evidence: z
     .string()
     .describe("Trecho curto copiado do texto que justifica a resposta correta."),
@@ -50,19 +50,19 @@ const QuizSchema = z.object({
 });
 
 const SYSTEM = [
-  "Voce escreve perguntas de compreensao de leitura em portugues do Brasil.",
-  "As perguntas verificam se quem leu entendeu o conteudo, nao se decorou detalhes irrelevantes.",
-  "Cada pergunta tem exatamente quatro alternativas e uma unica correta.",
-  "As alternativas erradas sao plausiveis para quem leu por cima, nunca absurdas.",
-  "A evidencia e um trecho curto copiado do texto, sem parafrase.",
-  "Nunca faca perguntas que possam ser respondidas sem ler o texto.",
+  "Você escreve perguntas de compreensão de leitura em português do Brasil.",
+  "As perguntas verificam se quem leu entendeu o conteúdo, não se decorou detalhes irrelevantes.",
+  "Cada pergunta tem exatamente quatro alternativas e uma única correta.",
+  "As alternativas erradas são plausíveis para quem leu por cima, nunca absurdas.",
+  "A evidência é um trecho curto copiado do texto, sem paráfrase.",
+  "Nunca faça perguntas que possam ser respondidas sem ler o texto.",
 ].join(" ");
 
 /** Cliente preguicoso: sem chave configurada, a funcionalidade fica indisponivel. */
 function client(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
-    throw new QuizUnavailable("O questionario nao esta configurado nesta instalacao.");
+    throw new QuizUnavailable("O questionário não está configurado nesta instalação.");
   }
   return new Anthropic({ apiKey });
 }
@@ -77,7 +77,7 @@ export async function generateQuiz(
   const languageNote =
     language === DEFAULT_LANGUAGE
       ? ""
-      : `\n\nO texto esta em ${languageName(language).toLowerCase()}. Escreva perguntas e alternativas em portugues do Brasil; quando citar o texto, inclusive na evidencia, mantenha a citacao no idioma original.`;
+      : `\n\nO texto está em ${languageName(language).toLowerCase()}. Escreva perguntas e alternativas em português do Brasil; quando citar o texto, inclusive na evidência, mantenha a citação no idioma original.`;
 
   let response;
   try {
@@ -93,20 +93,20 @@ export async function generateQuiz(
       messages: [
         {
           role: "user",
-          content: `Titulo: ${title}\n\nTexto:\n${excerpt}\n\nEscreva de ${MIN_QUESTIONS} a ${MAX_QUESTIONS} perguntas de compreensao sobre este texto.${languageNote}`,
+          content: `Título: ${title}\n\nTexto:\n${excerpt}\n\nEscreva de ${MIN_QUESTIONS} a ${MAX_QUESTIONS} perguntas de compreensão sobre este texto.${languageNote}`,
         },
       ],
     });
   } catch (error) {
     if (error instanceof QuizUnavailable) throw error;
     if (error instanceof Anthropic.RateLimitError) {
-      throw new QuizUnavailable("O servico esta ocupado. Tente daqui a pouco.");
+      throw new QuizUnavailable("O serviço está ocupado. Tente daqui a pouco.");
     }
     if (error instanceof Anthropic.AuthenticationError) {
-      throw new QuizUnavailable("O questionario nao esta configurado nesta instalacao.");
+      throw new QuizUnavailable("O questionário não está configurado nesta instalação.");
     }
     console.error("[quiz] falha ao gerar:", error);
-    throw new QuizUnavailable("Nao consegui montar o questionario agora.");
+    throw new QuizUnavailable("Não consegui montar o questionário agora.");
   }
 
   // Custo por questionario: modelo que respondeu (muda quando o fallback atua) e tokens.
@@ -115,14 +115,14 @@ export async function generateQuiz(
   // O modelo pode recusar por seguranca, e o fallback nem sempre resolve;
   // nesse caso nao ha conteudo a validar.
   if (response.stop_reason === "refusal") {
-    throw new QuizUnavailable("Nao consigo montar perguntas sobre este texto.");
+    throw new QuizUnavailable("Não consigo montar perguntas sobre este texto.");
   }
 
   // `parsed_output` vem null quando a resposta nao casou com o formato. A
   // validacao propria roda de qualquer jeito: e ela que garante que a tela
   // nunca receba uma pergunta impossivel de responder.
   const quiz = parseQuiz(response.parsed_output);
-  if (!quiz) throw new QuizUnavailable("Nao consegui montar o questionario agora.");
+  if (!quiz) throw new QuizUnavailable("Não consegui montar o questionário agora.");
 
   return quiz;
 }

@@ -50,7 +50,7 @@ export function TrainingClient({
       await save({ baseWpm: data.program.targetWpm });
       notify("Programa iniciado.", "success");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui comecar o programa.");
+      setError(cause instanceof Error ? cause.message : "Não consegui começar o programa.");
     } finally {
       setBusy(false);
     }
@@ -66,7 +66,7 @@ export function TrainingClient({
       await save({ baseWpm: data.baseWpm });
       notify(`Programa abandonado. Velocidade de volta em ${data.baseWpm} ppm.`, "info");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui abandonar.");
+      setError(cause instanceof Error ? cause.message : "Não consegui abandonar.");
     } finally {
       setBusy(false);
     }
@@ -81,7 +81,7 @@ export function TrainingClient({
         <p className="mt-1 text-sm text-muted">
           {measured
             ? `Seu teste mediu ${measured} ppm.`
-            : "Comece medindo em que ritmo voce le hoje."}
+            : "Comece medindo em que ritmo você lê hoje."}
         </p>
       </header>
 
@@ -104,7 +104,7 @@ export function TrainingClient({
             <SectionTitle>Programa progressivo</SectionTitle>
             <Card className="mt-3 space-y-4 p-5">
               <p className="text-sm text-muted">
-                {`Cada dia define uma velocidade alvo a partir de ${startWpm} ppm. Uma leitura de pelo menos ${MIN_TRAINING_WORDS} palavras no alvo cumpre o dia; se a compreensao cair abaixo de 60%, o alvo do dia seguinte nao sobe.`}
+                {`Cada dia define uma velocidade alvo a partir de ${startWpm} ppm. Uma leitura de pelo menos ${MIN_TRAINING_WORDS} palavras no alvo cumpre o dia; se a compreensão cair abaixo de 60%, o alvo do dia seguinte não sobe.`}
               </p>
 
               <div className="grid grid-cols-2 gap-2">
@@ -118,7 +118,7 @@ export function TrainingClient({
                   >
                     <p className="font-semibold">{`${length} dias`}</p>
                     <p className="tabular mt-1 text-sm text-muted">
-                      {`ate ${finalTarget(startWpm, length)} ppm`}
+                      {`até ${finalTarget(startWpm, length)} ppm`}
                     </p>
                     <p className="mt-0.5 text-xs text-faint">
                       {length === 14 ? "ritmo mais exigente" : "subida mais suave"}
@@ -158,7 +158,7 @@ function ProgramCard({
           <div>
             <p className="text-sm text-muted">
               {program.finished
-                ? "Programa concluido"
+                ? "Programa concluído"
                 : `Dia ${program.currentDay} de ${program.length}`}
             </p>
             <p className="tabular mt-0.5 text-3xl font-semibold">
@@ -168,7 +168,7 @@ function ProgramCard({
               {program.finished
                 ? "velocidade final"
                 : program.doneToday
-                  ? "alvo de hoje, ja cumprido"
+                  ? "alvo de hoje, já cumprido"
                   : "alvo de hoje"}
             </p>
           </div>
@@ -183,12 +183,12 @@ function ProgramCard({
 
         {program.finished ? (
           <p className="text-sm text-muted">
-            {`Voce saiu de ${program.startWpm} ppm e chegou a ${program.targetWpm} ppm em ${program.length} dias.`}
+            {`Você saiu de ${program.startWpm} ppm e chegou a ${program.targetWpm} ppm em ${program.length} dias.`}
           </p>
         ) : program.doneToday ? (
           <p className="flex items-center gap-2 text-sm font-medium text-positive">
             <CheckIcon className="size-5" />
-            Dia cumprido. O proximo abre amanha.
+            Dia cumprido. O próximo abre amanhã.
           </p>
         ) : (
           <Link href="/textos" className="block">
@@ -236,7 +236,7 @@ function ProgramCard({
       {confirming ? (
         <Card className="space-y-3 p-4">
           <p className="text-sm text-muted">
-            {`Abandonar devolve a velocidade para ${program.previousWpm} ppm e encerra o programa. Os dias cumpridos ficam no historico.`}
+            {`Abandonar devolve a velocidade para ${program.previousWpm} ppm e encerra o programa. Os dias cumpridos ficam no histórico.`}
           </p>
           <div className="flex gap-2">
             <Button variant="secondary" full onClick={onCancel}>

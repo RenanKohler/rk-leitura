@@ -39,7 +39,7 @@ export function HighlightSheet({
       await action();
       onClose();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui salvar.");
+      setError(cause instanceof Error ? cause.message : "Não consegui salvar.");
     } finally {
       setSaving(false);
     }
@@ -63,7 +63,7 @@ export function HighlightSheet({
             maxLength={MAX_NOTE_CHARS}
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            placeholder="O que voce pensou sobre este trecho"
+            placeholder="O que você pensou sobre este trecho"
           />
           <p className="tabular text-right text-xs text-faint">
             {`${note.length} / ${MAX_NOTE_CHARS}`}
@@ -89,7 +89,7 @@ export function HighlightSheet({
               loading={saving}
               onClick={() => void run(onRemove)}
             >
-              Confirmar remocao
+              Confirmar remoção
             </Button>
           ) : (
             <Button variant="secondary" size="lg" full onClick={() => setConfirming(true)}>

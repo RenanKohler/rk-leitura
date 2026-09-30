@@ -33,7 +33,7 @@ export interface EpubChapter {
 /** Caminho do `.opf` declarado no container. */
 export function opfPath(containerXml: string): string {
   const match = /full-path="([^"]+)"/i.exec(containerXml);
-  if (!match) throw new EpubError("Este arquivo nao parece um EPUB valido.");
+  if (!match) throw new EpubError("Este arquivo não parece um EPUB válido.");
   return match[1]!;
 }
 
@@ -74,7 +74,7 @@ export interface EpubIndex {
  */
 export function parseOpf(opfXml: string, base: string): EpubIndex {
   if (/<encryption|urn:oasis:names:tc:opendocument:xmlns:container.*encryption/i.test(opfXml)) {
-    throw new EpubError("Este EPUB tem protecao de copia e nao pode ser importado.");
+    throw new EpubError("Este EPUB tem proteção de cópia e não pode ser importado.");
   }
 
   const title = text(/<dc:title[^>]*>([\s\S]*?)<\/dc:title>/i.exec(opfXml)?.[1]) ?? "Livro";
@@ -99,7 +99,7 @@ export function parseOpf(opfXml: string, base: string): EpubIndex {
   }
 
   if (spine.length === 0) {
-    throw new EpubError("Nao encontrei capitulos neste EPUB.");
+    throw new EpubError("Não encontrei capítulos neste EPUB.");
   }
 
   return { title, author, language, spine, titles: new Map() };

@@ -42,7 +42,7 @@ export async function PUT(request: Request) {
     const target = clamp(raw, min, max);
 
     const settings = await loadSettings(session.id);
-    if (!settings) return jsonError("Sessao expirada. Entre novamente.", 401);
+    if (!settings) return jsonError("Sessão expirada. Entre novamente.", 401);
 
     const startsOn = todayIn(settings.timezone);
 
@@ -67,7 +67,7 @@ export async function DELETE() {
 
   try {
     const settings = await loadSettings(session.id);
-    if (!settings) return jsonError("Sessao expirada. Entre novamente.", 401);
+    if (!settings) return jsonError("Sessão expirada. Entre novamente.", 401);
 
     await db
       .delete(readingGoals)

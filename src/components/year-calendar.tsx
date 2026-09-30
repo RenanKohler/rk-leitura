@@ -5,7 +5,7 @@ import { Card, SectionTitle } from "@/components/ui";
 import { yearGrid, type CalendarDay } from "@/lib/calendar";
 
 const DAY = new Intl.DateTimeFormat("pt-BR", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-const WEEKDAYS = ["Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado"];
+const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
 function label(cell: CalendarDay): string {
   const date = DAY.format(new Date(`${cell.day}T12:00:00Z`));
@@ -78,7 +78,7 @@ export function YearCalendar({ days, today }: { days: { day: string; minutes: nu
 
   return (
     <Card className="space-y-3 p-5">
-      <SectionTitle>Ultimo ano</SectionTitle>
+      <SectionTitle>Último ano</SectionTitle>
       <p className="text-sm text-muted" id="calendario-resumo">
         {summary}
       </p>
@@ -89,7 +89,7 @@ export function YearCalendar({ days, today }: { days: { day: string; minutes: nu
       <div className="overflow-x-auto pb-1" data-testid="calendario">
         <div
           role="grid"
-          aria-label="Minutos lidos por dia no ultimo ano"
+          aria-label="Minutos lidos por dia no último ano"
           aria-describedby="calendario-resumo"
           onKeyDown={onKeyDown}
           className="inline-flex flex-col gap-[3px]"

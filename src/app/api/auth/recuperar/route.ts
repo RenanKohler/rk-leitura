@@ -11,7 +11,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 
 const MIN_PASSWORD_LENGTH = 8;
-const INVALID = "Codigo invalido.";
+const INVALID = "Código inválido.";
 
 /**
  * Redefine a senha com um codigo de recuperacao (US-96).

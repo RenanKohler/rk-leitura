@@ -102,7 +102,7 @@ export function AccountCard() {
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = "/login";
     } catch (cause) {
-      setSignOutAllError(cause instanceof Error ? cause.message : "Falha ao encerrar as sessoes.");
+      setSignOutAllError(cause instanceof Error ? cause.message : "Falha ao encerrar as sessões.");
       setSigningOutAll(false);
     }
   };
@@ -145,7 +145,7 @@ export function AccountCard() {
 
         <form onSubmit={saveName} className="space-y-3">
           <Field
-            label="Nome de exibicao"
+            label="Nome de exibição"
             name="nome"
             maxLength={MAX_NAME_LENGTH}
             value={name}
@@ -172,7 +172,7 @@ export function AccountCard() {
             name="senha-nova"
             type="password"
             autoComplete="new-password"
-            hint={`Minimo de ${MIN_PASSWORD_LENGTH} caracteres.`}
+            hint={`Mínimo de ${MIN_PASSWORD_LENGTH} caracteres.`}
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
           />
@@ -223,8 +223,8 @@ export function AccountCard() {
       >
         <div className="space-y-4">
           <p className="text-sm text-muted">
-            Encerra a sessao em todos os aparelhos em que voce entrou, inclusive neste. Para voltar,
-            sera preciso entrar de novo com e-mail e senha.
+            Encerra a sessão em todos os aparelhos em que você entrou, inclusive neste. Para voltar,
+            será preciso entrar de novo com e-mail e senha.
           </p>
 
           {signOutAllError ? <Alert>{signOutAllError}</Alert> : null}
@@ -236,7 +236,7 @@ export function AccountCard() {
             loading={signingOutAll}
             onClick={confirmSignOutAll}
           >
-            Encerrar todas as sessoes
+            Encerrar todas as sessões
           </Button>
         </div>
       </Sheet>
@@ -252,8 +252,8 @@ export function AccountCard() {
       >
         <div className="space-y-4">
           <p className="text-sm text-muted">
-            Isto apaga em definitivo a sua conta, todos os textos da biblioteca e todo o historico
-            de leitura. Nao ha como desfazer.
+            Isto apaga em definitivo a sua conta, todos os textos da biblioteca e todo o histórico
+            de leitura. Não há como desfazer.
           </p>
 
           {deleteError ? <Alert>{deleteError}</Alert> : null}

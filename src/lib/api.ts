@@ -13,7 +13,7 @@ export function jsonError(message: string, status: number, extra?: Record<string
   return NextResponse.json({ error: message, ...extra }, { status });
 }
 
-export const unauthorized = () => jsonError("Sessao expirada. Entre novamente.", 401);
+export const unauthorized = () => jsonError("Sessão expirada. Entre novamente.", 401);
 
 /**
  * Devolve a sessao ou uma resposta 401 pronta. Uso:

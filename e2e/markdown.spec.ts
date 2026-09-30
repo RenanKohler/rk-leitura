@@ -31,7 +31,7 @@ test("texto colado em Markdown chega formatado ao leitor", async ({ page }) => {
   await page.goto("/textos/novo");
   await page.getByRole("radio", { name: "Colar" }).click();
   await page.getByRole("textbox", { name: "Texto" }).fill(SOURCE);
-  await expect(page.getByRole("checkbox", { name: /Interpretar formatacao Markdown/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /Interpretar formatação Markdown/ })).toBeChecked();
   await page.getByRole("button", { name: "Salvar e ler" }).click();
 
   await expect(page).toHaveURL(/\/leitor\//);
@@ -65,7 +65,7 @@ test("arquivo .md e importado com a formatacao", async ({ page }) => {
     buffer: Buffer.from(SOURCE, "utf8"),
   });
 
-  await expect(page.getByRole("textbox", { name: "Titulo" })).toHaveValue("Guia de leitura");
+  await expect(page.getByRole("textbox", { name: "Título" })).toHaveValue("Guia de leitura");
   await page.getByRole("button", { name: "Salvar na biblioteca" }).click();
 
   await expect(page).toHaveURL(/\/leitor\//);

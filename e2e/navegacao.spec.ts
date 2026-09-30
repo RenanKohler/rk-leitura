@@ -31,10 +31,10 @@ test("busca no texto posiciona a leitura no resultado", async ({ page }) => {
   await field.fill("memoria de trabalho");
   await expect(page.getByTestId("busca-contagem")).toHaveText("1 de 3");
 
-  await page.getByRole("button", { name: "Proximo" }).click();
+  await page.getByRole("button", { name: "Próximo" }).click();
   await expect(page.getByTestId("busca-contagem")).toHaveText("2 de 3");
-  await page.getByRole("button", { name: "Proximo" }).click();
-  await page.getByRole("button", { name: "Proximo" }).click();
+  await page.getByRole("button", { name: "Próximo" }).click();
+  await page.getByRole("button", { name: "Próximo" }).click();
   await expect(page.getByTestId("busca-contagem")).toHaveText("1 de 3");
 
   await field.fill("inexistente");
@@ -99,9 +99,9 @@ test("Word Runner volta e avanca por frase", async ({ page }) => {
   await openReader(page, text.id);
   await page.getByRole("button", { name: "Iniciar leitura" }).click();
   const runner = page.getByTestId("palavra-runner");
-  await page.getByRole("button", { name: "Avancar a frase" }).click();
+  await page.getByRole("button", { name: "Avançar a frase" }).click();
   await expect(runner).toHaveText("Frase");
-  await page.getByRole("button", { name: "Avancar a frase" }).click();
+  await page.getByRole("button", { name: "Avançar a frase" }).click();
   await expect(page.getByTestId("word-runner")).toContainText("Frase numero 2");
   await page.getByRole("button", { name: "Voltar a frase" }).click();
   await expect(page.getByTestId("word-runner")).toContainText(/Frase numero [12]/);
@@ -119,7 +119,7 @@ test("sumario leva ao titulo e marcador guarda a posicao", async ({ page }) => {
 
   await openReader(page, text.id);
   await page.getByRole("button", { name: "Navegar no texto" }).click();
-  const sumario = page.getByRole("region", { name: "Sumario" });
+  const sumario = page.getByRole("region", { name: "Sumário" });
   await expect(sumario.getByRole("button")).toHaveCount(3);
   await sumario.getByRole("button", { name: "Segunda parte" }).click();
   expect(await position(page)).toBe(6);

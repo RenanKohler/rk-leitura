@@ -47,14 +47,14 @@ export function ReminderCard() {
     setError("");
     try {
       if (!supported) {
-        setError("Este navegador nao oferece notificacoes. No iPhone, instale o app na tela inicial primeiro.");
+        setError("Este navegador não oferece notificações. No iPhone, instale o app na tela inicial primeiro.");
         return;
       }
 
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         setError(
-          "A permissao foi negada. Para reativar, abra as configuracoes do site no navegador e permita notificacoes."
+          "A permissão foi negada. Para reativar, abra as configurações do site no navegador e permita notificações."
         );
         return;
       }
@@ -72,7 +72,7 @@ export function ReminderCard() {
       setStatus((current) => (current ? { ...current, hour, devices: current.devices + 1 } : current));
       notify("Lembrete ativado.", "success");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui ativar o lembrete.");
+      setError(cause instanceof Error ? cause.message : "Não consegui ativar o lembrete.");
     } finally {
       setBusy(false);
     }
@@ -90,7 +90,7 @@ export function ReminderCard() {
       setStatus((current) => (current ? { ...current, hour: null } : current));
       notify("Lembrete desligado.", "info");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui desligar.");
+      setError(cause instanceof Error ? cause.message : "Não consegui desligar.");
     } finally {
       setBusy(false);
     }
@@ -103,7 +103,7 @@ export function ReminderCard() {
   if (!status) {
     return (
       <Card className="space-y-3 p-5">
-        <SectionTitle>Lembrete diario</SectionTitle>
+        <SectionTitle>Lembrete diário</SectionTitle>
         <div className="h-4 w-3/4 rounded bg-surface-2" />
         <div className="h-11 w-full rounded-full bg-surface-2" />
       </Card>
@@ -117,10 +117,10 @@ export function ReminderCard() {
 
   return (
     <Card className="space-y-4 p-5">
-      <SectionTitle>Lembrete diario</SectionTitle>
+      <SectionTitle>Lembrete diário</SectionTitle>
 
       <p className="text-sm text-muted">
-        Um aviso a partir do horario que voce escolher, nos dias em que ainda nao leu. Se ja
+        Um aviso a partir do horário que você escolher, nos dias em que ainda não leu. Se já
         cumpriu a meta do dia, nada chega.
       </p>
 
@@ -128,14 +128,14 @@ export function ReminderCard() {
 
       {!supported ? (
         <p className="text-sm text-faint">
-          Este navegador nao oferece notificacoes. No iPhone, instale o app na tela inicial pela
+          Este navegador não oferece notificações. No iPhone, instale o app na tela inicial pela
           folha de compartilhamento do Safari.
         </p>
       ) : status.hour !== null ? (
         <>
           <p className="flex items-center gap-2 text-sm font-medium text-positive">
             <CheckIcon className="size-5" />
-            {`Ativo as ${String(status.hour).padStart(2, "0")}:00`}
+            {`Ativo às ${String(status.hour).padStart(2, "0")}:00`}
           </p>
           <Button variant="secondary" size="lg" full loading={busy} onClick={() => void disable()}>
             Desligar o lembrete

@@ -33,7 +33,7 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id, markId } = await params;
     if (!UUID_PATTERN.test(id) || !UUID_PATTERN.test(markId)) {
-      return jsonError("Destaque nao encontrado.", 404);
+      return jsonError("Destaque não encontrado.", 404);
     }
 
     const body = await readJson<{ note?: unknown }>(request);
@@ -44,7 +44,7 @@ export async function PATCH(request: Request, { params }: Params) {
       .where(owned(markId, id, session.id))
       .returning({ id: highlights.id, note: highlights.note });
 
-    if (!updated) return jsonError("Destaque nao encontrado.", 404);
+    if (!updated) return jsonError("Destaque não encontrado.", 404);
     return NextResponse.json({ highlight: updated });
   } catch (error) {
     return serverError("destaques/note", error);
@@ -58,7 +58,7 @@ export async function DELETE(_request: Request, { params }: Params) {
   try {
     const { id, markId } = await params;
     if (!UUID_PATTERN.test(id) || !UUID_PATTERN.test(markId)) {
-      return jsonError("Destaque nao encontrado.", 404);
+      return jsonError("Destaque não encontrado.", 404);
     }
 
     const removed = await db
@@ -66,7 +66,7 @@ export async function DELETE(_request: Request, { params }: Params) {
       .where(owned(markId, id, session.id))
       .returning({ id: highlights.id });
 
-    if (removed.length === 0) return jsonError("Destaque nao encontrado.", 404);
+    if (removed.length === 0) return jsonError("Destaque não encontrado.", 404);
     return NextResponse.json({ success: true });
   } catch (error) {
     return serverError("destaques/delete", error);

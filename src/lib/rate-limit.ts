@@ -75,7 +75,7 @@ export async function rateLimit(
     // Politica na indisponibilidade: liberar, com a falha registrada. Bloquear
     // deixaria ninguem entrar quando o banco oscilasse - e sem banco a
     // aplicacao ja nao responde de qualquer forma.
-    console.error("[rate-limit] armazenamento indisponivel, liberando:", error);
+    console.error("[rate-limit] armazenamento indisponível, liberando:", error);
     return { allowed: true, retryAfterSeconds: 0 };
   }
 }

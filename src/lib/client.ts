@@ -15,7 +15,7 @@ export class ApiError extends Error {
 async function parse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new ApiError((data as { error?: string }).error ?? "Falha na requisicao.", response.status);
+    throw new ApiError((data as { error?: string }).error ?? "Falha na requisição.", response.status);
   }
   return data as T;
 }

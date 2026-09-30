@@ -15,8 +15,8 @@ export const DAILY_QUOTAS = {
 export type QuotaKind = keyof typeof DAILY_QUOTAS;
 
 export const QUOTA_MESSAGES: Record<QuotaKind, string> = {
-  questionario: "Limite diario de questionarios atingido. Volta a valer amanha.",
-  dicionario: "Limite diario de consultas ao dicionario atingido. Volta a valer amanha.",
+  questionario: "Limite diário de questionários atingido. Volta a valer amanhã.",
+  dicionario: "Limite diário de consultas ao dicionário atingido. Volta a valer amanhã.",
 };
 
 /**

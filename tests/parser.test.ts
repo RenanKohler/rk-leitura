@@ -201,6 +201,6 @@ describe("extractTextFromHtml: titulo", () => {
   });
 
   it("usa um rotulo proprio quando nao ha titulo algum", () => {
-    expect(extractTextFromHtml("<html><body><p>oi</p></body></html>").title).toBe("Sem titulo");
+    expect(extractTextFromHtml("<html><body><p>oi</p></body></html>").title).toBe("Sem título");
   });
 });

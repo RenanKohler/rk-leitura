@@ -32,7 +32,7 @@ export async function DELETE(request: Request) {
         ? eq(texts.seriesKey, key)
         : null;
 
-    if (!target) return jsonError("Informe o texto ou a serie.", 400);
+    if (!target) return jsonError("Informe o texto ou a série.", 400);
 
     const changed = await db
       .update(texts)

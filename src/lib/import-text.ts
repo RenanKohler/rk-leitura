@@ -42,7 +42,7 @@ export async function importFromUrl(url: string): Promise<ImportedDocument> {
     const parsed = extractTextFromHtml(html);
 
     if (parsed.wordCount < MIN_WORDS) {
-      throw new ImportError("Nao encontrei texto suficiente nessa pagina.", 422);
+      throw new ImportError("Não encontrei texto suficiente nessa página.", 422);
     }
 
     return {
@@ -61,7 +61,7 @@ export async function importFromUrl(url: string): Promise<ImportedDocument> {
       throw new ImportError(error.message, error.status === 404 ? 404 : 400, passing);
     }
     if (error instanceof Error && error.name === "TimeoutError") {
-      throw new ImportError("A pagina demorou demais para responder.", 504, true);
+      throw new ImportError("A página demorou demais para responder.", 504, true);
     }
     throw error;
   }

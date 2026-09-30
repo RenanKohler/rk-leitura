@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   }
 
   const body = await readJson<Body>(request);
-  if (!isRefCode(body?.ref)) return jsonError("Codigo de referencia invalido.", 400);
+  if (!isRefCode(body?.ref)) return jsonError("Código de referência inválido.", 400);
 
   const session = await getSession().catch(() => null);
   const digest = field(body?.digest);

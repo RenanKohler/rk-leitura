@@ -24,13 +24,13 @@ export function speedBand(wpm: number): SpeedBand {
 
 export const SPEED_BAND_LABELS: Record<SpeedBand, string> = {
   leitura: "leitura",
-  rapida: "leitura rapida",
+  rapida: "leitura rápida",
   varredura: "varredura",
 };
 
 /** Aviso mostrado na faixa de varredura; nulo nas outras. */
 export function speedBandWarning(wpm: number): string | null {
   return speedBand(wpm) === "varredura"
-    ? "Acima de ~600 ppm a compreensao costuma cair; faca o teste de compreensao."
+    ? "Acima de ~600 ppm a compreensão costuma cair; faça o teste de compreensão."
     : null;
 }

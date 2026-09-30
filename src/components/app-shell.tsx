@@ -24,11 +24,11 @@ import {
  * dela.
  */
 const NAV = [
-  { href: "/dashboard", label: "Inicio", Icon: HomeIcon, also: [] },
+  { href: "/dashboard", label: "Início", Icon: HomeIcon, also: [] },
   { href: "/textos", label: "Textos", Icon: LibraryIcon, also: [] },
   {
     href: "/voce",
-    label: "Voce",
+    label: "Você",
     Icon: UserIcon,
     also: ["/historico", "/estatisticas", "/palavras", "/treino"],
   },
@@ -47,9 +47,9 @@ type NavItem = (typeof NAV)[number];
  * vem antes.
  */
 const FALLBACK_TITLES: [prefix: string, title: string][] = [
-  ["/palavras/revisar", "Revisao de palavras"],
+  ["/palavras/revisar", "Revisão de palavras"],
   ["/palavras", "Palavras"],
-  ["/estatisticas", "Estatisticas"],
+  ["/estatisticas", "Estatísticas"],
   ["/treino", "Treino"],
 ];
 
@@ -101,7 +101,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         href="#conteudo"
         className="sr-only rounded-full bg-accent px-4 py-2 text-sm font-medium text-accent-ink focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70]"
       >
-        Pular para o conteudo
+        Pular para o conteúdo
       </a>
 
       <DesktopSidebar pathname={pathname} name={user?.name} email={user?.email} onLogout={logout} />
@@ -140,7 +140,7 @@ function DesktopSidebar({
         <span className="text-lg font-semibold tracking-tight">Leitura</span>
       </div>
 
-      <nav aria-label="Navegacao principal" className="flex-1 space-y-1 px-3">
+      <nav aria-label="Navegação principal" className="flex-1 space-y-1 px-3">
         {NAV.map((item) => {
           const { href, label, Icon } = item;
           const active = isActive(pathname, item);
@@ -197,7 +197,7 @@ function MobileTabBar({ pathname }: { pathname: string }) {
 
   return (
     <nav
-      aria-label="Navegacao principal"
+      aria-label="Navegação principal"
       // Marca para os avisos flutuantes subirem acima da barra (globals.css).
       data-tabbar=""
       className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur-lg lg:hidden"
