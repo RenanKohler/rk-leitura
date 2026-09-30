@@ -205,7 +205,7 @@ test("busca no conteudo da biblioteca", async ({ page }) => {
 test("importacao de links em lote mostra previa e resumo", async ({ page }) => {
   await registerByApi(page.request);
   await page.goto("/textos/novo");
-  await page.getByRole("button", { name: "Lote" }).click();
+  await page.getByRole("radio", { name: "Lote" }).click();
   const csv = "URL,Title\nhttps://exemplo.invalid/a,Artigo A\nhttps://exemplo.invalid/b,Artigo B\n";
   await page.getByLabel("Arquivo com links").setInputFiles({
     name: "instapaper-export.csv",
