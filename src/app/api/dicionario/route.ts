@@ -85,7 +85,9 @@ export async function POST(request: Request) {
       )
       .limit(1);
 
-    if (known) {
+    // Guardada sem definicao (PROD-6): a consulta tenta de novo em vez de
+    // devolver o vazio que ficou no banco.
+    if (known && known.definition.trim().length > 0) {
       return NextResponse.json({
         entry: {
           word: known.word,
@@ -97,14 +99,40 @@ export async function POST(request: Request) {
         cached: true,
       });
     }
+    // Na falha, a tela precisa saber se a palavra ja esta guardada para
+    // revisar - ai ela nao oferece "Guardar para revisar" de novo.
+    const pending = known ? { saved: true, id: known.id } : { saved: false };
 
     // Palavra ja consultada voltou acima sem gastar cota; so a chamada nova conta.
     const quota = await consumeDailyQuota("dicionario", session.id);
     if (!quota.allowed) {
-      return jsonError(QUOTA_MESSAGES.dicionario, 429, { retryAfter: quota.retryAfterSeconds });
+      return jsonError(QUOTA_MESSAGES.dicionario, 429, {
+        retryAfter: quota.retryAfterSeconds,
+        ...pending,
+      });
     }
 
-    const entry = await lookupWord(word, context, language);
+    let entry;
+    try {
+      entry = await lookupWord(word, context, language);
+    } catch (error) {
+      if (error instanceof LookupUnavailable) return jsonError(error.message, 503, pending);
+      throw error;
+    }
+
+    if (known) {
+      await db
+        .update(savedWords)
+        .set({
+          base: entry.base,
+          kind: entry.kind,
+          definition: entry.definition,
+          translation: entry.translation ?? null,
+          updatedAt: new Date(),
+        })
+        .where(eq(savedWords.id, known.id));
+      return NextResponse.json({ entry, cached: false });
+    }
 
     await db
       .insert(savedWords)

@@ -170,3 +170,34 @@ export function nextChapterUrl(sourceUrl: string | null, chapter: number): strin
 export function seriesProgress(current: number, total: number): string {
   return `cap. ${current} de ${total}`;
 }
+
+/* --- recapitulacao entre capitulos (PROD-12) ------------------------------ */
+
+/** Paragrafos finais mostrados na recapitulacao e o teto de palavras entre eles. */
+export const RECAP_PARAGRAPHS = 3;
+export const RECAP_WORDS = 120;
+
+/**
+ * Ultimos paragrafos, ate 3 e 120 palavras. Um paragrafo final maior que o
+ * teto entra cortado pelo comeco, com reticencias: e o fim dele que liga ao
+ * capitulo seguinte.
+ */
+export function recapTail(paragraphs: string[][]): string[] {
+  const tail: string[] = [];
+  let budget = RECAP_WORDS;
+  for (
+    let index = paragraphs.length - 1;
+    index >= 0 && tail.length < RECAP_PARAGRAPHS;
+    index -= 1
+  ) {
+    const words = paragraphs[index]!;
+    if (words.length === 0) continue;
+    if (words.length > budget) {
+      if (tail.length === 0) tail.unshift(`...${words.slice(-budget).join(" ")}`);
+      break;
+    }
+    tail.unshift(words.join(" "));
+    budget -= words.length;
+  }
+  return tail;
+}

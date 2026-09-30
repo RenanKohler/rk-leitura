@@ -37,7 +37,7 @@ import { excerptOf } from "@/lib/highlights";
 import { MAX_SAVED_WORDS } from "@/lib/dictionary";
 import { tagKey } from "@/lib/tags";
 import { cleanTitle, nextChapterUrl } from "@/lib/series";
-import { REVIEW_SESSION_SIZE } from "@/lib/vocabulary";
+import { currentInterval, REVIEW_SESSION_SIZE } from "@/lib/vocabulary";
 import {
   effectiveWpm,
   fitParagraphEnd,
@@ -117,6 +117,7 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   placementWpm: null,
   placementSeen: false,
   reminderHour: null,
+  readerTipsSeen: false,
 };
 
 export interface Page<T> {
@@ -226,6 +227,7 @@ function settingsFrom(row: typeof speedSettings.$inferSelect | null): SettingsPa
     placementWpm: row.placementWpm,
     placementSeen: row.placementSeenAt !== null,
     reminderHour: row.reminderHour,
+    readerTipsSeen: row.readerTipsSeen,
   };
 }
 
@@ -1209,6 +1211,8 @@ export async function loadReview(userId: string): Promise<ReviewSession> {
         translation: savedWords.translation,
         context: savedWords.context,
         textTitle: texts.title,
+        step: savedWords.reviewStep,
+        storedInterval: savedWords.reviewInterval,
       })
       .from(savedWords)
       .leftJoin(texts, eq(texts.id, savedWords.textId))
@@ -1224,7 +1228,10 @@ export async function loadReview(userId: string): Promise<ReviewSession> {
   ]);
 
   return {
-    cards,
+    cards: cards.map(({ step, storedInterval, ...card }) => ({
+      ...card,
+      interval: currentInterval(storedInterval, step),
+    })),
     due: dueCount?.value ?? 0,
     nextReviewOn: upcoming?.day ?? null,
     totalWords: all?.value ?? 0,

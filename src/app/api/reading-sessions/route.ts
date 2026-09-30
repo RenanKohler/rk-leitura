@@ -15,6 +15,7 @@ import { activeProgram, loadSessions, loadSettings, loadTraining } from "@/lib/q
 import { todayIn } from "@/lib/goals";
 import { qualifies, type ProgramStatus } from "@/lib/training";
 import { clamp, MAX_WPM } from "@/lib/reading";
+import { parseBrakes, resolveSessionMode, SESSION_MODES } from "@/lib/difficulty";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,8 @@ export async function POST(request: Request) {
       completed?: unknown;
       narrated?: unknown;
       plannedMs?: unknown;
+      mode?: unknown;
+      brakes?: unknown;
     }>(request);
 
     const textId = asString(body?.textId);
@@ -55,6 +58,15 @@ export async function POST(request: Request) {
     }
     if (wordsRead <= 0 || durationMs <= 0) {
       return jsonError("Sessao sem leitura registrada.", 400);
+    }
+
+    const mode = resolveSessionMode(body?.mode, body?.narrated);
+    if (!mode) {
+      return jsonError(`Modo invalido. Use ${SESSION_MODES.join(", ")}.`, 400);
+    }
+    const brakes = parseBrakes(body?.brakes);
+    if (brakes === undefined) {
+      return jsonError("Freios invalidos: envie ate 200 posicoes inteiras.", 400);
     }
 
     // Sem esta checagem qualquer usuario grava sessoes no texto de outra conta
@@ -79,7 +91,11 @@ export async function POST(request: Request) {
         wordsRead: clamp(wordsRead, 0, text.wordCount),
         durationMs,
         completed: body?.completed === true || body?.completed === 1,
-        narrated: body?.narrated === true,
+        // O modo narracao e a narracao antiga sao a mesma coisa: os dois
+        // campos andam juntos para quem so conhece um deles.
+        narrated: mode === "narracao",
+        mode,
+        brakes,
         // Previsto pela sugestao de tempo livre (US-85); fora da faixa, ignorado.
         plannedMs: (() => {
           const planned = asInteger(body?.plannedMs);

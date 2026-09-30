@@ -32,6 +32,7 @@ export function DashboardClient({
   weekly,
   offerPlacement,
   pace,
+  dueHighlights = 0,
 }: {
   initialOverview: Overview;
   initialTexts: RecentTexts;
@@ -39,6 +40,8 @@ export function DashboardClient({
   weekly: WeeklySummary | null;
   offerPlacement: boolean;
   pace: { wpm: number; fromSettings: boolean };
+  /** Destaques com revisao vencida (PROD-4); o cartao so aparece com algum. */
+  dueHighlights?: number;
 }) {
   const { user } = useAuth();
   const { settings } = useSettings();
@@ -95,6 +98,8 @@ export function DashboardClient({
       <FreeTimeCard minutes={freeMinutes} onChoose={setFreeMinutes} />
 
       {inProgress ? <ContinueCard text={inProgress} wpm={settings.baseWpm} /> : null}
+
+      {dueHighlights > 0 ? <HighlightReviewCard due={dueHighlights} /> : null}
 
       <SectionTitle
         action={
@@ -252,5 +257,25 @@ function Stat({
       )}
       <p className="mt-0.5 text-sm text-muted">{label}</p>
     </Card>
+  );
+}
+
+/** Convite para a revisao de destaques vencida (PROD-4). */
+function HighlightReviewCard({ due }: { due: number }) {
+  return (
+    <Link href="/textos/destaques/revisar" className="block" data-testid="cartao-revisar-destaques">
+      <Card className="flex items-center gap-3 p-4 transition-colors hover:border-border-strong">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+          <SparkIcon className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">Revisar destaques</p>
+          <p className="text-sm text-muted">
+            {due === 1 ? "1 trecho marcado para rever hoje" : `${due} trechos marcados para rever hoje`}
+          </p>
+        </div>
+        <ForwardIcon className="size-5 text-faint" />
+      </Card>
+    </Link>
   );
 }

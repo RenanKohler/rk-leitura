@@ -5,15 +5,16 @@ import { useRouter } from "next/navigation";
 import { apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
 import { Button, Card, Field, Segmented } from "@/components/ui";
-import { BackIcon, FileIcon, LinkIcon, TextIcon } from "@/components/icons";
+import { BackIcon, FileIcon, LinkIcon, QueueIcon, TextIcon } from "@/components/icons";
 import { PasteForm } from "@/components/paste-form";
 import { FileImport } from "@/components/file-import";
+import { BatchImport } from "@/components/batch-import";
 import { formatNumber } from "@/lib/reading";
 import type { ImportedText, TextDetail } from "@/lib/types";
 import Link from "next/link";
 import { CitationsOption } from "@/components/citations-option";
 
-type Source = "link" | "texto" | "arquivo";
+type Source = "link" | "texto" | "arquivo" | "lote";
 
 export default function NewTextPage() {
   const [source, setSource] = useState<Source>("link");
@@ -39,10 +40,20 @@ export default function NewTextPage() {
           { value: "link", label: "Link", icon: <LinkIcon className="size-4" /> },
           { value: "texto", label: "Colar", icon: <TextIcon className="size-4" /> },
           { value: "arquivo", label: "Arquivo", icon: <FileIcon className="size-4" /> },
+          // Lote (PROD-17): a lista de links exportada de outro servico.
+          { value: "lote", label: "Lote", icon: <QueueIcon className="size-4" /> },
         ]}
       />
 
-      {source === "link" ? <FromLink /> : source === "arquivo" ? <FileImport /> : <PasteForm />}
+      {source === "link" ? (
+        <FromLink />
+      ) : source === "arquivo" ? (
+        <FileImport />
+      ) : source === "lote" ? (
+        <BatchImport />
+      ) : (
+        <PasteForm />
+      )}
     </div>
   );
 }

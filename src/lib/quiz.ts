@@ -6,7 +6,13 @@
  * fronteira, nao na confianca de que a resposta veio bem formada.
  */
 
-export const MIN_WORDS_FOR_QUIZ = 300;
+/**
+ * Minimo de palavras para oferecer o questionario. Igual ao minimo de uma
+ * sessao de treino (`MIN_TRAINING_WORDS`, 200): com 300, as sessoes de treino
+ * entre 200 e 299 palavras cumpriam o dia sem nunca poder medir a
+ * compreensao, e o piso de compreensao do programa nao valia para elas.
+ */
+export const MIN_WORDS_FOR_QUIZ = 200;
 export const MIN_QUESTIONS = 3;
 export const MAX_QUESTIONS = 5;
 export const CHOICES_PER_QUESTION = 4;

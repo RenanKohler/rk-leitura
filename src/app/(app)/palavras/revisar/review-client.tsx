@@ -5,8 +5,10 @@ import Link from "next/link";
 import { apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
 import { Button, Card, EmptyState, LinkButton } from "@/components/ui";
-import { BackIcon, CheckIcon, RestartIcon, WordsIcon } from "@/components/icons";
+import { BackIcon, CheckIcon, WordsIcon } from "@/components/icons";
+import { GradeButtons } from "@/components/grade-buttons";
 import { formatDate } from "@/lib/reading";
+import type { ReviewGrade } from "@/lib/vocabulary";
 import type { ReviewSession } from "@/lib/types";
 
 /**
@@ -15,6 +17,11 @@ import type { ReviewSession } from "@/lib/types";
  * Uma palavra por vez, com a frase em que apareceu. A definicao so aparece
  * depois do toque em "Mostrar": ver a resposta antes de tentar lembrar
  * transformaria a revisao em releitura.
+ *
+ * Quatro respostas (PROD-7): Errei volta amanha; Dificil, Bom e Facil
+ * multiplicam o intervalo atual por 1,2, 2,5 e 4. Palavra guardada sem
+ * definicao (PROD-6) mostra o contexto e "sem definicao", com a opcao de
+ * buscar de novo.
  */
 export function ReviewClient({ initial }: { initial: ReviewSession }) {
   const notify = useToast();
@@ -22,17 +29,36 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
   const [revealed, setRevealed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [remembered, setRemembered] = useState(0);
+  // Definicoes buscadas durante a sessao, por id: o cartao ja mostrado nao
+  // volta do servidor.
+  const [fetched, setFetched] = useState<Record<string, string>>({});
+  const [fetching, setFetching] = useState(false);
 
   const cards = initial.cards;
   const card = cards[position];
   const done = cards.length > 0 && position >= cards.length;
 
-  const answer = async (value: boolean) => {
+  const refetch = async (id: string) => {
+    setFetching(true);
+    try {
+      const data = await apiSend<{ entry: { definition: string } }>(
+        `/api/palavras/${id}/definicao`,
+        "POST"
+      );
+      setFetched((current) => ({ ...current, [id]: data.entry.definition }));
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "Nao consegui buscar a definicao.", "error");
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const answer = async (grade: ReviewGrade) => {
     if (!card || busy) return;
     setBusy(true);
     try {
-      await apiSend("/api/palavras/revisao", "POST", { id: card.id, remembered: value });
-      if (value) setRemembered((count) => count + 1);
+      await apiSend("/api/palavras/revisao", "POST", { id: card.id, grade });
+      if (grade !== "errei") setRemembered((count) => count + 1);
       setRevealed(false);
       setPosition((current) => current + 1);
     } catch (cause) {
@@ -90,7 +116,7 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
           <EmptyState
             icon={<CheckIcon className="size-7" />}
             title="Revisao concluida"
-            description={`Voce lembrou ${remembered} de ${cards.length}. As que ficaram para tras voltam amanha.`}
+            description={`Voce lembrou ${remembered} de ${cards.length}. As que voce errou voltam amanha.`}
             action={<LinkButton href="/palavras">Ver palavras salvas</LinkButton>}
           />
         </Card>
@@ -113,21 +139,26 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
                 {card.kind ? <span className="text-sm text-faint"> · {card.kind}</span> : null}
               </p>
               {card.translation ? <p className="font-medium">{card.translation}</p> : null}
-              <p className="leading-relaxed">{card.definition}</p>
+              {(fetched[card.id] ?? card.definition).trim() ? (
+                <p className="leading-relaxed">{fetched[card.id] ?? card.definition}</p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm italic text-faint">sem definicao</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    loading={fetching}
+                    onClick={() => void refetch(card.id)}
+                  >
+                    Buscar definicao
+                  </Button>
+                </div>
+              )}
             </div>
           ) : null}
 
           {revealed ? (
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" size="lg" loading={busy} onClick={() => void answer(false)}>
-                <RestartIcon className="size-5" />
-                Nao lembrei
-              </Button>
-              <Button size="lg" loading={busy} onClick={() => void answer(true)}>
-                <CheckIcon className="size-5" />
-                Lembrei
-              </Button>
-            </div>
+            <GradeButtons interval={card.interval} busy={busy} onGrade={(grade) => void answer(grade)} />
           ) : (
             <Button size="lg" full onClick={() => setRevealed(true)}>
               Mostrar

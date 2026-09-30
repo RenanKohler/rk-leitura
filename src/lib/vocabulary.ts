@@ -34,6 +34,100 @@ export function afterAnswer(
   return { step: next, nextReviewOn: addDays(today, REVIEW_INTERVALS[next]!) };
 }
 
+/* --- quatro respostas (PROD-7) --------------------------------------------- */
+
+/**
+ * Respostas da revisao. Substituem o "lembrei / nao lembrei": duas opcoes
+ * tratavam igual a palavra lembrada com esforco e a obvia, e as obvias
+ * voltavam cedo demais enquanto as dificeis sumiam por semanas.
+ */
+export const REVIEW_GRADES = ["errei", "dificil", "bom", "facil"] as const;
+export type ReviewGrade = (typeof REVIEW_GRADES)[number];
+
+export const GRADE_LABELS: Record<ReviewGrade, string> = {
+  errei: "Errei",
+  dificil: "Dificil",
+  bom: "Bom",
+  facil: "Facil",
+};
+
+/** Multiplicador do intervalo atual por resposta; "errei" volta a 1 dia. */
+export const GRADE_FACTORS: Record<Exclude<ReviewGrade, "errei">, number> = {
+  dificil: 1.2,
+  bom: 2.5,
+  facil: 4,
+};
+
+/** A partir deste intervalo, em dias, a palavra se forma: vira "aprendida". */
+export const GRADUATION_DAYS = 90;
+
+export function isReviewGrade(value: unknown): value is ReviewGrade {
+  return REVIEW_GRADES.includes(value as ReviewGrade);
+}
+
+/**
+ * Intervalo atual de um item.
+ *
+ * Quem ja tem intervalo gravado usa ele. Palavra revisada so pelo esquema
+ * antigo de etapas usa o intervalo daquela etapa; item nunca revisado vale 1
+ * dia, que e o tempo entre salvar e a primeira revisao.
+ */
+export function currentInterval(interval: number | null | undefined, step = 0): number {
+  if (interval && interval > 0) return interval;
+  const legacy = REVIEW_INTERVALS[Math.min(Math.max(step, 0), REVIEW_INTERVALS.length - 1)];
+  return step > 0 && legacy ? legacy : 1;
+}
+
+/** Intervalo seguinte, em dias; a tela usa para mostrar o efeito de cada botao. */
+export function gradeInterval(interval: number, grade: ReviewGrade): number {
+  const base = Math.max(1, Math.trunc(interval) || 1);
+  return grade === "errei" ? 1 : Math.max(base + 1, Math.ceil(base * GRADE_FACTORS[grade]));
+}
+
+/**
+ * Proxima revisao depois de uma das quatro respostas.
+ *
+ * Errei = 1 dia; Dificil = intervalo x1,2; Bom = x2,5; Facil = x4. O
+ * resultado e arredondado para cima e sempre cresce pelo menos um dia nas
+ * respostas certas: 1 x 1,2 arredondado para baixo daria 1 de novo, e
+ * "dificil" viraria "errei" disfarcado. Chegar a 90 dias forma o item
+ * (`graduated`): a palavra passa a aprendida e sai da revisao.
+ */
+export function afterGrade(
+  interval: number,
+  grade: ReviewGrade,
+  today: string
+): { interval: number; nextReviewOn: string; graduated: boolean } {
+  const next = gradeInterval(interval, grade);
+  return {
+    interval: next,
+    nextReviewOn: addDays(today, next),
+    graduated: grade !== "errei" && next >= GRADUATION_DAYS,
+  };
+}
+
+/**
+ * Resposta pedida a uma rota de revisao: uma das quatro, ou o `remembered`
+ * antigo traduzido (lembrei = "bom", nao lembrei = "errei").
+ */
+export function gradeFrom(
+  body: { grade?: unknown; remembered?: unknown } | null
+): ReviewGrade | null {
+  if (isReviewGrade(body?.grade)) return body.grade;
+  if (typeof body?.remembered === "boolean") return body.remembered ? "bom" : "errei";
+  return null;
+}
+
+/**
+ * Retencao: parcela das respostas que nao foram "errei", em porcentagem.
+ * Nulo sem respostas - 0% seria dizer que o leitor esqueceu tudo.
+ */
+export function retention(grades: string[]): number | null {
+  if (grades.length === 0) return null;
+  const kept = grades.filter((grade) => grade !== "errei").length;
+  return Math.round((kept / grades.length) * 100);
+}
+
 /** Palavra nova: primeira revisao no dia seguinte. */
 export function firstReview(today: string): { step: number; nextReviewOn: string } {
   return { step: 0, nextReviewOn: addDays(today, REVIEW_INTERVALS[0]) };
