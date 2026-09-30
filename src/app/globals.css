@@ -40,6 +40,16 @@
    */
   --color-mark: #8a6a07;
   --color-mark-soft: #f7e79d;
+  /*
+   * Avisos flutuantes (A11Y-3). Tokens proprios porque `positive` e `danger`
+   * sao cores de TEXTO: no tema escuro elas clareiam para ler sobre fundo
+   * escuro, e usadas como fundo com letra branca davam 1,74:1 e 2,55:1. Cada
+   * par abaixo passa de 4,5:1 no seu tema.
+   */
+  --color-toast-success: #1f7a4d;
+  --color-toast-success-ink: #ffffff;
+  --color-toast-error: #b3301b;
+  --color-toast-error-ink: #ffffff;
 
   --radius-card: 1rem;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -70,6 +80,10 @@
     --color-chart-soft: #4a2418;
     --color-mark: #e0bb4e;
     --color-mark-soft: #413616;
+    --color-toast-success: #4ade80;
+    --color-toast-success-ink: #06240f;
+    --color-toast-error: #ff7a66;
+    --color-toast-error-ink: #2a0a05;
 
     --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.8);
     --shadow-float: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 16px 40px -20px rgb(0 0 0 / 0.9);
@@ -101,6 +115,10 @@
     --color-chart-soft: #f2c9b8;
     --color-mark: #5a4500;
     --color-mark-soft: #fff0a8;
+    --color-toast-success: #0a5a2e;
+    --color-toast-success-ink: #ffffff;
+    --color-toast-error: #8f1400;
+    --color-toast-error-ink: #ffffff;
 
     --shadow-card: none;
     --shadow-float: 0 0 0 2px #000000;
@@ -196,6 +214,34 @@ a,
 
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Posicao dos avisos flutuantes.
+ *
+ * `--toast-offset` e a distancia ate a borda de baixo; quem tem um rodape
+ * fixo (o leitor) define a variavel no body para os avisos subirem acima
+ * dele. `--toast-nav` soma a barra de navegacao do celular, que so existe
+ * fora do leitor e abaixo de lg.
+ */
+.toast-region {
+  bottom: calc(var(--toast-offset, 1rem) + var(--toast-nav, 0px) + env(safe-area-inset-bottom, 0px));
+}
+
+body:has([data-tabbar]) {
+  --toast-nav: 4rem;
+}
+
+@media (min-width: 64rem) {
+  body:has([data-tabbar]) {
+    --toast-nav: 0px;
+  }
+}
+
+/* Folha aberta ocupa o rodape: o aviso vai para o topo. */
+body[data-sheet="aberta"] .toast-region {
+  top: 1rem;
+  bottom: auto;
 }
 
 /* Quebra URLs longas em vez de estourar a largura da tela. */

@@ -6,6 +6,8 @@ import { HighlightsClient } from "./highlights-client";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Destaques" };
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function HighlightsPage({

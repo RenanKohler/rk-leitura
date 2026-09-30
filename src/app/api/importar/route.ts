@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bookmarks, highlights, texts } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
@@ -27,7 +28,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  * restauracao termina sem nada gravado.
  *
  * Texto com a mesma origem de um que ja esta na conta e pulado: restaurar
- * duas vezes o mesmo arquivo nao duplica a biblioteca.
+ * duas vezes o mesmo arquivo nao duplica a biblioteca. Sem origem, vale o
+ * mesmo titulo com o mesmo conteudo.
  */
 export async function POST(request: Request) {
   const session = await requireSession();
@@ -44,11 +46,22 @@ export async function POST(request: Request) {
     const parsed = BatchSchema.safeParse(await readJson(request));
     if (!parsed.success) return jsonError(UNRECOGNIZED, 400);
 
-    const existing = await db
-      .select({ sourceUrl: texts.sourceUrl })
-      .from(texts)
-      .where(and(eq(texts.userId, session.id), isNotNull(texts.sourceUrl)));
+    const [existing, pasted] = await Promise.all([
+      db
+        .select({ sourceUrl: texts.sourceUrl })
+        .from(texts)
+        .where(and(eq(texts.userId, session.id), isNotNull(texts.sourceUrl))),
+      // Texto sem origem (colado, arquivo, o de boas-vindas) se reconhece pelo
+      // titulo e pelo conteudo. Sem isto, restaurar numa conta nova duplicava
+      // o texto de boas-vindas que as duas contas ja tinham. O hash sai do
+      // banco para nao trazer o conteudo inteiro de cada texto.
+      db
+        .select({ title: texts.title, digest: sql<string>`md5(${texts.content})` })
+        .from(texts)
+        .where(and(eq(texts.userId, session.id), isNull(texts.sourceUrl))),
+    ]);
     const known = new Set(existing.map((row) => row.sourceUrl));
+    const knownPasted = new Set(pasted.map((row) => pastedKey(row.title, row.digest)));
 
     const created: string[] = [];
     let skipped = 0;
@@ -56,7 +69,9 @@ export async function POST(request: Request) {
     await db.transaction(async (tx) => {
       for (const item of parsed.data.textos) {
         const sourceUrl = item.origem ? normalizeSourceUrl(item.origem) : null;
-        if (sourceUrl && known.has(sourceUrl)) {
+        const title = item.titulo.slice(0, 200);
+        const pastedId = sourceUrl ? null : pastedKey(title, md5(item.conteudo));
+        if ((sourceUrl && known.has(sourceUrl)) || (pastedId && knownPasted.has(pastedId))) {
           skipped += 1;
           continue;
         }
@@ -73,7 +88,7 @@ export async function POST(request: Request) {
           .insert(texts)
           .values({
             userId: session.id,
-            title: item.titulo.slice(0, 200),
+            title,
             sourceUrl,
             content: item.conteudo,
             format,
@@ -92,6 +107,7 @@ export async function POST(request: Request) {
 
         created.push(row.id);
         if (sourceUrl) known.add(sourceUrl);
+        if (pastedId) knownPasted.add(pastedId);
 
         const marks = (item.destaques ?? [])
           .map((mark) => ({ range: normalizeRange(mark.inicio, mark.fim, wordCount), note: mark.nota }))
@@ -129,6 +145,15 @@ export async function POST(request: Request) {
   } catch (error) {
     return serverError("importar", error);
   }
+}
+
+/** Mesmo algoritmo do `md5()` do Postgres, para comparar com o que veio do banco. */
+function md5(value: string): string {
+  return createHash("md5").update(value, "utf8").digest("hex");
+}
+
+function pastedKey(title: string, digest: string): string {
+  return `${title}\u0000${digest}`;
 }
 
 /** Desfaz uma restauracao interrompida: apaga os textos que ela criou. */

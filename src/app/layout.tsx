@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { Providers, themeBootstrapScript } from "@/components/providers";
+import { Providers } from "@/components/providers";
+import { serverTheme, themeBootstrapScript } from "@/lib/theme";
 import { OfflineProvider } from "@/components/offline-provider";
 import { getSession, publicUser, sessionIsCurrent } from "@/lib/auth";
 import { DEFAULT_SETTINGS, loadAccount } from "@/lib/queries";
@@ -54,11 +55,20 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const current = session && sessionIsCurrent(session, account?.sessionVersion ?? null);
   const settings = current ? account!.settings : null;
 
+  // Tema da conta (A11Y-14): escolha explicita ja sai no HTML; "Sistema" e
+  // resolvido pelo script, que tambem guarda a escolha como cache local.
+  const accountTheme = settings?.theme ?? null;
+
   return (
-    <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
+    <html
+      lang="pt-BR"
+      className={inter.variable}
+      data-theme={serverTheme(accountTheme)}
+      suppressHydrationWarning
+    >
       <head>
         {/* Aplica o tema antes da primeira pintura, evitando o flash claro. */}
-        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript(accountTheme) }} />
       </head>
       <body>
         <Providers

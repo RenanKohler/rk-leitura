@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { speedSettings } from "@/db/schema";
+import { upsertSettings } from "@/lib/settings-row";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { loadSettings } from "@/lib/queries";
 import {
@@ -70,15 +69,13 @@ export async function POST(request: Request) {
     const suggested = suggestWpm(wpm, comprehension);
     const accept = body?.accept === true;
 
-    await db
-      .update(speedSettings)
-      .set({
-        placementWpm: wpm,
-        placementSeenAt: new Date(),
-        ...(accept ? { baseWpm: suggested } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(speedSettings.userId, session.id));
+    // Upsert: a conta pode nao ter a linha ainda, e um update puro gravaria
+    // zero linhas respondendo "aplicado".
+    await upsertSettings(db, session.id, {
+      placementWpm: wpm,
+      placementSeenAt: new Date(),
+      ...(accept ? { baseWpm: suggested } : {}),
+    });
 
     return NextResponse.json({
       wpm,
@@ -104,10 +101,7 @@ export async function DELETE() {
   if (session instanceof NextResponse) return session;
 
   try {
-    await db
-      .update(speedSettings)
-      .set({ placementSeenAt: new Date(), updatedAt: new Date() })
-      .where(eq(speedSettings.userId, session.id));
+    await upsertSettings(db, session.id, { placementSeenAt: new Date() });
 
     return NextResponse.json({ skipped: true });
   } catch (error) {

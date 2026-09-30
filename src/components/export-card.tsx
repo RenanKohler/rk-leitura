@@ -4,7 +4,6 @@ import { useRef, useState } from "react";
 import { apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
 import { Alert, Button, Card, LinkButton, SectionTitle } from "@/components/ui";
-import { batchesOf, MAX_BACKUP_BYTES, parseBackup, UNRECOGNIZED } from "@/lib/backup";
 
 /**
  * Download dos dados da conta e restauracao da biblioteca (US-50, US-98).
@@ -22,6 +21,11 @@ export function ExportCard() {
 
   const restore = async (file: File) => {
     setError("");
+    // A validacao usa o zod inteiro. Carregar so aqui, depois que o arquivo
+    // foi escolhido, tira esse peso de toda abertura de Ajustes (APP-10).
+    const { batchesOf, MAX_BACKUP_BYTES, parseBackup, UNRECOGNIZED } = await import(
+      "@/lib/backup"
+    );
     if (file.size > MAX_BACKUP_BYTES) {
       setError(`O arquivo passa de ${Math.round(MAX_BACKUP_BYTES / 1024 / 1024)} MB.`);
       return;

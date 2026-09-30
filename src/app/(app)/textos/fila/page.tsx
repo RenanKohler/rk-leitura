@@ -5,6 +5,8 @@ import { QueueClient } from "./queue-client";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Fila de leitura" };
+
 export default async function QueuePage() {
   const session = await getSession();
   if (!session) redirect("/login");

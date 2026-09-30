@@ -89,7 +89,7 @@ function insideWord(text: string, cut: number): boolean {
  * Frase que contem a palavra `index`, pelo segmentador unico: "O Sr. Silva
  * chegou." e uma frase so, como no ritmo e na navegacao.
  *
- * Serve ao modo Foco, onde nao ha o que selecionar: a unidade que o leitor
+ * Serve ao Word Runner, onde nao ha o que selecionar: a unidade que o leitor
  * consegue apontar sem parar a leitura e a frase.
  */
 export function sentenceRange(words: string[], index: number, language?: string): Span | null {

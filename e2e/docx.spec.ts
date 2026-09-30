@@ -26,7 +26,7 @@ test("arquivo .docx e importado com a formatacao", async ({ page }) => {
   await registerByApi(page.request);
 
   await page.goto("/textos/novo");
-  await page.getByRole("button", { name: "Arquivo" }).click();
+  await page.getByRole("radio", { name: "Arquivo" }).click();
   await page.locator('input[type="file"]').setInputFiles({
     name: "relatorio.docx",
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -45,7 +45,7 @@ test("arquivo .docx e importado com a formatacao", async ({ page }) => {
 test("arquivo que nao e .docx valido mostra erro", async ({ page }) => {
   await registerByApi(page.request);
   await page.goto("/textos/novo");
-  await page.getByRole("button", { name: "Arquivo" }).click();
+  await page.getByRole("radio", { name: "Arquivo" }).click();
   await page.locator('input[type="file"]').setInputFiles({
     name: "protegido.docx",
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

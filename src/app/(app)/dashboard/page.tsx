@@ -13,6 +13,8 @@ import { DashboardClient } from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Inicio" };
+
 const RECENT_LIMIT = 5;
 
 export default async function DashboardPage() {

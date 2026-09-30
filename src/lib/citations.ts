@@ -2,7 +2,7 @@
  * Referencias no corpo de artigos cientificos.
  *
  * "[12]", "(Silva et al., 2020)" e "(2019)" interrompem a leitura dinamica:
- * no modo Foco cada uma vira uma palavra na tela, sem nada a dizer ao leitor.
+ * no Word Runner cada uma vira uma palavra na tela, sem nada a dizer ao leitor.
  * A limpeza roda na importacao, nunca na leitura - mudar a lista de palavras
  * de um texto ja salvo deslocaria a posicao e os destaques dele.
  *

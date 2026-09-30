@@ -2,6 +2,8 @@ import Link from "next/link";
 
 export const dynamic = "force-static";
 
+export const metadata = { title: "Sem conexao" };
+
 /**
  * Tela que o service worker mostra quando a navegacao falha e nao ha copia
  * guardada da pagina pedida.

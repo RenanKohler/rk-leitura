@@ -5,6 +5,8 @@ import { HistoryClient } from "./history-client";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Historico" };
+
 export default async function HistoryPage() {
   const session = await getSession();
   if (!session) redirect("/login");

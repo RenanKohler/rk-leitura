@@ -5,6 +5,8 @@ import { TextsClient } from "./texts-client";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Textos" };
+
 /**
  * A primeira pagina da biblioteca e carregada aqui e vai junto com o HTML.
  * A tela deixa de renderizar vazia para so entao pedir os dados pela rede.

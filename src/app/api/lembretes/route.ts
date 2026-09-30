@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { pushSubscriptions, speedSettings } from "@/db/schema";
+import { pushSubscriptions } from "@/db/schema";
+import { upsertSettings } from "@/lib/settings-row";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { loadSettings } from "@/lib/queries";
 import { asReminderHour } from "@/lib/reminder";
@@ -77,10 +78,7 @@ export async function POST(request: Request) {
           set: { userId: session.id, p256dh, auth },
         });
 
-      await tx
-        .update(speedSettings)
-        .set({ reminderHour: hour, updatedAt: new Date() })
-        .where(eq(speedSettings.userId, session.id));
+      await upsertSettings(tx, session.id, { reminderHour: hour });
     });
 
     return NextResponse.json({ hour, ok: true }, { status: 201 });
@@ -111,10 +109,7 @@ export async function DELETE(request: Request) {
         await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, session.id));
       }
 
-      await tx
-        .update(speedSettings)
-        .set({ reminderHour: null, updatedAt: new Date() })
-        .where(eq(speedSettings.userId, session.id));
+      await upsertSettings(tx, session.id, { reminderHour: null });
     });
 
     return NextResponse.json({ hour: null });

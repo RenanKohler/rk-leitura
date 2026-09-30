@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { speedSettings, trainingPrograms } from "@/db/schema";
+import { trainingPrograms } from "@/db/schema";
+import { upsertSettings } from "@/lib/settings-row";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { activeProgram, loadSettings, loadTraining } from "@/lib/queries";
 import { todayIn } from "@/lib/goals";
@@ -56,10 +57,7 @@ export async function POST(request: Request) {
         startedOn: todayIn(settings.timezone),
       });
 
-      await tx
-        .update(speedSettings)
-        .set({ baseWpm: first, updatedAt: new Date() })
-        .where(eq(speedSettings.userId, session.id));
+      await upsertSettings(tx, session.id, { baseWpm: first });
     });
 
     return NextResponse.json({ program: await loadTraining(session.id) }, { status: 201 });
@@ -85,10 +83,7 @@ export async function DELETE() {
           and(eq(trainingPrograms.id, program.id), isNull(trainingPrograms.endedAt))
         );
 
-      await tx
-        .update(speedSettings)
-        .set({ baseWpm: program.previousWpm, updatedAt: new Date() })
-        .where(eq(speedSettings.userId, session.id));
+      await upsertSettings(tx, session.id, { baseWpm: program.previousWpm });
     });
 
     return NextResponse.json({ program: null, baseWpm: program.previousWpm });

@@ -211,12 +211,18 @@ function extractTitle($: cheerio.CheerioAPI): string {
   // `headline` do Article antes de `name`: o no WebPage costuma vir primeiro
   // no documento e carrega o titulo da pagina com o sufixo do site junto.
   const nodes = collectJsonLd($);
-  const structuredHeadline =
-    firstText(nodes.map((node) => node.headline)) ?? firstText(nodes.map((node) => node.name));
+  const headline = firstText(nodes.map((node) => node.headline));
+  const names = nodes
+    .map((node) => node.name)
+    .filter((value): value is string => typeof value === "string" && value.trim().length >= 3);
+  const ogTitle = $("meta[property='og:title']").attr("content");
+  const pageTitles = [ogTitle, $("title").text()]
+    .map((value) => (value ?? "").replace(/\s+/g, " ").trim())
+    .filter((value) => value.length >= 3);
 
   const candidates = [
-    structuredHeadline,
-    $("meta[property='og:title']").attr("content"),
+    structuredTitle(headline, names, ogTitle, pageTitles),
+    ogTitle,
     $("h1").first().text(),
     $("title").text(),
   ];
@@ -232,6 +238,46 @@ function extractTitle($: cheerio.CheerioAPI): string {
   }
 
   return "Sem titulo";
+}
+
+/**
+ * Titulo vindo do JSON-LD, conferido contra o titulo da pagina.
+ *
+ * `headline` nem sempre e o titulo: a Wikipedia poe ali a descricao curta
+ * ("pais da America do Sul") e deixa o nome do artigo em `name`. Quando o
+ * headline nao aparece no og:title nem no <title>, ele nao e o titulo que a
+ * pagina mostra - vale o `name` que aparece la, ou o proprio og:title.
+ * Sem titulo de pagina para comparar, o headline continua valendo.
+ */
+function structuredTitle(
+  headline: string | undefined,
+  names: string[],
+  ogTitle: string | undefined,
+  pageTitles: string[]
+): string | undefined {
+  if (!headline) return names[0];
+  if (pageTitles.length === 0 || pageTitles.some((title) => related(title, headline))) {
+    return headline;
+  }
+
+  const shown = names.find((name) => pageTitles.some((title) => related(title, name)));
+  return shown ?? ogTitle ?? headline;
+}
+
+/** Um contem o outro, sem diferenca de caixa, acento ou espaco. */
+function related(a: string, b: string): boolean {
+  const x = foldForCompare(a);
+  const y = foldForCompare(b);
+  return x.length > 0 && y.length > 0 && (x.includes(y) || y.includes(x));
+}
+
+function foldForCompare(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function firstText(values: unknown[]): string | undefined {

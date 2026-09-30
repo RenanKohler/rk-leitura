@@ -9,6 +9,8 @@ import { BackIcon, HistoryIcon } from "@/components/icons";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Leituras do texto" };
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" });
 const DATE_TIME = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });

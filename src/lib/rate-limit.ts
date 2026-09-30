@@ -90,10 +90,36 @@ async function sweep(): Promise<void> {
 }
 
 /**
- * IP do cliente. Em producao atras de proxy (Vercel) vem no x-forwarded-for.
+ * IP do cliente.
+ *
+ * O primeiro valor de X-Forwarded-For e o que o proprio cliente escreveu: quem
+ * manda um IP aleatorio a cada tentativa ganha uma chave nova no limitador e
+ * nunca bate no teto. Por isso a ordem de confianca e:
+ *
+ * 1. `x-vercel-forwarded-for` e `x-real-ip`, que a borda da Vercel preenche e
+ *    sobrescreve - o cliente nao consegue injetar;
+ * 2. o ULTIMO valor de X-Forwarded-For, acrescentado pelo proxy mais proximo
+ *    da aplicacao, e nao pelo cliente.
+ *
+ * Sem proxy (desenvolvimento, testes de ponta a ponta) o cabecalho chega com
+ * um valor so, e o ultimo e o primeiro: os testes que se apresentam com um IP
+ * proprio continuam funcionando.
  */
 export function clientIp(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]!.trim();
-  return request.headers.get("x-real-ip") ?? "desconhecido";
+  const headers = request.headers;
+  const trusted =
+    firstValue(headers.get("x-vercel-forwarded-for")) ?? firstValue(headers.get("x-real-ip"));
+  if (trusted) return trusted;
+
+  const forwarded = (headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return forwarded[forwarded.length - 1] ?? "desconhecido";
+}
+
+/** Primeiro valor de um cabecalho que a borda escreve (pode vir em lista). */
+function firstValue(value: string | null): string | null {
+  const first = value?.split(",")[0]?.trim();
+  return first ? first : null;
 }

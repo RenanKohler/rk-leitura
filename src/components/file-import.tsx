@@ -29,11 +29,11 @@ import {
 } from "@/lib/epub-text";
 import { DocxError, docxTitle, docxToMarkdown, MAX_DOCX_BYTES } from "@/lib/docx-text";
 import { CitationsOption } from "@/components/citations-option";
+import { FILE_ACCEPT, fileKind, UNSUPPORTED_FILE } from "@/lib/file-kind";
 import type { TextDetail } from "@/lib/types";
 
 /** Markdown e texto puro: o limite e o mesmo do conteudo aceito pelo servidor. */
 const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
-const MARKDOWN_FILE = /\.(md|markdown)$/i;
 
 interface Chapter {
   title: string;
@@ -43,7 +43,7 @@ interface Chapter {
 }
 
 /**
- * Importacao de arquivo: PDF, EPUB, Word e Markdown.
+ * Importacao de arquivo: PDF, EPUB, Word, Markdown e texto simples.
  *
  * A leitura acontece no navegador. Mandar um PDF de dez megabytes para uma
  * funcao serverless esbarraria no limite de corpo e no de tempo, e guardar o
@@ -84,13 +84,23 @@ export function FileImport() {
   const onPick = async (file: File | undefined) => {
     if (!file) return;
     reset();
+
+    // Decide antes de abrir: um formato desconhecido caia no leitor de PDF e
+    // voltava com o erro cru do pdf.js (APP-11).
+    const kind = fileKind(file.name, file.type);
+    if (!kind) {
+      setError(UNSUPPORTED_FILE);
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+
     setBusy(true);
     try {
-      if (/\.epub$/i.test(file.name)) await readEpub(file);
-      else if (/\.docx$/i.test(file.name)) await readDocx(file);
-      else if (MARKDOWN_FILE.test(file.name) || file.type === "text/markdown") {
-        await readMarkdown(file);
-      } else await readPdf(file);
+      if (kind === "epub") await readEpub(file);
+      else if (kind === "docx") await readDocx(file);
+      else if (kind === "markdown") await readMarkdown(file);
+      else if (kind === "text") await readPlainText(file);
+      else await readPdf(file);
     } catch (cause) {
       setError(
         cause instanceof EpubError || cause instanceof DocxError
@@ -149,6 +159,27 @@ export function FileImport() {
     setFormat("markdown");
     setContent(long ? source.slice(0, MAX_IMPORT_CHARS) : source);
     setTitle(markdownTitle(source) ?? fileTitle(null, file.name));
+  };
+
+  /**
+   * Texto simples (.txt): entra como esta, sem interpretar marcas. Um `#` ou
+   * um `*` num .txt e texto, nao titulo nem enfase.
+   */
+  const readPlainText = async (file: File) => {
+    if (file.size > MAX_MARKDOWN_BYTES) {
+      throw new Error(`O arquivo passa de ${Math.round(MAX_MARKDOWN_BYTES / 1024 / 1024)} MB.`);
+    }
+
+    const source = (await file.text()).replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+    if (countWords(source, "plain") === 0) {
+      throw new Error("Este arquivo nao tem texto para ler.");
+    }
+
+    const long = source.length > MAX_IMPORT_CHARS;
+    setTruncated(long);
+    setFormat("plain");
+    setContent(long ? source.slice(0, MAX_IMPORT_CHARS) : source);
+    setTitle(fileTitle(null, file.name));
   };
 
   /** Documento do Word (US-99): vira Markdown com titulos, listas e enfase. */
@@ -320,7 +351,7 @@ export function FileImport() {
         <input
           ref={inputRef}
           type="file"
-          accept=".pdf,.epub,.md,.markdown,.docx,application/pdf,application/epub+zip,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          accept={FILE_ACCEPT}
           className="sr-only"
           onChange={(event) => void onPick(event.target.files?.[0])}
         />
@@ -334,7 +365,7 @@ export function FileImport() {
           <FileIcon className="size-7 text-muted" />
           <span className="font-medium">{busy ? progress || "Lendo" : "Escolher arquivo"}</span>
           <span className="text-sm text-muted">
-            {`PDF com texto selecionavel ate ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB, EPUB sem protecao, Word (.docx) ou Markdown (.md)`}
+            {`PDF com texto selecionavel ate ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB, EPUB sem protecao, Word (.docx), Markdown (.md) ou texto (.txt)`}
           </span>
         </button>
       </Card>
