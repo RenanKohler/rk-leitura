@@ -161,9 +161,12 @@ export const speedSettings = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     baseWpm: integer("base_wpm").notNull().default(300),
+    // Sem uso desde o leitor unificado (o Word Runner mostra uma palavra por
+    // vez). A coluna fica para uma migracao futura que a remova.
     wordsPerChunk: integer("words_per_chunk").notNull().default(1),
     highlightOpacity: real("highlight_opacity").notNull().default(0.35),
-    // "rsvp" (uma palavra por vez) ou "flow" (texto corrido com destaque).
+    // Sem uso desde o leitor unificado: nao ha mais modos (Foco, Rolagem,
+    // Paginas). A coluna fica para uma migracao futura que a remova.
     readingMode: text("reading_mode").notNull().default("rsvp"),
     theme: text("theme").notNull().default("system"),
     // Tipografia da area de leitura. Guardada por nivel, nao em pixels: a
@@ -178,16 +181,16 @@ export const speedSettings = pgTable(
      * padrao: o apoio ajuda alguns leitores e atrapalha outros.
      */
     wordEmphasis: boolean("word_emphasis").notNull().default(false),
-    // Ritmo pela densidade do trecho no modo Foco (US-87). Ligado por padrao
+    // Ritmo dinamico do Word Runner (US-87). Ligado por padrao
     // porque inclui a pausa em pontuacao que o leitor ja tinha.
     adaptiveRhythm: boolean("adaptive_rhythm").notNull().default(true),
     // "Isso ainda vale?" a 25, 50 e 75% do texto (US-80). Desligado por padrao.
     askCheckpoints: boolean("ask_checkpoints").notNull().default(false),
-    // Pausa extra na troca de paragrafo no modo Foco (US-94). Desligada por padrao.
+    // Sem uso: a pausa de paragrafo faz parte do ritmo dinamico (US-94).
     paragraphPause: boolean("paragraph_pause").notNull().default(false),
-    // Recuo de ate 5 palavras ao retomar depois de uma pausa longa (US-95).
+    // Recuo ao retomar, escalonado pelo tempo parado (US-95).
     resumeRewind: boolean("resume_rewind").notNull().default(true),
-    // Linhas fora da atual apagadas nos modos Rolagem e Paginas (US-103).
+    // Sem uso desde o leitor unificado (US-103 dependia da Rolagem).
     dimLines: boolean("dim_lines").notNull().default(false),
     // Aviso para descansar a vista a cada 20 minutos de leitura (US-104).
     eyeRest: boolean("eye_rest").notNull().default(false),

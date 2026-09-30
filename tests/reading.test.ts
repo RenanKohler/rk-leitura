@@ -1,14 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  MAX_CHUNK,
   MAX_HIGHLIGHT,
   MAX_WPM,
-  MIN_CHUNK,
   MIN_HIGHLIGHT,
   MIN_WPM,
   asFontFamily,
-  chunkDurationMs,
-  chunkLength,
   clamp,
   countWords,
   orpIndex,
@@ -21,7 +17,6 @@ import {
   tokenize,
   typographyVars,
   warmupFactor,
-  windowStart,
   WARMUP_START,
   WARMUP_WORDS,
   MAX_FONT_SCALE,
@@ -105,55 +100,6 @@ describe("inicio de paragrafo", () => {
     expect(starts).toEqual([true, false, false, true, false, false, false, true]);
   });
 
-  it("a janela da rolagem comeca em paragrafo inteiro", () => {
-    expect(windowStart(paragraphs, -5, 400)).toBe(0);
-    expect(windowStart(paragraphs, 1, 400)).toBe(0);
-    expect(windowStart(paragraphs, 5, 400)).toBe(3);
-    expect(windowStart(paragraphs, 7, 400)).toBe(7);
-  });
-
-  it("paragrafo longo avanca a janela em saltos", () => {
-    const longo = parseParagraphs(Array.from({ length: 1000 }, () => "a").join(" ")).paragraphs;
-    expect(windowStart(longo, 399, 400)).toBe(0);
-    expect(windowStart(longo, 450, 400)).toBe(400);
-    expect(windowStart(longo, 799, 400)).toBe(400);
-  });
-
-  it("o bloco nao atravessa o fim do paragrafo", () => {
-    expect(chunkLength(paragraphs, 0, 2)).toBe(2);
-    expect(chunkLength(paragraphs, 2, 2)).toBe(1);
-    expect(chunkLength(paragraphs, 3, 3)).toBe(3);
-    expect(chunkLength(paragraphs, 6, 3)).toBe(1);
-    expect(chunkLength(paragraphs, 7, 4)).toBe(1);
-    expect(chunkLength([], 0, 3)).toBe(3);
-  });
-});
-
-describe("chunkDurationMs", () => {
-  it("dura mais quanto mais lenta a velocidade", () => {
-    // Regressao: a conta ja esteve invertida e 350 ppm rodava perto de 5.600.
-    expect(chunkDurationMs(300, 1)).toBe(200);
-    expect(chunkDurationMs(600, 1)).toBe(100);
-    expect(chunkDurationMs(300, 1)).toBeGreaterThan(chunkDurationMs(600, 1));
-  });
-
-  it("dura mais quanto maior o bloco", () => {
-    expect(chunkDurationMs(300, 2)).toBe(400);
-    expect(chunkDurationMs(300, 3)).toBeGreaterThan(chunkDurationMs(300, 2));
-  });
-
-  it("entrega a velocidade pedida ao longo de um minuto", () => {
-    const wpm = 450;
-    const porBloco = chunkDurationMs(wpm, 3);
-    expect(Math.round((60_000 / porBloco) * 3)).toBe(wpm);
-  });
-
-  it("limita valores fora da faixa em vez de aceitar", () => {
-    expect(chunkDurationMs(5, 1)).toBe(chunkDurationMs(MIN_WPM, 1));
-    expect(chunkDurationMs(99_999, 1)).toBe(chunkDurationMs(MAX_WPM, 1));
-    expect(chunkDurationMs(300, 0)).toBe(chunkDurationMs(300, MIN_CHUNK));
-    expect(chunkDurationMs(300, 99)).toBe(chunkDurationMs(300, MAX_CHUNK));
-  });
 });
 
 describe("clamp", () => {
@@ -298,25 +244,6 @@ describe("estimatedMinutes com as pausas", () => {
     expect(estimatedMinutes(1000, 300)).toBe(4);
     expect(estimatedMinutes(1000, 300, true)).toBe(4);
     expect(estimatedMinutes(10, 300)).toBe(1);
-  });
-});
-
-describe("chunkDurationMs com rampa", () => {
-  it("demora mais no inicio da leitura que depois dela", () => {
-    const inicio = chunkDurationMs(300, 1, warmupFactor(0));
-    const depois = chunkDurationMs(300, 1, warmupFactor(WARMUP_WORDS));
-    expect(inicio).toBeGreaterThan(depois);
-    expect(depois).toBe(chunkDurationMs(300, 1));
-  });
-
-  it("o fator padrao nao muda nada", () => {
-    // A rampa entrou como parametro justamente para nao mudar o caminho antigo.
-    expect(chunkDurationMs(450, 2, 1)).toBe(chunkDurationMs(450, 2));
-  });
-
-  it("prende o fator na faixa da rampa", () => {
-    expect(chunkDurationMs(300, 1, 0)).toBe(chunkDurationMs(300, 1, WARMUP_START));
-    expect(chunkDurationMs(300, 1, 99)).toBe(chunkDurationMs(300, 1, 1));
   });
 });
 

@@ -7,8 +7,6 @@ import { pauseOverhead } from "@/lib/pauses";
 
 export const MIN_WPM = 100;
 export const MAX_WPM = 1200;
-export const MIN_CHUNK = 1;
-export const MAX_CHUNK = 6;
 /**
  * Intensidade do destaque, em fracao. O minimo deixa o trecho perceptivel sem
  * pesar; acima do maximo o fundo cobre a palavra e a leitura piora.
@@ -107,13 +105,6 @@ export function warmupFactor(wordsIntoRun: number, start: number = WARMUP_START)
   const progress = clamp(wordsIntoRun / WARMUP_WORDS, 0, 1);
   return from + (1 - from) * progress;
 }
-
-/**
- * rsvp  - uma palavra por vez no centro da tela
- * flow  - texto corrido com rolagem e destaque do trecho atual
- * page  - paginado, uma tela cheia por vez, sem rolagem
- */
-export type ReadingMode = "rsvp" | "flow" | "page";
 
 /**
  * Divide o texto em palavras preservando acentuacao e pontuacao.
@@ -268,52 +259,10 @@ export function paragraphRange(
   return { start: paragraph.start, end: paragraph.start + paragraph.words.length };
 }
 
-/**
- * Inicio estavel da janela renderizada da rolagem para uma posicao alvo.
- *
- * Se o inicio acompanhasse a leitura palavra a palavra, o paragrafo do topo
- * perderia uma palavra a cada passo e se redistribuiria o tempo todo. O
- * inicio so avanca em paragrafos inteiros e, dentro de um paragrafo longo,
- * em saltos de `step` palavras.
- */
-export function windowStart(paragraphs: Paragraph[], target: number, step: number): number {
-  if (target <= 0 || paragraphs.length === 0) return 0;
-  const paragraphStart = paragraphs[paragraphAt(paragraphs, target)]!.start;
-  return Math.max(paragraphStart, Math.floor(target / step) * step);
-}
-
 /** A palavra `index` abre um paragrafo (ou titulo, item, citacao). */
 export function startsParagraph(paragraphs: Paragraph[], index: number): boolean {
   if (paragraphs.length === 0) return false;
   return paragraphs[paragraphAt(paragraphs, index)]!.start === index;
-}
-
-/**
- * Tamanho do bloco que comeca em `index`: ate `size` palavras, sem atravessar
- * o fim do paragrafo. Assim o fim de um paragrafo e o comeco do seguinte
- * nunca aparecem juntos na mesma tela.
- */
-export function chunkLength(paragraphs: Paragraph[], index: number, size: number): number {
-  if (paragraphs.length === 0) return size;
-  const paragraph = paragraphs[paragraphAt(paragraphs, index)]!;
-  const remaining = paragraph.start + paragraph.words.length - index;
-  return Math.max(1, Math.min(size, remaining));
-}
-
-/**
- * Milissegundos que cada bloco de palavras fica na tela.
- *
- * `speedFactor` existe para a rampa de aquecimento entrar sem estado escondido:
- * quem chama decide a fracao, a funcao continua pura e testavel.
- */
-export function chunkDurationMs(
-  wpm: number,
-  wordsPerChunk: number,
-  speedFactor = 1
-): number {
-  const safeWpm = clamp(wpm, MIN_WPM, MAX_WPM) * clamp(speedFactor, WARMUP_START, 1);
-  const safeChunk = clamp(wordsPerChunk, MIN_CHUNK, MAX_CHUNK);
-  return (60_000 / safeWpm) * safeChunk;
 }
 
 export function clamp(value: number, min: number, max: number): number {

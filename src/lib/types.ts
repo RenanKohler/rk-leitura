@@ -1,4 +1,4 @@
-import type { FontFamily, ReadingMode, TextFormat } from "@/lib/reading";
+import type { FontFamily, TextFormat } from "@/lib/reading";
 import type { GoalKind } from "@/lib/goals";
 
 /** Formatos devolvidos pelas rotas internas, consumidos no cliente. */
@@ -267,9 +267,7 @@ export interface HighlightItem {
 
 export interface SettingsPayload {
   baseWpm: number;
-  wordsPerChunk: number;
   highlightOpacity: number;
-  readingMode: ReadingMode;
   theme: "system" | "light" | "dark" | "contrast";
   fontScale: number;
   fontFamily: FontFamily;
@@ -281,12 +279,8 @@ export interface SettingsPayload {
   adaptiveRhythm: boolean;
   /** Perguntar "isso ainda vale?" a 25, 50 e 75% do texto (US-80). */
   askCheckpoints: boolean;
-  /** Pausa extra na troca de paragrafo no Word Runner (US-94). */
-  paragraphPause: boolean;
-  /** Recuar ate 5 palavras ao retomar depois de pausa longa (US-95). */
+  /** Recuar ao retomar depois de uma pausa, conforme o tempo parado (US-95). */
   resumeRewind: boolean;
-  /** Apagar as linhas fora da atual na pagina (US-103). */
-  dimLines: boolean;
   /** Aviso para descansar a vista a cada 20 minutos (US-104). */
   eyeRest: boolean;
   /** Fuso IANA usado para decidir o que e "hoje". */

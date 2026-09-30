@@ -6,12 +6,10 @@ import { readJson, requireSession, serverError } from "@/lib/api";
 import {
   asFontFamily,
   clamp,
-  MAX_CHUNK,
   MAX_FONT_SCALE,
   MAX_HIGHLIGHT,
   MAX_LINE_HEIGHT,
   MAX_WPM,
-  MIN_CHUNK,
   MIN_FONT_SCALE,
   MIN_HIGHLIGHT,
   MIN_LINE_HEIGHT,
@@ -22,7 +20,6 @@ import { asTimezone } from "@/lib/goals";
 
 export const dynamic = "force-dynamic";
 
-const READING_MODES = new Set(["rsvp", "flow", "page"]);
 const THEMES = new Set(["system", "light", "dark", "contrast"]);
 
 export async function GET() {
@@ -46,11 +43,7 @@ export async function PUT(request: Request) {
 
     const values = {
       baseWpm: clamp(Math.trunc(Number(body?.baseWpm)), MIN_WPM, MAX_WPM),
-      wordsPerChunk: clamp(Math.trunc(Number(body?.wordsPerChunk)), MIN_CHUNK, MAX_CHUNK),
       highlightOpacity: clamp(Number(body?.highlightOpacity), MIN_HIGHLIGHT, MAX_HIGHLIGHT),
-      readingMode: READING_MODES.has(String(body?.readingMode))
-        ? String(body?.readingMode)
-        : DEFAULT_SETTINGS.readingMode,
       theme: THEMES.has(String(body?.theme)) ? String(body?.theme) : DEFAULT_SETTINGS.theme,
       fontScale: clamp(Math.trunc(Number(body?.fontScale)), MIN_FONT_SCALE, MAX_FONT_SCALE),
       fontFamily: asFontFamily(body?.fontFamily),
@@ -64,9 +57,7 @@ export async function PUT(request: Request) {
       // Padrao ligado: so um `false` explicito desliga.
       adaptiveRhythm: body?.adaptiveRhythm !== false,
       askCheckpoints: body?.askCheckpoints === true,
-      paragraphPause: body?.paragraphPause === true,
       resumeRewind: body?.resumeRewind !== false,
-      dimLines: body?.dimLines === true,
       eyeRest: body?.eyeRest === true,
       timezone: asTimezone(body?.timezone),
       // Guia do leitor: so um `true` explicito marca como visto. Como o PUT

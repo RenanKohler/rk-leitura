@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { CheckIcon } from "@/components/icons";
-import type { FontFamily, ReadingMode } from "@/lib/reading";
+import type { FontFamily } from "@/lib/reading";
 import { THEME_STORAGE_KEY, type ResolvedTheme, type ThemePreference } from "@/lib/theme";
 
 /* -------------------------------------------------------------------------- */
@@ -274,7 +274,6 @@ export function useAuth() {
 
 export interface ReadingSettings {
   baseWpm: number;
-  wordsPerChunk: number;
   highlightOpacity: number;
   fontScale: number;
   fontFamily: FontFamily;
@@ -283,13 +282,10 @@ export interface ReadingSettings {
   wordEmphasis: boolean;
   adaptiveRhythm: boolean;
   askCheckpoints: boolean;
-  paragraphPause: boolean;
   resumeRewind: boolean;
-  dimLines: boolean;
   eyeRest: boolean;
   timezone: string;
   weeklySummarySeenOn: string | null;
-  readingMode: ReadingMode;
   theme: ThemePreference;
   /** Guia de primeiro uso do leitor ja visto nesta conta. */
   readerTipsSeen: boolean;
@@ -297,7 +293,6 @@ export interface ReadingSettings {
 
 export const FALLBACK_SETTINGS: ReadingSettings = {
   baseWpm: 300,
-  wordsPerChunk: 1,
   highlightOpacity: 0.35,
   fontScale: 3,
   fontFamily: "sans",
@@ -306,13 +301,10 @@ export const FALLBACK_SETTINGS: ReadingSettings = {
   wordEmphasis: false,
   adaptiveRhythm: true,
   askCheckpoints: false,
-  paragraphPause: false,
   resumeRewind: true,
-  dimLines: false,
   eyeRest: true,
   timezone: "UTC",
   weeklySummarySeenOn: null,
-  readingMode: "rsvp",
   theme: "system",
   readerTipsSeen: false,
 };

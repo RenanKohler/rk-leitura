@@ -252,10 +252,3 @@ export function segmentsOf(
   return segments;
 }
 
-/** Destaque que cobre a palavra `index`, se houver. */
-export function markCovering(
-  marks: StoredHighlight[],
-  index: number
-): StoredHighlight | null {
-  return marks.find((mark) => mark.start <= index && index < mark.end) ?? null;
-}

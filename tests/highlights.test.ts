@@ -5,7 +5,6 @@ import {
   excerptOf,
   exportFileName,
   MAX_HIGHLIGHT_WORDS,
-  markCovering,
   MAX_NOTE_CHARS,
   normalizeRange,
   segmentsOf,
@@ -257,16 +256,3 @@ describe("segmentsOf", () => {
   });
 });
 
-describe("markCovering", () => {
-  const marks = [{ id: "a", start: 5, end: 8, note: null }];
-
-  it("acha o destaque que cobre a palavra", () => {
-    expect(markCovering(marks, 5)!.id).toBe("a");
-    expect(markCovering(marks, 7)!.id).toBe("a");
-  });
-
-  it("o fim e exclusivo", () => {
-    expect(markCovering(marks, 8)).toBeNull();
-    expect(markCovering(marks, 4)).toBeNull();
-  });
-});

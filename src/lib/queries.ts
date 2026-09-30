@@ -97,9 +97,7 @@ import type {
 
 export const DEFAULT_SETTINGS: SettingsPayload = {
   baseWpm: 300,
-  wordsPerChunk: 1,
   highlightOpacity: 0.35,
-  readingMode: "rsvp",
   theme: "system",
   fontScale: 3,
   fontFamily: "sans",
@@ -108,9 +106,7 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   wordEmphasis: false,
   adaptiveRhythm: true,
   askCheckpoints: false,
-  paragraphPause: false,
   resumeRewind: true,
-  dimLines: false,
   eyeRest: true,
   timezone: "UTC",
   weeklySummarySeenOn: null,
@@ -207,9 +203,7 @@ function settingsFrom(row: typeof speedSettings.$inferSelect | null): SettingsPa
 
   return {
     baseWpm: row.baseWpm,
-    wordsPerChunk: row.wordsPerChunk,
     highlightOpacity: row.highlightOpacity,
-    readingMode: row.readingMode as SettingsPayload["readingMode"],
     theme: row.theme as SettingsPayload["theme"],
     fontScale: row.fontScale,
     fontFamily: asFontFamily(row.fontFamily),
@@ -218,9 +212,7 @@ function settingsFrom(row: typeof speedSettings.$inferSelect | null): SettingsPa
     wordEmphasis: row.wordEmphasis,
     adaptiveRhythm: row.adaptiveRhythm,
     askCheckpoints: row.askCheckpoints,
-    paragraphPause: row.paragraphPause,
     resumeRewind: row.resumeRewind,
-    dimLines: row.dimLines,
     eyeRest: row.eyeRest,
     timezone: asTimezone(row.timezone),
     weeklySummarySeenOn: row.weeklySummarySeenOn,
