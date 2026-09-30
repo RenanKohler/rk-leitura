@@ -69,10 +69,10 @@ export async function POST(request: Request) {
     const sourceUrl = rawSourceUrl ? normalizeSourceUrl(rawSourceUrl) : null;
 
     if (!title || !content) {
-      return jsonError("Titulo e conteudo sao obrigatorios.", 400);
+      return jsonError("Título e conteúdo são obrigatórios.", 400);
     }
     if (content.length > MAX_CONTENT_CHARS) {
-      return jsonError("O texto e grande demais.", 413);
+      return jsonError("O texto é grande demais.", 413);
     }
 
     // Capitulo reconhecido vira vinculo de serie; nao reconhecido fica solto,
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     const format = asTextFormat(body?.format);
     const wordCount = countWords(content, format);
     if (wordCount === 0) {
-      return jsonError("O texto nao tem palavras para ler.", 400);
+      return jsonError("O texto não tem palavras para ler.", 400);
     }
 
     const declared = asDeclaredSeries(body?.series);

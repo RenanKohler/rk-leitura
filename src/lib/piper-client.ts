@@ -124,7 +124,7 @@ export async function downloadVoice(
 
   const estimate = await navigator.storage?.estimate?.().catch(() => undefined);
   if (estimate?.quota && estimate.usage !== undefined && estimate.quota - estimate.usage < total * 1.1) {
-    throw new Error("Nao ha espaco livre suficiente no aparelho para esta voz.");
+    throw new Error("Não há espaço livre suficiente no aparelho para esta voz.");
   }
   // Pede que o navegador nao apague a voz sozinho quando faltar espaco.
   await navigator.storage?.persist?.().catch(() => false);
@@ -135,7 +135,7 @@ export async function downloadVoice(
   for (const url of missing) {
     const response = await fetch(url, { signal });
     if (!response.ok || !response.body) {
-      throw new Error("O download da voz falhou. Verifique a conexao e tente de novo.");
+      throw new Error("O download da voz falhou. Verifique a conexão e tente de novo.");
     }
 
     const reader = response.body.getReader();
@@ -193,7 +193,7 @@ class PiperEngine {
 
   private request<T>(message: Record<string, unknown>, transfer: Transferable[] = []): Promise<T> {
     const worker = this.worker;
-    if (!worker) return Promise.reject(new Error("Motor de voz nao iniciado."));
+    if (!worker) return Promise.reject(new Error("Motor de voz não iniciado."));
     const id = ++this.sequence;
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: resolve as (value: unknown) => void, reject });
@@ -262,7 +262,7 @@ class PiperEngine {
         cache.match(modelUrl(voice)),
         cache.match(configUrl(voice)),
       ]);
-      if (!model || !config) throw new Error("A voz nao esta baixada neste aparelho.");
+      if (!model || !config) throw new Error("A voz não está baixada neste aparelho.");
 
       const buffer = await model.arrayBuffer();
       await this.request(

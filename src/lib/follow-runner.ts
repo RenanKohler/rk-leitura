@@ -109,13 +109,13 @@ async function checkSeries(
 
     report.imported += 1;
     await notifyUser(userId, {
-      title: "Capitulo novo",
+      title: "Capítulo novo",
       body: result.title,
       url: `/leitor/${result.id}`,
     });
     return "novo";
   } catch (error) {
-    console.error("[acompanhamento] falha na serie:", error instanceof Error ? error.message : error);
+    console.error("[acompanhamento] falha na série:", error instanceof Error ? error.message : error);
     return "falha";
   }
 }

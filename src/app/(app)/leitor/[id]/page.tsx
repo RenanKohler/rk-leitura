@@ -30,7 +30,7 @@ export default async function ReaderPage({
   if (!loaded) {
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <h1 className="text-xl font-semibold tracking-tight">Texto nao encontrado</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Texto não encontrado</h1>
         <p className="text-muted">Ele pode ter sido removido.</p>
         <Link
           href="/textos"

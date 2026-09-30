@@ -43,11 +43,11 @@ async function post<T>(
     return {
       ok: false,
       status: response.status,
-      error: data.error ?? "Falha na requisicao.",
+      error: data.error ?? "Falha na requisição.",
       retryAfter: typeof data.retryAfter === "number" ? data.retryAfter : undefined,
     };
   } catch {
-    return { ok: false, status: 0, error: "Sem conexao." };
+    return { ok: false, status: 0, error: "Sem conexão." };
   }
 }
 
@@ -89,7 +89,7 @@ export function BatchImport() {
       setTruncated(over);
       setItems(links.map((link) => ({ ...link, status: { state: "pendente" } })));
     } catch {
-      setError("Nao consegui ler o arquivo.");
+      setError("Não consegui ler o arquivo.");
     }
   };
 
@@ -151,7 +151,7 @@ export function BatchImport() {
     <div className="space-y-4">
       <Card className="space-y-4 p-4">
         <p className="text-sm text-muted">
-          {`Envie a lista exportada do Instapaper, Pocket ou Readwise (.csv com a coluna URL) ou o export em HTML do Pocket. Ate ${MAX_BATCH_LINKS} links, importados um por segundo.`}
+          {`Envie a lista exportada do Instapaper, Pocket ou Readwise (.csv com a coluna URL) ou o export em HTML do Pocket. Até ${MAX_BATCH_LINKS} links, importados um por segundo.`}
         </p>
         <input
           ref={inputRef}
@@ -183,7 +183,7 @@ export function BatchImport() {
             <span className="truncate text-sm text-muted">{fileName}</span>
           </div>
           {truncated > 0 ? (
-            <p className="text-sm text-faint">{`${truncated} links alem do limite de ${MAX_BATCH_LINKS} ficaram de fora.`}</p>
+            <p className="text-sm text-faint">{`${truncated} links além do limite de ${MAX_BATCH_LINKS} ficaram de fora.`}</p>
           ) : null}
 
           <label className="flex min-h-11 items-center gap-3 text-sm">
@@ -220,7 +220,7 @@ export function BatchImport() {
 
           {waiting > 0 ? (
             <p className="text-sm text-muted" aria-live="polite">
-              {`Limite de importacoes atingido. Continuando em ${waiting} s.`}
+              {`Limite de importações atingido. Continuando em ${waiting} s.`}
             </p>
           ) : null}
 

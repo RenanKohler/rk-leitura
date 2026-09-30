@@ -518,7 +518,7 @@ function Reader({
         if (stateRef.current.playing) setAnnouncement("Frase destacada.");
         else notify("Trecho destacado.", "success");
       } catch (cause) {
-        notify(cause instanceof Error ? cause.message : "Nao consegui destacar.", "error");
+        notify(cause instanceof Error ? cause.message : "Não consegui destacar.", "error");
       } finally {
         setMarking(false);
         clearSelection();
@@ -589,9 +589,9 @@ function Reader({
       );
 
       if (result.id) router.push(`/leitor/${result.id}`);
-      else notify(result.message ?? "Esta e a ultima parte da serie.", "info");
+      else notify(result.message ?? "Esta é a última parte da série.", "info");
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Sem conexao para buscar.", "error");
+      notify(cause instanceof Error ? cause.message : "Sem conexão para buscar.", "error");
     } finally {
       setLoadingNext(false);
     }
@@ -708,7 +708,7 @@ function Reader({
       saveProgress(stateRef.current.total);
       setSummary(done);
       flushSession(true);
-      setAnnouncement("Leitura concluida.");
+      setAnnouncement("Leitura concluída.");
     },
     [saveProgress, flushSession]
   );
@@ -755,7 +755,7 @@ function Reader({
     setFinished(false);
     setTapped(null);
     setPlaying(true);
-    setAnnouncement(playMode === "guia" ? "Guia na pagina iniciado." : "Word Runner iniciado.");
+    setAnnouncement(playMode === "guia" ? "Guia na página iniciado." : "Word Runner iniciado.");
   }, [resumeRewind, words, paragraphs, wpm, language, postRecord, playMode, speech]);
 
   const togglePlay = useCallback(() => {
@@ -1032,12 +1032,12 @@ function Reader({
       }
 
       notify(
-        result.message ?? "Nao ha mais partes neste texto.",
+        result.message ?? "Não há mais partes neste texto.",
         result.status === "unavailable" ? "error" : "info"
       );
       return false;
     } catch {
-      notify("Sem conexao para buscar a proxima parte.", "error");
+      notify("Sem conexão para buscar a próxima parte.", "error");
       return false;
     } finally {
       setLoadingMore(false);
@@ -1069,7 +1069,7 @@ function Reader({
       if (target === undefined) {
         if (direction === -1) {
           // Na primeira pagina, voltar nao mexe na posicao escolhida.
-          notify("Inicio do texto.", "info");
+          notify("Início do texto.", "info");
           return;
         }
         // Fim do que ja foi importado: tenta trazer a proxima parte da origem;
@@ -1168,7 +1168,7 @@ function Reader({
         flushSession(false, true);
         window.location.reload();
       } catch (cause) {
-        notify(cause instanceof Error ? cause.message : "Nao consegui reprocessar.", "error");
+        notify(cause instanceof Error ? cause.message : "Não consegui reprocessar.", "error");
         setReprocessing(false);
       }
     },
@@ -1236,7 +1236,7 @@ function Reader({
       notify("Texto largado. Ele fica no filtro Largados da biblioteca.", "success");
       router.push("/textos");
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Nao consegui largar.", "error");
+      notify(cause instanceof Error ? cause.message : "Não consegui largar.", "error");
       setAbandoning(false);
     }
   }, [text.id, saveProgress, notify, router]);
@@ -1246,9 +1246,9 @@ function Reader({
     try {
       await apiSend(`/api/texts/${text.id}/largar`, "DELETE");
       setResumed(true);
-      notify("Texto de volta a biblioteca.", "success");
+      notify("Texto de volta à biblioteca.", "success");
     } catch {
-      notify("Nao consegui retomar.", "error");
+      notify("Não consegui retomar.", "error");
     }
   }, [text.id, notify]);
 
@@ -1387,7 +1387,7 @@ function Reader({
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-4 px-6 text-center">
         <h1 className="text-xl font-semibold tracking-tight">Texto vazio</h1>
-        <p className="text-muted">Nao ha palavras para ler neste registro.</p>
+        <p className="text-muted">Não há palavras para ler neste registro.</p>
         <Link href="/textos" className="font-medium text-accent">
           Voltar para a biblioteca
         </Link>
@@ -1586,7 +1586,7 @@ function Reader({
           <div className="pointer-events-none absolute inset-x-0 bottom-full flex flex-col items-center gap-2 px-4 pb-2">
             {text.abandoned && !resumed ? (
               <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-float">
-                <p className="flex-1 text-sm">Voce largou este texto. Ele esta fora da biblioteca.</p>
+                <p className="flex-1 text-sm">Você largou este texto. Ele está fora da biblioteca.</p>
                 <Button size="sm" onClick={() => void resume()}>
                   Retomar
                 </Button>
@@ -1598,7 +1598,7 @@ function Reader({
                 <div>
                   <p className="font-medium">Recapitular o contexto</p>
                   <p className="text-sm text-muted">
-                    Faz tempo desde a ultima leitura. Reveja o trecho anterior antes de continuar.
+                    Faz tempo desde a última leitura. Reveja o trecho anterior antes de continuar.
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -1613,7 +1613,7 @@ function Reader({
             {chapterRecap && !recap && !playing && !narrating ? (
               <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
                 <div>
-                  <p className="font-medium">Recapitular o capitulo anterior</p>
+                  <p className="font-medium">Recapitular o capítulo anterior</p>
                   <p className="text-sm text-muted">
                     {`Faz tempo desde "${chapterRecap.title}". Reveja os destaques e o final antes de seguir.`}
                   </p>
@@ -1641,7 +1641,7 @@ function Reader({
                 </Button>
                 <button
                   type="button"
-                  aria-label="Dispensar sugestao"
+                  aria-label="Dispensar sugestão"
                   onClick={() => setSlowdown(null)}
                   className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
                 >
@@ -1678,7 +1678,7 @@ function Reader({
                   <MarkIcon className="size-5" />
                   Destacar
                 </Button>
-                <ControlButton label="Cancelar selecao" onClick={clearSelection}>
+                <ControlButton label="Cancelar seleção" onClick={clearSelection}>
                   <CloseIcon className="size-5" />
                 </ControlButton>
               </div>
@@ -1716,7 +1716,7 @@ function Reader({
             <div className="grid grid-cols-5 items-center justify-items-center">
               {!playing ? (
                 <ControlButton
-                  label={narrating ? "Parar a narracao" : "Ler em voz alta"}
+                  label={narrating ? "Parar a narração" : "Ler em voz alta"}
                   onClick={toggleSpeech}
                   active={narrating}
                 >
@@ -1731,7 +1731,7 @@ function Reader({
                   <RewindIcon className="size-5" />
                 </ControlButton>
               ) : (
-                <ControlButton label="Pagina anterior" onClick={() => turnPage(-1)}>
+                <ControlButton label="Página anterior" onClick={() => turnPage(-1)}>
                   <BackIcon className="size-5" />
                 </ControlButton>
               )}
@@ -1747,11 +1747,11 @@ function Reader({
               </button>
 
               {playing ? (
-                <ControlButton label="Avancar a frase" onClick={forwardSentence}>
+                <ControlButton label="Avançar a frase" onClick={forwardSentence}>
                   <FastForwardIcon className="size-5" />
                 </ControlButton>
               ) : (
-                <ControlButton label="Proxima pagina" onClick={() => turnPage(1)}>
+                <ControlButton label="Próxima página" onClick={() => turnPage(1)}>
                   <ForwardIcon className="size-5" />
                 </ControlButton>
               )}
@@ -1780,10 +1780,10 @@ function Reader({
                     : `${wpm} ppm`
                   : pagesReady
                     ? stopPage !== null && !stopReached
-                      ? `Pagina ${currentPage + 1} de ${pages.length} · trecho ate a p. ${stopPage}${
+                      ? `Página ${currentPage + 1} de ${pages.length} · trecho até a p. ${stopPage}${
                           plannedMs ? ` (~${formatClock(plannedMs)})` : ""
                         }`
-                      : `Pagina ${currentPage + 1} de ${pages.length}`
+                      : `Página ${currentPage + 1} de ${pages.length}`
                     : ""}
               </p>
             </div>
@@ -1812,7 +1812,7 @@ function Reader({
                     setAnchor(position);
                   }}
                 >
-                  Comecar daqui
+                  Começar daqui
                 </Button>
                 <Button
                   variant="secondary"
@@ -1915,7 +1915,7 @@ function Reader({
               value={adaptive ? "dinamico" : "uniforme"}
               onChange={(value) => void save({ adaptiveRhythm: value === "dinamico" })}
               options={[
-                { value: "dinamico", label: "Dinamico" },
+                { value: "dinamico", label: "Dinâmico" },
                 { value: "uniforme", label: "Uniforme" },
               ]}
             />
@@ -1929,13 +1929,13 @@ function Reader({
               onChange={setPlayMode}
               options={[
                 { value: "runner", label: "Word Runner" },
-                { value: "guia", label: "Guia na pagina" },
+                { value: "guia", label: "Guia na página" },
               ]}
             />
             <p className="text-sm text-faint">
               {playMode === "runner"
                 ? "Uma palavra por vez no centro da tela, com a frase em volta embaixo."
-                : "A palavra atual anda marcada na propria pagina, no mesmo ritmo, e a pagina vira sozinha."}
+                : "A palavra atual anda marcada na própria página, no mesmo ritmo, e a página vira sozinha."}
             </p>
           </div>
 
@@ -2008,17 +2008,17 @@ function Reader({
             }}
           >
             <RestartIcon className="size-5" />
-            Comecar do inicio
+            Começar do início
           </Button>
 
           {citations > 0 && !text.referencesOmitted ? (
             <Button variant="secondary" full loading={reprocessing} onClick={() => void reprocess("omitir")}>
-              {`Omitir referencias do texto (${citations})`}
+              {`Omitir referências do texto (${citations})`}
             </Button>
           ) : null}
           {text.referencesOmitted ? (
             <Button variant="secondary" full loading={reprocessing} onClick={() => void reprocess("restaurar")}>
-              Restaurar referencias
+              Restaurar referências
             </Button>
           ) : null}
 
@@ -2026,7 +2026,7 @@ function Reader({
             href={`/textos/${text.id}/leituras`}
             className="flex min-h-11 items-center justify-center rounded-full text-sm font-medium text-muted hover:bg-surface-2 hover:text-ink"
           >
-            Historico deste texto
+            Histórico deste texto
           </Link>
           <Link
             href="/ajustes"
@@ -2051,10 +2051,10 @@ function Reader({
         </div>
       </Sheet>
 
-      <Sheet open={confirmRestart} onClose={() => setConfirmRestart(false)} title="Comecar do inicio?">
+      <Sheet open={confirmRestart} onClose={() => setConfirmRestart(false)} title="Começar do início?">
         <div className="space-y-4">
           <p className="text-sm text-muted">
-            {`A leitura esta em ${Math.round((index / total) * 100)}%. Voltar ao inicio troca a posicao salva.`}
+            {`A leitura está em ${Math.round((index / total) * 100)}%. Voltar ao início troca a posição salva.`}
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Button variant="secondary" size="lg" onClick={() => setConfirmRestart(false)}>
@@ -2068,7 +2068,7 @@ function Reader({
                 notify("Leitura reiniciada.");
               }}
             >
-              Comecar do inicio
+              Começar do início
             </Button>
           </div>
         </div>
@@ -2081,8 +2081,8 @@ function Reader({
       >
         <div className="space-y-4">
           <p className="text-sm text-muted">
-            Ele sai da biblioteca e da fila e fica no filtro Largados. O que voce ja leu continua
-            contando na meta e no historico, e da para retomar depois.
+            Ele sai da biblioteca e da fila e fica no filtro Largados. O que você já leu continua
+            contando na meta e no histórico, e dá para retomar depois.
           </p>
           <Button variant="danger" size="lg" full loading={abandoning} onClick={() => void abandon()}>
             Largar texto
@@ -2095,7 +2095,7 @@ function Reader({
       <Sheet open={checkpoint !== null} onClose={() => setCheckpoint(null)} title="Isso ainda vale?">
         <div className="space-y-4">
           <p className="text-sm text-muted">
-            {`Voce leu ${checkpoint ?? 0}% de "${text.title}". Se o texto deixou de interessar, largar agora economiza o resto do tempo.`}
+            {`Você leu ${checkpoint ?? 0}% de "${text.title}". Se o texto deixou de interessar, largar agora economiza o resto do tempo.`}
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Button
@@ -2164,7 +2164,7 @@ function Reader({
 const FONT_LABELS: Record<FontFamily, string> = {
   sans: "Sem serifa",
   serif: "Com serifa",
-  legivel: "Legivel",
+  legivel: "Legível",
 };
 
 const LINE_HEIGHT_LABELS = ["Compacto", "Normal", "Folgado"];
@@ -2184,24 +2184,24 @@ function formatRemaining(ms: number): string {
 function speedHint(wpm: number, real: number | null): string {
   const band = `Faixa: ${SPEED_BAND_LABELS[speedBand(wpm)]}.`;
   const warning = speedBandWarning(wpm);
-  const parts = [band, warning, real !== null ? `Com as pausas de pontuacao, ~${real} ppm neste texto.` : null];
+  const parts = [band, warning, real !== null ? `Com as pausas de pontuação, ~${real} ppm neste texto.` : null];
   return parts.filter(Boolean).join(" ");
 }
 
 const GESTURES: [string, string][] = [
-  ["Play", "Inicia o Word Runner (ou o guia na pagina) da palavra atual"],
-  ["Tocar no Word Runner", "Freia: volta a pagina com a palavra atual marcada"],
-  ["Tocar numa palavra", "A leitura seguinte comeca dela"],
-  ["Tocar na borda ou deslizar", "Vira a pagina"],
+  ["Play", "Inicia o Word Runner (ou o guia na página) da palavra atual"],
+  ["Tocar no Word Runner", "Freia: volta a página com a palavra atual marcada"],
+  ["Tocar numa palavra", "A leitura seguinte começa dela"],
+  ["Tocar na borda ou deslizar", "Vira a página"],
   ["Tocar e segurar", "Mostra o significado da palavra"],
   ["Arrastar sobre o texto", "Seleciona para destacar"],
 ];
 
 const SHORTCUTS: [string, string][] = [
-  ["Espaco ou K", "Iniciar ou pausar o Word Runner"],
+  ["Espaço ou K", "Iniciar ou pausar o Word Runner"],
   ["Seta para cima / baixo", "Mais ou menos 25 ppm"],
-  ["Seta para a esquerda / direita", "Pagina anterior ou seguinte; no Word Runner, frase"],
-  ["Shift + seta para a esquerda", "Voltar ao inicio da frase"],
+  ["Seta para a esquerda / direita", "Página anterior ou seguinte; no Word Runner, frase"],
+  ["Shift + seta para a esquerda", "Voltar ao início da frase"],
   ["D", "Significado da palavra atual"],
   ["H", "Destacar a frase atual"],
   ["/", "Buscar e navegar no texto"],
@@ -2251,7 +2251,7 @@ function EyeRestSheet({
             Continuar a leitura
           </Button>
         ) : (
-          <p className="text-sm text-muted">A leitura esta pausada.</p>
+          <p className="text-sm text-muted">A leitura está pausada.</p>
         )}
       </div>
     </Sheet>
@@ -2292,15 +2292,15 @@ function blockLabel(block: Paragraph | undefined): string | null {
     case "h1":
     case "h2":
     case "h3":
-      return "Titulo";
+      return "Título";
     case "li":
       return "Item de lista";
     case "oli":
       return block.marker ? `Item ${block.marker}` : "Item de lista";
     case "quote":
-      return "Citacao";
+      return "Citação";
     case "code":
-      return "Codigo";
+      return "Código";
     default:
       return null;
   }
@@ -2814,7 +2814,7 @@ const PageStage = memo(function PageStage({
       {loadingMore ? (
         <p className="absolute inset-x-0 bottom-1 flex items-center justify-center gap-2 text-sm text-muted">
           <Spinner />
-          Buscando a proxima parte
+          Buscando a próxima parte
         </p>
       ) : null}
     </div>
@@ -2863,7 +2863,7 @@ function Finished({
         <CheckIcon className="size-8" />
       </div>
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Leitura concluida</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Leitura concluída</h2>
         <p className="mt-1 text-muted">
           {`${formatNumber(total)} ${total === 1 ? "palavra" : "palavras"}`}
         </p>
@@ -2901,7 +2901,7 @@ function Finished({
       ) : null}
       {measurable ? (
         <p className="-mt-3 max-w-sm text-xs text-faint">
-          O ritmo real inclui as pausas de pontuacao; o historico e o treino usam o ritmo das palavras.
+          O ritmo real inclui as pausas de pontuação; o histórico e o treino usam o ritmo das palavras.
         </p>
       ) : null}
 
@@ -2913,9 +2913,9 @@ function Finished({
             <ForwardIcon className="size-5" />
             {nextUp.source === "capitulo"
               ? nextUp.textId
-                ? `Capitulo ${nextUp.chapter ?? ""}`.trim()
-                : `Buscar o capitulo ${nextUp.chapter ?? ""}`.trim()
-              : "Proximo da fila"}
+                ? `Capítulo ${nextUp.chapter ?? ""}`.trim()
+                : `Buscar o capítulo ${nextUp.chapter ?? ""}`.trim()
+              : "Próximo da fila"}
           </Button>
         ) : null}
 
@@ -2926,7 +2926,7 @@ function Finished({
         {canQuiz ? (
           <Button variant="secondary" size="lg" full onClick={onQuiz}>
             <SparkIcon className="size-5" />
-            {comprehension === null ? "Testar compreensao" : "Ver o questionario"}
+            {comprehension === null ? "Testar compreensão" : "Ver o questionário"}
           </Button>
         ) : null}
 
@@ -2939,7 +2939,7 @@ function Finished({
             onClick={onContinue}
           >
             <ForwardIcon className="size-5" />
-            {loadingMore ? "Buscando" : "Buscar proxima parte"}
+            {loadingMore ? "Buscando" : "Buscar próxima parte"}
           </Button>
         ) : null}
 
@@ -3011,7 +3011,7 @@ function RecapPlayer({
     <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 text-center">
       {title ? <p className="text-sm font-semibold">{title}</p> : null}
       <p className="text-sm font-medium text-muted">
-        {mark ? "Seus destaques ate aqui" : "Onde voce parou"}
+        {mark ? "Seus destaques até aqui" : "Onde você parou"}
       </p>
       {mark ? (
         <div className="w-full max-w-2xl space-y-3">
@@ -3024,7 +3024,7 @@ function RecapPlayer({
         </p>
       )}
       <Button variant="ghost" onClick={onSkip}>
-        Pular a recapitulacao
+        Pular a recapitulação
       </Button>
     </div>
   );
@@ -3038,15 +3038,15 @@ function RecapPlayer({
 const TIPS: { title: string; body: string }[] = [
   {
     title: "O play abre o Word Runner",
-    body: "Uma palavra por vez no centro, com a frase em volta embaixo. Pausas curtas na virgula e maiores no fim da frase e do paragrafo.",
+    body: "Uma palavra por vez no centro, com a frase em volta embaixo. Pausas curtas na vírgula e maiores no fim da frase e do parágrafo.",
   },
   {
     title: "Toque no Word Runner para frear",
-    body: "A pagina volta com a palavra atual marcada. Durante a leitura, os botoes do rodape voltam e avancam uma frase.",
+    body: "A página volta com a palavra atual marcada. Durante a leitura, os botões do rodapé voltam e avançam uma frase.",
   },
   {
-    title: "Na pagina",
-    body: "Toque numa palavra para comecar dela. Toque na borda ou deslize para virar. Toque e segure para ver o significado.",
+    title: "Na página",
+    body: "Toque numa palavra para começar dela. Toque na borda ou deslize para virar. Toque e segure para ver o significado.",
   },
 ];
 
@@ -3076,7 +3076,7 @@ function ReaderTips({ onDone }: { onDone: () => void }) {
             </Button>
           ) : null}
           <Button size="sm" onClick={() => (last ? onDone() : setStep(step + 1))}>
-            {last ? "Entendi" : "Proximo"}
+            {last ? "Entendi" : "Próximo"}
           </Button>
         </div>
       </section>

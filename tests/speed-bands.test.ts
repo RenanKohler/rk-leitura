@@ -14,7 +14,7 @@ describe("speedBand", () => {
 
   it("acima de 600 ppm e varredura, com aviso", () => {
     expect(speedBand(610)).toBe("varredura");
-    expect(speedBandWarning(610)).toMatch(/compreensao costuma cair/);
+    expect(speedBandWarning(610)).toMatch(/compreensão costuma cair/);
     expect(speedBandWarning(600)).toBeNull();
   });
 });

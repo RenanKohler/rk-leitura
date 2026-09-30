@@ -86,7 +86,7 @@ export function ShareImport({
 
         {running ? (
           <p className="text-sm text-muted">
-            Buscando a pagina e extraindo o texto. O leitor abre sozinho quando terminar.
+            Buscando a página e extraindo o texto. O leitor abre sozinho quando terminar.
           </p>
         ) : (
           <div className="space-y-2">

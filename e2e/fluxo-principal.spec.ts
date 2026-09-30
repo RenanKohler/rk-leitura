@@ -32,13 +32,13 @@ test("cadastro, texto colado, leitura no Word Runner e historico", async ({ page
 
   await page.goto("/textos/novo");
   await page.getByRole("radio", { name: "Colar" }).click();
-  await page.getByRole("textbox", { name: "Titulo" }).fill("Texto do teste de ponta a ponta");
+  await page.getByRole("textbox", { name: "Título" }).fill("Texto do teste de ponta a ponta");
   await page.getByRole("textbox", { name: "Texto" }).fill(sampleText(40));
   await page.getByRole("button", { name: "Salvar e ler" }).click();
 
   await expect(page).toHaveURL(/\/leitor\//);
   await page.getByRole("button", { name: "Iniciar leitura" }).click();
-  await expect(page.getByRole("heading", { name: "Leitura concluida" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Leitura concluída" })).toBeVisible({
     timeout: 20_000,
   });
 
@@ -55,13 +55,13 @@ test("a pagina vira por toque lateral e grava a pagina exibida", async ({ page }
   const text = await createText(page.request, "Texto longo em paginas", 900);
 
   await openReader(page, text.id);
-  const counter = page.getByText(/^Pagina \d+ de \d+$/);
-  await expect(counter).toHaveText(/^Pagina 1 de \d+$/);
+  const counter = page.getByText(/^Página \d+ de \d+$/);
+  await expect(counter).toHaveText(/^Página 1 de \d+$/);
 
   // Toque na borda direita do texto vira a pagina.
   const box = (await page.locator("main").boundingBox())!;
   await page.mouse.click(box.x + box.width - 8, box.y + box.height / 2);
-  await expect(counter).toHaveText(/^Pagina 2 de \d+$/);
+  await expect(counter).toHaveText(/^Página 2 de \d+$/);
 
   // Sair do leitor grava a posicao.
   await page.getByRole("link", { name: "Voltar" }).click();
@@ -69,7 +69,7 @@ test("a pagina vira por toque lateral e grava a pagina exibida", async ({ page }
   await expect.poll(() => progressOf(page.request, text.id)).toBeGreaterThan(0);
 
   await openReader(page, text.id);
-  await expect(page.getByText(/^Pagina \d+ de \d+$/)).toHaveText(/^Pagina 2 de \d+$/);
+  await expect(page.getByText(/^Página \d+ de \d+$/)).toHaveText(/^Página 2 de \d+$/);
 });
 
 /**
@@ -83,7 +83,7 @@ test("o Word Runner roda sobre a pagina e pausar volta a ela", async ({ page }) 
   const text = await createText(page.request, "Texto para o Word Runner", 200);
 
   await openReader(page, text.id);
-  await expect(page.getByText(/^Pagina 1 de \d+$/)).toBeVisible();
+  await expect(page.getByText(/^Página 1 de \d+$/)).toBeVisible();
   await expect(page.getByTestId("word-runner")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Iniciar leitura" }).click();
@@ -98,7 +98,7 @@ test("o Word Runner roda sobre a pagina e pausar volta a ela", async ({ page }) 
   await runner.click();
   await expect(runner).toHaveCount(0);
   await expect(page.getByTestId("palavra-atual")).toBeVisible();
-  await expect(page.getByText(/^Pagina 1 de \d+$/)).toBeVisible();
+  await expect(page.getByText(/^Página 1 de \d+$/)).toBeVisible();
 });
 
 /**
@@ -113,7 +113,7 @@ test("importacao de arquivo recusa formato desconhecido e aceita .txt", async ({
 
   await input.setInputFiles({ name: "foto.png", mimeType: "image/png", buffer: Buffer.from("png") });
   await expect(
-    page.getByText("Formato nao suportado. Use PDF, EPUB, DOCX, MD ou TXT")
+    page.getByText("Formato não suportado. Use PDF, EPUB, DOCX, MD ou TXT")
   ).toBeVisible();
   await expect(page.getByText(/Invalid PDF/)).toHaveCount(0);
 
@@ -122,6 +122,6 @@ test("importacao de arquivo recusa formato desconhecido e aceita .txt", async ({
     mimeType: "text/plain",
     buffer: Buffer.from(sampleText(30)),
   });
-  await expect(page.getByRole("textbox", { name: "Titulo" })).toHaveValue("conto curto");
+  await expect(page.getByRole("textbox", { name: "Título" })).toHaveValue("conto curto");
   await expect(page.getByText("30 palavras")).toBeVisible();
 });

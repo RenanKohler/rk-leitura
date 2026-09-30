@@ -26,32 +26,32 @@ export class LookupUnavailable extends Error {
 }
 
 const EntrySchema = z.object({
-  base: z.string().describe("Forma de dicionario: infinitivo, singular, masculino."),
+  base: z.string().describe("Forma de dicionário: infinitivo, singular, masculino."),
   kind: z
     .string()
     .describe("Classe gramatical no uso desta frase: substantivo, verbo, adjetivo, etc."),
   definition: z
     .string()
-    .describe("Definicao curta, em uma ou duas frases, no sentido usado no trecho."),
+    .describe("Definição curta, em uma ou duas frases, no sentido usado no trecho."),
   translation: z
     .string()
     .describe(
-      "Traducao para o portugues no sentido do trecho; vazia quando a palavra ja e portuguesa."
+      "Tradução para o português no sentido do trecho; vazia quando a palavra já é portuguesa."
     ),
 });
 
 const SYSTEM = [
-  "Voce e um dicionario de portugues do Brasil.",
+  "Você é um dicionário de português do Brasil.",
   "Recebe uma palavra e a frase em que ela aparece, e devolve o sentido usado ali.",
-  "A definicao e curta e direta, escrita para quem esta lendo e nao quer parar.",
-  "Nunca repete a palavra consultada dentro da propria definicao.",
-  "Quando uma palavra de outro idioma aparecer em texto em portugues, define em portugues e diz o idioma em `kind`.",
+  "A definição é curta e direta, escrita para quem está lendo e não quer parar.",
+  "Nunca repete a palavra consultada dentro da própria definição.",
+  "Quando uma palavra de outro idioma aparecer em texto em português, define em português e diz o idioma em `kind`.",
 ].join(" ");
 
 function client(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) {
-    throw new LookupUnavailable("O dicionario nao esta configurado nesta instalacao.");
+    throw new LookupUnavailable("O dicionário não está configurado nesta instalação.");
   }
   return new Anthropic({ apiKey });
 }
@@ -68,7 +68,7 @@ function prompt(word: string, context: string, language: string): string {
   if (language === DEFAULT_LANGUAGE) return base;
 
   const name = languageName(language).toLowerCase();
-  return `${base}\n\nO texto esta em ${name}. Devolva a forma de dicionario em ${name}, a traducao para o portugues e a definicao em portugues.`;
+  return `${base}\n\nO texto está em ${name}. Devolva a forma de dicionário em ${name}, a tradução para o português e a definição em português.`;
 }
 
 export async function lookupWord(
@@ -92,24 +92,24 @@ export async function lookupWord(
   } catch (error) {
     if (error instanceof LookupUnavailable) throw error;
     if (error instanceof Anthropic.RateLimitError) {
-      throw new LookupUnavailable("O servico esta ocupado. Tente daqui a pouco.");
+      throw new LookupUnavailable("O serviço está ocupado. Tente daqui a pouco.");
     }
     if (error instanceof Anthropic.AuthenticationError) {
-      throw new LookupUnavailable("O dicionario nao esta configurado nesta instalacao.");
+      throw new LookupUnavailable("O dicionário não está configurado nesta instalação.");
     }
     console.error("[dicionario] falha:", error);
-    throw new LookupUnavailable("Nao consegui consultar agora.");
+    throw new LookupUnavailable("Não consegui consultar agora.");
   }
 
   // Custo por consulta: modelo que respondeu (muda quando o fallback atua) e tokens.
   console.info("[dicionario] uso:", response.model, JSON.stringify(response.usage));
 
   if (response.stop_reason === "refusal") {
-    throw new LookupUnavailable("Nao consigo definir esta palavra.");
+    throw new LookupUnavailable("Não consigo definir esta palavra.");
   }
 
   const entry = parseEntry(response.parsed_output, word);
-  if (!entry) throw new LookupUnavailable("Nao encontrei esta palavra.");
+  if (!entry) throw new LookupUnavailable("Não encontrei esta palavra.");
 
   // Palavra portuguesa nao tem traducao a mostrar.
   return language === DEFAULT_LANGUAGE ? { ...entry, translation: null } : entry;

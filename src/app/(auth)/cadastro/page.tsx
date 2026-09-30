@@ -74,7 +74,7 @@ export default function RegisterPage() {
           type="password"
           autoComplete="new-password"
           placeholder={`Ao menos ${MIN_PASSWORD_LENGTH} caracteres`}
-          hint="Use algo que so voce saiba."
+          hint="Use algo que só você saiba."
           minLength={MIN_PASSWORD_LENGTH}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -87,7 +87,7 @@ export default function RegisterPage() {
       </form>
 
       <p className="text-center text-sm text-muted">
-        Ja tem conta?{" "}
+        Já tem conta?{" "}
         <Link href="/login" className="font-medium text-accent">
           Entrar
         </Link>

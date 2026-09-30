@@ -55,19 +55,19 @@ export async function POST(request: Request) {
     const durationMs = asInteger(body?.durationMs);
 
     if (!textId || wordsRead === null || durationMs === null) {
-      return jsonError("Dados da sessao incompletos.", 400);
+      return jsonError("Dados da sessão incompletos.", 400);
     }
     if (wordsRead <= 0 || durationMs <= 0) {
-      return jsonError("Sessao sem leitura registrada.", 400);
+      return jsonError("Sessão sem leitura registrada.", 400);
     }
 
     const mode = resolveSessionMode(body?.mode, body?.narrated);
     if (!mode) {
-      return jsonError(`Modo invalido. Use ${SESSION_MODES.join(", ")}.`, 400);
+      return jsonError(`Modo inválido. Use ${SESSION_MODES.join(", ")}.`, 400);
     }
     const brakes = parseBrakes(body?.brakes);
     if (brakes === undefined) {
-      return jsonError("Freios invalidos: envie ate 200 posicoes inteiras.", 400);
+      return jsonError("Freios inválidos: envie até 200 posições inteiras.", 400);
     }
 
     // Sem esta checagem qualquer usuario grava sessoes no texto de outra conta
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       .where(and(eq(texts.id, textId), eq(texts.userId, session.id)))
       .limit(1);
 
-    if (!text) return jsonError("Texto nao encontrado.", 404);
+    if (!text) return jsonError("Texto não encontrado.", 404);
 
     // WPM recalculado no servidor a partir de palavras e duracao.
     const computedWpm = Math.round(wordsRead / (durationMs / 60_000));

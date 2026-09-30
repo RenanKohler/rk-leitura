@@ -16,7 +16,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Voce" };
+export const metadata = { title: "Você" };
 
 /**
  * Hub pessoal (APP-6): tudo o que e sobre o progresso de quem le.
@@ -40,16 +40,16 @@ export default async function YouPage() {
   const trainingStatus = !training
     ? "Teste de velocidade e programas de 14 ou 30 dias"
     : training.finished
-      ? "Programa concluido"
+      ? "Programa concluído"
       : `Dia ${training.currentDay} de ${training.length}${training.doneToday ? " · feito hoje" : " · pendente hoje"}`;
 
   return (
     <div className="space-y-6">
       <header className="pt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Voce</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Você</h1>
         <p className="mt-1 text-sm text-muted">
           {stats.sessions > 0
-            ? `${formatNumber(stats.wordsRead)} palavras em ${stats.sessions} ${stats.sessions === 1 ? "sessao" : "sessoes"}.`
+            ? `${formatNumber(stats.wordsRead)} palavras em ${stats.sessions} ${stats.sessions === 1 ? "sessão" : "sessões"}.`
             : "Seu progresso aparece aqui depois da primeira leitura."}
         </p>
       </header>
@@ -59,26 +59,26 @@ export default async function YouPage() {
           <Destination
             href="/estatisticas"
             icon={<ChartIcon className="size-5" />}
-            title="Estatisticas"
+            title="Estatísticas"
             detail={
               stats.avgWpm > 0
-                ? `Media de ${stats.avgWpm} ppm · calendario do ano`
-                : "Evolucao da velocidade e calendario do ano"
+                ? `Média de ${stats.avgWpm} ppm · calendário do ano`
+                : "Evolução da velocidade e calendário do ano"
             }
           />
           <Destination
             href="/historico"
             icon={<HistoryIcon className="size-5" />}
-            title="Historico"
-            detail="Todas as sessoes de leitura"
+            title="Histórico"
+            detail="Todas as sessões de leitura"
           />
           <Destination
             href={review.due > 0 ? "/palavras/revisar" : "/palavras"}
             icon={<WordsIcon className="size-5" />}
-            title="Palavras e revisao"
+            title="Palavras e revisão"
             detail={
               review.due > 0
-                ? `${review.due} ${review.due === 1 ? "revisao pendente" : "revisoes pendentes"}`
+                ? `${review.due} ${review.due === 1 ? "revisão pendente" : "revisões pendentes"}`
                 : review.totalWords > 0
                   ? `${review.totalWords} ${review.totalWords === 1 ? "palavra salva" : "palavras salvas"} · nada para revisar hoje`
                   : "Toque e segure numa palavra durante a leitura para salvar"
@@ -95,7 +95,7 @@ export default async function YouPage() {
             href="/ajustes"
             icon={<SettingsIcon className="size-5" />}
             title="Ajustes"
-            detail="Leitura, aparencia, conta e dados"
+            detail="Leitura, aparência, conta e dados"
           />
         </ul>
       </nav>

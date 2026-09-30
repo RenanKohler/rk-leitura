@@ -30,7 +30,7 @@ export async function POST(request: Request) {
       return jsonError("Preencha nome, e-mail e senha.", 400);
     }
     if (!EMAIL_PATTERN.test(email)) {
-      return jsonError("E-mail invalido.", 400);
+      return jsonError("E-mail inválido.", 400);
     }
     if (password.length < MIN_PASSWORD_LENGTH) {
       return jsonError(`A senha precisa ter ao menos ${MIN_PASSWORD_LENGTH} caracteres.`, 400);
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     // propria API usando NEXT_PUBLIC_BASE_URL, o que dependia dessa variavel
     // estar correta em producao e adicionava uma ida e volta de rede.
     if (await findUserByEmail(email)) {
-      return jsonError("Esse e-mail ja esta cadastrado.", 409);
+      return jsonError("Esse e-mail já está cadastrado.", 409);
     }
 
     const user = await createUser(email, password, name);
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   } catch (error) {
     // Corrida entre duas requisicoes com o mesmo e-mail: o indice unico decide.
     if (error instanceof Error && error.message.includes("users_email_unique")) {
-      return jsonError("Esse e-mail ja esta cadastrado.", 409);
+      return jsonError("Esse e-mail já está cadastrado.", 409);
     }
     return serverError("auth/register", error);
   }

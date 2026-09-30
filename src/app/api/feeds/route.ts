@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   // Busca uma URL arbitraria, como a importacao: mesmo limite.
   const limit = await rateLimit(`import:${clientIp(request)}`, 20, 10 * 60 * 1000);
   if (!limit.allowed) {
-    return jsonError("Muitas importacoes seguidas. Aguarde um pouco.", 429, {
+    return jsonError("Muitas importações seguidas. Aguarde um pouco.", 429, {
       retryAfter: limit.retryAfterSeconds,
     });
   }
@@ -62,14 +62,14 @@ export async function POST(request: Request) {
   try {
     const body = await readJson<{ url?: unknown }>(request);
     const raw = asString(body?.url);
-    if (!raw) return jsonError("Informe o endereco do feed.", 400);
+    if (!raw) return jsonError("Informe o endereço do feed.", 400);
 
     const [total] = await db
       .select({ value: count() })
       .from(feeds)
       .where(eq(feeds.userId, session.id));
     if ((total?.value ?? 0) >= MAX_FEEDS) {
-      return jsonError(`Voce ja assina ${MAX_FEEDS} feeds. Remova um para assinar outro.`, 409);
+      return jsonError(`Você já assina ${MAX_FEEDS} feeds. Remova um para assinar outro.`, 409);
     }
 
     let parsed;
@@ -81,11 +81,11 @@ export async function POST(request: Request) {
     } catch (error) {
       if (error instanceof SafeFetchError) return jsonError(error.message, 400);
       if (error instanceof Error && error.name === "TimeoutError") {
-        return jsonError("O endereco demorou demais para responder.", 504);
+        return jsonError("O endereço demorou demais para responder.", 504);
       }
       throw error;
     }
-    if (!parsed) return jsonError("Esse endereco nao e um feed RSS ou Atom.", 422);
+    if (!parsed) return jsonError("Esse endereço não é um feed RSS ou Atom.", 422);
 
     try {
       await db.insert(feeds).values({
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
         seenUntil: newestDate(parsed.items, new Date()),
       });
     } catch (error) {
-      if (isUniqueViolation(error)) return jsonError("Voce ja assina esse feed.", 409);
+      if (isUniqueViolation(error)) return jsonError("Você já assina esse feed.", 409);
       throw error;
     }
 
@@ -113,7 +113,7 @@ export async function DELETE(request: Request) {
 
   try {
     const id = new URL(request.url).searchParams.get("id") ?? "";
-    if (!UUID_PATTERN.test(id)) return jsonError("Feed nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Feed não encontrado.", 404);
 
     await db.delete(feeds).where(and(eq(feeds.id, id), eq(feeds.userId, session.id)));
     return NextResponse.json({ feeds: await list(session.id) });

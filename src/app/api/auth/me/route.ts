@@ -85,7 +85,7 @@ export async function PATCH(request: Request) {
     }
 
     const user = await getUserById(session.id);
-    if (!user) return jsonError("Sessao expirada. Entre novamente.", 401);
+    if (!user) return jsonError("Sessão expirada. Entre novamente.", 401);
 
     if (newPassword !== null) {
       if (!currentPassword || !(await verifyPassword(currentPassword, user.passwordHash))) {
@@ -115,7 +115,7 @@ export async function PATCH(request: Request) {
         version: users.sessionVersion,
       });
 
-    if (!updated) return jsonError("Sessao expirada. Entre novamente.", 401);
+    if (!updated) return jsonError("Sessão expirada. Entre novamente.", 401);
 
     // Reemitido sempre: o nome vive dentro do token, e a troca de senha muda a
     // versao - sem o token novo, este aparelho cairia junto com os outros.
@@ -152,7 +152,7 @@ export async function DELETE(request: Request) {
     const password = typeof body?.password === "string" ? body.password : null;
 
     const user = await getUserById(session.id);
-    if (!user) return jsonError("Sessao expirada. Entre novamente.", 401);
+    if (!user) return jsonError("Sessão expirada. Entre novamente.", 401);
 
     // Acao irreversivel: a senha e a confirmacao de que quem pediu e o dono da
     // conta, e nao alguem com o aparelho destravado na mao.

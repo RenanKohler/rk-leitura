@@ -89,11 +89,11 @@ export function QuizSheet({
           await startCloze(cause.message);
         } catch (clozeCause) {
           setError(
-            clozeCause instanceof Error ? clozeCause.message : "Nao consegui montar as perguntas."
+            clozeCause instanceof Error ? clozeCause.message : "Não consegui montar as perguntas."
           );
         }
       } else {
-        setError(cause instanceof Error ? cause.message : "Nao consegui montar o questionario.");
+        setError(cause instanceof Error ? cause.message : "Não consegui montar o questionário.");
       }
     } finally {
       setLoading(false);
@@ -106,7 +106,7 @@ export function QuizSheet({
     try {
       await startCloze();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui montar as perguntas.");
+      setError(cause instanceof Error ? cause.message : "Não consegui montar as perguntas.");
     } finally {
       setLoading(false);
     }
@@ -152,7 +152,7 @@ export function QuizSheet({
   const answered = answers.length > 0 && answers.every((value) => value >= 0);
 
   return (
-    <Sheet open={open} onClose={close} title="Compreensao">
+    <Sheet open={open} onClose={close} title="Compreensão">
       <div className="space-y-5">
         {error ? <Alert>{error}</Alert> : null}
 
@@ -213,7 +213,7 @@ export function QuizSheet({
                   Complete cada frase do trecho com a palavra que estava no texto.
                 </p>
                 {fallbackNote ? (
-                  <p className="text-xs text-faint">{`Perguntas montadas aqui mesmo, sem servico externo. (${fallbackNote})`}</p>
+                  <p className="text-xs text-faint">{`Perguntas montadas aqui mesmo, sem serviço externo. (${fallbackNote})`}</p>
                 ) : null}
               </div>
             ) : null}
@@ -255,21 +255,21 @@ export function QuizSheet({
         ) : (
           <>
             <p className="text-sm text-muted">
-              Algumas perguntas sobre o que voce acabou de ler, para saber se a velocidade esta
+              Algumas perguntas sobre o que você acabou de ler, para saber se a velocidade está
               atrapalhando o entendimento.
             </p>
             <p className="text-sm text-faint">
-              As perguntas sao geradas por um modelo de linguagem, e para isso o conteudo do texto e
-              enviado a um servico externo.
+              As perguntas são geradas por um modelo de linguagem, e para isso o conteúdo do texto é
+              enviado a um serviço externo.
             </p>
             <Button size="lg" full loading={loading} onClick={start}>
               {loading ? <Spinner className="size-5" /> : null}
-              {loading ? "Montando as perguntas" : "Comecar"}
+              {loading ? "Montando as perguntas" : "Começar"}
             </Button>
             {/* Para quem nao quer o texto fora do aparelho: as lacunas sao
                 montadas no proprio servidor do app. */}
             <Button variant="ghost" full disabled={loading} onClick={startLocal}>
-              Prefiro lacunas, sem servico externo
+              Prefiro lacunas, sem serviço externo
             </Button>
           </>
         )}

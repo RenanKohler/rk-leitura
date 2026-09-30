@@ -72,7 +72,7 @@ export function HighlightsClient({
     } catch {
       // Sem permissao de area de transferencia (ou fora de HTTPS) o arquivo
       // continua sendo um caminho: a exportacao nao depende de um so gesto.
-      notify("Nao consegui copiar. Use o download.", "error");
+      notify("Não consegui copiar. Use o download.", "error");
     }
   };
 
@@ -82,7 +82,7 @@ export function HighlightsClient({
       await apiSend(`/api/texts/${textId}/destaques/${id}`, "DELETE");
       setItems((current) => current.filter((item) => item.id !== id));
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Nao consegui remover.", "error");
+      notify(cause instanceof Error ? cause.message : "Não consegui remover.", "error");
     } finally {
       setBusy(false);
     }

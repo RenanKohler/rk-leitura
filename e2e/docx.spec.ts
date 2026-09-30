@@ -33,7 +33,7 @@ test("arquivo .docx e importado com a formatacao", async ({ page }) => {
     buffer: await docx(),
   });
 
-  await expect(page.getByRole("textbox", { name: "Titulo" })).toHaveValue("Relatorio 2026");
+  await expect(page.getByRole("textbox", { name: "Título" })).toHaveValue("Relatorio 2026");
   await page.getByRole("button", { name: "Salvar na biblioteca" }).click();
 
   await expect(page).toHaveURL(/\/leitor\//);
@@ -51,5 +51,5 @@ test("arquivo que nao e .docx valido mostra erro", async ({ page }) => {
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     buffer: Buffer.from("nao e zip"),
   });
-  await expect(page.getByText(/Nao foi possivel ler o documento/)).toBeVisible();
+  await expect(page.getByText(/Não foi possível ler o documento/)).toBeVisible();
 });

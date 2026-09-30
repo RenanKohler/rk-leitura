@@ -24,7 +24,7 @@ export async function GET() {
         .where(eq(pushSubscriptions.userId, session.id)),
     ]);
 
-    if (!settings) return jsonError("Sessao expirada. Entre novamente.", 401);
+    if (!settings) return jsonError("Sessão expirada. Entre novamente.", 401);
 
     return NextResponse.json({
       hour: settings.reminderHour,
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
   try {
     if (!pushConfigured()) {
-      return jsonError("O lembrete nao esta configurado nesta instalacao.", 503);
+      return jsonError("O lembrete não está configurado nesta instalação.", 503);
     }
 
     const body = await readJson<{ hour?: unknown; subscription?: unknown }>(request);
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     const auth = typeof subscription?.keys?.auth === "string" ? subscription.keys.auth : null;
 
     if (!endpoint || !p256dh || !auth) {
-      return jsonError("A inscricao do navegador veio incompleta.", 400);
+      return jsonError("A inscrição do navegador veio incompleta.", 400);
     }
 
     await db.transaction(async (tx) => {

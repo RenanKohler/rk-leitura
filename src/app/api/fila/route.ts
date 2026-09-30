@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   try {
     const body = await readJson<{ textId?: unknown }>(request);
     const textId = typeof body?.textId === "string" ? body.textId : "";
-    if (!UUID_PATTERN.test(textId)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(textId)) return jsonError("Texto não encontrado.", 404);
 
     const current = await loadQueue(session.id);
     if (current.some((item) => item.id === textId)) {
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     // Nao distingue "nao existe" de "esta arquivado" no status, mas a mensagem
     // sim: a primeira causa e rara, a segunda acontece o tempo todo e precisa
     // dizer o que fazer.
-    if (!updated) return jsonError("Textos arquivados nao entram na fila.", 409);
+    if (!updated) return jsonError("Textos arquivados não entram na fila.", 409);
     return NextResponse.json({ queue: await loadQueue(session.id) }, { status: 201 });
   } catch (error) {
     return serverError("fila/add", error);
@@ -105,7 +105,7 @@ export async function DELETE(request: Request) {
 
   try {
     const textId = new URL(request.url).searchParams.get("texto") ?? "";
-    if (!UUID_PATTERN.test(textId)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(textId)) return jsonError("Texto não encontrado.", 404);
 
     await db
       .update(texts)

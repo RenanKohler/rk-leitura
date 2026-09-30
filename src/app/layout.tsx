@@ -16,7 +16,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Leitura - leitura dinamica",
+    default: "Leitura - leitura dinâmica",
     template: "%s | Leitura",
   },
   description:

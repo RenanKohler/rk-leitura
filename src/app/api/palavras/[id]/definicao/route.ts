@@ -35,7 +35,7 @@ export async function POST(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Palavra nao encontrada.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Palavra não encontrada.", 404);
 
     const owned = and(eq(savedWords.id, id), eq(savedWords.userId, session.id));
     const [word] = await db
@@ -43,7 +43,7 @@ export async function POST(request: Request, { params }: Params) {
       .from(savedWords)
       .where(owned)
       .limit(1);
-    if (!word) return jsonError("Palavra nao encontrada.", 404);
+    if (!word) return jsonError("Palavra não encontrada.", 404);
 
     const quota = await consumeDailyQuota("dicionario", session.id);
     if (!quota.allowed) {

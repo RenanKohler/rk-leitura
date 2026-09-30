@@ -60,7 +60,7 @@ export function PlacementTest({
       startedAt.current = Date.now();
       setPhase("lendo");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui abrir o teste.");
+      setError(cause instanceof Error ? cause.message : "Não consegui abrir o teste.");
     } finally {
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export function PlacementTest({
       setPhase("resultado");
       if (data.applied) onApplied?.(data.suggested);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui calcular o resultado.");
+      setError(cause instanceof Error ? cause.message : "Não consegui calcular o resultado.");
     } finally {
       setLoading(false);
     }
@@ -104,8 +104,8 @@ export function PlacementTest({
           <div>
             <h2 className="font-semibold tracking-tight">Teste de velocidade</h2>
             <p className="mt-1 text-sm text-muted">
-              Leia um texto curto no seu ritmo e responda cinco perguntas. Em cerca de tres
-              minutos o app sugere uma velocidade que voce consegue acompanhar.
+              Leia um texto curto no seu ritmo e responda cinco perguntas. Em cerca de três
+              minutos o app sugere uma velocidade que você consegue acompanhar.
             </p>
           </div>
         </div>
@@ -114,11 +114,11 @@ export function PlacementTest({
 
         <div className="flex flex-col gap-2">
           <Button size="lg" full loading={loading} onClick={() => void begin()}>
-            Comecar o teste
+            Começar o teste
           </Button>
           {onSkip ? (
             <Button variant="ghost" size="lg" full onClick={onSkip}>
-              Agora nao
+              Agora não
             </Button>
           ) : null}
         </div>
@@ -164,8 +164,8 @@ export function PlacementTest({
         {error ? <Alert>{error}</Alert> : null}
         {tooFast ? (
           <Alert>
-            A leitura levou menos de {floor} segundos, que e o tempo minimo para ler este
-            texto no ritmo mais rapido que o app aceita. Refaca o teste lendo o texto inteiro.
+            A leitura levou menos de {floor} segundos, que é o tempo mínimo para ler este
+            texto no ritmo mais rápido que o app aceita. Refaça o teste lendo o texto inteiro.
           </Alert>
         ) : null}
 
@@ -223,7 +223,7 @@ export function PlacementTest({
           </div>
           <div>
             <p className="tabular text-3xl font-semibold">{result.comprehension}%</p>
-            <p className="text-sm text-muted">compreensao</p>
+            <p className="text-sm text-muted">compreensão</p>
           </div>
         </div>
 
@@ -267,7 +267,7 @@ export function PlacementTest({
         {result.applied ? (
           <div className="flex items-center justify-center gap-2 text-sm font-medium text-positive">
             <CheckIcon className="size-5" />
-            {`${result.suggested} ppm agora e a sua velocidade base.`}
+            {`${result.suggested} ppm agora é a sua velocidade base.`}
           </div>
         ) : (
           <div className="flex flex-col gap-2">

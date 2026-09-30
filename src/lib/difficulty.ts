@@ -14,8 +14,8 @@ export const DEFAULT_SESSION_MODE: SessionMode = "runner";
 /** Nome do modo como a tela o mostra. */
 export const SESSION_MODE_LABELS: Record<SessionMode, string> = {
   runner: "Guiada",
-  narracao: "Narracao",
-  pagina: "Pagina",
+  narracao: "Narração",
+  pagina: "Página",
 };
 
 /** Teto de posicoes de freio aceitas por sessao. */
@@ -117,7 +117,7 @@ export function suggestSlowdown(sessions: BrakeSample[]): SlowdownSuggestion | n
     deltaWpm: -SLOWDOWN_STEP,
     brakesPer150: Math.round(rate * 10) / 10,
     sessions: measured.length,
-    message: `Nas ultimas ${measured.length} leituras voce freou ou voltou ${String(
+    message: `Nas últimas ${measured.length} leituras você freou ou voltou ${String(
       Math.round(rate * 10) / 10
     ).replace(".", ",")} vezes a cada ${SLOWDOWN_WORDS} palavras. Que tal ${SLOWDOWN_STEP} ppm a menos?`,
   };

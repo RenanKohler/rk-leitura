@@ -221,11 +221,11 @@ function AuthProvider({
           body: JSON.stringify(payload),
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) return { error: data.error ?? "Nao foi possivel concluir." };
+        if (!response.ok) return { error: data.error ?? "Não foi possível concluir." };
         setUser(data.user);
         return {};
       } catch {
-        return { error: "Sem conexao com o servidor." };
+        return { error: "Sem conexão com o servidor." };
       }
     },
     []

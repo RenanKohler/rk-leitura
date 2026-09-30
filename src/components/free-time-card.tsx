@@ -42,7 +42,7 @@ export function FreeTimeCard({
         if (active) {
           setError({
             minutes,
-            message: cause instanceof Error ? cause.message : "Nao consegui sugerir agora.",
+            message: cause instanceof Error ? cause.message : "Não consegui sugerir agora.",
           });
         }
       });
@@ -59,7 +59,7 @@ export function FreeTimeCard({
     // A ancora fica num involucro: o atalho da meta rola ate aqui (US-86).
     <div id="tempo-livre" className="scroll-mt-4">
       <Card className="space-y-4 p-5">
-        <SectionTitle>Quanto tempo voce tem?</SectionTitle>
+        <SectionTitle>Quanto tempo você tem?</SectionTitle>
 
         <div role="group" aria-label="Tempo livre" className="grid grid-cols-3 gap-2">
           {FREE_TIME_OPTIONS.map((option) => (
@@ -80,7 +80,7 @@ export function FreeTimeCard({
         </div>
 
         {minutes !== null && !FREE_TIME_OPTIONS.includes(minutes as 5 | 10 | 20) ? (
-          <p className="text-sm text-muted">{`Sugestoes para ${minutes} min.`}</p>
+          <p className="text-sm text-muted">{`Sugestões para ${minutes} min.`}</p>
         ) : null}
 
         {loading ? (
@@ -113,8 +113,8 @@ export function FreeTimeCard({
                       <p className="mt-1 text-sm text-muted">
                         {`${minutesLabel(item.predictedMs)} · ${
                           item.finishes
-                            ? "ate o fim do texto"
-                            : `${formatNumber(item.end - item.from)} palavras, ate o fim de um paragrafo`
+                            ? "até o fim do texto"
+                            : `${formatNumber(item.end - item.from)} palavras, até o fim de um parágrafo`
                         }${item.source === "fila" ? " · da fila" : ""}`}
                       </p>
                     </Link>
@@ -124,7 +124,7 @@ export function FreeTimeCard({
               <p className="text-xs text-faint">
                 {current.pace.fromSettings
                   ? `Estimativa pela velocidade configurada (${current.pace.wpm} ppm).`
-                  : `Pelo seu ritmo real nas ultimas leituras: ${current.pace.wpm} ppm.`}
+                  : `Pelo seu ritmo real nas últimas leituras: ${current.pace.wpm} ppm.`}
               </p>
             </>
           )

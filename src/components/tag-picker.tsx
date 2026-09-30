@@ -66,7 +66,7 @@ export function TagPicker({
           <Field
             name="etiqueta"
             maxLength={MAX_TAG_CHARS}
-            placeholder={full ? `Maximo de ${MAX_TAGS_PER_TEXT}` : "estudo, trabalho, lazer"}
+            placeholder={full ? `Máximo de ${MAX_TAGS_PER_TEXT}` : "estudo, trabalho, lazer"}
             disabled={full}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}

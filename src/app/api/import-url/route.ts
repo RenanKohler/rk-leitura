@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   // aplicacao como proxy de varredura.
   const limit = await rateLimit(`import:${clientIp(request)}`, 20, 10 * 60 * 1000);
   if (!limit.allowed) {
-    return jsonError("Muitas importacoes seguidas. Aguarde um pouco.", 429, {
+    return jsonError("Muitas importações seguidas. Aguarde um pouco.", 429, {
       retryAfter: limit.retryAfterSeconds,
     });
   }

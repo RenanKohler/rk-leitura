@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       .from(highlights)
       .where(owned)
       .limit(1);
-    if (!current) return jsonError("Destaque nao encontrado.", 404);
+    if (!current) return jsonError("Destaque não encontrado.", 404);
 
     const today = todayIn((await loadSettings(session.id))?.timezone ?? "UTC");
     const next = afterGrade(currentInterval(current.interval), grade, today);

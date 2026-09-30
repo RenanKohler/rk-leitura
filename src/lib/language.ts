@@ -7,12 +7,12 @@
  */
 
 export const LANGUAGES = [
-  { code: "pt-BR", name: "Portugues" },
-  { code: "en", name: "Ingles" },
+  { code: "pt-BR", name: "Português" },
+  { code: "en", name: "Inglês" },
   { code: "es", name: "Espanhol" },
-  { code: "fr", name: "Frances" },
+  { code: "fr", name: "Francês" },
   { code: "it", name: "Italiano" },
-  { code: "de", name: "Alemao" },
+  { code: "de", name: "Alemão" },
 ] as const;
 
 export type Language = (typeof LANGUAGES)[number]["code"];
@@ -45,7 +45,7 @@ export function asLanguage(raw: unknown): Language {
 }
 
 export function languageName(code: string): string {
-  return LANGUAGES.find((language) => language.code === code)?.name ?? "Portugues";
+  return LANGUAGES.find((language) => language.code === code)?.name ?? "Português";
 }
 
 /**

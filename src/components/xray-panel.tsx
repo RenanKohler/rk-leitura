@@ -27,7 +27,7 @@ export function XrayPanel({
   if (names.length === 0) {
     return (
       <p className="py-4 text-center text-sm text-muted" data-testid="xray-vazio">
-        Nenhum nome aparece tres vezes ou mais neste texto.
+        Nenhum nome aparece três vezes ou mais neste texto.
       </p>
     );
   }
@@ -66,7 +66,7 @@ export function XrayPanel({
                 ))}
                 {entry.count > entry.positions.length ? (
                   <li className="px-2 py-1 text-xs text-faint">
-                    {`e mais ${entry.count - entry.positions.length} ocorrencias`}
+                    {`e mais ${entry.count - entry.positions.length} ocorrências`}
                   </li>
                 ) : null}
               </ol>

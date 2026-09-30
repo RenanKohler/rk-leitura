@@ -19,7 +19,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Etiqueta nao encontrada.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Etiqueta não encontrada.", 404);
 
     const body = await readJson<{ name?: unknown }>(request);
     const name = normalizeTagName(body?.name);
@@ -31,12 +31,12 @@ export async function PATCH(request: Request, { params }: Params) {
       .where(and(eq(tags.id, id), eq(tags.userId, session.id)))
       .returning({ id: tags.id });
 
-    if (!updated) return jsonError("Etiqueta nao encontrada.", 404);
+    if (!updated) return jsonError("Etiqueta não encontrada.", 404);
     return NextResponse.json({ tags: await loadTags(session.id) });
   } catch (error) {
     // Renomear para um nome ja usado bate no indice unico.
     if (isUniqueViolation(error)) {
-      return jsonError("Ja existe uma etiqueta com esse nome.", 409);
+      return jsonError("Já existe uma etiqueta com esse nome.", 409);
     }
     return serverError("etiquetas/rename", error);
   }
@@ -49,14 +49,14 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Etiqueta nao encontrada.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Etiqueta não encontrada.", 404);
 
     const removed = await db
       .delete(tags)
       .where(and(eq(tags.id, id), eq(tags.userId, session.id)))
       .returning({ id: tags.id });
 
-    if (removed.length === 0) return jsonError("Etiqueta nao encontrada.", 404);
+    if (removed.length === 0) return jsonError("Etiqueta não encontrada.", 404);
     return NextResponse.json({ tags: await loadTags(session.id) });
   } catch (error) {
     return serverError("etiquetas/delete", error);

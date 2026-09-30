@@ -237,7 +237,7 @@ function extractTitle($: cheerio.CheerioAPI): string {
     }
   }
 
-  return "Sem titulo";
+  return "Sem título";
 }
 
 /**

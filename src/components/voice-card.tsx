@@ -23,8 +23,8 @@ import {
 import { speechChunks } from "@/lib/speech";
 
 const GROUPS = [
-  { language: "pt-BR", title: "Portugues", sample: "Esta e a voz que vai ler os seus textos." },
-  { language: "en", title: "Ingles", sample: "This is the voice that will read your texts." },
+  { language: "pt-BR", title: "Português", sample: "Esta é a voz que vai ler os seus textos." },
+  { language: "en", title: "Inglês", sample: "This is the voice that will read your texts." },
 ] as const;
 
 interface Download {
@@ -99,7 +99,7 @@ export function VoiceCard() {
       notify(`Voz ${voice.name} baixada.`, "success");
     } catch (cause) {
       if (controller.signal.aborted) return;
-      setError(cause instanceof Error ? cause.message : "Nao consegui baixar a voz.");
+      setError(cause instanceof Error ? cause.message : "Não consegui baixar a voz.");
     } finally {
       abortRef.current = null;
       setDownload(null);
@@ -114,7 +114,7 @@ export function VoiceCard() {
       if (chosen[voice.language] === voice.id) choose(voice.language, null);
       notify(`Voz ${voice.name} apagada.`, "info");
     } catch {
-      setError("Nao consegui apagar a voz.");
+      setError("Não consegui apagar a voz.");
     }
   };
 
@@ -137,7 +137,7 @@ export function VoiceCard() {
       source.onended = () => setTesting(null);
       source.start();
     } catch {
-      setError("Nao consegui tocar a voz. Apague e baixe de novo.");
+      setError("Não consegui tocar a voz. Apague e baixe de novo.");
       setTesting(null);
     }
   };
@@ -149,12 +149,12 @@ export function VoiceCard() {
       <SectionTitle>Vozes para baixar</SectionTitle>
       <p className="text-sm text-muted">
         Vozes que funcionam neste aparelho mesmo sem internet, iguais em qualquer celular. Cada voz
-        ocupa cerca de {formatMegabytes(PIPER_VOICES[0]!.bytes)}; a primeira baixa tambem o motor
+        ocupa cerca de {formatMegabytes(PIPER_VOICES[0]!.bytes)}; a primeira baixa também o motor
         de voz ({formatMegabytes(ENGINE_BYTES)}). Use Wi-Fi.
       </p>
 
       {!supported ? (
-        <Alert>Este navegador nao consegue rodar as vozes baixaveis. A voz do sistema continua valendo.</Alert>
+        <Alert>Este navegador não consegue rodar as vozes baixáveis. A voz do sistema continua valendo.</Alert>
       ) : null}
       {error ? <Alert>{error}</Alert> : null}
 
@@ -240,7 +240,7 @@ export function VoiceCard() {
 
               {chosen[group.language] ? (
                 <p className="flex items-center gap-1.5 text-xs text-muted">
-                  <CheckIcon className="size-3.5" /> A narracao de textos em {group.title.toLowerCase()} usa
+                  <CheckIcon className="size-3.5" /> A narração de textos em {group.title.toLowerCase()} usa
                   esta voz neste aparelho.
                 </p>
               ) : null}

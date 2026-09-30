@@ -78,7 +78,7 @@ describe("parseOpf", () => {
   });
 
   it("recusa livro com protecao de copia", () => {
-    expect(() => parseOpf(`<encryption/>${OPF}`, "")).toThrow(/protecao de copia/i);
+    expect(() => parseOpf(`<encryption/>${OPF}`, "")).toThrow(/proteção de cópia/i);
   });
 
   it("recusa livro sem capitulos", () => {

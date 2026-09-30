@@ -166,14 +166,14 @@ export async function DELETE(request: Request) {
 
   try {
     const id = new URL(request.url).searchParams.get("id") ?? "";
-    if (!UUID_PATTERN.test(id)) return jsonError("Palavra nao encontrada.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Palavra não encontrada.", 404);
 
     const removed = await db
       .delete(savedWords)
       .where(and(eq(savedWords.id, id), eq(savedWords.userId, session.id)))
       .returning({ id: savedWords.id });
 
-    if (removed.length === 0) return jsonError("Palavra nao encontrada.", 404);
+    if (removed.length === 0) return jsonError("Palavra não encontrada.", 404);
     return NextResponse.json({ success: true });
   } catch (error) {
     return serverError("dicionario/delete", error);

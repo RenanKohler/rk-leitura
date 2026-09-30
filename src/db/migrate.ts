@@ -36,7 +36,7 @@ async function main() {
 
   // Depois das migrations: num banco novo a tabela ainda nao existe antes delas.
   const filled = await backfillSpeedSettings();
-  if (filled > 0) console.log(`Preferencias criadas para ${filled} conta(s) sem linha.`);
+  if (filled > 0) console.log(`Preferências criadas para ${filled} conta(s) sem linha.`);
 
   await getPool().end();
 }

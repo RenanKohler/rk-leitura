@@ -37,12 +37,12 @@ export async function GET(_request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     // `loadText` em vez da linha crua: o editor precisa saber quantos
     // destaques existem para avisar que salvar o conteudo vai remove-los.
     const text = await loadText(session.id, id);
-    if (!text) return jsonError("Texto nao encontrado.", 404);
+    if (!text) return jsonError("Texto não encontrado.", 404);
 
     return NextResponse.json({ text });
   } catch (error) {
@@ -56,7 +56,7 @@ export async function PUT(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const body = await readJson<{
       title?: unknown;
@@ -74,14 +74,14 @@ export async function PUT(request: Request, { params }: Params) {
     // Idioma ausente nao muda o salvo; fora da lista, e recusado.
     const language = body?.language === undefined ? null : normalizeLanguage(body.language);
     if (body?.language !== undefined && !language) {
-      return jsonError("Idioma nao suportado.", 400);
+      return jsonError("Idioma não suportado.", 400);
     }
 
     if (!title || !content) {
-      return jsonError("Titulo e conteudo sao obrigatorios.", 400);
+      return jsonError("Título e conteúdo são obrigatórios.", 400);
     }
     if (content.length > MAX_CONTENT_CHARS) {
-      return jsonError("O texto e grande demais.", 413);
+      return jsonError("O texto é grande demais.", 413);
     }
 
     const [current] = await db
@@ -95,7 +95,7 @@ export async function PUT(request: Request, { params }: Params) {
       .where(ownedText(id, session.id))
       .limit(1);
 
-    if (!current) return jsonError("Texto nao encontrado.", 404);
+    if (!current) return jsonError("Texto não encontrado.", 404);
 
     // Trocar so o titulo nao mexe na leitura. E o conteudo que invalida a
     // posicao salva e os indices dos destaques - por isso as duas perdas
@@ -107,7 +107,7 @@ export async function PUT(request: Request, { params }: Params) {
     const rewritten = current.content !== content || current.format !== format;
     const wordCount = countWords(content, format);
     if (wordCount === 0) {
-      return jsonError("O texto nao tem palavras para ler.", 400);
+      return jsonError("O texto não tem palavras para ler.", 400);
     }
 
     // O titulo mudou: o capitulo pode ter passado a ser reconhecido, ou
@@ -154,7 +154,7 @@ export async function PUT(request: Request, { params }: Params) {
       return [row, dropped.length] as const;
     });
 
-    if (!updated) return jsonError("Texto nao encontrado.", 404);
+    if (!updated) return jsonError("Texto não encontrado.", 404);
     return NextResponse.json({ text: updated, removedHighlights: removed });
   } catch (error) {
     return serverError("texts/update", error);
@@ -168,11 +168,11 @@ export async function PATCH(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const body = await readJson<{ progressIndex?: unknown; at?: unknown }>(request);
     const progressIndex = asInteger(body?.progressIndex);
-    if (progressIndex === null) return jsonError("Posicao invalida.", 400);
+    if (progressIndex === null) return jsonError("Posição inválida.", 400);
 
     const [current] = await db
       .select({
@@ -184,7 +184,7 @@ export async function PATCH(request: Request, { params }: Params) {
       .where(ownedText(id, session.id))
       .limit(1);
 
-    if (!current) return jsonError("Texto nao encontrado.", 404);
+    if (!current) return jsonError("Texto não encontrado.", 404);
 
     // Um save que ficou na fila offline pode ser mais antigo do que o que
     // outro aparelho ja gravou aqui: vence o mais recente, nao o maior (US-40,
@@ -243,14 +243,14 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const deleted = await db
       .delete(texts)
       .where(ownedText(id, session.id))
       .returning({ id: texts.id });
 
-    if (deleted.length === 0) return jsonError("Texto nao encontrado.", 404);
+    if (deleted.length === 0) return jsonError("Texto não encontrado.", 404);
     return NextResponse.json({ success: true });
   } catch (error) {
     return serverError("texts/delete", error);

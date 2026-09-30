@@ -19,7 +19,7 @@ export const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 /** Falhas seguidas da origem antes de pausar. */
 export const MAX_FAILURES = 3;
 
-export const PAUSED_MESSAGE = "Acompanhamento pausado: a origem nao respondeu";
+export const PAUSED_MESSAGE = "Acompanhamento pausado: a origem não respondeu";
 
 /** Fonte ativa e sem verificacao recente. */
 export function shouldCheck(

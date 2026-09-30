@@ -42,7 +42,7 @@ export function withinVoiceRange(wpm: number): boolean {
 export function rateNotice(wpm: number): string | null {
   if (withinVoiceRange(wpm)) return null;
   const applied = wpmFor(rateFor(wpm));
-  return `A voz do aparelho vai ate ${applied} ppm. A narracao usa esse ritmo; a leitura na tela continua em ${wpm}.`;
+  return `A voz do aparelho vai até ${applied} ppm. A narração usa esse ritmo; a leitura na tela continua em ${wpm}.`;
 }
 
 export interface VoiceLike {

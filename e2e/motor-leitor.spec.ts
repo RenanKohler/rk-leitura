@@ -57,7 +57,7 @@ test("virar as paginas conta a leitura e conclui o texto", async ({ page }) => {
 
   await page.clock.install();
   await openReader(page, text.id);
-  const counter = page.getByText(/^Pagina \d+ de \d+$/);
+  const counter = page.getByText(/^Página \d+ de \d+$/);
   await expect(counter).toBeVisible();
   const pages = Number((await counter.innerText()).match(/de (\d+)/)![1]);
 
@@ -66,10 +66,10 @@ test("virar as paginas conta a leitura e conclui o texto", async ({ page }) => {
   );
   for (let turn = 0; turn < pages; turn += 1) {
     await page.clock.fastForward(40_000);
-    await page.getByRole("button", { name: "Proxima pagina" }).click();
+    await page.getByRole("button", { name: "Próxima página" }).click();
   }
 
-  await expect(page.getByRole("heading", { name: "Leitura concluida" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Leitura concluída" })).toBeVisible();
   const body = (await posted).postDataJSON() as { mode: string; completed: boolean; wordsRead: number };
   expect(body).toMatchObject({ mode: "pagina", completed: true });
   expect(body.wordsRead).toBeGreaterThan(250);
@@ -86,7 +86,7 @@ test("toque duplo no Word Runner nao pula texto", async ({ page }) => {
   await page.waitForTimeout(800);
   const box = (await page.getByTestId("word-runner").boundingBox())!;
   await page.mouse.dblclick(box.x + box.width - 10, box.y + box.height / 2);
-  await expect(page.getByText(/^Pagina 1 de \d+$/)).toBeVisible();
+  await expect(page.getByText(/^Página 1 de \d+$/)).toBeVisible();
 });
 
 /** Guia de primeiro uso: aparece uma vez por conta. */
@@ -97,13 +97,13 @@ test("guia do leitor aparece na primeira abertura e nao volta", async ({ page })
   await openReader(page, text.id);
   const guide = page.getByTestId("guia-leitor");
   await expect(guide).toBeVisible();
-  await guide.getByRole("button", { name: "Proximo" }).click();
-  await guide.getByRole("button", { name: "Proximo" }).click();
+  await guide.getByRole("button", { name: "Próximo" }).click();
+  await guide.getByRole("button", { name: "Próximo" }).click();
   await guide.getByRole("button", { name: "Entendi" }).click();
   await expect(guide).toHaveCount(0);
 
   await expect.poll(async () => (await (await page.request.get("/api/settings")).json()).settings.readerTipsSeen).toBe(true);
   await openReader(page, text.id);
-  await expect(page.getByText(/^Pagina \d+ de \d+$/)).toBeVisible();
+  await expect(page.getByText(/^Página \d+ de \d+$/)).toBeVisible();
   await expect(page.getByTestId("guia-leitor")).toHaveCount(0);
 });

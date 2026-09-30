@@ -29,7 +29,7 @@ test("codigo de recuperacao redefine a senha", async ({ page, playwright }) => {
 
   const wrong = await post(guest, { email, code: "AAAAA-AAAAA", newPassword: "nova-senha-1" });
   expect(wrong.status()).toBe(400);
-  expect((await wrong.json()).error).toBe("Codigo invalido.");
+  expect((await wrong.json()).error).toBe("Código inválido.");
 
   const ok = await post(guest, { email, code: codes[0]!.toLowerCase(), newPassword: "nova-senha-1" });
   expect(ok.status()).toBe(200);
@@ -92,7 +92,7 @@ test("restaurar a biblioteca a partir do arquivo exportado", async ({ page }) =>
   const file = { name: "leitura-biblioteca.json", mimeType: "application/json", buffer: Buffer.from(exported) };
   await input.setInputFiles(file);
   // O texto de boas-vindas esta nas duas contas: e reconhecido e pulado.
-  await expect(page.getByText("1 texto restaurado. 1 ja existia.")).toBeVisible();
+  await expect(page.getByText("1 texto restaurado. 1 já existia.")).toBeVisible();
 
   const library = await (await page.request.get("/api/texts")).json();
   expect(library.items).toHaveLength(2);
@@ -105,7 +105,7 @@ test("restaurar a biblioteca a partir do arquivo exportado", async ({ page }) =>
   expect(points.bookmarks[0].label).toBe("Aqui");
 
   await input.setInputFiles({ ...file, buffer: Buffer.from('{"outra":"coisa"}') });
-  await expect(page.getByText(/Arquivo nao reconhecido/)).toBeVisible();
+  await expect(page.getByText(/Arquivo não reconhecido/)).toBeVisible();
 });
 
 /**
@@ -174,7 +174,7 @@ test("historico do texto e calendario", async ({ page, browser }) => {
 
   await page.goto(`/textos/${text.id}/leituras`);
   const summary = page.getByTestId("resumo-texto");
-  await expect(summary.getByText("Sessoes")).toBeVisible();
+  await expect(summary.getByText("Sessões")).toBeVisible();
   await expect(summary.getByText("1:00")).toBeVisible();
 
   await page.goto("/estatisticas");
@@ -182,7 +182,7 @@ test("historico do texto e calendario", async ({ page, browser }) => {
   await expect(page.getByTestId("calendario").locator('[data-level="1"]')).toHaveCount(1);
 
   // A11Y-9: uma parada de Tab so, e as setas andam por dia e por semana.
-  const grid = page.getByRole("grid", { name: "Minutos lidos por dia no ultimo ano" });
+  const grid = page.getByRole("grid", { name: "Minutos lidos por dia no último ano" });
   await expect(grid.locator('[tabindex="0"]')).toHaveCount(1);
   const today = grid.locator('[tabindex="0"]');
   await today.focus();
@@ -204,6 +204,6 @@ test("historico do texto e calendario", async ({ page, browser }) => {
   // notFound() dispara; o que vale e a tela de nao encontrado, sem os dados.
   await strangerPage.goto(`/textos/${text.id}/leituras`);
   await expect(strangerPage.getByTestId("resumo-texto")).toHaveCount(0);
-  await expect(strangerPage.locator("h1")).toContainText(/nao encontrad/i);
+  await expect(strangerPage.locator("h1")).toContainText(/não encontrad/i);
   await stranger.close();
 });
