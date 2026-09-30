@@ -1426,7 +1426,7 @@ function Reader({
             <button
               type="button"
               onClick={() => setClockMode((mode) => (mode === "restante" ? "lido" : "restante"))}
-              className="tabular -mx-1 rounded px-1 text-left text-xs text-muted hover:text-ink"
+              className="tabular -mx-1 block max-w-full truncate rounded px-1 text-left text-xs text-muted hover:text-ink"
               aria-label={
                 clockMode === "restante"
                   ? "Mostrar o tempo lido"
@@ -2169,10 +2169,10 @@ const FONT_LABELS: Record<FontFamily, string> = {
 
 const LINE_HEIGHT_LABELS = ["Compacto", "Normal", "Folgado"];
 
-/** "~12 min", "~1 h 5 min" ou "menos de 1 min". */
+/** "~12 min", "~1 h 5 min" ou "< 1 min". */
 function formatRemaining(ms: number): string {
   const minutes = Math.round(ms / 60_000);
-  if (minutes < 1) return "menos de 1 min";
+  if (minutes < 1) return "< 1 min";
   if (minutes < 60) return `~${minutes} min`;
   return `~${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
