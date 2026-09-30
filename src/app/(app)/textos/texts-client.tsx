@@ -7,6 +7,7 @@ import { apiGet, apiSend } from "@/lib/client";
 import { useSettings, useToast } from "@/components/providers";
 import { TagPicker } from "@/components/tag-picker";
 import { TagManagerSheet } from "@/components/tag-manager-sheet";
+import { ContentSearchResults } from "@/components/content-search-results";
 import {
   Alert,
   Button,
@@ -343,7 +344,7 @@ export function TextsClient({
           autoCorrect="off"
           spellCheck={false}
           maxLength={MAX_QUERY_CHARS}
-          placeholder="Titulo do texto"
+          placeholder="Titulo ou trecho do texto"
           value={query}
           onChange={(event) => changeFilter(() => setQuery(event.target.value))}
         />
@@ -466,6 +467,10 @@ export function TextsClient({
           />
         </>
       )}
+
+      {/* Busca no conteudo (APP-16): a parte, porque varre o texto inteiro de
+          cada item e leva direto a palavra encontrada. */}
+      {searched && !archived ? <ContentSearchResults query={searched} /> : null}
 
       <TextActionsSheet
         text={menuText}

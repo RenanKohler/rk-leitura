@@ -291,6 +291,8 @@ export interface ReadingSettings {
   weeklySummarySeenOn: string | null;
   readingMode: ReadingMode;
   theme: ThemePreference;
+  /** Guia de primeiro uso do leitor ja visto nesta conta. */
+  readerTipsSeen: boolean;
 }
 
 export const FALLBACK_SETTINGS: ReadingSettings = {
@@ -312,6 +314,7 @@ export const FALLBACK_SETTINGS: ReadingSettings = {
   weeklySummarySeenOn: null,
   readingMode: "rsvp",
   theme: "system",
+  readerTipsSeen: false,
 };
 
 interface SettingsContextValue {

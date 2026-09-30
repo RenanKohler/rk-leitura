@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { loadHighlights, loadKnownWords, loadNextUp } from "@/lib/queries";
+import { loadPreviousChapter } from "@/lib/learning-queries";
 import { ReaderClient } from "./reader-client";
 
 export const dynamic = "force-dynamic";
@@ -56,14 +57,17 @@ export default async function ReaderPage({
 
   // O que vem depois deste texto ja vai no HTML: a tela de conclusao nao
   // precisa esperar uma consulta para oferecer o proximo capitulo ou a fila.
-  const [nextUp, knownWords] = await Promise.all([
+  // Recapitulacao do capitulo anterior (PROD-12): vai dentro do proprio
+  // texto (`TextDetail.previousChapter`), so quando se aplica.
+  const [nextUp, knownWords, previousChapter] = await Promise.all([
     loadNextUp(session.id, id),
     loadKnownWords(session.id, loaded.text.language),
+    loadPreviousChapter(session.id, loaded.text),
   ]);
 
   return (
     <ReaderClient
-      text={loaded.text}
+      text={previousChapter ? { ...loaded.text, previousChapter } : loaded.text}
       highlights={loaded.items}
       startAt={startAt}
       nextUp={nextUp}

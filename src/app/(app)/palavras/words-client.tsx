@@ -23,7 +23,7 @@ import {
 } from "@/components/icons";
 import { foldForSearch } from "@/lib/text-filter";
 import { formatRelativeDay } from "@/lib/reading";
-import type { SavedWordItem } from "@/lib/types";
+import type { RetentionSummary, SavedWordItem } from "@/lib/types";
 
 /**
  * Palavras consultadas durante a leitura.
@@ -32,12 +32,63 @@ import type { SavedWordItem } from "@/lib/types";
  * leitura uma vez costuma interromper de novo, e revisitar a lista e o que
  * transforma a interrupcao em aprendizado.
  */
-export function WordsClient({ initial }: { initial: SavedWordItem[] }) {
+export function WordsClient({
+  initial,
+  retention,
+}: {
+  initial: SavedWordItem[];
+  /** Retencao das revisoes nos ultimos 30 dias (PROD-7). */
+  retention?: RetentionSummary;
+}) {
   const notify = useToast();
   const [items, setItems] = useState(initial);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState<"todas" | "aprendidas">("todas");
+  // Definicao em edicao (PROD-6): so uma por vez, com o rascunho a parte.
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+
+  const saveDefinition = async (id: string) => {
+    setBusy(true);
+    try {
+      const { definition } = await apiSend<{ definition: string }>(`/api/palavras/${id}`, "PATCH", {
+        definition: draft,
+      });
+      setItems((current) => current.map((item) => (item.id === id ? { ...item, definition } : item)));
+      setEditing(null);
+    } catch {
+      notify("Nao consegui salvar a definicao.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const refetchDefinition = async (id: string) => {
+    setBusy(true);
+    try {
+      const { entry } = await apiSend<{
+        entry: { definition: string; base: string; kind: string; translation?: string | null };
+      }>(`/api/palavras/${id}/definicao`, "POST");
+      setItems((current) =>
+        current.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                definition: entry.definition,
+                base: entry.base,
+                kind: entry.kind,
+                translation: entry.translation ?? null,
+              }
+            : item
+        )
+      );
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "Nao consegui buscar a definicao.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   /** Marca ou desmarca como aprendida (US-66); desfaz na tela se falhar. */
   const setLearned = async (id: string, learned: boolean) => {
@@ -97,6 +148,13 @@ export function WordsClient({ initial }: { initial: SavedWordItem[] }) {
               ? "Nenhuma ainda"
               : `${items.length} ${items.length === 1 ? "palavra" : "palavras"} consultadas`}
           </p>
+          {retention && retention.percent !== null ? (
+            <p className="mt-0.5 text-sm text-muted" data-testid="retencao">
+              {`Retencao em 30 dias: ${retention.percent}% de ${retention.answers} ${
+                retention.answers === 1 ? "resposta" : "respostas"
+              }`}
+            </p>
+          ) : null}
         </div>
       </header>
 
@@ -205,7 +263,57 @@ export function WordsClient({ initial }: { initial: SavedWordItem[] }) {
                   {item.translation ? (
                     <p className="mt-1.5 text-sm font-medium">{item.translation}</p>
                   ) : null}
-                  <p className="mt-1.5 text-sm leading-relaxed">{item.definition}</p>
+                  {editing === item.id ? (
+                    <div className="mt-2 space-y-2">
+                      <textarea
+                        aria-label={`Definicao de ${item.base}`}
+                        className="min-h-20 w-full rounded-2xl border border-border bg-bg p-3 text-sm"
+                        maxLength={500}
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={busy} onClick={() => void saveDefinition(item.id)}>
+                          Salvar
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  ) : item.definition.trim() ? (
+                    <p className="mt-1.5 text-sm leading-relaxed">{item.definition}</p>
+                  ) : (
+                    // Guardada sem consulta (PROD-6): a frase ajuda a lembrar
+                    // enquanto a definicao nao vem.
+                    <div className="mt-1.5 space-y-1.5">
+                      {item.context ? (
+                        <p className="text-sm leading-relaxed text-muted">&ldquo;{item.context}&rdquo;</p>
+                      ) : null}
+                      <p className="text-sm italic text-faint">sem definicao</p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => void refetchDefinition(item.id)}
+                        >
+                          Buscar definicao
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => {
+                            setDraft("");
+                            setEditing(item.id);
+                          }}
+                        >
+                          Escrever
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   <p className="mt-2 text-xs text-faint">
                     {item.textTitle ? (

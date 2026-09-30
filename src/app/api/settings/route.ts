@@ -69,6 +69,10 @@ export async function PUT(request: Request) {
       dimLines: body?.dimLines === true,
       eyeRest: body?.eyeRest === true,
       timezone: asTimezone(body?.timezone),
+      // Guia do leitor: so um `true` explicito marca como visto. Como o PUT
+      // manda as preferencias inteiras, quem ainda nao conhece o campo manda
+      // o valor atual de volta e nada muda.
+      readerTipsSeen: body?.readerTipsSeen === true,
     };
 
     // Um unico round-trip: o indice unico em user_id resolve a corrida entre
