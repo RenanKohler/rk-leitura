@@ -209,10 +209,40 @@ e2e/                testes no navegador: fluxo principal e acessibilidade
   em `useEffect` no cliente.
 - **Palavras.** Derivadas de `texts.content` em tempo de execucao. Nao ha tabela
   com uma linha por palavra.
-- **Modos de leitura.** *Foco* mostra uma palavra por vez com a letra de
-  fixacao destacada; *Rolagem* mantem o texto corrido com o trecho atual em
-  evidencia; *Paginas* apresenta uma tela cheia por vez, sem rolagem, com toque
-  nas laterais ou arrasto para virar.
+- **Leitor em uma tela.** O texto abre em paginas, como num e-reader. O play
+  inicia o *Word Runner*: uma palavra por vez no centro, com a letra de
+  fixacao alinhada as guias e a frase em volta, em blocos estaveis, embaixo
+  (ou, na opcao "guia na pagina", a palavra anda marcada na propria pagina).
+  Tocar no Word Runner freia e devolve a pagina com a palavra atual marcada.
+  Na pagina, as bordas (12% de cada lado) e o arrasto viram a pagina, tocar
+  numa palavra define o inicio da leitura e tocar e segurar abre o dicionario,
+  com "Comecar daqui" e "Destacar frase". Os antigos modos Foco, Rolagem e
+  Paginas deixaram de existir; as colunas `reading_mode`, `words_per_chunk`,
+  `paragraph_pause` e `dim_lines` ficam no banco sem uso.
+- **Motor do leitor.** Tres estados (parado, Word Runner, narracao) e um
+  unico caminho de parada, `pause(motivo)`: freio, folha aberta, aba
+  escondida, marco, ponto de parada e descanso atualizam os mesmos
+  acumuladores. O prazo de cada palavra e absoluto (inicio + duracao), entao o
+  custo de render nao se acumula e mudar a velocidade no meio nao reinicia a
+  palavra. A pagina fica montada e memoizada por baixo do Word Runner, e o
+  rodape tem altura fixa: play e freio nao refazem a paginacao.
+- **Ritmo dinamico.** Modelo do Kindle Word Runner e dos leitores RSVP de
+  codigo aberto (`src/lib/pacing.ts`, `pauses.ts`, `sentences.ts`): peso
+  lexical normalizado (tamanho, digito, nome proprio, titulo, palavra ja
+  consultada) mais uma pausa depois da palavra - virgula, fim de frase e fim
+  de paragrafo, pela lei `P300 x (duracao/200)^0,8` com P300 = 160/360/520 ms.
+  Um segmentador de frase unico (abreviaturas, tratamentos e iniciais por
+  idioma) serve as pausas, a navegacao por frase, o recuo ao retomar, o
+  destaque de frase e a narracao. A rampa de aquecimento e o recuo ao retomar
+  sao proporcionais ao tempo parado.
+- **Sessao de leitura.** Uma por modo (`runner`, `narracao`, `pagina`),
+  contabilizada em `src/lib/reader-session.ts`. As pausas de pontuacao e o
+  atraso da rampa saem do tempo gravado: o ppm do historico e o das palavras,
+  e as previsoes de tempo (`predictRunnerMs`, `pauseOverhead`) somam as pausas
+  de volta. Virar a pagina para a frente conta a pagina quando o tempo nela e
+  plausivel (teto de 2 min por pagina). A sessao e gravada ao esconder a aba
+  e no `pagehide`, com ou sem leitura correndo, junto com os freios e recuos
+  (sinal para a sugestao de reduzir a velocidade).
 - **Extracao do texto.** A ordem e: `articleBody` declarado em JSON-LD,
   depois o container marcado com `itemprop="articleBody"` (microdado
   schema.org), depois `<article>` e `main`, e so por ultimo o palpite pelo
@@ -221,9 +251,9 @@ e2e/                testes no navegador: fluxo principal e acessibilidade
   container e exato, nenhum bloco e descartado por tamanho: em ficcao as falas
   de dialogo sao curtas e o filtro antigo apagava boa parte do texto.
 - **Paragrafos.** Preservados da extracao ate a tela. O conteudo guarda uma
-  linha em branco entre paragrafos, e o leitor renderiza um `<p>` para cada um
-  nos modos Rolagem e Paginas. A regua de medicao monta os mesmos paragrafos,
-  senao a quebra de pagina calcularia uma altura menor que a real.
+  linha em branco entre paragrafos, e a pagina renderiza um `<p>` para cada um
+  (titulos com `role="heading"`). A regua de medicao monta os mesmos
+  paragrafos, senao a quebra de pagina calcularia uma altura menor que a real.
 - **Continuacao do conto.** Ao chegar no fim de um texto importado, "proxima
   pagina" busca a proxima parte na propria origem: a URL da importacao com
   `?page=` incrementado. A base e sempre a URL importada, que conta como pagina
@@ -234,8 +264,9 @@ e2e/                testes no navegador: fluxo principal e acessibilidade
   vale aqui, e paginas repetidas sao detectadas para nao duplicar o texto.
 - **Paginacao do texto.** Medida por uma regua oculta com a mesma largura e
   tipografia da area de leitura, via busca binaria. Cada pagina comeca no inicio
-  de uma linha, entao o que foi medido e exatamente o que aparece. Recalcula ao
-  girar a tela e quando as fontes terminam de carregar.
+  de uma linha, entao o que foi medido e exatamente o que aparece, e nenhum
+  titulo fica sozinho no pe da pagina. Recalcula so quando o tamanho do quadro,
+  as fontes carregadas ou a tipografia mudam de verdade.
 - **Listas paginadas.** `/api/texts` e `/api/reading-sessions` aceitam `page` e
   `perPage` e devolvem o total. `/api/stats` calcula as somas do painel no
   banco, em vez de baixar o historico inteiro para somar no cliente.
@@ -279,8 +310,11 @@ e2e/                testes no navegador: fluxo principal e acessibilidade
   escapando da checagem de rede interna. Cada um desses tem um teste que falha
   se o defeito voltar.
 - **Testes no navegador.** `e2e/` percorre o fluxo principal (cadastro, texto
-  colado, leitura ate o fim, historico), o modo Paginas, a leitura guiada por
-  tempo livre e a verificacao de acessibilidade com axe nos temas claro,
+  colado, leitura ate o fim, historico), a pagina e o Word Runner, o motor do
+  leitor (folhas pausam, aba escondida grava, pagina virada conta, toque duplo
+  no freio), a leitura guiada por tempo livre, a aprendizagem (lacunas,
+  revisao de destaques, busca no conteudo, lote de links) e a verificacao de
+  acessibilidade com axe nos temas claro,
   escuro e de alto contraste. Roda na CI em um job proprio, com Postgres de
   servico. Localmente, `npm run test:e2e` reaproveita o servidor que estiver
   na porta 3200 (ou `E2E_PORT`); `PW_CHROMIUM_PATH` aponta um Chromium ja
@@ -308,9 +342,12 @@ e2e/                testes no navegador: fluxo principal e acessibilidade
   para `public/tts` no `postinstall`; a pasta nao e versionada.
 - **Navegacao no texto.** A folha "Navegar no texto" (icone de lupa, ou "/")
   busca expressoes ignorando acento e caixa, lista os titulos de textos
-  Markdown e guarda marcadores de posicao (tabela `bookmarks`). O teclado muda
-  velocidade (setas), modo (1, 2, 3) e volta a frase (Shift + seta); "?" lista
-  os atalhos. As regras ficam em `src/lib/navigation.ts`.
+  Markdown, os nomes que aparecem tres vezes ou mais (`src/lib/xray.ts`) e
+  guarda marcadores de posicao (tabela `bookmarks`). Um salto maior que uma
+  pagina deixa o atalho "Voltar para onde parou". O teclado muda a velocidade
+  (setas para cima e para baixo), anda por pagina ou por frase (setas), abre o
+  significado da palavra atual (D), destaca a frase (H); "?" mostra a ajuda.
+  As regras ficam em `src/lib/navigation.ts`.
 - **Seguranca sem e-mail.** Codigos de recuperacao (`recovery_codes`, so o
   hash) redefinem a senha em `/recuperar`. Cada login cria uma linha em
   `auth_sessions` e o token leva o id dela: Ajustes lista os aparelhos e
