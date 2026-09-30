@@ -7,7 +7,9 @@ import {
   useRef,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  type RefObject,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
@@ -244,36 +246,103 @@ export function Alert({ tone = "danger", children }: { tone?: "danger" | "positi
 /* Controle segmentado                                                         */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Escolha unica entre poucas opcoes (A11Y-8).
+ *
+ * E um grupo de radios, e nao de botoes de alternar: so uma opcao vale por
+ * vez, e e isso que o leitor de tela precisa anunciar. O teclado segue o
+ * padrao de radiogroup - Tab entra e sai do grupo numa parada so, as setas
+ * trocam a opcao (tabindex rotativo).
+ *
+ * O rotulo aparece como texto acima do grupo; `hideLabel` o deixa so para o
+ * leitor de tela, quando a secao ja tem um titulo que diz a mesma coisa.
+ * A opcao escolhida tem contorno de 2px no acento: a diferenca so de fundo
+ * entre a pilula e o trilho ficava abaixo de 3:1 no tema escuro.
+ * As opcoes quebram linha quando nao cabem (reflow em 320px, A11Y-17).
+ */
 export function Segmented<T extends string>({
   value,
   onChange,
   options,
   label,
+  hideLabel = false,
 }: {
   value: T;
   onChange: (value: T) => void;
   options: { value: T; label: string; icon?: ReactNode }[];
-  label?: string;
+  label: string;
+  /** Rotulo so para leitor de tela, quando ja ha titulo visivel. */
+  hideLabel?: boolean;
 }) {
+  const labelId = useId();
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const selected = options.findIndex((option) => option.value === value);
+  // Sem opcao escolhida, a primeira recebe a parada de Tab.
+  const tabStop = selected === -1 ? 0 : selected;
+
+  const onKeyDown = (event: ReactKeyboardEvent, index: number) => {
+    const last = options.length - 1;
+    const next =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? index === last
+          ? 0
+          : index + 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? index === 0
+            ? last
+            : index - 1
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? last
+              : null;
+    if (next === null) return;
+    event.preventDefault();
+    onChange(options[next]!.value);
+    refs.current[next]?.focus();
+  };
+
   return (
-    <div role="group" aria-label={label} className="flex rounded-full bg-surface-2 p-1">
-      {options.map((option) => {
-        const active = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            aria-pressed={active}
-            className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors ${
-              active ? "bg-surface text-ink shadow-card" : "text-muted"
-            }`}
-          >
-            {option.icon}
-            {option.label}
-          </button>
-        );
-      })}
+    <div className="space-y-1.5">
+      <p id={labelId} className={hideLabel ? "sr-only" : "text-sm font-medium text-muted"}>
+        {label}
+      </p>
+      <div
+        role="radiogroup"
+        aria-labelledby={labelId}
+        className="flex flex-wrap gap-1 rounded-3xl bg-surface-2 p-1"
+      >
+        {options.map((option, index) => {
+          const active = option.value === value;
+          return (
+            <button
+              key={option.value}
+              ref={(element) => {
+                refs.current[index] = element;
+              }}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              tabIndex={index === tabStop ? 0 : -1}
+              onClick={() => onChange(option.value)}
+              onKeyDown={(event) => onKeyDown(event, index)}
+              className={`flex min-h-10 flex-auto items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-medium transition-colors ${
+                active
+                  ? "bg-surface text-ink shadow-card ring-2 ring-accent ring-inset"
+                  : "text-muted hover:text-ink"
+              }`}
+            >
+              {option.icon ? (
+                // Abaixo de 360px os icones saem para as opcoes caberem.
+                <span className="hidden min-[360px]:inline-flex" aria-hidden="true">
+                  {option.icon}
+                </span>
+              ) : null}
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -290,6 +359,7 @@ export function Slider({
   max,
   step = 1,
   hint,
+  children,
   onChange,
 }: {
   label: string;
@@ -299,26 +369,43 @@ export function Slider({
   max: number;
   step?: number;
   hint?: string;
+  /** Conteudo extra abaixo da dica, como a faixa de velocidade. */
+  children?: ReactNode;
   onChange: (value: number) => void;
 }) {
+  const inputId = useId();
+  const hintId = useId();
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-4">
-        <label className="text-sm font-medium text-ink">{label}</label>
-        <span className="tabular text-sm font-semibold text-accent">{display}</span>
+        <label htmlFor={inputId} className="text-sm font-medium text-ink">
+          {label}
+        </label>
+        <span className="tabular text-sm font-semibold text-accent" aria-hidden="true">
+          {display}
+        </span>
       </div>
       <input
+        id={inputId}
         type="range"
         min={min}
         max={max}
         step={step}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        aria-label={label}
-        // h-8 amplia a area de toque sem engordar a trilha visual.
-        className="h-8 w-full cursor-pointer accent-accent"
+        // Sem isto o leitor de tela anuncia "3" onde a tela diz "3 de 5" ou
+        // "Folgado" - o numero cru nao diz nada (A11Y-16).
+        aria-valuetext={display}
+        aria-describedby={hint ? hintId : undefined}
+        // h-11: area de toque de 44px sem engordar a trilha visual (UX-12).
+        className="h-11 w-full cursor-pointer accent-accent"
       />
-      {hint ? <p className="text-sm text-faint">{hint}</p> : null}
+      {hint ? (
+        <p id={hintId} className="text-sm text-faint">
+          {hint}
+        </p>
+      ) : null}
+      {children}
     </div>
   );
 }
@@ -364,12 +451,19 @@ export function Sheet({
   title,
   children,
   footer,
+  initialFocus,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
   footer?: ReactNode;
+  /**
+   * Elemento que recebe o foco ao abrir (A11Y-13). Sem ele o foco vai para o
+   * primeiro controle, que costuma ser o Fechar - bom para uma confirmacao,
+   * ruim para uma folha de busca, onde a pessoa abre para digitar.
+   */
+  initialFocus?: RefObject<HTMLElement | null>;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -382,12 +476,15 @@ export function Sheet({
 
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const dialog = dialogRef.current;
+    const chosen = initialFocus?.current;
     const first = dialog ? focusableIn(dialog)[0] : undefined;
-    (first ?? dialog)?.focus();
+    (chosen ?? first ?? dialog)?.focus();
 
     return () => {
       if (opener?.isConnected) opener.focus();
     };
+    // A ref e lida na abertura; trocar de ref com a folha aberta nao move o foco.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -442,7 +539,8 @@ export function Sheet({
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="flex size-9 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+            // 44px de alvo de toque (UX-12); o icone continua do mesmo tamanho.
+            className="-mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-full text-muted hover:bg-surface-2"
           >
             <CloseIcon className="size-5" />
           </button>

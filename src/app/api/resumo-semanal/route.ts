@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { speedSettings } from "@/db/schema";
 import { jsonError, requireSession, serverError } from "@/lib/api";
 import { loadSettings } from "@/lib/queries";
 import { mondayOf, todayIn } from "@/lib/goals";
+import { upsertSettings } from "@/lib/settings-row";
 
 export const dynamic = "force-dynamic";
 
@@ -24,14 +23,7 @@ export async function POST() {
     if (!settings) return jsonError("Sessao expirada. Entre novamente.", 401);
 
     const monday = mondayOf(todayIn(settings.timezone));
-
-    await db
-      .insert(speedSettings)
-      .values({ userId: session.id, weeklySummarySeenOn: monday })
-      .onConflictDoUpdate({
-        target: speedSettings.userId,
-        set: { weeklySummarySeenOn: monday, updatedAt: new Date() },
-      });
+    await upsertSettings(db, session.id, { weeklySummarySeenOn: monday });
 
     return NextResponse.json({ dismissed: monday });
   } catch (error) {

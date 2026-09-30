@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiSend } from "@/lib/client";
 import { Alert, Button, Sheet } from "@/components/ui";
 import { BookmarkIcon, TrashIcon } from "@/components/icons";
@@ -45,6 +45,7 @@ export function NavigateSheet({
   onGo: (position: number) => void;
 }) {
   const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState(0);
   const results = useMemo(() => searchWords(words, query), [words, query]);
   const headings = useMemo(() => textHeadings(paragraphs), [paragraphs]);
@@ -116,7 +117,8 @@ export function NavigateSheet({
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Navegar no texto">
+    // A folha abre para buscar: o foco vai direto ao campo (A11Y-13).
+    <Sheet open={open} onClose={onClose} title="Navegar no texto" initialFocus={searchRef}>
       <div className="space-y-6">
         {error ? <Alert>{error}</Alert> : null}
 
@@ -126,6 +128,7 @@ export function NavigateSheet({
           </label>
           <input
             id="busca-texto"
+            ref={searchRef}
             type="search"
             value={query}
             onChange={(event) => {
@@ -155,10 +158,10 @@ export function NavigateSheet({
                     {`${selected + 1} de ${results.length}${results.length >= MAX_SEARCH_RESULTS ? "+" : ""}`}
                   </p>
                   <div className="flex gap-2">
-                    <Button variant="secondary" size="sm" onClick={() => step(-1)}>
+                    <Button variant="secondary" className="min-w-11" onClick={() => step(-1)}>
                       Anterior
                     </Button>
-                    <Button variant="secondary" size="sm" onClick={() => step(1)}>
+                    <Button variant="secondary" className="min-w-11" onClick={() => step(1)}>
                       Proximo
                     </Button>
                   </div>
@@ -173,7 +176,7 @@ export function NavigateSheet({
                           onClose();
                         }}
                         aria-current={position === selected ? "true" : undefined}
-                        className={`w-full rounded-lg px-2 py-2 text-left text-sm ${
+                        className={`min-h-11 w-full rounded-lg px-2 py-2 text-left text-sm ${
                           position === selected ? "bg-accent-soft" : "hover:bg-surface-2"
                         }`}
                       >

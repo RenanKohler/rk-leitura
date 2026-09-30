@@ -30,7 +30,7 @@ test("texto colado em Markdown chega formatado ao leitor", async ({ page }) => {
   await updateSettings(page.request, { readingMode: "flow" });
 
   await page.goto("/textos/novo");
-  await page.getByRole("button", { name: "Colar" }).click();
+  await page.getByRole("radio", { name: "Colar" }).click();
   await page.getByRole("textbox", { name: "Texto" }).fill(SOURCE);
   await expect(page.getByRole("checkbox", { name: /Interpretar formatacao Markdown/ })).toBeChecked();
   await page.getByRole("button", { name: "Salvar e ler" }).click();
@@ -60,7 +60,7 @@ test("arquivo .md e importado com a formatacao", async ({ page }) => {
   await updateSettings(page.request, { readingMode: "page" });
 
   await page.goto("/textos/novo");
-  await page.getByRole("button", { name: "Arquivo" }).click();
+  await page.getByRole("radio", { name: "Arquivo" }).click();
   await page.locator('input[type="file"]').setInputFiles({
     name: "guia.md",
     mimeType: "text/markdown",

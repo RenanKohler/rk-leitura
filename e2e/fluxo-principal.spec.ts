@@ -31,7 +31,7 @@ test("cadastro, texto colado, leitura no modo Foco e historico", async ({ page }
   await updateSettings(page.request, { readingMode: "rsvp", baseWpm: 1200, warmup: false });
 
   await page.goto("/textos/novo");
-  await page.getByRole("button", { name: "Colar" }).click();
+  await page.getByRole("radio", { name: "Colar" }).click();
   await page.getByRole("textbox", { name: "Titulo" }).fill("Texto do teste de ponta a ponta");
   await page.getByRole("textbox", { name: "Texto" }).fill(sampleText(40));
   await page.getByRole("button", { name: "Salvar e ler" }).click();
@@ -70,4 +70,29 @@ test("modo Paginas vira por toque lateral e grava a pagina exibida", async ({ pa
 
   await openReader(page, text.id);
   await expect(page.getByText(/^Pagina \d+ de \d+$/)).toHaveText(/^Pagina 2 de \d+$/);
+});
+
+/**
+ * APP-11: formato desconhecido e recusado antes de chegar ao leitor de PDF,
+ * e .txt entra como texto simples.
+ */
+test("importacao de arquivo recusa formato desconhecido e aceita .txt", async ({ page }) => {
+  await registerByApi(page.request);
+  await page.goto("/textos/novo");
+  await page.getByRole("radio", { name: "Arquivo" }).click();
+  const input = page.locator('input[type="file"]');
+
+  await input.setInputFiles({ name: "foto.png", mimeType: "image/png", buffer: Buffer.from("png") });
+  await expect(
+    page.getByText("Formato nao suportado. Use PDF, EPUB, DOCX, MD ou TXT")
+  ).toBeVisible();
+  await expect(page.getByText(/Invalid PDF/)).toHaveCount(0);
+
+  await input.setInputFiles({
+    name: "conto curto.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from(sampleText(30)),
+  });
+  await expect(page.getByRole("textbox", { name: "Titulo" })).toHaveValue("conto curto");
+  await expect(page.getByText("30 palavras")).toBeVisible();
 });

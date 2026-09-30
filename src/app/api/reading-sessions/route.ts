@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { readingSessions, speedSettings, texts, trainingDays } from "@/db/schema";
+import { readingSessions, texts, trainingDays } from "@/db/schema";
+import { upsertSettings } from "@/lib/settings-row";
 import {
   asInteger,
   asString,
@@ -141,10 +142,7 @@ async function recordTrainingDay(
     // O alvo novo vira a velocidade do leitor: e o programa que conduz o
     // ritmo enquanto dura, e por isso abandonar devolve a velocidade antiga.
     if (after && !after.finished) {
-      await db
-        .update(speedSettings)
-        .set({ baseWpm: after.targetWpm, updatedAt: new Date() })
-        .where(eq(speedSettings.userId, userId));
+      await upsertSettings(db, userId, { baseWpm: after.targetWpm });
     }
 
     return after;

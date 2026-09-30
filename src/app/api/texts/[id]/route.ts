@@ -16,7 +16,7 @@ import { normalizeTagList } from "@/lib/tags";
 import { applyTags } from "@/lib/text-tags";
 import { detectSeries } from "@/lib/series";
 import { asTextFormat, clamp, countWords } from "@/lib/reading";
-import { newerPosition } from "@/lib/offline";
+import { acceptsPosition } from "@/lib/offline";
 
 export const dynamic = "force-dynamic";
 
@@ -186,16 +186,16 @@ export async function PATCH(request: Request, { params }: Params) {
 
     if (!current) return jsonError("Texto nao encontrado.", 404);
 
-    // `at` chega de uma leitura que ficou offline: a posicao guardada pode
-    // ser mais antiga do que a que outro aparelho ja gravou aqui. Vence a
-    // mais recente, nao a maior - um texto relido do inicio precisa voltar
-    // ao inicio (US-40, criterio 3).
-    const decided = newerPosition(
-      { progressIndex, at: typeof body?.at === "string" ? body.at : null },
-      { progressIndex: current.progressIndex, at: current.updatedAt.toISOString() }
+    // Um save que ficou na fila offline pode ser mais antigo do que o que
+    // outro aparelho ja gravou aqui: vence o mais recente, nao o maior (US-40,
+    // criterio 3). Um save feito agora vence sempre, mesmo que o relogio do
+    // aparelho esteja atrasado em relacao ao do servidor.
+    const accepted = acceptsPosition(
+      typeof body?.at === "string" ? body.at : null,
+      current.updatedAt
     );
 
-    if (decided !== progressIndex) {
+    if (!accepted) {
       return NextResponse.json({
         text: { id, progressIndex: current.progressIndex },
         kept: "servidor",

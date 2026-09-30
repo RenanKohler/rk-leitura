@@ -3,6 +3,7 @@ import { eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "@/db";
 import { pushSubscriptions, speedSettings } from "@/db/schema";
 import { serverError } from "@/lib/api";
+import { upsertSettings } from "@/lib/settings-row";
 import { loadGoalStatus } from "@/lib/queries";
 import { asTimezone, todayIn } from "@/lib/goals";
 import { reminderBody, shouldRemind } from "@/lib/reminder";
@@ -101,10 +102,7 @@ export async function GET(request: Request) {
       }
 
       if (delivered) {
-        await db
-          .update(speedSettings)
-          .set({ reminderSentOn: today })
-          .where(eq(speedSettings.userId, candidate.userId));
+        await upsertSettings(db, candidate.userId, { reminderSentOn: today });
         enviados += 1;
       }
     }

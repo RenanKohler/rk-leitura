@@ -16,7 +16,7 @@ const ARTICLE = [
 
 async function paste(page: Page) {
   await page.goto("/textos/novo");
-  await page.getByRole("button", { name: "Colar" }).click();
+  await page.getByRole("radio", { name: "Colar" }).click();
   await page.getByRole("textbox", { name: "Titulo" }).fill("Artigo");
   await page.getByRole("textbox", { name: "Texto" }).fill(ARTICLE);
 }

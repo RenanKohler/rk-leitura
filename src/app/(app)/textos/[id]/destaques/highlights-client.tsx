@@ -110,7 +110,7 @@ export function HighlightsClient({
         <EmptyState
           icon={<MarkIcon className="size-6" />}
           title="Nenhum destaque ainda"
-          description="Selecione um trecho durante a leitura para marcar, ou use Destacar frase no modo Foco."
+          description="Selecione um trecho durante a leitura para marcar, ou use Destacar frase com o Word Runner pausado."
           action={
             <div className="flex flex-col gap-2">
               <Link href={`/leitor/${textId}`}>
