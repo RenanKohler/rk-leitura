@@ -17,6 +17,10 @@ interface Result {
   answer: number;
   given: number | null;
   evidence: string;
+  /** Por que a correta e a correta (US-135); ausente nos questionarios antigos. */
+  rationale?: string;
+  /** Onde a evidencia esta no texto (US-134); ausente quando nao foi achada. */
+  position?: { start: number; end: number };
 }
 
 /**
@@ -31,17 +35,23 @@ interface Result {
  * lacuna (PROD-3), montadas do proprio trecho no servidor. A nota vai para a
  * mesma sessao e alimenta o treino do mesmo jeito. A interface do componente
  * nao muda: quem abre a folha nao precisa saber qual das duas respondeu.
+ *
+ * No resultado, uma pergunta errada oferece "Reler o trecho" (US-134) quando a
+ * evidencia foi achada no texto: `onReread` leva o leitor ate ela. A folha so
+ * fecha, sem limpar, para que reabrir mostre o mesmo resultado.
  */
 export function QuizSheet({
   textId,
   open,
   onClose,
   onScored,
+  onReread,
 }: {
   textId: string;
   open: boolean;
   onClose: () => void;
   onScored?: (score: number) => void;
+  onReread?: (span: { start: number; end: number }) => void;
 }) {
   const [questions, setQuestions] = useState<Question[] | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
@@ -201,10 +211,34 @@ export function QuizSheet({
                       );
                     })}
                   </ul>
+                  {item.rationale ? (
+                    item.given === item.answer ? (
+                      <details className="text-sm">
+                        <summary className="cursor-pointer text-muted">Por que está certa</summary>
+                        <p className="mt-1">{item.rationale}</p>
+                      </details>
+                    ) : (
+                      <p className="text-sm" data-testid="explicacao">
+                        {item.rationale}
+                      </p>
+                    )
+                  ) : null}
                   {item.evidence ? (
                     <p className="border-l-2 border-border pl-3 text-sm text-muted">
                       {item.evidence}
                     </p>
+                  ) : null}
+                  {item.position && item.given !== item.answer && onReread ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        onReread(item.position!);
+                        onClose();
+                      }}
+                    >
+                      Reler o trecho
+                    </Button>
                   ) : null}
                 </li>
               ))}

@@ -175,6 +175,9 @@ interface ReaderProps {
   knownWords?: string[];
 }
 
+/** Id da marca do trecho em releitura (US-134): nao e um destaque gravado. */
+const REREAD_MARK = "releitura";
+
 export function ReaderClient(props: ReaderProps) {
   return <Reader key={props.text.id} {...props} />;
 }
@@ -417,6 +420,9 @@ function Reader({
   const savedIndexRef = useRef(index);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [quizOpen, setQuizOpen] = useState(false);
+  // Trecho de uma pergunta errada aberto para reler (US-134): fica marcado na
+  // pagina ate "Voltar para onde parou" devolver a tela de conclusao.
+  const [reread, setReread] = useState<Span | null>(null);
   const [comprehension, setComprehension] = useState<number | null>(null);
   // Tempo lido nesta visita, somado a cada sessao fechada: o cabecalho nao
   // pode voltar a 0:00 so porque uma sessao foi gravada.
@@ -501,6 +507,17 @@ function Reader({
   const stored: StoredHighlight[] = useMemo(
     () => marks.map(({ id, start, end, note }) => ({ id, start, end, note })),
     [marks]
+  );
+  // A marca da releitura e so visual: tira da frente os destaques que ela cruza.
+  const pageMarks: StoredHighlight[] = useMemo(
+    () =>
+      reread
+        ? [
+            ...stored.filter((mark) => mark.end <= reread.start || mark.start >= reread.end),
+            { id: REREAD_MARK, start: reread.start, end: reread.end, note: null },
+          ]
+        : stored,
+    [stored, reread]
   );
 
   const createMark = useCallback(
@@ -705,6 +722,7 @@ function Reader({
       setPlaying(false);
       setIndex(stateRef.current.total);
       setFinished(true);
+      setReread(null);
       saveProgress(stateRef.current.total);
       setSummary(done);
       flushSession(true);
@@ -1178,6 +1196,7 @@ function Reader({
   const restart = useCallback(() => {
     pause("folha");
     setFinished(false);
+    setReread(null);
     setSummary(null);
     setAnchor(0);
     seek(0);
@@ -1542,14 +1561,14 @@ function Reader({
               pageEnd={pageEnd}
               ready={pagesReady}
               loadingMore={loadingMore}
-              marks={stored}
+              marks={pageMarks}
               emphasis={emphasis}
               current={currentOnPage}
               hidden={runnerVisible}
               touch={word.handlers}
               onTurn={turnPage}
               onTap={onPageTap}
-              onOpenMark={setOpenMark}
+              onOpenMark={(id) => (id === REREAD_MARK ? undefined : setOpenMark(id))}
             />
             {!settings.readerTipsSeen &&
             !tipsDismissed &&
@@ -1684,7 +1703,23 @@ function Reader({
               </div>
             ) : null}
 
-            {showReturn && !selection ? (
+            {reread && !playing && !narrating && !finished && !selection ? (
+              <button
+                type="button"
+                onClick={() => {
+                  // Volta ao fim, onde a leitura tinha parado, com o resultado.
+                  setReread(null);
+                  stateRef.current.index = stateRef.current.total;
+                  setIndex(stateRef.current.total);
+                  saveProgress(stateRef.current.total);
+                  setFinished(true);
+                  setQuizOpen(true);
+                }}
+                className="pointer-events-auto min-h-11 rounded-full border border-border bg-surface px-4 text-sm font-medium shadow-float"
+              >
+                Voltar para onde parou
+              </button>
+            ) : showReturn && !selection ? (
               <button
                 type="button"
                 onClick={() => seek(anchor)}
@@ -1894,6 +1929,10 @@ function Reader({
         open={quizOpen}
         onClose={() => setQuizOpen(false)}
         onScored={setComprehension}
+        onReread={(span) => {
+          setReread(span);
+          seek(span.start);
+        }}
       />
 
       <Sheet open={showSettings} onClose={() => setShowSettings(false)} title="Ajustes de leitura">
