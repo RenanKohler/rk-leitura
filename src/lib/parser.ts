@@ -8,7 +8,15 @@ export interface ParsedText {
   wordCount: number;
   /** Idioma declarado pela pagina, ou null quando ela nao declara (US-67). */
   language: Language | null;
+  /**
+   * Como o corpo foi achado (US-136): `exata` quando a pagina o declara
+   * (JSON-LD articleBody, itemprop, article, main); `palpite` quando caiu no
+   * maior container, que pode trazer menus e "leia tambem" junto.
+   */
+  extraction: Extraction;
 }
+
+export type Extraction = "exata" | "palpite";
 
 const NOISE_SELECTORS = [
   "script",
@@ -78,7 +86,13 @@ export function extractTextFromHtml(html: string): ParsedText {
   // Corpo declarado em JSON-LD, quando o site publica o texto ali.
   const structured = structuredArticleBody($);
   if (structured) {
-    return { title, content: structured, wordCount: countWords(structured), language };
+    return {
+      title,
+      content: structured,
+      wordCount: countWords(structured),
+      language,
+      extraction: "exata",
+    };
   }
 
   $(NOISE_SELECTORS).remove();
@@ -90,14 +104,14 @@ export function extractTextFromHtml(html: string): ParsedText {
     // parte do texto.
     const content = collectBlocks($, exact, 0);
     if (countWords(content) >= 20) {
-      return { title, content, wordCount: countWords(content), language };
+      return { title, content, wordCount: countWords(content), language, extraction: "exata" };
     }
   }
 
   const guessed = pickContainer($, FALLBACK_SELECTORS) ?? ($("body") as cheerio.Cheerio<never>);
   const content = collectBlocks($, guessed, MIN_FALLBACK_BLOCK_CHARS);
 
-  return { title, content, wordCount: countWords(content), language };
+  return { title, content, wordCount: countWords(content), language, extraction: "palpite" };
 }
 
 /**

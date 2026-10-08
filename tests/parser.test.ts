@@ -75,6 +75,35 @@ describe("extractTextFromHtml: escolha do container", () => {
   });
 });
 
+describe("extractTextFromHtml: origem da extracao (US-136)", () => {
+  it("marca como exata o corpo vindo de JSON-LD", () => {
+    const html = pagina(`<script type="application/ld+json">${JSON.stringify({
+      "@type": "Article",
+      articleBody: CORPO.join("\n\n"),
+    })}</script>`);
+    expect(extractTextFromHtml(html).extraction).toBe("exata");
+  });
+
+  it("marca como exata o microdado, o <article> e o <main>", () => {
+    for (const corpo of [
+      `<div itemprop="articleBody">${paragrafos(CORPO)}</div>`,
+      `<article>${paragrafos(CORPO)}</article>`,
+      `<main>${paragrafos(CORPO)}</main>`,
+    ]) {
+      expect(extractTextFromHtml(pagina(corpo)).extraction).toBe("exata");
+    }
+  });
+
+  it("marca como palpite o maior container e o corpo da pagina", () => {
+    expect(
+      extractTextFromHtml(pagina(`<div class="post-content">${paragrafos(CORPO)}</div>`)).extraction
+    ).toBe("palpite");
+    expect(extractTextFromHtml(pagina(`<div>${paragrafos(CORPO)}</div>`)).extraction).toBe(
+      "palpite"
+    );
+  });
+});
+
 describe("extractTextFromHtml: conteudo", () => {
   it("preserva as falas curtas de dialogo no container exato", () => {
     // Regressao: um filtro por tamanho minimo apagava boa parte da ficcao.

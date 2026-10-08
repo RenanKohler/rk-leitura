@@ -27,6 +27,8 @@ export interface TextSummary {
   fresh: boolean;
   /** Largado no meio (US-79): fora da lista principal e da fila. */
   abandoned: boolean;
+  /** Sinopse sem spoiler ja gerada para o conteudo atual (US-138). */
+  synopsis?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -243,6 +245,8 @@ export interface ImportedText {
   wordCount: number;
   sourceUrl: string;
   language: string | null;
+  /** `palpite` quando a extracao caiu no maior container (US-136). */
+  extraction?: "exata" | "palpite";
 }
 
 /** Resposta de POST /api/share: o texto ja existia ou acabou de ser criado. */

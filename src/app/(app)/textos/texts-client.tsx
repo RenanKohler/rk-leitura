@@ -6,6 +6,7 @@ import { useResource } from "@/hooks/use-resource";
 import { apiGet, apiSend } from "@/lib/client";
 import { useSettings, useToast } from "@/components/providers";
 import { TagPicker } from "@/components/tag-picker";
+import { TextSynopsis } from "@/components/text-synopsis";
 import { TagManagerSheet } from "@/components/tag-manager-sheet";
 import { ContentSearchResults } from "@/components/content-search-results";
 import {
@@ -714,6 +715,10 @@ function TextCard({
             ))}
           </div>
         ) : null}
+
+        {/* A chave leva a data de alteracao: editar ou continuar o texto
+            descarta a sinopse que estava na tela junto com a do banco. */}
+        <TextSynopsis key={`${text.id}:${text.updatedAt}`} text={text} />
 
         {/* Fora do <Link> do titulo: um link dentro de outro nao e valido, e
             o toque cairia no destino errado. */}

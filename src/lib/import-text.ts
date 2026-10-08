@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Language } from "@/lib/language";
-import { extractTextFromHtml } from "@/lib/parser";
+import { extractTextFromHtml, type Extraction } from "@/lib/parser";
 import { fetchPublicHtml, SafeFetchError } from "@/lib/safe-fetch";
 
 /**
@@ -21,6 +21,8 @@ export interface ImportedDocument {
   sourceUrl: string;
   /** Idioma declarado pela pagina; null quando ela nao declara. */
   language: Language | null;
+  /** Corpo declarado pela pagina ou palpite pelo maior container (US-136). */
+  extraction: Extraction;
 }
 
 /** Falha esperada da importacao, com o status que a rota deve devolver. */
@@ -51,6 +53,7 @@ export async function importFromUrl(url: string): Promise<ImportedDocument> {
       wordCount: parsed.wordCount,
       sourceUrl: finalUrl,
       language: parsed.language,
+      extraction: parsed.extraction,
     };
   } catch (error) {
     if (error instanceof ImportError) throw error;
