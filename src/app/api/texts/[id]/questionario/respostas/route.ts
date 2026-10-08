@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { comprehensionQuizzes, readingSessions } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { loadText } from "@/lib/queries";
-import { parseQuiz, quizKey, scoreQuiz } from "@/lib/quiz";
+import { parseQuiz, quizKey, scoreQuiz, withEvidencePositions } from "@/lib/quiz";
+import { parseParagraphs } from "@/lib/reading";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 type Params = { params: Promise<{ id: string }> };
 
 /**
- * Corrige as respostas no servidor e devolve o gabarito com a evidencia.
+ * Corrige as respostas no servidor e devolve o gabarito com a evidencia, a
+ * justificativa (US-135) e onde a evidencia esta no texto (US-134).
  *
  * A correcao nao pode acontecer no cliente: para conferir a resposta ele
  * precisaria do gabarito, e ai o questionario deixaria de medir qualquer
@@ -45,8 +47,11 @@ export async function POST(request: Request, { params }: Params) {
       )
       .limit(1);
 
-    const quiz = row ? parseQuiz(row.questions) : null;
-    if (!quiz) return jsonError("Peça o questionário antes de responder.", 409);
+    const stored = row ? parseQuiz(row.questions) : null;
+    if (!stored) return jsonError("Peça o questionário antes de responder.", 409);
+    // Questionario gravado antes da US-134 nao tem a posicao: ela e calculada
+    // aqui, do proprio texto, sem chamar o modelo.
+    const quiz = withEvidencePositions(stored, parseParagraphs(text.content, text.format).words);
 
     const score = scoreQuiz(quiz, answers);
 
@@ -75,6 +80,9 @@ export async function POST(request: Request, { params }: Params) {
         answer: question.answer,
         given: Number.isInteger(answers[index]) ? answers[index] : null,
         evidence: question.evidence,
+        // So aqui, depois de respondido: antes entregariam a resposta.
+        ...(question.rationale ? { rationale: question.rationale } : {}),
+        ...(question.position ? { position: question.position } : {}),
       })),
     });
   } catch (error) {

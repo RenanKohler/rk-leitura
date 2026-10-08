@@ -2650,8 +2650,8 @@ Como leitor de textos longos, eu quero uma descrição curta de cada personagem 
 **Épico:** Compreensão com IA
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `content.slice(0, MAX_CHARS)` com `MAX_CHARS = 60_000` em `src/lib/quiz-generator.ts:27` e `:75`: em texto com mais de cerca de 10 mil palavras, as perguntas só cobrem o começo
+**Status:** Implementada
+**Evidência:** `quizSample` e `QUIZ_MAX_CHARS` em `src/lib/quiz.ts`, usados por `generateQuiz` em `src/lib/quiz-generator.ts`; testes em `tests/quiz-coverage.test.ts` (cobertura do primeiro décimo, da segunda metade e do último décimo, teto de 60 mil caracteres, texto inteiro até o teto, `quizKey` inalterada)
 
 Como leitor em treino, eu quero que as perguntas de um texto longo cubram o texto do começo ao fim, para que a nota de compreensão reflita a leitura inteira e não só as primeiras páginas.
 
@@ -2668,8 +2668,8 @@ Como leitor em treino, eu quero que as perguntas de um texto longo cubram o text
 **Épico:** Compreensão com IA
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** cada pergunta já traz `evidence`, trecho copiado do texto (`src/lib/quiz.ts:28`), mostrado só como texto no resultado (`src/components/quiz-sheet.tsx:195`)
+**Status:** Implementada
+**Evidência:** `locateEvidence` e `withEvidencePositions` em `src/lib/quiz.ts` (dobra `searchKey` de `src/lib/navigation.ts`), gravadas na geração (`src/app/api/texts/[id]/questionario/route.ts`) e calculadas na correção para os questionários antigos (`.../questionario/respostas/route.ts`); "Reler o trecho" em `src/components/quiz-sheet.tsx` e marca do trecho com "Voltar para onde parou" em `src/app/(app)/leitor/[id]/reader-client.tsx`; testes em `tests/quiz-coverage.test.ts` e `e2e/questionario-releitura.spec.ts`
 
 Como leitor em treino, eu quero ir direto ao trecho que responde uma pergunta que errei, para que eu releia exatamente o ponto que não entendi.
 
@@ -2686,8 +2686,8 @@ Como leitor em treino, eu quero ir direto ao trecho que responde uma pergunta qu
 **Épico:** Compreensão com IA
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `QuestionSchema` em `src/lib/quiz-generator.ts` pede enunciado, alternativas, resposta e evidência, sem justificativa
+**Status:** Implementada
+**Evidência:** campo `rationale` em `QuestionSchema` (`src/lib/quiz-generator.ts`) e em `parseQuiz` (`src/lib/quiz.ts`, até `MAX_RATIONALE_WORDS`), devolvido só por `/questionario/respostas`; explicação aberta na errada e recolhida em "Por que está certa" em `src/components/quiz-sheet.tsx`; testes em `tests/quiz-coverage.test.ts` e `e2e/questionario-releitura.spec.ts`
 
 Como leitor em treino, eu quero ler por que a alternativa que escolhi está errada, para que eu corrija o raciocínio e não só decore a resposta.
 

@@ -7,7 +7,14 @@ import { loadText } from "@/lib/queries";
 import { consumeDailyQuota } from "@/lib/daily-quota";
 import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { MIN_WORDS_FOR_QUIZ, parseQuiz, quizKey, type Quiz } from "@/lib/quiz";
+import {
+  MIN_WORDS_FOR_QUIZ,
+  parseQuiz,
+  quizKey,
+  withEvidencePositions,
+  type Quiz,
+} from "@/lib/quiz";
+import { parseParagraphs, type TextFormat } from "@/lib/reading";
 import { generateQuiz } from "@/lib/quiz-generator";
 import { aiErrorResponse, aiGate, AiUnavailable } from "@/lib/ai";
 
@@ -71,7 +78,7 @@ export async function POST(_request: Request, { params }: Params) {
           retryAfter: quota.retryAfterSeconds,
         });
       }
-      quiz = await generateAndStore(session.id, id, key, text.title, text.content, text.language);
+      quiz = await generateAndStore(session.id, id, key, text);
     }
 
     return NextResponse.json({ quiz: withoutAnswers(quiz), questions: quiz.questions.length });
@@ -97,11 +104,16 @@ async function generateAndStore(
   userId: string,
   textId: string,
   key: string,
-  title: string,
-  content: string,
-  language: string
+  text: { title: string; content: string; language: string; format: TextFormat }
 ): Promise<Quiz> {
-  const quiz = await generateQuiz(userId, title, content, language);
+  const generated = await generateQuiz(userId, text.title, text.content, text.language);
+  // A posicao de cada evidencia (US-134) e gravada junto da pergunta, na
+  // mesma contagem de palavras do leitor. No idioma original do texto, em
+  // que a evidencia ja vem (US-69).
+  const quiz = withEvidencePositions(
+    generated,
+    parseParagraphs(text.content, text.format).words
+  );
 
   await db
     .insert(comprehensionQuizzes)
@@ -112,7 +124,11 @@ async function generateAndStore(
   return quiz;
 }
 
-/** O gabarito fica no servidor; a tela recebe so o que precisa mostrar. */
+/**
+ * O gabarito fica no servidor; a tela recebe so o que precisa mostrar. A
+ * justificativa e a posicao da evidencia tambem ficam (US-134, US-135): as
+ * duas entregariam a resposta.
+ */
 function withoutAnswers(quiz: Quiz) {
   return {
     questions: quiz.questions.map((question) => ({

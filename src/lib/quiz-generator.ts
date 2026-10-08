@@ -6,8 +6,10 @@ import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
 import {
   CHOICES_PER_QUESTION,
   MAX_QUESTIONS,
+  MAX_RATIONALE_WORDS,
   MIN_QUESTIONS,
   parseQuiz,
+  quizSample,
   type Quiz,
 } from "@/lib/quiz";
 
@@ -15,9 +17,6 @@ import {
  * Geracao das perguntas de compreensao. O envio ao modelo, a chave e o
  * tratamento de erro ficam em `lib/ai.ts` (US-123).
  */
-
-/** Recorte enviado ao modelo. Textos longos nao melhoram as perguntas. */
-const MAX_CHARS = 60_000;
 
 const MESSAGES: AiMessages = {
   notConfigured: "O questionário não está configurado nesta instalação.",
@@ -35,6 +34,12 @@ const QuestionSchema = z.object({
   evidence: z
     .string()
     .describe("Trecho curto copiado do texto que justifica a resposta correta."),
+  // Mesma chamada, cerca de 60 tokens a mais por pergunta (US-135).
+  rationale: z
+    .string()
+    .describe(
+      `Por que a alternativa correta está certa e as outras não, em até ${MAX_RATIONALE_WORDS} palavras, em português do Brasil.`
+    ),
 });
 
 const QuizSchema = z.object({
@@ -47,6 +52,7 @@ const SYSTEM = [
   "Cada pergunta tem exatamente quatro alternativas e uma única correta.",
   "As alternativas erradas são plausíveis para quem leu por cima, nunca absurdas.",
   "A evidência é um trecho curto copiado do texto, sem paráfrase.",
+  `A justificativa explica, em até ${MAX_RATIONALE_WORDS} palavras, por que a correta está certa, sem repetir o enunciado.`,
   "Nunca faça perguntas que possam ser respondidas sem ler o texto.",
 ].join(" ");
 
@@ -56,7 +62,12 @@ export async function generateQuiz(
   content: string,
   language: string = DEFAULT_LANGUAGE
 ): Promise<Quiz> {
-  const excerpt = content.slice(0, MAX_CHARS);
+  // Texto longo vai em trechos do comeco ao fim, nao so o comeco (US-133).
+  const sample = quizSample(content);
+  const sampleNote =
+    sample.blocks.length > 0
+      ? `\n\nO texto é longo: seguem ${sample.blocks.length} trechos, na ordem, distribuídos do começo ao fim. Distribua as perguntas pelo texto inteiro, não só pelo começo.`
+      : "";
   // Texto em outro idioma (US-69): perguntas em portugues, citacoes no original.
   const languageNote =
     language === DEFAULT_LANGUAGE
@@ -75,7 +86,7 @@ export async function generateQuiz(
     content: [
       {
         role: "user",
-        content: `Título: ${title}\n\nTexto:\n${excerpt}\n\nEscreva de ${MIN_QUESTIONS} a ${MAX_QUESTIONS} perguntas de compreensão sobre este texto.${languageNote}`,
+        content: `Título: ${title}${sampleNote}\n\nTexto:\n${sample.text}\n\nEscreva de ${MIN_QUESTIONS} a ${MAX_QUESTIONS} perguntas de compreensão sobre este texto.${languageNote}`,
       },
     ],
   });
