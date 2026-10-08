@@ -49,14 +49,30 @@ function prefix(paragraph: Paragraph): string {
   }
 }
 
+/** Sintese dos destaques (US-140), quando houver. */
+export interface AnnotatedSynthesis {
+  text: string;
+  /** Gerada antes da ultima mudanca nos destaques. */
+  stale?: boolean;
+}
+
 export function annotatedMarkdown(
   text: { title: string; sourceUrl: string | null; content: string; format: TextFormat },
-  marks: AnnotatedMark[]
+  marks: AnnotatedMark[],
+  synthesis?: AnnotatedSynthesis | null
 ): string {
   const { paragraphs } = parseParagraphs(text.content, text.format);
   const sorted = [...marks].sort((a, b) => a.start - b.start);
   const lines: string[] = [`# ${text.title}`, ""];
   if (text.sourceUrl) lines.push(`Origem: <${text.sourceUrl}>`, "");
+
+  // A sintese abre o arquivo: e o resumo do que o leitor achou importante. Os
+  // numeros entre colchetes seguem a ordem dos destaques no texto.
+  if (synthesis?.text.trim()) {
+    lines.push("## Síntese", "", synthesis.text.trim(), "");
+    if (synthesis.stale) lines.push("_Gerada antes da última mudança nos destaques._", "");
+    lines.push("---", "");
+  }
 
   for (const paragraph of paragraphs) {
     const end = paragraph.start + paragraph.words.length;

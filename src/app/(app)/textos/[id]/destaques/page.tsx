@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { latestAiResult } from "@/lib/ai-results";
+import { asStoredSynthesis } from "@/lib/highlight-synthesis";
 import { loadHighlights } from "@/lib/queries";
 import { HighlightsClient } from "./highlights-client";
 
@@ -20,6 +22,11 @@ export default async function HighlightsPage({
 
   const { id } = await params;
   const loaded = UUID_PATTERN.test(id) ? await loadHighlights(session.id, id) : null;
+
+  // Sintese dos destaques (US-140), se ja houver: a tela compara a impressao
+  // com os destaques de agora para dizer se ela esta desatualizada.
+  const stored = loaded ? await latestAiResult<unknown>(session.id, loaded.text.id, "sintese") : null;
+  const synthesis = stored ? asStoredSynthesis(stored.payload) : null;
 
   if (!loaded) {
     return (
@@ -41,6 +48,7 @@ export default async function HighlightsPage({
       content={loaded.text.content}
       format={loaded.text.format}
       initial={loaded.items}
+      synthesis={synthesis}
     />
   );
 }

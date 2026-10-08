@@ -84,3 +84,12 @@ export async function lookupWord(
   // Palavra portuguesa nao tem traducao a mostrar.
   return language === DEFAULT_LANGUAGE ? { ...entry, translation: null } : entry;
 }
+
+// O lote de definicoes pendentes (US-139) faz o mesmo pedido, pela Message
+// Batches: mesmas instrucoes, mesmo esquema, mesma frase de contexto.
+export {
+  EntrySchema as LOOKUP_SCHEMA,
+  MESSAGES as LOOKUP_MESSAGES,
+  SYSTEM as LOOKUP_SYSTEM,
+  prompt as lookupPrompt,
+};

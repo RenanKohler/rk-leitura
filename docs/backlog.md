@@ -2766,8 +2766,8 @@ Como leitor, eu quero ver do que trata um texto parado na biblioteca, para que e
 **Épico:** Vocabulário e destaques com IA
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** a definição de uma palavra guardada sem ela é buscada uma por vez (`src/app/api/palavras/[id]/definicao/route.ts`, US-115)
+**Status:** Implementada
+**Evidência:** `src/lib/word-batch.ts`, `src/lib/definition-batch.ts`, `src/app/api/palavras/definicoes/route.ts`, `src/app/(app)/palavras/`, `src/app/api/cron/acompanhamento/route.ts`
 
 Como leitor, eu quero buscar de uma vez a definição de todas as palavras que guardei sem ela, para que a revisão fique completa sem eu abrir palavra por palavra.
 
@@ -2785,8 +2785,8 @@ Como leitor, eu quero buscar de uma vez a definição de todas as palavras que g
 **Épico:** Vocabulário e destaques com IA
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `src/app/(app)/textos/[id]/destaques/` lista os destaques; `annotatedMarkdown` em `src/lib/annotated-export.ts:52` exporta sem síntese
+**Status:** Implementada
+**Evidência:** `src/lib/highlight-synthesis.ts`, `src/lib/synthesis-generator.ts`, `src/app/api/texts/[id]/destaques/sintese/route.ts`, `src/app/(app)/textos/[id]/destaques/`, `annotatedMarkdown` em `src/lib/annotated-export.ts`
 
 Como leitor, eu quero uma síntese do que destaquei em um texto, para que eu tenha em poucas linhas o que considerei importante e leve isso na exportação anotada.
 
