@@ -147,10 +147,10 @@ EPUB) e **leitor que estuda outro idioma**.
 | Vocabulário e destaques com IA | 2 | 6 | 0 | 0 | 2 |
 | **Total** | **140** | **549** | **50 (36%)** | **57 (41%)** | **33 (23%)** |
 
-Status: 116 Implementadas, 18 Propostas (US-123 a US-140), 5 Substituídas (US-15, US-16, US-17, US-94 e US-103), 1 Aguardando pendência.
+Status: 134 Implementadas, 5 Substituídas (US-15, US-16, US-17, US-94 e US-103), 1 Aguardando pendência.
 
 As seis épicas de IA (Plataforma de IA em diante, US-123 a US-140) somam 66
-pontos: 5 Must (24 pontos), 7 Should (23) e 6 Could (19). Todas Propostas. A
+pontos: 5 Must (24 pontos), 7 Should (23) e 6 Could (19). Todas implementadas. A
 proporção de Must (28% do grupo) fica abaixo da faixa de 40 a 50% de
 propósito: o produto já está no ar e nenhuma story de IA impede a leitura.
 Entram como Must só o que a entrega não pode dispensar: o acesso único ao
@@ -2837,9 +2837,8 @@ Entregue até aqui, em ordem:
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
 | US-46 | 8 | Perguntas de compreensão ao concluir um texto |
 
-Resta 1 story, travada por decisão externa (5 pontos), e as 18 stories de IA
-(US-123 a US-140, 66 pontos), com a ordem proposta em "Próximas entregas"
-abaixo. As épicas de US-62 a US-88 estão concluídas, nas ordens 9 a 18 abaixo. A ordem abaixo é o
+Resta 1 story, travada por decisão externa (5 pontos). As 18 stories de IA
+(US-123 a US-140, 66 pontos) estão entregues, nas ordens 24 a 29 abaixo. As épicas de US-62 a US-88 estão concluídas, nas ordens 9 a 18 abaixo. A ordem abaixo é o
 histórico do que foi entregue, agrupado por dependência.
 
 | Ordem | Stories | Pontos | Objetivo |
@@ -2855,20 +2854,21 @@ histórico do que foi entregue, agrupado por dependência.
 | ~~—~~ | ~~US-31~~ | ~~5~~ | Concluída: limite de requisições compartilhado, sobre o Postgres |
 | — | US-05 | 5 | Aguardando pendência: provedor de e-mail transacional. |
 
-### Próximas entregas: épicas de IA (US-123 a US-140)
+### Entregas: épicas de IA (US-123 a US-140)
 
 | Ordem | Stories | Pontos | Objetivo |
 | --- | --- | --- | --- |
-| 24 | US-123, US-125, US-124 | 11 | Base: acesso único ao modelo, consentimento por conta e medição de custo |
-| 25 | US-127, US-128 | 13 | Explicar um trecho e perguntar ao texto |
-| 26 | US-133, US-134, US-135, US-126 | 10 | Questionário sobre o texto inteiro, reler o trecho errado, justificativa e cotas visíveis |
-| 27 | US-130, US-131, US-136 | 13 | Resumos de retomada e limpeza da importação |
-| 28 | US-129, US-132, US-137 | 10 | Resposta como nota, quem é quem e sugestão de etiquetas |
-| 29 | US-138, US-139, US-140 | 9 | Sinopse, definições em lote e síntese de destaques |
+| ~~24~~ | ~~US-123, US-125, US-124~~ | ~~11~~ | Concluída: base: acesso único ao modelo, consentimento por conta e medição de custo |
+| ~~25~~ | ~~US-127, US-128~~ | ~~13~~ | Concluída: explicar um trecho e perguntar ao texto |
+| ~~26~~ | ~~US-133, US-134, US-135, US-126~~ | ~~10~~ | Concluída: questionário sobre o texto inteiro, reler o trecho errado, justificativa e cotas visíveis |
+| ~~27~~ | ~~US-130, US-131, US-136~~ | ~~13~~ | Concluída: resumos de retomada e limpeza da importação |
+| ~~28~~ | ~~US-129, US-132, US-137~~ | ~~10~~ | Concluída: resposta como nota, quem é quem e sugestão de etiquetas |
+| ~~29~~ | ~~US-138, US-139, US-140~~ | ~~9~~ | Concluída: sinopse, definições em lote e síntese de destaques |
 
-As ordens 24 e 25 formam uma sprint de 24 pontos com todas as Must do grupo.
-As ordens 26 e 27 somam 23 pontos (Should), e as 28 e 29 somam 19 (Could): o
-grupo cabe em 3 sprints, estimativa a recalibrar depois da primeira.
+As seis ordens foram entregues juntas: a base (24) primeiro e as demais em
+paralelo sobre ela. Modelos por tarefa: Opus 5.5 no questionário e nas
+perguntas ao texto, Sonnet 5.5 na explicação e nos resumos, Haiku 5.5 no
+dicionário, na limpeza da importação, nas etiquetas e na sinopse.
 
 Critérios desta ordem:
 
