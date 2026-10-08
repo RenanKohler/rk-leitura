@@ -1,18 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiSend } from "@/lib/client";
+import { apiGet, apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
 import { Button, Card, Field, Segmented } from "@/components/ui";
 import { BackIcon, FileIcon, LinkIcon, QueueIcon, TextIcon } from "@/components/icons";
 import { PasteForm } from "@/components/paste-form";
 import { FileImport } from "@/components/file-import";
 import { BatchImport } from "@/components/batch-import";
-import { formatNumber } from "@/lib/reading";
-import type { ImportedText, TextDetail } from "@/lib/types";
+import { countWords, formatNumber } from "@/lib/reading";
+import type { ImportedText, TagSummary, TextDetail } from "@/lib/types";
 import Link from "next/link";
 import { CitationsOption } from "@/components/citations-option";
+import { TagPicker } from "@/components/tag-picker";
+import { ImportPreviewContent } from "@/components/import-preview";
+import { useAiConsent } from "@/components/ai-consent";
+import { applyRemovals, type Leftover } from "@/lib/import-analysis";
+
+/** Resposta de POST /api/import-url/analise (US-136 e US-137). */
+interface ImportAnalysis {
+  leftovers: Leftover[];
+  suggestedTags: string[];
+}
 
 type Source = "link" | "texto" | "arquivo" | "lote";
 
@@ -66,8 +76,57 @@ function FromLink() {
   const [preview, setPreview] = useState<ImportedText | null>(null);
   const [keepCitations, setKeepCitations] = useState(false);
   const [title, setTitle] = useState("");
+  const [knownTags, setKnownTags] = useState<string[]>([]);
+  const [chosenTags, setChosenTags] = useState<string[]>([]);
+  const [analysis, setAnalysis] = useState<ImportAnalysis | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  // Paragrafos marcados como resto que a pessoa decidiu manter (US-136).
+  const [kept, setKept] = useState<ReadonlySet<number>>(new Set());
+  // Cada importacao invalida a analise da anterior que ainda nao voltou.
+  const attempt = useRef(0);
+  const { state: consent } = useAiConsent();
   const router = useRouter();
   const notify = useToast();
+
+  const leftovers = analysis?.leftovers ?? [];
+  const removed = leftovers.map((item) => item.index).filter((index) => !kept.has(index));
+  const finalContent = preview ? applyRemovals(preview.content, removed) : "";
+  const finalWords = preview && removed.length > 0 ? countWords(finalContent) : preview?.wordCount ?? 0;
+
+  /**
+   * Etiquetas da conta para o seletor e, com a IA permitida, a analise da
+   * previa. A previa ja esta na tela: a analise so acrescenta marcacoes e
+   * sugestoes quando volta, e qualquer falha deixa tudo como estava.
+   */
+  const enrich = async (imported: ImportedText, id: number) => {
+    let known: string[] = [];
+    try {
+      const { tags } = await apiGet<{ tags: TagSummary[] }>("/api/etiquetas");
+      known = tags.map((tag) => tag.name);
+    } catch {
+      // Sem a lista o seletor so cria etiquetas novas.
+    }
+    if (attempt.current !== id) return;
+    setKnownTags(known);
+
+    // Sem permissao nada sai do app: a previa fica como sempre foi.
+    if (consent !== "on") return;
+    if (imported.extraction !== "palpite" && known.length === 0) return;
+
+    setAnalyzing(true);
+    try {
+      const result = await apiSend<ImportAnalysis>("/api/import-url/analise", "POST", {
+        title: imported.title,
+        content: imported.content,
+        extraction: imported.extraction,
+      });
+      if (attempt.current === id) setAnalysis(result);
+    } catch {
+      // Analise e acessorio: falhou, a previa segue sem marcacoes.
+    } finally {
+      if (attempt.current === id) setAnalyzing(false);
+    }
+  };
 
   const handleImport = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -80,10 +139,16 @@ function FromLink() {
 
     setError("");
     setImporting(true);
+    const id = ++attempt.current;
+    setAnalysis(null);
+    setAnalyzing(false);
+    setKept(new Set());
+    setChosenTags([]);
     try {
       const imported = await apiSend<ImportedText>("/api/import-url", "POST", { url: trimmed });
       setPreview(imported);
       setTitle(imported.title);
+      void enrich(imported, id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Falha ao importar.");
     } finally {
@@ -98,9 +163,11 @@ function FromLink() {
       const { text } = await apiSend<{ text: TextDetail }>("/api/texts", "POST", {
         title: title.trim(),
         sourceUrl: preview.sourceUrl,
-        content: preview.content,
+        // O texto extraido sem os restos removidos; o resto, intacto.
+        content: finalContent,
         language: preview.language,
         keepCitations,
+        tags: chosenTags,
       });
       notify("Texto salvo.", "success");
       router.replace(`/leitor/${text.id}`);
@@ -138,7 +205,7 @@ function FromLink() {
         <Card className="animate-rise space-y-4 p-4">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="font-semibold tracking-tight">Conferir e salvar</h2>
-            <span className="text-sm text-muted">{formatNumber(preview.wordCount)} palavras</span>
+            <span className="text-sm text-muted">{formatNumber(finalWords)} palavras</span>
           </div>
 
           <Field
@@ -149,14 +216,43 @@ function FromLink() {
           />
 
           <div className="space-y-1.5">
-            <p className="text-sm font-medium text-muted">Prévia do conteúdo</p>
-            <div className="max-h-64 overflow-y-auto rounded-2xl border border-border bg-bg p-4 text-sm leading-relaxed text-muted">
-              {preview.content.slice(0, 2000)}
-              {preview.content.length > 2000 ? "..." : ""}
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-sm font-medium text-muted">Prévia do conteúdo</p>
+              {analyzing ? (
+                <span className="text-xs text-faint" role="status">
+                  Conferindo a página...
+                </span>
+              ) : removed.length > 0 ? (
+                <span className="text-xs text-faint">
+                  {removed.length === 1
+                    ? "1 parágrafo fica de fora"
+                    : `${removed.length} parágrafos ficam de fora`}
+                </span>
+              ) : null}
             </div>
+            <ImportPreviewContent
+              content={preview.content}
+              leftovers={leftovers}
+              kept={kept}
+              onToggle={(index) =>
+                setKept((current) => {
+                  const next = new Set(current);
+                  if (next.has(index)) next.delete(index);
+                  else next.add(index);
+                  return next;
+                })
+              }
+            />
           </div>
 
-          <CitationsOption content={preview.content} keep={keepCitations} onChange={setKeepCitations} />
+          <TagPicker
+            known={knownTags}
+            value={chosenTags}
+            onChange={setChosenTags}
+            suggested={analysis?.suggestedTags ?? []}
+          />
+
+          <CitationsOption content={finalContent} keep={keepCitations} onChange={setKeepCitations} />
 
           <Button size="lg" full loading={saving} onClick={handleSave} disabled={!title.trim()}>
             Salvar e ler

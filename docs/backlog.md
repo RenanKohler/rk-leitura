@@ -2708,8 +2708,8 @@ Como leitor em treino, eu quero ler por que a alternativa que escolhi está erra
 **Épico:** Biblioteca assistida por IA
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** quando não há JSON-LD, microdado nem `<article>`, a extração cai no palpite pelo maior container (`src/lib/parser.ts:97`), que pode trazer menus, "leia também" e avisos de cookies
+**Status:** Implementada
+**Evidência:** `ParsedText.extraction` (`exata` ou `palpite`) em `src/lib/parser.ts`; `findLeftovers` em `src/lib/import-ai.ts` (Haiku, 15 s, cota `importacao`); rota `src/app/api/import-url/analise/route.ts`; `applyRemovals` e `validLeftovers` em `src/lib/import-analysis.ts`; prévia riscada com "Manter" em `src/components/import-preview.tsx` e `src/app/(app)/textos/novo/page.tsx`; `tests/import-analysis.test.ts`, `tests/parser.test.ts`, `e2e/ia-biblioteca.spec.ts`
 
 Como leitor, eu quero que a prévia da importação aponte os parágrafos que não fazem parte do artigo, para que eu não leia menus e anúncios no meio do texto.
 
@@ -2727,8 +2727,8 @@ Como leitor, eu quero que a prévia da importação aponte os parágrafos que n�
 **Épico:** Biblioteca assistida por IA
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `src/components/tag-picker.tsx` sugere as etiquetas já usadas, sem relação com o conteúdo do texto
+**Status:** Implementada
+**Evidência:** `suggestTags` em `src/lib/import-ai.ts` (esquema com `enum` das etiquetas da conta), `validSuggestions` em `src/lib/import-analysis.ts`, prop `suggested` com o selo "Sugerida" em `src/components/tag-picker.tsx`, seletor na prévia de `src/app/(app)/textos/novo/page.tsx`; `tests/import-analysis.test.ts`, `e2e/ia-biblioteca.spec.ts`
 
 Como leitor, eu quero que o app sugira quais das minhas etiquetas combinam com o texto que estou importando, para que a biblioteca continue organizada sem eu etiquetar tudo à mão.
 
@@ -2745,8 +2745,8 @@ Como leitor, eu quero que o app sugira quais das minhas etiquetas combinam com o
 **Épico:** Biblioteca assistida por IA
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** listado como Won't Have ("Resumo automático do texto antes da leitura") até a medição de custo; com US-124, o custo passa a ser medido
+**Status:** Implementada
+**Evidência:** `synopsisExcerpt`, `canAskSynopsis` e `clampSynopsis` em `src/lib/synopsis.ts` (`tests/synopsis.test.ts`); geração e leitura em `src/lib/synopsis-ai.ts`; rota `src/app/api/texts/[id]/sinopse/route.ts` (cota `resumo`); botão e sinopse no cartão em `src/components/text-synopsis.tsx`; `e2e/ia-biblioteca.spec.ts`. Gravada em `ai_results` (tipo `sinopse`, chave com `contentKey`) em vez de `texts`, com o md5 do conteúdo para a biblioteca validar sem carregar o texto
 
 Como leitor, eu quero ver do que trata um texto parado na biblioteca, para que eu escolha o que ler agora sem abrir cada um.
 

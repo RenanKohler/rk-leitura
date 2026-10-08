@@ -11,20 +11,29 @@ import { MAX_TAG_CHARS, MAX_TAGS_PER_TEXT, normalizeTagName, sameTag } from "@/l
  * As ja usadas aparecem como sugestao para toque, e o campo cria as novas.
  * Sem a sugestao, cada texto ganharia uma grafia diferente da mesma etiqueta
  * e o filtro deixaria de reunir o que deveria.
+ *
+ * `suggested` sao as que o modelo achou que combinam com o texto (US-137):
+ * vem primeiro e marcadas como "Sugerida", mas so entram com um toque, como
+ * qualquer outra - nenhuma etiqueta e aplicada sozinha.
  */
 export function TagPicker({
   known,
   value,
   onChange,
+  suggested = [],
 }: {
   known: string[];
   value: string[];
   onChange: (next: string[]) => void;
+  suggested?: string[];
 }) {
   const [draft, setDraft] = useState("");
 
   const full = value.length >= MAX_TAGS_PER_TEXT;
-  const suggestions = known.filter((name) => !value.some((chosen) => sameTag(chosen, name)));
+  const free = (name: string) => !value.some((chosen) => sameTag(chosen, name));
+  const picked = suggested.filter(free);
+  const isSuggested = (name: string) => picked.some((item) => sameTag(item, name));
+  const suggestions = [...picked, ...known.filter((name) => free(name) && !isSuggested(name))];
 
   const add = (raw: string) => {
     const name = normalizeTagName(raw);
@@ -93,16 +102,30 @@ export function TagPicker({
 
       {suggestions.length > 0 && !full ? (
         <div className="flex flex-wrap gap-2">
-          {suggestions.map((name) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => add(name)}
-              className="flex min-h-9 items-center rounded-full border border-border px-3 text-sm text-muted"
-            >
-              {name}
-            </button>
-          ))}
+          {suggestions.map((name) =>
+            isSuggested(name) ? (
+              <button
+                key={name}
+                type="button"
+                onClick={() => add(name)}
+                aria-label={`${name} (sugerida)`}
+                data-testid="etiqueta-sugerida"
+                className="flex min-h-9 items-center gap-1.5 rounded-full border border-accent bg-accent-soft px-3 text-sm font-medium"
+              >
+                {name}
+                <span className="text-xs font-normal text-accent">Sugerida</span>
+              </button>
+            ) : (
+              <button
+                key={name}
+                type="button"
+                onClick={() => add(name)}
+                className="flex min-h-9 items-center rounded-full border border-border px-3 text-sm text-muted"
+              >
+                {name}
+              </button>
+            )
+          )}
         </div>
       ) : null}
     </div>
