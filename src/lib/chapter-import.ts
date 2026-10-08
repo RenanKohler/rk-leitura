@@ -47,11 +47,11 @@ export async function importNextChapter(
   ]);
 
   if (!owner) return { status: "missing" };
-  if (!next) return { status: "end", message: "Nao ha proxima leitura." };
+  if (!next) return { status: "end", message: "Não há próxima leitura." };
   if (next.textId) {
     return { status: "existing", id: next.textId, title: next.title ?? "", chapter: next.chapter };
   }
-  if (!next.importUrl) return { status: "end", message: "Esta e a ultima parte da serie." };
+  if (!next.importUrl) return { status: "end", message: "Esta é a última parte da série." };
 
   const url = normalizeSourceUrl(next.importUrl);
   const known = await findTextBySourceUrl(userId, [url]);
@@ -94,8 +94,8 @@ export async function importNextChapter(
     // A origem nao ter o capitulo seguinte e o caso normal de fim de serie.
     if (error instanceof ImportError) {
       return error.status === 404
-        ? { status: "end", message: "Esta e a ultima parte da serie." }
-        : { status: "unavailable", message: "Nao consegui buscar a proxima parte agora." };
+        ? { status: "end", message: "Esta é a última parte da série." }
+        : { status: "unavailable", message: "Não consegui buscar a próxima parte agora." };
     }
     throw error;
   }

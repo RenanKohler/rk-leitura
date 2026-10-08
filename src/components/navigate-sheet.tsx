@@ -66,7 +66,7 @@ export function NavigateSheet({
         if (active) setBookmarks(data.bookmarks);
       })
       .catch(() => {
-        if (active) setError("Nao consegui carregar os marcadores.");
+        if (active) setError("Não consegui carregar os marcadores.");
       });
     return () => {
       active = false;
@@ -97,7 +97,7 @@ export function NavigateSheet({
       setBookmarks(data.bookmarks);
       setLabel("");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui criar o marcador.");
+      setError(cause instanceof Error ? cause.message : "Não consegui criar o marcador.");
     } finally {
       setSaving(false);
     }
@@ -109,7 +109,7 @@ export function NavigateSheet({
       await apiSend(`/api/texts/${textId}/marcadores/${id}`, "DELETE");
       setBookmarks((current) => current?.filter((item) => item.id !== id) ?? null);
     } catch {
-      setError("Nao consegui apagar o marcador.");
+      setError("Não consegui apagar o marcador.");
     }
   };
 
@@ -143,7 +143,7 @@ export function NavigateSheet({
                 if (results.length > 0) goToResult(selected);
               }
             }}
-            placeholder="Palavra ou expressao"
+            placeholder="Palavra ou expressão"
             autoComplete="off"
             className="min-h-11 w-full rounded-xl border border-border bg-surface px-3 text-base"
           />
@@ -164,7 +164,7 @@ export function NavigateSheet({
                       Anterior
                     </Button>
                     <Button variant="secondary" className="min-w-11" onClick={() => step(1)}>
-                      Proximo
+                      Próximo
                     </Button>
                   </div>
                 </div>
@@ -193,8 +193,8 @@ export function NavigateSheet({
         </section>
 
         {headings.length > 0 ? (
-          <section className="space-y-2" aria-label="Sumario">
-            <h3 className="text-sm font-medium text-muted">Sumario</h3>
+          <section className="space-y-2" aria-label="Sumário">
+            <h3 className="text-sm font-medium text-muted">Sumário</h3>
             <ul className="max-h-60 space-y-1 overflow-y-auto">
               {headings.map((heading, position) => (
                 <li key={heading.start} style={{ paddingLeft: `${(heading.level - 1) * 1}rem` }}>

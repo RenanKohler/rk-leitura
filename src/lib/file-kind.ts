@@ -9,7 +9,7 @@
 
 export type FileKind = "pdf" | "epub" | "docx" | "markdown" | "text";
 
-export const UNSUPPORTED_FILE = "Formato nao suportado. Use PDF, EPUB, DOCX, MD ou TXT";
+export const UNSUPPORTED_FILE = "Formato não suportado. Use PDF, EPUB, DOCX, MD ou TXT";
 
 /** Valor do `accept` do campo de arquivo, na mesma lista que `fileKind` aceita. */
 export const FILE_ACCEPT = [

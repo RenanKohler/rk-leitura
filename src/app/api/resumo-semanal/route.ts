@@ -20,7 +20,7 @@ export async function POST() {
 
   try {
     const settings = await loadSettings(session.id);
-    if (!settings) return jsonError("Sessao expirada. Entre novamente.", 401);
+    if (!settings) return jsonError("Sessão expirada. Entre novamente.", 401);
 
     const monday = mondayOf(todayIn(settings.timezone));
     await upsertSettings(db, session.id, { weeklySummarySeenOn: monday });

@@ -18,10 +18,10 @@ export async function GET(_request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const loaded = await loadHighlights(session.id, id);
-    if (!loaded) return jsonError("Texto nao encontrado.", 404);
+    if (!loaded) return jsonError("Texto não encontrado.", 404);
 
     return NextResponse.json({ highlights: loaded.items });
   } catch (error) {
@@ -42,12 +42,12 @@ export async function POST(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const body = await readJson<{ start?: unknown; end?: unknown }>(request);
 
     const loaded = await loadHighlights(session.id, id);
-    if (!loaded) return jsonError("Texto nao encontrado.", 404);
+    if (!loaded) return jsonError("Texto não encontrado.", 404);
 
     const range = normalizeRange(body?.start, body?.end, loaded.text.wordCount);
     if (!range) return jsonError("Selecione um trecho para destacar.", 400);
@@ -90,7 +90,7 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const removed = await db
       .delete(highlights)

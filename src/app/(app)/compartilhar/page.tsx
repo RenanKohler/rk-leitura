@@ -59,7 +59,7 @@ export default async function SharePage({
         <header className="pt-2">
           <h1 className="text-2xl font-semibold tracking-tight">Texto compartilhado</h1>
           <p className="mt-1 text-sm text-muted">
-            A origem mandou o texto, nao um link. Confira o titulo e salve.
+            A origem mandou o texto, não um link. Confira o título e salve.
           </p>
         </header>
         <PasteForm initialTitle={title?.trim() ?? ""} initialContent={text} />
@@ -77,10 +77,10 @@ export default async function SharePage({
   return (
     <EmptyState
       icon={<LinkIcon className="size-6" />}
-      title={rejected ? "Endereco invalido" : "Nada para importar"}
+      title={rejected ? "Endereço inválido" : "Nada para importar"}
       description={
         rejected
-          ? "O endereco precisa comecar com http:// ou https://"
+          ? "O endereço precisa começar com http:// ou https://"
           : "O compartilhamento chegou sem link e sem texto suficiente para ler."
       }
       action={

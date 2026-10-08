@@ -31,10 +31,10 @@ export function CitationsOption({
         onChange={(event) => onChange(!event.target.checked)}
       />
       <span>
-        Omitir as referencias do corpo do texto
+        Omitir as referências do corpo do texto
         <span className="block text-faint">
-          {`${formatNumber(result.removed)} citacoes como [12] e (Silva, 2020) saem da leitura`}
-          {result.referencesCut ? ", junto com a lista de referencias do fim." : "."}
+          {`${formatNumber(result.removed)} citações como [12] e (Silva, 2020) saem da leitura`}
+          {result.referencesCut ? ", junto com a lista de referências do fim." : "."}
         </span>
       </span>
     </label>

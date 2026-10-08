@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Leitura - leitura dinamica",
+    name: "Leitura - leitura dinâmica",
     short_name: "Leitura",
     description: "Importe artigos e leia no seu ritmo.",
     start_url: "/dashboard",

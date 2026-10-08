@@ -70,7 +70,12 @@ const AccountCard = dynamic(() => import("@/components/account-card").then((m) =
   ssr: false,
 });
 
-const SAMPLE = "A leitura dinamica treina o olho a reconhecer palavras inteiras".split(" ");
+const AiCard = dynamic(() => import("@/components/ai-card").then((m) => m.AiCard), {
+  loading: cardFallback,
+  ssr: false,
+});
+
+const SAMPLE = "A leitura dinâmica treina o olho a reconhecer palavras inteiras".split(" ");
 
 /** O slider trabalha em pontos percentuais inteiros; o valor guardado e a fracao. */
 const toPercent = (fraction: number) => Math.round(fraction * 100);
@@ -78,7 +83,7 @@ const toPercent = (fraction: number) => Math.round(fraction * 100);
 const FONT_OPTIONS: { value: FontFamily; label: string }[] = [
   { value: "sans", label: "Sem serifa" },
   { value: "serif", label: "Com serifa" },
-  { value: "legivel", label: "Legivel" },
+  { value: "legivel", label: "Legível" },
 ];
 
 const FONT_HINTS: Record<FontFamily, string> = {
@@ -95,13 +100,14 @@ const LINE_HEIGHT_LABELS = ["Compacto", "Normal", "Folgado"];
  */
 const SECTIONS = [
   { id: "leitura", label: "Leitura" },
-  { id: "aparencia", label: "Aparencia" },
+  { id: "aparencia", label: "Aparência" },
   { id: "tipografia", label: "Tipografia" },
   { id: "voz", label: "Voz" },
   { id: "lembrete", label: "Lembrete" },
+  { id: "ia", label: "Recursos de IA" },
   { id: "dados", label: "Seus dados" },
   { id: "importar", label: "Importar" },
-  { id: "conta", label: "Conta e seguranca" },
+  { id: "conta", label: "Conta e segurança" },
 ] as const;
 
 export default function SettingsPage() {
@@ -111,7 +117,7 @@ export default function SettingsPage() {
 
   const update = async (patch: Parameters<typeof save>[0]) => {
     const ok = await save(patch);
-    if (!ok) notify("Nao foi possivel salvar. Tente de novo.", "error");
+    if (!ok) notify("Não foi possível salvar. Tente de novo.", "error");
   };
 
   const changeTheme = (value: ThemePreference) => {
@@ -127,15 +133,15 @@ export default function SettingsPage() {
       <header className="pt-2">
         <h1 className="text-2xl font-semibold tracking-tight">Ajustes</h1>
         <p className="mt-1 text-sm text-muted">
-          Preferencias salvas na sua conta. Treino, palavras e estatisticas ficam em{" "}
+          Preferências salvas na sua conta. Treino, palavras e estatísticas ficam em{" "}
           <Link href="/voce" className="font-medium text-accent underline underline-offset-2">
-            Voce
+            Você
           </Link>
           .
         </p>
       </header>
 
-      <nav aria-label="Secoes de ajustes">
+      <nav aria-label="Seções de ajustes">
         <ul className="flex flex-wrap gap-2">
           {SECTIONS.map((section) => (
             <li key={section.id}>
@@ -154,7 +160,7 @@ export default function SettingsPage() {
         <Card className="space-y-6 p-5">
           <SectionTitle>Leitura</SectionTitle>
           <p className="text-sm text-muted">
-            O texto abre em paginas. O play inicia o Word Runner, que mostra uma palavra por vez com
+            O texto abre em páginas. O play inicia o Word Runner, que mostra uma palavra por vez com
             a frase embaixo.
           </p>
 
@@ -192,13 +198,13 @@ export default function SettingsPage() {
             min={toPercent(MIN_HIGHLIGHT)}
             max={toPercent(MAX_HIGHLIGHT)}
             step={5}
-            hint="Cor da palavra atual marcada na pagina, depois de pausar ou no guia na pagina."
+            hint="Cor da palavra atual marcada na página, depois de pausar ou no guia na página."
             value={toPercent(settings.highlightOpacity)}
             onChange={(value) => void update({ highlightOpacity: value / 100 })}
           />
 
           <Choice
-            label="Aceleracao no inicio"
+            label="Aceleração no início"
             value={settings.warmup ? "gradual" : "direto"}
             onChange={(value) => void update({ warmup: value === "gradual" })}
             options={[
@@ -207,8 +213,8 @@ export default function SettingsPage() {
             ]}
             hint={
               settings.warmup
-                ? `O Word Runner comeca a 60% do ritmo ao abrir o texto (85% depois de uma pausa curta) e chega ao total nas primeiras ${WARMUP_WORDS} palavras.`
-                : "O Word Runner comeca direto na velocidade configurada."
+                ? `O Word Runner começa a 60% do ritmo ao abrir o texto (85% depois de uma pausa curta) e chega ao total nas primeiras ${WARMUP_WORDS} palavras.`
+                : "O Word Runner começa direto na velocidade configurada."
             }
           />
 
@@ -217,7 +223,7 @@ export default function SettingsPage() {
             value={settings.adaptiveRhythm ? "dinamico" : "uniforme"}
             onChange={(value) => void update({ adaptiveRhythm: value === "dinamico" })}
             options={[
-              { value: "dinamico", label: "Dinamico" },
+              { value: "dinamico", label: "Dinâmico" },
               { value: "uniforme", label: "Uniforme" },
             ]}
             hint={RHYTHM_HINTS[settings.adaptiveRhythm ? "dinamico" : "uniforme"]}
@@ -228,13 +234,13 @@ export default function SettingsPage() {
             value={settings.askCheckpoints ? "perguntar" : "nao"}
             onChange={(value) => void update({ askCheckpoints: value === "perguntar" })}
             options={[
-              { value: "nao", label: "Nao perguntar" },
+              { value: "nao", label: "Não perguntar" },
               { value: "perguntar", label: "Perguntar" },
             ]}
             hint={
               settings.askCheckpoints
                 ? "Em textos longos, a leitura pausa a 25, 50 e 75% e pergunta se vale continuar."
-                : "A leitura segue ate o fim sem perguntar."
+                : "A leitura segue até o fim sem perguntar."
             }
           />
 
@@ -248,8 +254,8 @@ export default function SettingsPage() {
             ]}
             hint={
               settings.resumeRewind
-                ? "Depois de 5 segundos parado, a leitura recomeca no inicio da frase; depois de 1 minuto, na frase anterior; depois de 10 minutos, no inicio do paragrafo."
-                : "A leitura recomeca exatamente na palavra em que parou."
+                ? "Depois de 5 segundos parado, a leitura recomeça no início da frase; depois de 1 minuto, na frase anterior; depois de 10 minutos, no início do parágrafo."
+                : "A leitura recomeça exatamente na palavra em que parou."
             }
           />
 
@@ -265,7 +271,7 @@ export default function SettingsPage() {
               hint={
                 settings.eyeRest
                   ? "Depois de 20 minutos lendo sem parar, a leitura pausa e pede 20 segundos olhando para longe."
-                  : "A leitura nao interrompe para descanso."
+                  : "A leitura não interrompe para descanso."
               }
             />
             {/* PROD-16: o motivo do padrao ligado. */}
@@ -275,16 +281,16 @@ export default function SettingsPage() {
           </div>
 
           <Choice
-            label="Enfase no inicio das palavras"
+            label="Ênfase no início das palavras"
             value={settings.wordEmphasis ? "enfase" : "normal"}
             onChange={(value) => void update({ wordEmphasis: value === "enfase" })}
             options={[
-              { value: "normal", label: "Sem enfase" },
-              { value: "enfase", label: "Com enfase" },
+              { value: "normal", label: "Sem ênfase" },
+              { value: "enfase", label: "Com ênfase" },
             ]}
             hint={
               settings.wordEmphasis
-                ? "As primeiras letras de cada palavra ficam em negrito na pagina."
+                ? "As primeiras letras de cada palavra ficam em negrito na página."
                 : "O texto aparece com peso uniforme, como em um livro."
             }
           />
@@ -298,7 +304,7 @@ export default function SettingsPage() {
 
       <Section id="aparencia">
         <Card className="space-y-4 p-5">
-          <SectionTitle>Aparencia</SectionTitle>
+          <SectionTitle>Aparência</SectionTitle>
           <Choice
             label="Tema"
             hideLabel
@@ -312,10 +318,10 @@ export default function SettingsPage() {
             ]}
             hint={
               preference === "contrast"
-                ? "Alto contraste: texto e controles com contraste reforcado, e o trecho atual sublinhado."
+                ? "Alto contraste: texto e controles com contraste reforçado, e o trecho atual sublinhado."
                 : preference === "system"
                   ? "Segue o sistema, inclusive o pedido de contraste aumentado."
-                  : "O tema vale para todos os aparelhos em que voce entrar."
+                  : "O tema vale para todos os aparelhos em que você entrar."
             }
           />
         </Card>
@@ -352,17 +358,17 @@ export default function SettingsPage() {
           />
 
           <div className="space-y-2">
-            <p className="text-sm font-medium text-muted">Previa</p>
+            <p className="text-sm font-medium text-muted">Prévia</p>
             <div
               className="rounded-2xl bg-bg px-4 py-4"
               style={typographyVars(settings) as CSSProperties}
             >
               <div className="reader-prose">
                 <p>
-                  A leitura dinamica treina o olho a reconhecer palavras inteiras em vez de
+                  A leitura dinâmica treina o olho a reconhecer palavras inteiras em vez de
                   soletrar.
                 </p>
-                <p>Ajuste ate a linha ficar confortavel de acompanhar sem apertar os olhos.</p>
+                <p>Ajuste até a linha ficar confortável de acompanhar sem apertar os olhos.</p>
               </div>
             </div>
           </div>
@@ -377,6 +383,10 @@ export default function SettingsPage() {
         <ReminderCard />
       </Section>
 
+      <Section id="ia">
+        <AiCard />
+      </Section>
+
       <Section id="dados" className="space-y-6">
         <ExportCard />
         <ReprocessCard />
@@ -388,10 +398,10 @@ export default function SettingsPage() {
           <p className="text-sm text-muted">
             Com o app instalado na tela inicial, Leitura passa a aparecer na lista de
             compartilhamento do celular. No navegador, toque em Compartilhar, escolha Leitura e o
-            texto entra na biblioteca ja aberto no leitor.
+            texto entra na biblioteca já aberto no leitor.
           </p>
           <p className="text-sm text-muted">
-            No Chrome do Android: menu de tres pontos, &ldquo;Adicionar a tela inicial&rdquo;.
+            No Chrome do Android: menu de três pontos, &ldquo;Adicionar à tela inicial&rdquo;.
           </p>
         </Card>
         <FeedsCard />
@@ -443,7 +453,7 @@ function Preview({ highlightOpacity, emphasis }: { highlightOpacity: number; emp
 
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-muted">Previa</p>
+      <p className="text-sm font-medium text-muted">Prévia</p>
       <div
         className="grid gap-3 rounded-2xl bg-bg px-4 py-6 sm:grid-cols-2"
         // Mesma variavel que o leitor define: a previa mostra o destaque de
@@ -461,7 +471,7 @@ function Preview({ highlightOpacity, emphasis }: { highlightOpacity: number; emp
               </span>
             ))}
           </p>
-          <p className="tabular mt-2 text-xs text-muted">Pagina 1 de 8</p>
+          <p className="tabular mt-2 text-xs text-muted">Página 1 de 8</p>
         </div>
         <div className="flex flex-col items-center justify-center rounded-lg border border-border bg-surface px-3 py-3 text-center">
           <p className="reader-word w-full text-2xl font-semibold">

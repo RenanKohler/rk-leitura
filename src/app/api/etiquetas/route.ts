@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       .where(eq(tags.userId, session.id));
 
     if ((existing?.value ?? 0) >= MAX_TAGS_PER_USER) {
-      return jsonError("Voce ja tem etiquetas demais.", 409);
+      return jsonError("Você já tem etiquetas demais.", 409);
     }
 
     // O indice unico ignora caixa e acento: criar de novo devolve a existente

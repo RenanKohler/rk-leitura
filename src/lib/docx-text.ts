@@ -145,7 +145,7 @@ function paragraphMarkdown(xml: string, numbering: Map<string, boolean>, counter
 /** Converte `document.xml` (e `numbering.xml`, se houver) em Markdown. */
 export function docxToMarkdown(documentXml: string, numberingXml: string | null = null): string {
   const body = /<w:body\b[^>]*>([\s\S]*)<\/w:body>/.exec(documentXml)?.[1];
-  if (body === undefined) throw new DocxError("Nao foi possivel ler o documento.");
+  if (body === undefined) throw new DocxError("Não foi possível ler o documento.");
 
   const numbering = parseNumbering(numberingXml);
   const counters = new Map<string, number>();

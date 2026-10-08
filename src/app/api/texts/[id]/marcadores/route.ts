@@ -17,10 +17,10 @@ export async function GET(_request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const loaded = await loadBookmarks(session.id, id);
-    if (!loaded) return jsonError("Texto nao encontrado.", 404);
+    if (!loaded) return jsonError("Texto não encontrado.", 404);
 
     return NextResponse.json({ bookmarks: loaded.items });
   } catch (error) {
@@ -35,15 +35,15 @@ export async function POST(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const body = await readJson<{ position?: unknown; label?: unknown }>(request);
     const loaded = await loadBookmarks(session.id, id);
-    if (!loaded) return jsonError("Texto nao encontrado.", 404);
+    if (!loaded) return jsonError("Texto não encontrado.", 404);
 
     const position = Math.trunc(Number(body?.position));
     if (!Number.isFinite(position) || position < 0 || position >= loaded.wordCount) {
-      return jsonError("Posicao fora do texto.", 400);
+      return jsonError("Posição fora do texto.", 400);
     }
     if (loaded.items.length >= MAX_BOOKMARKS) {
       return jsonError(`Limite de ${MAX_BOOKMARKS} marcadores por texto.`, 400);

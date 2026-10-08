@@ -58,7 +58,7 @@ export function WordsClient({
       setItems((current) => current.map((item) => (item.id === id ? { ...item, definition } : item)));
       setEditing(null);
     } catch {
-      notify("Nao consegui salvar a definicao.", "error");
+      notify("Não consegui salvar a definição.", "error");
     } finally {
       setBusy(false);
     }
@@ -84,7 +84,7 @@ export function WordsClient({
         )
       );
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Nao consegui buscar a definicao.", "error");
+      notify(cause instanceof Error ? cause.message : "Não consegui buscar a definição.", "error");
     } finally {
       setBusy(false);
     }
@@ -97,10 +97,10 @@ export function WordsClient({
     setItems(before.map((item) => (item.id === id ? { ...item, learned } : item)));
     try {
       await apiSend(`/api/palavras/${id}`, "PATCH", { learned });
-      notify(learned ? "Marcada como aprendida." : "De volta a revisao.", "success");
+      notify(learned ? "Marcada como aprendida." : "De volta à revisão.", "success");
     } catch {
       setItems(before);
-      notify("Nao consegui salvar.", "error");
+      notify("Não consegui salvar.", "error");
     } finally {
       setBusy(false);
     }
@@ -114,7 +114,7 @@ export function WordsClient({
       await apiSend(`/api/dicionario?id=${id}`, "DELETE");
     } catch {
       setItems(before);
-      notify("Nao consegui remover.", "error");
+      notify("Não consegui remover.", "error");
     } finally {
       setBusy(false);
     }
@@ -150,7 +150,7 @@ export function WordsClient({
           </p>
           {retention && retention.percent !== null ? (
             <p className="mt-0.5 text-sm text-muted" data-testid="retencao">
-              {`Retencao em 30 dias: ${retention.percent}% de ${retention.answers} ${
+              {`Retenção em 30 dias: ${retention.percent}% de ${retention.answers} ${
                 retention.answers === 1 ? "resposta" : "respostas"
               }`}
             </p>
@@ -237,7 +237,7 @@ export function WordsClient({
                       disabled={busy}
                       aria-label={
                         item.learned
-                          ? `Devolver ${item.base} a revisao`
+                          ? `Devolver ${item.base} a revisão`
                           : `Marcar ${item.base} como aprendida`
                       }
                       aria-pressed={item.learned}
@@ -266,7 +266,7 @@ export function WordsClient({
                   {editing === item.id ? (
                     <div className="mt-2 space-y-2">
                       <textarea
-                        aria-label={`Definicao de ${item.base}`}
+                        aria-label={`Definição de ${item.base}`}
                         className="min-h-20 w-full rounded-2xl border border-border bg-bg p-3 text-sm"
                         maxLength={500}
                         value={draft}
@@ -290,7 +290,7 @@ export function WordsClient({
                       {item.context ? (
                         <p className="text-sm leading-relaxed text-muted">&ldquo;{item.context}&rdquo;</p>
                       ) : null}
-                      <p className="text-sm italic text-faint">sem definicao</p>
+                      <p className="text-sm italic text-faint">sem definição</p>
                       <div className="flex flex-wrap gap-2">
                         <Button
                           variant="secondary"
@@ -298,7 +298,7 @@ export function WordsClient({
                           disabled={busy}
                           onClick={() => void refetchDefinition(item.id)}
                         >
-                          Buscar definicao
+                          Buscar definição
                         </Button>
                         <Button
                           variant="ghost"

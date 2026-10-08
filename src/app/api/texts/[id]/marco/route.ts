@@ -23,12 +23,12 @@ export async function POST(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const body = await readJson<{ marker?: unknown }>(request);
     const marker = Number(body?.marker);
     if (!(CHECKPOINTS as readonly number[]).includes(marker)) {
-      return jsonError("Marco invalido.", 400);
+      return jsonError("Marco inválido.", 400);
     }
 
     const [updated] = await db
@@ -36,7 +36,7 @@ export async function POST(request: Request, { params }: Params) {
       .set({ checkpointAnswered: sql`greatest(${texts.checkpointAnswered}, ${marker})` })
       .where(and(eq(texts.id, id), eq(texts.userId, session.id)))
       .returning({ checkpointAnswered: texts.checkpointAnswered });
-    if (!updated) return jsonError("Texto nao encontrado.", 404);
+    if (!updated) return jsonError("Texto não encontrado.", 404);
 
     return NextResponse.json(updated);
   } catch (error) {

@@ -19,7 +19,7 @@ export async function POST(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const body = await readJson<{ answers?: unknown; from?: unknown; to?: unknown }>(request);
     const answers = Array.isArray(body?.answers) ? body.answers.map((value) => Number(value)) : null;
@@ -30,8 +30,8 @@ export async function POST(request: Request, { params }: Params) {
         ? { from: body.from, to: body.to }
         : null;
     const result = await loadCloze(session.id, id, range);
-    if (result.status === "not-found") return jsonError("Texto nao encontrado.", 404);
-    if (result.status === "too-short") return jsonError("Peca as lacunas antes de responder.", 409);
+    if (result.status === "not-found") return jsonError("Texto não encontrado.", 404);
+    if (result.status === "too-short") return jsonError("Peça as lacunas antes de responder.", 409);
 
     const score = scoreQuiz({ questions: result.questions }, answers);
     await recordComprehension(session.id, id, score);

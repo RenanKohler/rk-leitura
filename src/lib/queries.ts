@@ -114,6 +114,7 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   placementSeen: false,
   reminderHour: null,
   readerTipsSeen: false,
+  aiEnabled: null,
 };
 
 export interface Page<T> {
@@ -220,6 +221,7 @@ function settingsFrom(row: typeof speedSettings.$inferSelect | null): SettingsPa
     placementSeen: row.placementSeenAt !== null,
     reminderHour: row.reminderHour,
     readerTipsSeen: row.readerTipsSeen,
+    aiEnabled: row.aiEnabled,
   };
 }
 

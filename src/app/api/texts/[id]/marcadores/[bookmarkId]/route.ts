@@ -17,7 +17,7 @@ export async function DELETE(_request: Request, { params }: Params) {
   try {
     const { id, bookmarkId } = await params;
     if (!UUID_PATTERN.test(id) || !UUID_PATTERN.test(bookmarkId)) {
-      return jsonError("Marcador nao encontrado.", 404);
+      return jsonError("Marcador não encontrado.", 404);
     }
 
     const removed = await db
@@ -27,7 +27,7 @@ export async function DELETE(_request: Request, { params }: Params) {
       )
       .returning({ id: bookmarks.id });
 
-    if (removed.length === 0) return jsonError("Marcador nao encontrado.", 404);
+    if (removed.length === 0) return jsonError("Marcador não encontrado.", 404);
     return NextResponse.json({ success: true });
   } catch (error) {
     return serverError("marcadores/delete", error);

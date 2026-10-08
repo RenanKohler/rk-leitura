@@ -17,7 +17,7 @@ const ARTICLE = [
 async function paste(page: Page) {
   await page.goto("/textos/novo");
   await page.getByRole("radio", { name: "Colar" }).click();
-  await page.getByRole("textbox", { name: "Titulo" }).fill("Artigo");
+  await page.getByRole("textbox", { name: "Título" }).fill("Artigo");
   await page.getByRole("textbox", { name: "Texto" }).fill(ARTICLE);
 }
 
@@ -27,7 +27,7 @@ test("referencias do corpo sao omitidas na importacao", async ({ page }) => {
   await paste(page);
 
   const option = page.getByTestId("referencias");
-  await expect(option).toContainText("citacoes");
+  await expect(option).toContainText("citações");
   await expect(option.getByRole("checkbox")).toBeChecked();
   await page.getByRole("button", { name: "Salvar e ler" }).click();
 
@@ -72,10 +72,10 @@ test("reprocessar texto salvo remapeia destaques, marcadores e posicao", async (
   expect(await excerpt()).toBe("estimou sete");
 
   await page.goto("/ajustes");
-  await page.getByRole("button", { name: "Procurar artigos com referencias" }).dispatchEvent("click");
+  await page.getByRole("button", { name: "Procurar artigos com referências" }).dispatchEvent("click");
   await expect(page.getByTestId("reprocessar-lista")).toContainText("Artigo antigo");
   await page.getByRole("button", { name: /Omitir em 1 texto/ }).dispatchEvent("click");
-  await expect(page.getByText("Referencias omitidas em 1 texto.")).toBeVisible();
+  await expect(page.getByText("Referências omitidas em 1 texto.")).toBeVisible();
 
   const omitted = await detail();
   expect(omitted.content).not.toContain("[1]");
@@ -86,7 +86,7 @@ test("reprocessar texto salvo remapeia destaques, marcadores e posicao", async (
 
   await page.goto(`/leitor/${id}`);
   await page.getByRole("button", { name: "Ajustes de leitura" }).click();
-  await page.getByRole("button", { name: "Restaurar referencias" }).click();
+  await page.getByRole("button", { name: "Restaurar referências" }).click();
   await expect(page.locator(".reader-prose").first()).toContainText("[1]");
 
   const restored = await detail();

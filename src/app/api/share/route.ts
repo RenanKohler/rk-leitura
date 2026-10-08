@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   // arbitraria, entao dividir o limite entre elas nao ajudaria em nada.
   const limit = await rateLimit(`import:${clientIp(request)}`, 20, 10 * 60 * 1000);
   if (!limit.allowed) {
-    return jsonError("Muitas importacoes seguidas. Aguarde um pouco.", 429, {
+    return jsonError("Muitas importações seguidas. Aguarde um pouco.", 429, {
       retryAfter: limit.retryAfterSeconds,
     });
   }
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     const body = await readJson<{ url?: unknown }>(request);
     const raw = asString(body?.url);
     if (!raw || !/^https?:\/\//i.test(raw)) {
-      return jsonError("O endereco precisa comecar com http:// ou https://", 400);
+      return jsonError("O endereço precisa começar com http:// ou https://", 400);
     }
 
     const url = normalizeSourceUrl(raw);

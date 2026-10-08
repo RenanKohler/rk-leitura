@@ -279,8 +279,8 @@ export function savedMinutes(wordsLeft: number, wpm: number): number {
 /** Descricao das duas opcoes de ritmo, na folha do leitor e nos Ajustes. */
 export const RHYTHM_HINTS = {
   dinamico:
-    "Como o Word Runner do Kindle: pausa curta na virgula, maior no fim da frase e do paragrafo; palavras longas, numeros e nomes ficam um pouco mais.",
-  uniforme: "Toda palavra fica o mesmo tempo, sem pausas de pontuacao.",
+    "Como o Word Runner do Kindle: pausa curta na vírgula, maior no fim da frase e do parágrafo; palavras longas, números e nomes ficam um pouco mais.",
+  uniforme: "Toda palavra fica o mesmo tempo, sem pausas de pontuação.",
 } as const;
 
 // Fecha aspas, parenteses e colchetes depois da pontuacao: `(sic),`.

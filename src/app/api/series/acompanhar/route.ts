@@ -20,14 +20,14 @@ export async function POST(request: Request) {
   try {
     const body = await readJson<{ seriesKey?: unknown }>(request);
     const seriesKey = asString(body?.seriesKey);
-    if (!seriesKey || seriesKey.length > 300) return jsonError("Informe a serie.", 400);
+    if (!seriesKey || seriesKey.length > 300) return jsonError("Informe a série.", 400);
 
     const [chapter] = await db
       .select({ id: texts.id })
       .from(texts)
       .where(and(eq(texts.userId, session.id), eq(texts.seriesKey, seriesKey)))
       .limit(1);
-    if (!chapter) return jsonError("Serie nao encontrada.", 404);
+    if (!chapter) return jsonError("Série não encontrada.", 404);
 
     const [existing] = await db
       .select({ id: seriesFollows.id })
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       .where(eq(seriesFollows.userId, session.id));
     if ((total?.value ?? 0) >= MAX_FOLLOWED_SERIES) {
       return jsonError(
-        `Voce ja acompanha ${MAX_FOLLOWED_SERIES} series. Deixe de acompanhar uma para seguir outra.`,
+        `Você já acompanha ${MAX_FOLLOWED_SERIES} séries. Deixe de acompanhar uma para seguir outra.`,
         409
       );
     }
@@ -68,7 +68,7 @@ export async function DELETE(request: Request) {
 
   try {
     const seriesKey = new URL(request.url).searchParams.get("serie");
-    if (!seriesKey || seriesKey.length > 300) return jsonError("Informe a serie.", 400);
+    if (!seriesKey || seriesKey.length > 300) return jsonError("Informe a série.", 400);
 
     await db
       .delete(seriesFollows)

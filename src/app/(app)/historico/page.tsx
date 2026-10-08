@@ -5,7 +5,7 @@ import { HistoryClient } from "./history-client";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Historico" };
+export const metadata = { title: "Histórico" };
 
 export default async function HistoryPage() {
   const session = await getSession();

@@ -46,9 +46,9 @@ export type ReviewGrade = (typeof REVIEW_GRADES)[number];
 
 export const GRADE_LABELS: Record<ReviewGrade, string> = {
   errei: "Errei",
-  dificil: "Dificil",
+  dificil: "Difícil",
   bom: "Bom",
-  facil: "Facil",
+  facil: "Fácil",
 };
 
 /** Multiplicador do intervalo atual por resposta; "errei" volta a 1 dia. */
@@ -155,10 +155,10 @@ const CSV_HEADER = [
   "palavra",
   "forma base",
   "classe",
-  "definicao",
-  "traducao",
+  "definição",
+  "tradução",
   "frase de origem",
-  "titulo do texto",
+  "título do texto",
 ];
 
 function csvCell(value: string | null): string {
