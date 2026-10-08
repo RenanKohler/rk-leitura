@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { apiSend } from "@/lib/client";
+import { apiSend, consentFrom } from "@/lib/client";
+import { AiConsentNotice, AiOffNotice } from "@/components/ai-consent";
 import { useToast } from "@/components/providers";
 import {
   Button,
@@ -21,9 +22,12 @@ import {
   TrashIcon,
   WordsIcon,
 } from "@/components/icons";
+import { isPendingDefinition, type BatchState } from "@/lib/definition-batch";
 import { foldForSearch } from "@/lib/text-filter";
 import { formatRelativeDay } from "@/lib/reading";
 import type { RetentionSummary, SavedWordItem } from "@/lib/types";
+
+type Filter = "todas" | "aprendidas" | "pendentes";
 
 /**
  * Palavras consultadas durante a leitura.
@@ -35,16 +39,23 @@ import type { RetentionSummary, SavedWordItem } from "@/lib/types";
 export function WordsClient({
   initial,
   retention,
+  batch: initialBatch = { processing: false, wordIds: [] },
 }: {
   initial: SavedWordItem[];
   /** Retencao das revisoes nos ultimos 30 dias (PROD-7). */
   retention?: RetentionSummary;
+  /** Lote de definicoes em andamento (US-139). */
+  batch?: BatchState;
 }) {
   const notify = useToast();
   const [items, setItems] = useState(initial);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
-  const [filter, setFilter] = useState<"todas" | "aprendidas">("todas");
+  const [filter, setFilter] = useState<Filter>("todas");
+  // Lote de definicoes pendentes (US-139): um por conta, conferido no servidor.
+  const [batch, setBatch] = useState(initialBatch);
+  const [batchNote, setBatchNote] = useState("");
+  const [consent, setConsent] = useState<"pending" | "off" | null>(null);
   // Definicao em edicao (PROD-6): so uma por vez, com o rascunho a parte.
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -90,6 +101,29 @@ export function WordsClient({
     }
   };
 
+  const startBatch = async () => {
+    setBusy(true);
+    setBatchNote("");
+    try {
+      const data = await apiSend<{ wordIds: string[]; message: string }>(
+        "/api/palavras/definicoes",
+        "POST"
+      );
+      setBatch({ processing: true, wordIds: data.wordIds });
+      setBatchNote(data.message);
+      setConsent(null);
+    } catch (cause) {
+      const state = consentFrom(cause);
+      if (state) {
+        setConsent(state);
+        return;
+      }
+      notify(cause instanceof Error ? cause.message : "Não consegui enviar o lote.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   /** Marca ou desmarca como aprendida (US-66); desfaz na tela se falhar. */
   const setLearned = async (id: string, learned: boolean) => {
     const before = items;
@@ -120,8 +154,21 @@ export function WordsClient({
     }
   };
 
+  const searching = new Set(batch.processing ? batch.wordIds : []);
+  const pending = items.filter((item) => isPendingDefinition(item.definition));
+  // So as que o lote nao esta buscando contam para um lote novo.
+  const waiting = pending.filter((item) => !searching.has(item.id));
+
+  // A lista de pendentes esvaziou: volta a mostrar todas.
+  const view = filter === "pendentes" && pending.length === 0 ? "todas" : filter;
+
   const term = foldForSearch(query);
-  const scoped = filter === "aprendidas" ? items.filter((item) => item.learned) : items;
+  const scoped =
+    view === "aprendidas"
+      ? items.filter((item) => item.learned)
+      : view === "pendentes"
+        ? pending
+        : items;
   const shown = term
     ? scoped.filter(
         (item) =>
@@ -193,13 +240,49 @@ export function WordsClient({
         </Card>
       ) : (
         <>
-          <Segmented<"todas" | "aprendidas">
+          {pending.length >= 2 || batch.processing ? (
+            <Card className="space-y-2 p-4" data-testid="lote-definicoes">
+              {consent === "pending" ? (
+                <AiConsentNotice
+                  onDecided={(allowed) => {
+                    setConsent(allowed ? null : "off");
+                    if (allowed) void startBatch();
+                  }}
+                />
+              ) : (
+                <>
+                  <Button
+                    variant="secondary"
+                    full
+                    loading={busy && !batch.processing}
+                    disabled={busy || batch.processing || waiting.length === 0}
+                    onClick={() => void startBatch()}
+                  >
+                    {batch.processing
+                      ? "Buscando definições…"
+                      : `Buscar definições pendentes (${waiting.length})`}
+                  </Button>
+                  <p className="text-sm text-muted" role="status">
+                    {batch.processing
+                      ? `${batchNote ? `${batchNote} ` : ""}As definições aparecem aqui quando o lote terminar, em alguns minutos ou até 24 horas. Um lote por vez.`
+                      : "Busca todas de uma vez, em segundo plano, com a frase em que cada uma apareceu."}
+                  </p>
+                  {consent === "off" ? <AiOffNotice /> : null}
+                </>
+              )}
+            </Card>
+          ) : null}
+
+          <Segmented<Filter>
             label="Filtrar palavras"
-            value={filter}
+            value={view}
             onChange={setFilter}
             options={[
               { value: "todas", label: "Todas" },
               { value: "aprendidas", label: "Aprendidas" },
+              ...(pending.length > 0
+                ? [{ value: "pendentes" as const, label: `Pendentes (${pending.length})` }]
+                : []),
             ]}
           />
 
@@ -290,28 +373,36 @@ export function WordsClient({
                       {item.context ? (
                         <p className="text-sm leading-relaxed text-muted">&ldquo;{item.context}&rdquo;</p>
                       ) : null}
-                      <p className="text-sm italic text-faint">sem definição</p>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => void refetchDefinition(item.id)}
-                        >
-                          Buscar definição
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => {
-                            setDraft("");
-                            setEditing(item.id);
-                          }}
-                        >
-                          Escrever
-                        </Button>
-                      </div>
+                      {searching.has(item.id) ? (
+                        <p className="text-sm italic text-faint" data-testid="buscando">
+                          Buscando
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-sm italic text-faint">sem definição</p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => void refetchDefinition(item.id)}
+                            >
+                              Buscar definição
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => {
+                                setDraft("");
+                                setEditing(item.id);
+                              }}
+                            >
+                              Escrever
+                            </Button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
 
