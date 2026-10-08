@@ -11,7 +11,8 @@ import { firstReview } from "@/lib/vocabulary";
 import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { normalizeWord, trimContext, wordKey } from "@/lib/dictionary";
-import { lookupWord, LookupUnavailable } from "@/lib/word-lookup";
+import { lookupWord } from "@/lib/word-lookup";
+import { aiErrorResponse, aiGate, AiUnavailable } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -103,6 +104,10 @@ export async function POST(request: Request) {
     // revisar - ai ela nao oferece "Guardar para revisar" de novo.
     const pending = known ? { saved: true, id: known.id } : { saved: false };
 
+    // Sem permissao da conta (US-125), nada sai do app; a tela oferece guardar.
+    const gate = await aiGate(session.id, pending);
+    if (gate) return gate;
+
     // Palavra ja consultada voltou acima sem gastar cota; so a chamada nova conta.
     const quota = await consumeDailyQuota("dicionario", session.id);
     if (!quota.allowed) {
@@ -114,9 +119,9 @@ export async function POST(request: Request) {
 
     let entry;
     try {
-      entry = await lookupWord(word, context, language);
+      entry = await lookupWord(session.id, word, context, language);
     } catch (error) {
-      if (error instanceof LookupUnavailable) return jsonError(error.message, 503, pending);
+      if (error instanceof AiUnavailable) return aiErrorResponse(error, pending);
       throw error;
     }
 
@@ -154,7 +159,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ entry, cached: false });
   } catch (error) {
-    if (error instanceof LookupUnavailable) return jsonError(error.message, 503);
+    if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("dicionario/post", error);
   }
 }

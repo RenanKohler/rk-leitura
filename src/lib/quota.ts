@@ -10,13 +10,38 @@
 export const DAILY_QUOTAS = {
   questionario: 20,
   dicionario: 200,
+  /** Explicar uma frase (US-127). */
+  explicacao: 100,
+  /** Perguntar ao texto (US-128). */
+  pergunta: 50,
+  /** Resumos, descricoes de nomes, sinopses e sinteses (US-130 a US-132, US-138, US-140). */
+  resumo: 30,
+  /** Limpeza e etiquetas na importacao (US-136, US-137). */
+  importacao: 50,
 } as const;
 
 export type QuotaKind = keyof typeof DAILY_QUOTAS;
 
+/** Cada funcionalidade de IA e contada pela cota de mesmo nome. */
+export type AiFeature = QuotaKind;
+
 export const QUOTA_MESSAGES: Record<QuotaKind, string> = {
   questionario: "Limite diário de questionários atingido. Volta a valer amanhã.",
   dicionario: "Limite diário de consultas ao dicionário atingido. Volta a valer amanhã.",
+  explicacao: "Limite diário de explicações atingido. Volta a valer amanhã.",
+  pergunta: "Limite diário de perguntas atingido. Volta a valer amanhã.",
+  resumo: "Limite diário de resumos atingido. Volta a valer amanhã.",
+  importacao: "Limite diário de análises de importação atingido. Volta a valer amanhã.",
+};
+
+/** Nome de cada cota no cartao de uso (US-126). */
+export const QUOTA_LABELS: Record<QuotaKind, string> = {
+  questionario: "Questionários",
+  dicionario: "Dicionário",
+  explicacao: "Explicações",
+  pergunta: "Perguntas ao texto",
+  resumo: "Resumos",
+  importacao: "Análises de importação",
 };
 
 /**

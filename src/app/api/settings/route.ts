@@ -64,6 +64,9 @@ export async function PUT(request: Request) {
       // manda as preferencias inteiras, quem ainda nao conhece o campo manda
       // o valor atual de volta e nada muda.
       readerTipsSeen: body?.readerTipsSeen === true,
+      // Recursos de IA (US-125): so um booleano explicito muda a escolha; quem
+      // nao conhece o campo nao apaga a decisao ja tomada.
+      ...(typeof body?.aiEnabled === "boolean" ? { aiEnabled: body.aiEnabled } : {}),
     };
 
     // Um unico round-trip: o indice unico em user_id resolve a corrida entre

@@ -3,12 +3,15 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { apiSend } from "@/lib/client";
 import { Alert, Button, Sheet, Spinner } from "@/components/ui";
+import { AiConsentNotice, AiOffNotice } from "@/components/ai-consent";
 import type { WordEntry } from "@/lib/dictionary";
 
 /** Resposta de erro do dicionario: diz se a palavra ja esta guardada (PROD-6). */
 interface LookupFailure {
   error?: string;
   saved?: boolean;
+  /** Conta sem permissao de envio ao servico de IA (US-125). */
+  consent?: "pending" | "off";
 }
 
 /**
@@ -45,6 +48,9 @@ export function WordSheet({
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [consent, setConsent] = useState<"pending" | "off" | null>(null);
+  // Muda quando a pessoa permite o envio: refaz a consulta.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -66,6 +72,12 @@ export function WordSheet({
           return;
         }
         const failure = data as LookupFailure;
+        if (response.status === 403 && failure.consent) {
+          setConsent(failure.consent);
+          setSaved(failure.saved === true);
+          if (failure.consent === "off") setError(failure.error ?? "");
+          return;
+        }
         setError(failure.error ?? "Não consegui consultar.");
         setSaved(failure.saved === true);
       })
@@ -76,7 +88,17 @@ export function WordSheet({
     return () => {
       active = false;
     };
-  }, [word, context, textId]);
+  }, [word, context, textId, attempt]);
+
+  const decided = (allowed: boolean) => {
+    if (allowed) {
+      setConsent(null);
+      setAttempt((value) => value + 1);
+    } else {
+      setConsent("off");
+      setError("Sem envio ao serviço de IA, a definição fica para depois.");
+    }
+  };
 
   const saveForReview = async () => {
     setSaving(true);
@@ -94,9 +116,11 @@ export function WordSheet({
   return (
     <Sheet open onClose={onClose} title={word}>
       <div className="space-y-4">
-        {error ? (
+        {consent === "pending" ? (
+          <AiConsentNotice onDecided={decided} />
+        ) : error ? (
           <div className="space-y-3">
-            <Alert>{error}</Alert>
+            {consent === "off" ? <AiOffNotice /> : <Alert>{error}</Alert>}
             {saved ? (
               <p className="text-sm text-muted" data-testid="palavra-guardada">
                 Guardada para revisar, com a frase de origem. A definição pode ser buscada de novo

@@ -1,8 +1,7 @@
 import "server-only";
 
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import { aiParse, AiUnavailable, type AiMessages } from "@/lib/ai";
 import { parseEntry, type WordEntry } from "@/lib/dictionary";
 import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
 
@@ -16,14 +15,11 @@ import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
  * flexionada, sem uma tabela de conjugacoes.
  */
 
-const MODEL = "claude-opus-5-5";
-
-export class LookupUnavailable extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "LookupUnavailable";
-  }
-}
+const MESSAGES: AiMessages = {
+  notConfigured: "O dicionário não está configurado nesta instalação.",
+  refusal: "Não consigo definir esta palavra.",
+  failure: "Não consegui consultar agora.",
+};
 
 const EntrySchema = z.object({
   base: z.string().describe("Forma de dicionário: infinitivo, singular, masculino."),
@@ -48,14 +44,6 @@ const SYSTEM = [
   "Quando uma palavra de outro idioma aparecer em texto em português, define em português e diz o idioma em `kind`.",
 ].join(" ");
 
-function client(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (!apiKey) {
-    throw new LookupUnavailable("O dicionário não está configurado nesta instalação.");
-  }
-  return new Anthropic({ apiKey });
-}
-
 /**
  * Pedido ao modelo. Em texto de outro idioma (US-69) a forma de dicionario e a
  * daquele idioma - "running" vira "run", nao "correr" - e a traducao vem a
@@ -72,44 +60,25 @@ function prompt(word: string, context: string, language: string): string {
 }
 
 export async function lookupWord(
+  userId: string,
   word: string,
   context: string,
   language: string = DEFAULT_LANGUAGE
 ): Promise<WordEntry> {
-  let response;
-  try {
-    response = await client().beta.messages.parse({
-      model: MODEL,
-      max_tokens: 1000,
-      system: SYSTEM,
-      // Consulta no meio da leitura: pouco raciocinio, resposta rapida.
-      output_config: { effort: "low", format: betaZodOutputFormat(EntrySchema) },
-      // Recusa dos classificadores de seguranca e refeita em outro modelo na mesma chamada.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      messages: [{ role: "user", content: prompt(word, context, language) }],
-    });
-  } catch (error) {
-    if (error instanceof LookupUnavailable) throw error;
-    if (error instanceof Anthropic.RateLimitError) {
-      throw new LookupUnavailable("O serviço está ocupado. Tente daqui a pouco.");
-    }
-    if (error instanceof Anthropic.AuthenticationError) {
-      throw new LookupUnavailable("O dicionário não está configurado nesta instalação.");
-    }
-    console.error("[dicionario] falha:", error);
-    throw new LookupUnavailable("Não consegui consultar agora.");
-  }
+  const parsed = await aiParse({
+    feature: "dicionario",
+    userId,
+    messages: MESSAGES,
+    schema: EntrySchema,
+    system: SYSTEM,
+    maxTokens: 1000,
+    // Consulta no meio da leitura: pouco raciocinio, resposta rapida.
+    effort: "low",
+    content: [{ role: "user", content: prompt(word, context, language) }],
+  });
 
-  // Custo por consulta: modelo que respondeu (muda quando o fallback atua) e tokens.
-  console.info("[dicionario] uso:", response.model, JSON.stringify(response.usage));
-
-  if (response.stop_reason === "refusal") {
-    throw new LookupUnavailable("Não consigo definir esta palavra.");
-  }
-
-  const entry = parseEntry(response.parsed_output, word);
-  if (!entry) throw new LookupUnavailable("Não encontrei esta palavra.");
+  const entry = parseEntry(parsed, word);
+  if (!entry) throw new AiUnavailable("Não encontrei esta palavra.");
 
   // Palavra portuguesa nao tem traducao a mostrar.
   return language === DEFAULT_LANGUAGE ? { ...entry, translation: null } : entry;

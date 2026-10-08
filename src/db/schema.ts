@@ -226,6 +226,11 @@ export const speedSettings = pgTable(
      * quem ja aprendeu os gestos no celular nao precisa do guia no computador.
      */
     readerTipsSeen: boolean("reader_tips_seen").notNull().default(false),
+    /**
+     * Permissao para enviar conteudo ao servico de IA (US-125). Nulo enquanto
+     * a conta nao decidiu: o servidor recusa a chamada e a tela pergunta.
+     */
+    aiEnabled: boolean("ai_enabled"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -681,4 +686,78 @@ export const authSessions = pgTable(
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
   },
   (table) => [index("auth_sessions_user_idx").on(table.userId)]
+);
+
+/**
+ * Uso do modelo de linguagem, uma linha por chamada concluida (US-124).
+ *
+ * So contagens: nenhum trecho, pergunta ou resposta e gravado aqui. O modelo
+ * e o que respondeu, que muda quando o fallback atua.
+ */
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    feature: text("feature").notNull(),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
+    /** Chamada feita pela Batches API, cobrada pela metade. */
+    batch: boolean("batch").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("ai_usage_created_idx").on(table.createdAt, table.feature)]
+);
+
+/**
+ * Resultados gerados pelo modelo e guardados para nao pagar duas vezes:
+ * explicacoes, resumos, descricoes de nomes, sinopses e sinteses.
+ *
+ * A chave ja carrega a impressao do conteudo que gerou o resultado; quando o
+ * texto muda, a chave muda e o resultado antigo deixa de ser encontrado.
+ */
+export const aiResults = pgTable(
+  "ai_results",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    textId: uuid("text_id").references(() => texts.id, { onDelete: "cascade" }),
+    /** explicacao, resumo, capitulo, nomes, sinopse, sintese. */
+    kind: text("kind").notNull(),
+    key: text("key").notNull(),
+    payload: jsonb("payload").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("ai_results_user_kind_key_unique").on(table.userId, table.kind, table.key),
+    index("ai_results_text_kind_idx").on(table.textId, table.kind),
+  ]
+);
+
+/**
+ * Lotes de definicoes enviados a Message Batches (US-139). Um por conta por
+ * vez; as palavras do lote ficam listadas para o resultado voltar a elas.
+ */
+export const aiBatches = pgTable(
+  "ai_batches",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    batchId: text("batch_id").notNull(),
+    /** processando, concluido. */
+    status: text("status").notNull().default("processando"),
+    wordIds: jsonb("word_ids").$type<string[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+  },
+  (table) => [index("ai_batches_user_status_idx").on(table.userId, table.status)]
 );

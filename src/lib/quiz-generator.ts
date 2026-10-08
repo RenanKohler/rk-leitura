@@ -1,8 +1,7 @@
 import "server-only";
 
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import { aiParse, AiUnavailable, type AiMessages } from "@/lib/ai";
 import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
 import {
   CHOICES_PER_QUESTION,
@@ -13,25 +12,18 @@ import {
 } from "@/lib/quiz";
 
 /**
- * Geracao das perguntas de compreensao.
- *
- * E a unica parte da aplicacao que envia conteudo do usuario para fora. Fica
- * isolada aqui para que esse limite seja visivel em um arquivo so, e para que
- * a ausencia da chave seja uma condicao tratada, nao uma excecao no meio de
- * uma rota.
+ * Geracao das perguntas de compreensao. O envio ao modelo, a chave e o
+ * tratamento de erro ficam em `lib/ai.ts` (US-123).
  */
-
-const MODEL = "claude-opus-5-5";
 
 /** Recorte enviado ao modelo. Textos longos nao melhoram as perguntas. */
 const MAX_CHARS = 60_000;
 
-export class QuizUnavailable extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "QuizUnavailable";
-  }
-}
+const MESSAGES: AiMessages = {
+  notConfigured: "O questionário não está configurado nesta instalação.",
+  refusal: "Não consigo montar perguntas sobre este texto.",
+  failure: "Não consegui montar o questionário agora.",
+};
 
 const QuestionSchema = z.object({
   prompt: z.string().describe("A pergunta, em português do Brasil."),
@@ -58,16 +50,8 @@ const SYSTEM = [
   "Nunca faça perguntas que possam ser respondidas sem ler o texto.",
 ].join(" ");
 
-/** Cliente preguicoso: sem chave configurada, a funcionalidade fica indisponivel. */
-function client(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (!apiKey) {
-    throw new QuizUnavailable("O questionário não está configurado nesta instalação.");
-  }
-  return new Anthropic({ apiKey });
-}
-
 export async function generateQuiz(
+  userId: string,
   title: string,
   content: string,
   language: string = DEFAULT_LANGUAGE
@@ -79,50 +63,28 @@ export async function generateQuiz(
       ? ""
       : `\n\nO texto está em ${languageName(language).toLowerCase()}. Escreva perguntas e alternativas em português do Brasil; quando citar o texto, inclusive na evidência, mantenha a citação no idioma original.`;
 
-  let response;
-  try {
-    response = await client().beta.messages.parse({
-      model: MODEL,
-      max_tokens: 8000,
-      system: SYSTEM,
-      // `medium` e o padrao deste modelo; fica explicito para nao mudar sem aviso.
-      output_config: { effort: "medium", format: betaZodOutputFormat(QuizSchema) },
-      // Recusa dos classificadores de seguranca e refeita em outro modelo na mesma chamada.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      messages: [
-        {
-          role: "user",
-          content: `Título: ${title}\n\nTexto:\n${excerpt}\n\nEscreva de ${MIN_QUESTIONS} a ${MAX_QUESTIONS} perguntas de compreensão sobre este texto.${languageNote}`,
-        },
-      ],
-    });
-  } catch (error) {
-    if (error instanceof QuizUnavailable) throw error;
-    if (error instanceof Anthropic.RateLimitError) {
-      throw new QuizUnavailable("O serviço está ocupado. Tente daqui a pouco.");
-    }
-    if (error instanceof Anthropic.AuthenticationError) {
-      throw new QuizUnavailable("O questionário não está configurado nesta instalação.");
-    }
-    console.error("[quiz] falha ao gerar:", error);
-    throw new QuizUnavailable("Não consegui montar o questionário agora.");
-  }
+  const parsed = await aiParse({
+    feature: "questionario",
+    userId,
+    messages: MESSAGES,
+    schema: QuizSchema,
+    system: SYSTEM,
+    maxTokens: 8000,
+    // `medium` e o padrao deste modelo; fica explicito para nao mudar sem aviso.
+    effort: "medium",
+    content: [
+      {
+        role: "user",
+        content: `Título: ${title}\n\nTexto:\n${excerpt}\n\nEscreva de ${MIN_QUESTIONS} a ${MAX_QUESTIONS} perguntas de compreensão sobre este texto.${languageNote}`,
+      },
+    ],
+  });
 
-  // Custo por questionario: modelo que respondeu (muda quando o fallback atua) e tokens.
-  console.info("[quiz] uso:", response.model, JSON.stringify(response.usage));
-
-  // O modelo pode recusar por seguranca, e o fallback nem sempre resolve;
-  // nesse caso nao ha conteudo a validar.
-  if (response.stop_reason === "refusal") {
-    throw new QuizUnavailable("Não consigo montar perguntas sobre este texto.");
-  }
-
-  // `parsed_output` vem null quando a resposta nao casou com o formato. A
-  // validacao propria roda de qualquer jeito: e ela que garante que a tela
-  // nunca receba uma pergunta impossivel de responder.
-  const quiz = parseQuiz(response.parsed_output);
-  if (!quiz) throw new QuizUnavailable("Não consegui montar o questionário agora.");
+  // `parsed` vem null quando a resposta nao casou com o formato. A validacao
+  // propria roda de qualquer jeito: e ela que garante que a tela nunca receba
+  // uma pergunta impossivel de responder.
+  const quiz = parseQuiz(parsed);
+  if (!quiz) throw new AiUnavailable(MESSAGES.failure);
 
   return quiz;
 }

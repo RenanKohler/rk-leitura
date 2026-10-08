@@ -70,6 +70,11 @@ const AccountCard = dynamic(() => import("@/components/account-card").then((m) =
   ssr: false,
 });
 
+const AiCard = dynamic(() => import("@/components/ai-card").then((m) => m.AiCard), {
+  loading: cardFallback,
+  ssr: false,
+});
+
 const SAMPLE = "A leitura dinâmica treina o olho a reconhecer palavras inteiras".split(" ");
 
 /** O slider trabalha em pontos percentuais inteiros; o valor guardado e a fracao. */
@@ -99,6 +104,7 @@ const SECTIONS = [
   { id: "tipografia", label: "Tipografia" },
   { id: "voz", label: "Voz" },
   { id: "lembrete", label: "Lembrete" },
+  { id: "ia", label: "Recursos de IA" },
   { id: "dados", label: "Seus dados" },
   { id: "importar", label: "Importar" },
   { id: "conta", label: "Conta e segurança" },
@@ -375,6 +381,10 @@ export default function SettingsPage() {
 
       <Section id="lembrete">
         <ReminderCard />
+      </Section>
+
+      <Section id="ia">
+        <AiCard />
       </Section>
 
       <Section id="dados" className="space-y-6">
