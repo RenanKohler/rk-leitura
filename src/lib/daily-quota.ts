@@ -81,3 +81,20 @@ export async function readDailyUsage(
   ) as Record<QuotaKind, number>;
   return { timezone, used };
 }
+
+/**
+ * Devolve unidades reservadas e nao usadas - um lote que nem chegou a ser
+ * criado (US-139). Nunca deixa o contador abaixo de zero.
+ */
+export async function releaseDailyQuota(
+  kind: QuotaKind,
+  userId: string,
+  units: number
+): Promise<void> {
+  if (units <= 0) return;
+  const timezone = (await loadSettings(userId))?.timezone ?? "UTC";
+  const key = quotaKey(kind, userId, todayIn(timezone, new Date()));
+  await db.execute(
+    sql`update rate_limits set count = greatest(0, count - ${units}) where key = ${key}`
+  );
+}

@@ -6,7 +6,7 @@ import { and, asc, eq, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { aiBatches, savedWords } from "@/db/schema";
 import { AI_BUSY, AI_MODELS, aiClient, AiUnavailable, recordUsage } from "@/lib/ai";
-import { reserveDailyQuota } from "@/lib/daily-quota";
+import { releaseDailyQuota, reserveDailyQuota } from "@/lib/daily-quota";
 import {
   batchItemEntry,
   UNSENT_BATCH,
@@ -115,8 +115,9 @@ export async function startDefinitionBatch(userId: string): Promise<StartResult>
       })),
     });
   } catch (error) {
-    // A vaga volta; a cota reservada nao, como numa consulta avulsa que falha.
+    // O lote nem foi criado: a vaga e a cota reservada voltam.
     await db.delete(aiBatches).where(eq(aiBatches.id, claim.rowId));
+    await releaseDailyQuota("dicionario", userId, claim.chosen.length).catch(() => undefined);
     if (error instanceof Anthropic.RateLimitError) throw new AiUnavailable(AI_BUSY);
     if (error instanceof Anthropic.AuthenticationError) {
       throw new AiUnavailable(LOOKUP_MESSAGES.notConfigured);
