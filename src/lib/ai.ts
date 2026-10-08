@@ -7,7 +7,6 @@ import { NextResponse } from "next/server";
 import type { z } from "zod";
 import { db } from "@/db";
 import { aiUsage, speedSettings } from "@/db/schema";
-import type { AiFeature } from "@/lib/quota";
 
 /**
  * Ponto unico de acesso ao modelo de linguagem (US-123).
@@ -18,19 +17,51 @@ import type { AiFeature } from "@/lib/quota";
  * que pedir e como validar a resposta.
  */
 
-export const AI_MODEL = "claude-opus-5-5";
+/** Recusa dos classificadores de seguranca e refeita em outro modelo na mesma chamada. */
+const FALLBACK_BETA = "server-side-fallback-2026-07-01";
+
+const OPUS = "claude-opus-5-5";
+const SONNET = "claude-sonnet-5-5";
+const HAIKU = "claude-haiku-5-5";
 
 /**
- * Modelo de cada funcionalidade. Hoje todas usam o mesmo; trocar uma delas
- * por um modelo menor e mudar uma linha aqui, depois de medir (US-124).
+ * Tarefa que chama o modelo. Mais fina que a cota: a sinopse conta como
+ * resumo, mas e curta o bastante para um modelo menor.
  */
-export const AI_MODELS: Record<AiFeature, string> = {
-  questionario: AI_MODEL,
-  dicionario: AI_MODEL,
-  explicacao: AI_MODEL,
-  pergunta: AI_MODEL,
-  resumo: AI_MODEL,
-  importacao: AI_MODEL,
+export type AiTask =
+  | "questionario"
+  | "dicionario"
+  | "explicacao"
+  | "pergunta"
+  | "resumo"
+  | "sinopse"
+  | "limpeza"
+  | "etiquetas";
+
+/**
+ * Modelo de cada tarefa (decidido sobre a recomendacao da familia 5.5):
+ *
+ * - Opus, onde a qualidade e a medida: as perguntas do questionario e as
+ *   respostas com citacao. No Opus 5.5 a leitura de cache custa o mesmo que
+ *   no Sonnet, entao a conversa com o texto so paga a diferenca na primeira
+ *   pergunta.
+ * - Sonnet, onde a entrada e longa ou a resposta precisa de nuance:
+ *   explicacao de frase e resumos.
+ * - Haiku, onde o volume e alto e a saida e curta ou fechada: dicionario,
+ *   limpeza da importacao, etiquetas e sinopse.
+ *
+ * Trocar uma tarefa de modelo e mudar uma linha aqui; `ai_usage` registra o
+ * modelo que respondeu, entao a comparacao de custo sai de la (US-124).
+ */
+export const AI_MODELS: Record<AiTask, string> = {
+  questionario: OPUS,
+  pergunta: OPUS,
+  explicacao: SONNET,
+  resumo: SONNET,
+  dicionario: HAIKU,
+  limpeza: HAIKU,
+  etiquetas: HAIKU,
+  sinopse: HAIKU,
 };
 
 /**
@@ -42,9 +73,6 @@ function fallbackParams(model: string) {
     ? {}
     : { betas: [FALLBACK_BETA], fallbacks: "default" as const };
 }
-
-/** Recusa dos classificadores de seguranca e refeita em outro modelo na mesma chamada. */
-const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 export const AI_BUSY = "O serviço está ocupado. Tente daqui a pouco.";
 export const AI_DISABLED = "Os recursos de IA estão desligados nesta conta.";
@@ -132,16 +160,16 @@ interface UsageLike {
 /** Grava o uso de uma chamada. Falhar aqui nunca derruba a resposta ao leitor. */
 export async function recordUsage(
   userId: string,
-  feature: AiFeature,
+  task: AiTask,
   model: string,
   usage: UsageLike,
   batch = false
 ): Promise<void> {
-  console.info(`[ia] ${feature}:`, model, JSON.stringify(usage));
+  console.info(`[ia] ${task}:`, model, JSON.stringify(usage));
   try {
     await db.insert(aiUsage).values({
       userId,
-      feature,
+      feature: task,
       model,
       inputTokens: usage.input_tokens,
       outputTokens: usage.output_tokens,
@@ -159,7 +187,8 @@ export async function recordUsage(
 type Effort = "low" | "medium" | "high";
 
 interface CallOptions {
-  feature: AiFeature;
+  /** Decide o modelo e o nome gravado no uso. */
+  task: AiTask;
   userId: string;
   messages: AiMessages;
   system: string;
@@ -192,20 +221,20 @@ export async function aiParse<S extends z.ZodType>(
   try {
     response = await aiClient(options.messages).beta.messages.parse(
       {
-        model: AI_MODELS[options.feature],
+        model: AI_MODELS[options.task],
         max_tokens: options.maxTokens,
         system: options.system,
         output_config: { effort: options.effort, format: betaZodOutputFormat(options.schema) },
-        ...fallbackParams(AI_MODELS[options.feature]),
+        ...fallbackParams(AI_MODELS[options.task]),
         messages: options.content,
       },
       options.timeoutMs ? { timeout: options.timeoutMs, maxRetries: 0 } : undefined
     );
   } catch (error) {
-    throw translate(error, options.messages, options.feature);
+    throw translate(error, options.messages, options.task);
   }
 
-  await recordUsage(options.userId, options.feature, response.model, response.usage);
+  await recordUsage(options.userId, options.task, response.model, response.usage);
 
   // O modelo pode recusar por seguranca, e o fallback nem sempre resolve.
   if (response.stop_reason === "refusal") throw new AiUnavailable(options.messages.refusal);
@@ -223,20 +252,20 @@ export async function aiCreate(
   try {
     response = await aiClient(options.messages).beta.messages.create(
       {
-        model: AI_MODELS[options.feature],
+        model: AI_MODELS[options.task],
         max_tokens: options.maxTokens,
         system: options.system,
         output_config: { effort: options.effort },
-        ...fallbackParams(AI_MODELS[options.feature]),
+        ...fallbackParams(AI_MODELS[options.task]),
         messages: options.content,
       },
       options.timeoutMs ? { timeout: options.timeoutMs, maxRetries: 0 } : undefined
     );
   } catch (error) {
-    throw translate(error, options.messages, options.feature);
+    throw translate(error, options.messages, options.task);
   }
 
-  await recordUsage(options.userId, options.feature, response.model, response.usage);
+  await recordUsage(options.userId, options.task, response.model, response.usage);
 
   if (response.stop_reason === "refusal") throw new AiUnavailable(options.messages.refusal);
   return response;

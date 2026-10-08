@@ -66,12 +66,13 @@ export async function lookupWord(
   language: string = DEFAULT_LANGUAGE
 ): Promise<WordEntry> {
   const parsed = await aiParse({
-    feature: "dicionario",
+    task: "dicionario",
     userId,
     messages: MESSAGES,
     schema: EntrySchema,
     system: SYSTEM,
-    maxTokens: 1000,
+    // No Haiku o raciocinio conta no teto: folga para ele e a resposta curta.
+    maxTokens: 2000,
     // Consulta no meio da leitura: pouco raciocinio, resposta rapida.
     effort: "low",
     content: [{ role: "user", content: prompt(word, context, language) }],

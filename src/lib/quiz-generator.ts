@@ -64,7 +64,7 @@ export async function generateQuiz(
       : `\n\nO texto está em ${languageName(language).toLowerCase()}. Escreva perguntas e alternativas em português do Brasil; quando citar o texto, inclusive na evidência, mantenha a citação no idioma original.`;
 
   const parsed = await aiParse({
-    feature: "questionario",
+    task: "questionario",
     userId,
     messages: MESSAGES,
     schema: QuizSchema,
