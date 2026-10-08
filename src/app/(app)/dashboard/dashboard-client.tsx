@@ -63,11 +63,11 @@ export function DashboardClient({
     <div className="space-y-6">
       <header className="animate-rise pt-2">
         <h1 className="text-2xl font-semibold tracking-tight">
-          {firstName ? `Ola, ${firstName}` : "Ola"}
+          {firstName ? `Olá, ${firstName}` : "Olá"}
         </h1>
         <p className="mt-1 text-sm text-muted">
           {stats && stats.sessions > 0
-            ? `${formatNumber(stats.wordsRead)} palavras lidas ate agora.`
+            ? `${formatNumber(stats.wordsRead)} palavras lidas até agora.`
             : "Importe um artigo e comece a ler."}
         </p>
       </header>
@@ -104,17 +104,17 @@ export function DashboardClient({
       <SectionTitle
         action={
           <Link href="/estatisticas" className="min-h-11 text-sm font-medium text-accent">
-            Ver evolucao
+            Ver evolução
           </Link>
         }
       >
-        Numeros
+        Números
       </SectionTitle>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
           icon={<SpeedIcon className="size-5" />}
-          label="Media"
+          label="Média"
           value={stats && stats.avgWpm > 0 ? `${stats.avgWpm}` : "--"}
           suffix="ppm"
           loading={loading}
@@ -127,7 +127,7 @@ export function DashboardClient({
         />
         <Stat
           icon={<SparkIcon className="size-5" />}
-          label="Sessoes"
+          label="Sessões"
           value={`${stats?.sessions ?? 0}`}
           loading={loading}
         />
@@ -170,7 +170,7 @@ export function DashboardClient({
             <EmptyState
               icon={<LibraryIcon className="size-7" />}
               title="Biblioteca vazia"
-              description="Cole o link de um artigo acima ou escreva seu proprio texto."
+              description="Cole o link de um artigo acima ou escreva seu próprio texto."
               action={<LinkButton href="/textos/novo">Adicionar texto</LinkButton>}
             />
           </Card>

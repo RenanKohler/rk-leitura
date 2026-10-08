@@ -45,7 +45,7 @@ describe("idioma do texto", () => {
   });
 
   it("nomeia e escolhe a voz do idioma", () => {
-    expect(languageName("en")).toBe("Ingles");
+    expect(languageName("en")).toBe("Inglês");
     expect(speechLanguage("en")).toBe("en-US");
     expect(speechLanguage("pt-BR")).toBe("pt-BR");
   });

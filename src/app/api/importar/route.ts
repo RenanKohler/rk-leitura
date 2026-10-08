@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
   const limit = await rateLimit(`importar:${session.id}`, 60, 15 * 60 * 1000);
   if (!limit.allowed) {
-    return jsonError("Muitas importacoes seguidas. Aguarde alguns minutos.", 429, {
+    return jsonError("Muitas importações seguidas. Aguarde alguns minutos.", 429, {
       retryAfter: limit.retryAfterSeconds,
     });
   }

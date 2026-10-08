@@ -603,7 +603,7 @@ export function Pagination({
   if (pageCount <= 1) return null;
 
   return (
-    <nav aria-label="Paginacao" className="flex items-center justify-between gap-2 pt-1">
+    <nav aria-label="Paginação" className="flex items-center justify-between gap-2 pt-1">
       <Button
         variant="secondary"
         size="sm"
@@ -624,7 +624,7 @@ export function Pagination({
         disabled={busy || page >= pageCount}
         onClick={() => onChange(page + 1)}
       >
-        Proxima
+        Próxima
         <ForwardIcon className="size-4" />
       </Button>
     </nav>

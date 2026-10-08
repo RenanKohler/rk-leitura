@@ -11,56 +11,56 @@ const DEMO_TEXTS = [
   {
     title: "Por que a leitura profunda continua importando",
     sourceUrl: "https://exemplo.com/leitura-profunda",
-    content: `A leitura profunda e o tipo de leitura em que a atencao fica inteira no texto por um periodo longo. Nao e so decodificar palavras: e acompanhar um argumento ate o fim, guardar o que veio antes e relacionar com o que vem depois.
+    content: `A leitura profunda é o tipo de leitura em que a atenção fica inteira no texto por um período longo. Não é só decodificar palavras: é acompanhar um argumento até o fim, guardar o que veio antes e relacionar com o que vem depois.
 
-Pesquisas em psicologia cognitiva associam esse tipo de leitura a ganhos de memoria de trabalho e de compreensao. Quem le com regularidade mantem melhor desempenho em tarefas que exigem manter varias informacoes na cabeca ao mesmo tempo.
+Pesquisas em psicologia cognitiva associam esse tipo de leitura a ganhos de memória de trabalho e de compreensão. Quem lê com regularidade mantém melhor desempenho em tarefas que exigem manter várias informações na cabeça ao mesmo tempo.
 
-A leitura de ficcao tem um efeito adicional: ao acompanhar personagens com historias diferentes da nossa, exercitamos a capacidade de imaginar outros pontos de vista. Isso e medido em testes de cognicao social e aparece de forma consistente.
+A leitura de ficção tem um efeito adicional: ao acompanhar personagens com histórias diferentes da nossa, exercitamos a capacidade de imaginar outros pontos de vista. Isso é medido em testes de cognição social e aparece de forma consistente.
 
-O ambiente digital trabalha contra esse habito. Notificacoes, rolagem infinita e textos curtos treinam o oposto: trocar de assunto rapido. A leitura profunda funciona como contrapeso, reensinando o cerebro a sustentar foco.
+O ambiente digital trabalha contra esse hábito. Notificações, rolagem infinita e textos curtos treinam o oposto: trocar de assunto rápido. A leitura profunda funciona como contrapeso, reensinando o cérebro a sustentar foco.
 
-Tecnicas de leitura dinamica ajudam quando usadas com criterio. Aumentar o ritmo faz sentido em textos informativos e conhecidos; em material tecnico ou denso, a velocidade precisa cair. O ponto nao e ler rapido sempre, e ajustar o ritmo ao texto.
+Técnicas de leitura dinâmica ajudam quando usadas com critério. Aumentar o ritmo faz sentido em textos informativos e conhecidos; em material técnico ou denso, a velocidade precisa cair. O ponto não é ler rápido sempre, é ajustar o ritmo ao texto.
 
-Ler tambem reduz estresse de forma mensuravel. Poucos minutos de leitura concentrada baixam a frequencia cardiaca e a tensao muscular mais do que varias outras atividades de descanso.
+Ler também reduz estresse de forma mensurável. Poucos minutos de leitura concentrada baixam a frequência cardíaca e a tensão muscular mais do que várias outras atividades de descanso.
 
-Para construir o habito, o que funciona e a constancia, nao a duracao. Quinze minutos por dia rendem mais do que duas horas em um sabado. Escolher textos que realmente interessam tambem importa mais do que seguir listas de leitura obrigatoria.`,
+Para construir o hábito, o que funciona é a constância, não a duração. Quinze minutos por dia rendem mais do que duas horas em um sábado. Escolher textos que realmente interessam também importa mais do que seguir listas de leitura obrigatória.`,
   },
   {
-    title: "Como funcionam as tecnicas de leitura dinamica",
+    title: "Como funcionam as técnicas de leitura dinâmica",
     sourceUrl: "https://exemplo.com/leitura-dinamica",
-    content: `Leitura dinamica e um conjunto de tecnicas para aumentar o ritmo sem perder compreensao. Parte das promessas do mercado e exagerada, mas ha metodos com efeito real e explicavel.
+    content: `Leitura dinâmica é um conjunto de técnicas para aumentar o ritmo sem perder compreensão. Parte das promessas do mercado é exagerada, mas há métodos com efeito real e explicável.
 
-Tudo comeca em como o olho processa texto. A leitura nao e continua: o olho salta em movimentos curtos chamados sacadas e para em pontos de fixacao. Um leitor comum faz cerca de tres fixacoes por segundo, cada uma cobrindo poucas palavras.
+Tudo começa em como o olho processa texto. A leitura não é contínua: o olho salta em movimentos curtos chamados sacadas e para em pontos de fixação. Um leitor comum faz cerca de três fixações por segundo, cada uma cobrindo poucas palavras.
 
-A primeira tecnica e reduzir a subvocalizacao, a voz interna que pronuncia cada palavra. Ela ajuda em material dificil, mas limita a velocidade ao ritmo da fala, algo entre 150 e 250 palavras por minuto.
+A primeira técnica é reduzir a subvocalização, a voz interna que pronuncia cada palavra. Ela ajuda em material difícil, mas limita a velocidade ao ritmo da fala, algo entre 150 e 250 palavras por minuto.
 
-A segunda e ampliar o campo de visao util. Em vez de fixar palavra por palavra, o leitor treinado percebe grupos de tres a cinco palavras por fixacao, cobrindo mais texto a cada salto.
+A segunda é ampliar o campo de visão útil. Em vez de fixar palavra por palavra, o leitor treinado percebe grupos de três a cinco palavras por fixação, cobrindo mais texto a cada salto.
 
-A terceira e diminuir regressoes, aquele habito de voltar para reler o que ja passou. Boa parte das regressoes e automatica e desnecessaria; percebe-las ja reduz bastante a frequencia.
+A terceira é diminuir regressões, aquele hábito de voltar para reler o que já passou. Boa parte das regressões é automática e desnecessária; percebê-las já reduz bastante a frequência.
 
-Usar um guia visual, como o dedo ou um marcador na tela, mantem o ritmo estavel e evita que o olho vagueie. E o principio por tras da apresentacao palavra a palavra: o texto vai ate o olho, em vez de o olho procurar o texto.
+Usar um guia visual, como o dedo ou um marcador na tela, mantém o ritmo estável e evita que o olho vagueie. É o princípio por trás da apresentação palavra a palavra: o texto vai até o olho, em vez de o olho procurar o texto.
 
-Nada disso substitui pratica. Como qualquer habilidade motora e cognitiva, o ganho vem da repeticao com material progressivamente mais dificil.`,
+Nada disso substitui prática. Como qualquer habilidade motora e cognitiva, o ganho vem da repetição com material progressivamente mais difícil.`,
   },
   {
-    title: "Atencao: o recurso mais escasso do dia",
+    title: "Atenção: o recurso mais escasso do dia",
     sourceUrl: "https://exemplo.com/atencao",
-    content: `Atencao e o processo que seleciona o que entra na consciencia e descarta o resto. Entender como ela funciona muda a forma de estudar, trabalhar e ler.
+    content: `Atenção é o processo que seleciona o que entra na consciência e descarta o resto. Entender como ela funciona muda a forma de estudar, trabalhar e ler.
 
-A psicologia cognitiva separa alguns tipos. A atencao seletiva escolhe um estimulo entre varios. A atencao sustentada mantem o foco ao longo do tempo. A atencao dividida tenta cobrir duas tarefas ao mesmo tempo, e e nesse ponto que a evidencia e mais dura: o que chamamos de multitarefa costuma ser alternancia rapida, com custo em erro e tempo.
+A psicologia cognitiva separa alguns tipos. A atenção seletiva escolhe um estímulo entre vários. A atenção sustentada mantém o foco ao longo do tempo. A atenção dividida tenta cobrir duas tarefas ao mesmo tempo, e é nesse ponto que a evidência é mais dura: o que chamamos de multitarefa costuma ser alternância rápida, com custo em erro e tempo.
 
-O estado de fluxo descrito por Mihaly Csikszentmihalyi aparece quando a dificuldade da tarefa se equilibra com a habilidade de quem a executa. Ler produz fluxo com facilidade quando o texto interessa e esta no nivel certo.
+O estado de fluxo descrito por Mihaly Csikszentmihalyi aparece quando a dificuldade da tarefa se equilibra com a habilidade de quem a executa. Ler produz fluxo com facilidade quando o texto interessa e está no nível certo.
 
-Fatores fisicos pesam mais do que se imagina. Privacao de sono derruba a atencao sustentada de forma comparavel a intoxicacao alcoolica leve. Fome, desidratacao e sedentarismo tem efeitos menores, porem consistentes.
+Fatores físicos pesam mais do que se imagina. Privação de sono derruba a atenção sustentada de forma comparável à intoxicação alcoólica leve. Fome, desidratação e sedentarismo têm efeitos menores, porém consistentes.
 
-O ambiente tambem decide. Ruido imprevisivel, desordem visual e interrupcoes frequentes quebram o encadeamento. Um espaco simples e silencioso e mais eficiente do que qualquer tecnica de forca de vontade.
+O ambiente também decide. Ruído imprevisível, desordem visual e interrupções frequentes quebram o encadeamento. Um espaço simples e silencioso é mais eficiente do que qualquer técnica de força de vontade.
 
-Trabalhar em blocos com pausas curtas, como propoe a tecnica pomodoro, ajuda porque respeita o limite natural da atencao sustentada em vez de tentar vence-lo.`,
+Trabalhar em blocos com pausas curtas, como propõe a técnica pomodoro, ajuda porque respeita o limite natural da atenção sustentada em vez de tentar vencê-lo.`,
   },
 ];
 
 async function seed() {
-  console.log("Populando o banco com dados de demonstracao...");
+  console.log("Populando o banco com dados de demonstração...");
 
   const [user] = await db
     .insert(users)
@@ -73,7 +73,7 @@ async function seed() {
     .returning();
 
   if (!user) {
-    console.log(`Usuario ${DEMO_EMAIL} ja existe. Nada a fazer.`);
+    console.log(`Usuário ${DEMO_EMAIL} já existe. Nada a fazer.`);
     await getPool().end();
     return;
   }

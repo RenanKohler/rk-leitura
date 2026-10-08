@@ -8,7 +8,8 @@ import { consumeDailyQuota } from "@/lib/daily-quota";
 import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { MIN_WORDS_FOR_QUIZ, parseQuiz, quizKey, type Quiz } from "@/lib/quiz";
-import { generateQuiz, QuizUnavailable } from "@/lib/quiz-generator";
+import { generateQuiz } from "@/lib/quiz-generator";
+import { aiErrorResponse, aiGate, AiUnavailable } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 // A geracao chama um modelo: pode passar dos 10s padrao das funcoes.
@@ -37,21 +38,21 @@ export async function POST(_request: Request, { params }: Params) {
   // contra o usuario.
   const limit = await rateLimit(`quiz:${clientIp(_request)}`, 30, 60 * 60 * 1000);
   if (!limit.allowed) {
-    return jsonError("Muitos questionarios seguidos. Aguarde um pouco.", 429, {
+    return jsonError("Muitos questionários seguidos. Aguarde um pouco.", 429, {
       retryAfter: limit.retryAfterSeconds,
     });
   }
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const text = await loadText(session.id, id);
-    if (!text) return jsonError("Texto nao encontrado.", 404);
+    if (!text) return jsonError("Texto não encontrado.", 404);
 
     if (text.wordCount < MIN_WORDS_FOR_QUIZ) {
       return jsonError(
-        `O questionario precisa de pelo menos ${MIN_WORDS_FOR_QUIZ} palavras.`,
+        `O questionário precisa de pelo menos ${MIN_WORDS_FOR_QUIZ} palavras.`,
         422
       );
     }
@@ -59,6 +60,10 @@ export async function POST(_request: Request, { params }: Params) {
     const key = quizKey(text.content, text.language);
     let quiz = await cached(id, key);
     if (!quiz) {
+      // Sem permissao da conta (US-125), nada sai do app.
+      const gate = await aiGate(session.id);
+      if (gate) return gate;
+
       // So a geracao nova conta para o teto diario da conta.
       const quota = await consumeDailyQuota("questionario", session.id);
       if (!quota.allowed) {
@@ -66,12 +71,12 @@ export async function POST(_request: Request, { params }: Params) {
           retryAfter: quota.retryAfterSeconds,
         });
       }
-      quiz = await generateAndStore(id, key, text.title, text.content, text.language);
+      quiz = await generateAndStore(session.id, id, key, text.title, text.content, text.language);
     }
 
     return NextResponse.json({ quiz: withoutAnswers(quiz), questions: quiz.questions.length });
   } catch (error) {
-    if (error instanceof QuizUnavailable) return jsonError(error.message, 503);
+    if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("texts/questionario", error);
   }
 }
@@ -89,13 +94,14 @@ async function cached(textId: string, key: string): Promise<Quiz | null> {
 }
 
 async function generateAndStore(
+  userId: string,
   textId: string,
   key: string,
   title: string,
   content: string,
   language: string
 ): Promise<Quiz> {
-  const quiz = await generateQuiz(title, content, language);
+  const quiz = await generateQuiz(userId, title, content, language);
 
   await db
     .insert(comprehensionQuizzes)

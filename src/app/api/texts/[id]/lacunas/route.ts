@@ -20,12 +20,12 @@ export async function POST(_request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const result = await loadCloze(session.id, id);
-    if (result.status === "not-found") return jsonError("Texto nao encontrado.", 404);
+    if (result.status === "not-found") return jsonError("Texto não encontrado.", 404);
     if (result.status === "too-short") {
-      return jsonError("O trecho lido nao tem frases suficientes para as lacunas.", 422);
+      return jsonError("O trecho lido não tem frases suficientes para as lacunas.", 422);
     }
 
     return NextResponse.json({

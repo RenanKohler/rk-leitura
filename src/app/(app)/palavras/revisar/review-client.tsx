@@ -47,7 +47,7 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
       );
       setFetched((current) => ({ ...current, [id]: data.entry.definition }));
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Nao consegui buscar a definicao.", "error");
+      notify(cause instanceof Error ? cause.message : "Não consegui buscar a definição.", "error");
     } finally {
       setFetching(false);
     }
@@ -62,7 +62,7 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
       setRevealed(false);
       setPosition((current) => current + 1);
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Nao consegui registrar.", "error");
+      notify(cause instanceof Error ? cause.message : "Não consegui registrar.", "error");
     } finally {
       setBusy(false);
     }
@@ -95,7 +95,7 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
             <EmptyState
               icon={<WordsIcon className="size-7" />}
               title="Nenhuma palavra salva"
-              description="Durante a leitura, toque e segure em uma palavra para ver o significado. Ela entra na revisao no dia seguinte."
+              description="Durante a leitura, toque e segure em uma palavra para ver o significado. Ela entra na revisão no dia seguinte."
               action={<LinkButton href="/textos">Ir para a biblioteca</LinkButton>}
             />
           ) : (
@@ -104,8 +104,8 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
               title="Nenhuma palavra para revisar hoje"
               description={
                 initial.nextReviewOn
-                  ? `A proxima revisao e em ${formatDate(`${initial.nextReviewOn}T12:00:00`)}.`
-                  : "Todas as palavras estao marcadas como aprendidas."
+                  ? `A próxima revisão é em ${formatDate(`${initial.nextReviewOn}T12:00:00`)}.`
+                  : "Todas as palavras estão marcadas como aprendidas."
               }
               action={<LinkButton href="/palavras">Ver palavras salvas</LinkButton>}
             />
@@ -115,8 +115,8 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
         <Card>
           <EmptyState
             icon={<CheckIcon className="size-7" />}
-            title="Revisao concluida"
-            description={`Voce lembrou ${remembered} de ${cards.length}. As que voce errou voltam amanha.`}
+            title="Revisão concluída"
+            description={`Você lembrou ${remembered} de ${cards.length}. As que você errou voltam amanhã.`}
             action={<LinkButton href="/palavras">Ver palavras salvas</LinkButton>}
           />
         </Card>
@@ -143,14 +143,14 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
                 <p className="leading-relaxed">{fetched[card.id] ?? card.definition}</p>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm italic text-faint">sem definicao</p>
+                  <p className="text-sm italic text-faint">sem definição</p>
                   <Button
                     variant="ghost"
                     size="sm"
                     loading={fetching}
                     onClick={() => void refetch(card.id)}
                   >
-                    Buscar definicao
+                    Buscar definição
                   </Button>
                 </div>
               )}

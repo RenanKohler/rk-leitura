@@ -78,12 +78,12 @@ function LoginForm() {
 
       {process.env.NEXT_PUBLIC_DEMO_HINT === "true" ? (
         <p className="rounded-2xl bg-surface-2 px-4 py-3 text-center text-sm text-muted">
-          Conta de demonstracao: <strong>leitor@exemplo.com</strong> / <strong>demo1234</strong>
+          Conta de demonstração: <strong>leitor@exemplo.com</strong> / <strong>demo1234</strong>
         </p>
       ) : null}
 
       <p className="text-center text-sm text-muted">
-        Ainda nao tem conta?{" "}
+        Ainda não tem conta?{" "}
         <Link href="/cadastro" className="font-medium text-accent">
           Criar conta
         </Link>

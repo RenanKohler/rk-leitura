@@ -26,7 +26,7 @@ export const BATCH_TEXTS = 100;
 
 const isoDate = z
   .string()
-  .refine((value) => !Number.isNaN(Date.parse(value)), "data invalida");
+  .refine((value) => !Number.isNaN(Date.parse(value)), "data inválida");
 
 const HighlightSchema = z.object({
   inicio: z.number().int().min(0),
@@ -69,7 +69,7 @@ export type BackupResult =
   | { ok: true; texts: BackupText[] }
   | { ok: false; error: string };
 
-export const UNRECOGNIZED = "Arquivo nao reconhecido. Use o arquivo baixado em Ajustes > Biblioteca (JSON).";
+export const UNRECOGNIZED = "Arquivo não reconhecido. Use o arquivo baixado em Ajustes > Biblioteca (JSON).";
 
 /** Valida o conteudo ja lido do arquivo. */
 export function parseBackup(raw: unknown): BackupResult {

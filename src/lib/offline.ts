@@ -90,4 +90,4 @@ export function acceptsPosition(
 }
 
 /** Acoes que exigem rede e precisam avisar em vez de falhar em silencio. */
-export const NEEDS_NETWORK = "Esta acao precisa de conexao.";
+export const NEEDS_NETWORK = "Esta ação precisa de conexão.";

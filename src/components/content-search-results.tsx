@@ -48,7 +48,7 @@ export function ContentSearchResults({ query }: { query: string }) {
   return (
     <section className="space-y-2" aria-labelledby="busca-conteudo" data-testid="busca-conteudo">
       <SectionTitle>
-        <span id="busca-conteudo">Encontrado no conteudo</span>
+        <span id="busca-conteudo">Encontrado no conteúdo</span>
       </SectionTitle>
       {loading ? (
         <Skeleton className="h-20 w-full rounded-card" />

@@ -3,12 +3,15 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { apiSend } from "@/lib/client";
 import { Alert, Button, Sheet, Spinner } from "@/components/ui";
+import { AiConsentNotice, AiOffNotice } from "@/components/ai-consent";
 import type { WordEntry } from "@/lib/dictionary";
 
 /** Resposta de erro do dicionario: diz se a palavra ja esta guardada (PROD-6). */
 interface LookupFailure {
   error?: string;
   saved?: boolean;
+  /** Conta sem permissao de envio ao servico de IA (US-125). */
+  consent?: "pending" | "off";
 }
 
 /**
@@ -45,6 +48,9 @@ export function WordSheet({
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [consent, setConsent] = useState<"pending" | "off" | null>(null);
+  // Muda quando a pessoa permite o envio: refaz a consulta.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -66,17 +72,33 @@ export function WordSheet({
           return;
         }
         const failure = data as LookupFailure;
-        setError(failure.error ?? "Nao consegui consultar.");
+        if (response.status === 403 && failure.consent) {
+          setConsent(failure.consent);
+          setSaved(failure.saved === true);
+          if (failure.consent === "off") setError(failure.error ?? "");
+          return;
+        }
+        setError(failure.error ?? "Não consegui consultar.");
         setSaved(failure.saved === true);
       })
       .catch(() => {
-        if (active) setError("Nao consegui consultar.");
+        if (active) setError("Não consegui consultar.");
       });
 
     return () => {
       active = false;
     };
-  }, [word, context, textId]);
+  }, [word, context, textId, attempt]);
+
+  const decided = (allowed: boolean) => {
+    if (allowed) {
+      setConsent(null);
+      setAttempt((value) => value + 1);
+    } else {
+      setConsent("off");
+      setError("Sem envio ao serviço de IA, a definição fica para depois.");
+    }
+  };
 
   const saveForReview = async () => {
     setSaving(true);
@@ -85,7 +107,7 @@ export function WordSheet({
       await apiSend("/api/palavras", "POST", { word, context, textId });
       setSaved(true);
     } catch (cause) {
-      setSaveError(cause instanceof Error ? cause.message : "Nao consegui guardar.");
+      setSaveError(cause instanceof Error ? cause.message : "Não consegui guardar.");
     } finally {
       setSaving(false);
     }
@@ -94,19 +116,21 @@ export function WordSheet({
   return (
     <Sheet open onClose={onClose} title={word}>
       <div className="space-y-4">
-        {error ? (
+        {consent === "pending" ? (
+          <AiConsentNotice onDecided={decided} />
+        ) : error ? (
           <div className="space-y-3">
-            <Alert>{error}</Alert>
+            {consent === "off" ? <AiOffNotice /> : <Alert>{error}</Alert>}
             {saved ? (
               <p className="text-sm text-muted" data-testid="palavra-guardada">
-                Guardada para revisar, com a frase de origem. A definicao pode ser buscada de novo
+                Guardada para revisar, com a frase de origem. A definição pode ser buscada de novo
                 ou escrita em Palavras salvas.
               </p>
             ) : (
               <>
                 <p className="text-sm text-muted">
-                  Da para guardar a palavra assim mesmo: ela entra na revisao com a frase em que
-                  apareceu, e a definicao fica para depois.
+                  Dá para guardar a palavra assim mesmo: ela entra na revisão com a frase em que
+                  apareceu, e a definição fica para depois.
                 </p>
                 {saveError ? <Alert>{saveError}</Alert> : null}
                 <Button variant="secondary" size="lg" full loading={saving} onClick={saveForReview}>
@@ -124,7 +148,7 @@ export function WordSheet({
             {/* Palavra de outro idioma: a traducao vem antes da definicao. */}
             {entry.translation ? (
               <p className="font-medium">
-                <span className="text-sm text-muted">Traducao: </span>
+                <span className="text-sm text-muted">Tradução: </span>
                 {entry.translation}
               </p>
             ) : null}
@@ -143,7 +167,7 @@ export function WordSheet({
         {actions ? <div className="space-y-2">{actions}</div> : null}
 
         <Button size="lg" full onClick={onClose}>
-          Voltar a leitura
+          Voltar à leitura
         </Button>
       </div>
     </Sheet>

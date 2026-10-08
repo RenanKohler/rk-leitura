@@ -74,7 +74,7 @@ function FromLink() {
     const trimmed = url.trim();
 
     if (!/^https?:\/\//i.test(trimmed)) {
-      setError("O endereco precisa comecar com http:// ou https://");
+      setError("O endereço precisa começar com http:// ou https://");
       return;
     }
 
@@ -115,7 +115,7 @@ function FromLink() {
       <Card className="p-4">
         <form onSubmit={handleImport} className="space-y-4">
           <Field
-            label="Endereco do artigo"
+            label="Endereço do artigo"
             name="url"
             type="url"
             inputMode="url"
@@ -123,13 +123,13 @@ function FromLink() {
             autoCorrect="off"
             spellCheck={false}
             placeholder="https://site.com/artigo"
-            hint="Extraimos o texto principal da pagina, sem menus e anuncios."
+            hint="Extraímos o texto principal da página, sem menus e anúncios."
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             error={error || undefined}
           />
           <Button type="submit" size="lg" full loading={importing} disabled={!url.trim()}>
-            {importing ? "Buscando a pagina" : "Importar"}
+            {importing ? "Buscando a página" : "Importar"}
           </Button>
         </form>
       </Card>
@@ -142,14 +142,14 @@ function FromLink() {
           </div>
 
           <Field
-            label="Titulo"
+            label="Título"
             name="title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
           />
 
           <div className="space-y-1.5">
-            <p className="text-sm font-medium text-muted">Previa do conteudo</p>
+            <p className="text-sm font-medium text-muted">Prévia do conteúdo</p>
             <div className="max-h-64 overflow-y-auto rounded-2xl border border-border bg-bg p-4 text-sm leading-relaxed text-muted">
               {preview.content.slice(0, 2000)}
               {preview.content.length > 2000 ? "..." : ""}

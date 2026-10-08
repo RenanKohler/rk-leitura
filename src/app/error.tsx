@@ -36,10 +36,10 @@ export default function GlobalError({
     <main className="min-h-dvh flex flex-col items-center justify-center gap-4 px-6 text-center">
       <h1 className="text-2xl font-semibold tracking-tight">Algo deu errado</h1>
       <p className="max-w-sm text-muted">
-        Nao foi possivel carregar esta tela. Tente de novo em instantes.
+        Não foi possível carregar esta tela. Tente de novo em instantes.
       </p>
       <p className="text-sm text-muted">
-        Codigo de referencia: <span className="font-mono font-medium text-ink">{ref}</span>
+        Código de referência: <span className="font-mono font-medium text-ink">{ref}</span>
       </p>
       <button
         type="button"

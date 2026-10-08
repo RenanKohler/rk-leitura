@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       .from(savedWords)
       .where(owned)
       .limit(1);
-    if (!current) return jsonError("Palavra nao encontrada.", 404);
+    if (!current) return jsonError("Palavra não encontrada.", 404);
 
     const today = todayIn((await loadSettings(session.id))?.timezone ?? "UTC");
     const next = afterGrade(currentInterval(current.interval, current.step), grade, today);

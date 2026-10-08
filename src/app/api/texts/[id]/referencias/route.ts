@@ -15,11 +15,11 @@ export async function POST(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const body = await readJson<{ acao?: unknown }>(request);
     const mode = body?.acao === "restaurar" ? "restaurar" : body?.acao === "omitir" ? "omitir" : null;
-    if (!mode) return jsonError("Informe acao: omitir ou restaurar.", 400);
+    if (!mode) return jsonError("Informe ação: omitir ou restaurar.", 400);
 
     const result = await reprocessCitations(session.id, id, mode);
     switch (result.status) {

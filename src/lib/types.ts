@@ -291,6 +291,8 @@ export interface SettingsPayload {
   placementWpm: number | null;
   /** Se o teste ja foi oferecido - feito ou pulado. */
   placementSeen: boolean;
+  /** Envio de conteudo ao servico de IA (US-125): nulo enquanto a conta nao decidiu. */
+  aiEnabled: boolean | null;
   /** Hora local do lembrete diario; nulo quando nao ha lembrete. */
   reminderHour: number | null;
   /** Guia de primeiro uso do leitor ja visto nesta conta. */

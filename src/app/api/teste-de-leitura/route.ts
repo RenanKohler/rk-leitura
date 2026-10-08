@@ -31,7 +31,7 @@ export async function GET() {
 
   try {
     const settings = await loadSettings(session.id);
-    if (!settings) return jsonError("Sessao expirada. Entre novamente.", 401);
+    if (!settings) return jsonError("Sessão expirada. Entre novamente.", 401);
 
     return NextResponse.json({
       title: PLACEMENT_TITLE,
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
     const durationMs = Math.trunc(Number(body?.durationMs));
     if (!Number.isFinite(durationMs) || !plausibleDuration(durationMs)) {
-      return jsonError("A leitura foi rapida ou longa demais para medir.", 400);
+      return jsonError("A leitura foi rápida ou longa demais para medir.", 400);
     }
 
     const answers = Array.isArray(body?.answers) ? body.answers.map((v) => Number(v)) : null;

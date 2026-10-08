@@ -103,5 +103,5 @@ export function errorEntry(input: Omit<ErrorEntry, "level" | "at">, now = new Da
 
 /** Mensagem que o leitor ve, com o codigo para relatar o problema. */
 export function userMessage(ref: string): string {
-  return `Algo deu errado. Tente novamente. Codigo de referencia: ${ref}`;
+  return `Algo deu errado. Tente novamente. Código de referência: ${ref}`;
 }

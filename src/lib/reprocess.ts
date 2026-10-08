@@ -29,7 +29,7 @@ export async function reprocessCitations(
     .from(texts)
     .where(and(eq(texts.id, textId), eq(texts.userId, userId)))
     .limit(1);
-  if (!text) return { status: "not-found", message: "Texto nao encontrado." };
+  if (!text) return { status: "not-found", message: "Texto não encontrado." };
 
   const format = asTextFormat(text.format);
   const current = parseParagraphs(text.content, format).words;
@@ -43,12 +43,12 @@ export async function reprocessCitations(
   if (mode === "omitir") {
     const stripped = stripCitations(text.content);
     if (stripped.removed === 0 && !stripped.referencesCut) {
-      return { status: "unchanged", message: "Nenhuma referencia encontrada neste texto." };
+      return { status: "unchanged", message: "Nenhuma referência encontrada neste texto." };
     }
     const next = parseParagraphs(stripped.text, format).words;
     const matched = alignRemoval(current, next);
     if (!matched || next.length === 0) {
-      return { status: "unsafe", message: "Nao foi possivel omitir as referencias sem mover os destaques." };
+      return { status: "unsafe", message: "Não foi possível omitir as referências sem mover os destaques." };
     }
     toNew = forwardMap(current.length, matched);
     span = (value) => mapSpan(value, toNew);
@@ -57,14 +57,14 @@ export async function reprocessCitations(
     original = text.originalContent ?? text.content;
   } else {
     if (text.originalContent === null) {
-      return { status: "no-original", message: "Este texto nao teve referencias omitidas." };
+      return { status: "no-original", message: "Este texto não teve referências omitidas." };
     }
     const restored = parseParagraphs(text.originalContent, format).words;
     const matched = alignRemoval(restored, current);
     if (!matched) {
       return {
         status: "unsafe",
-        message: "O texto mudou depois de omitir as referencias; nao da para restaurar sem mover os destaques.",
+        message: "O texto mudou depois de omitir as referências; não dá para restaurar sem mover os destaques.",
       };
     }
     const inverse = inverseMap(matched, restored.length);

@@ -23,7 +23,7 @@ export async function POST(_request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const owned = and(eq(texts.id, id), eq(texts.userId, session.id));
     const [current] = await db
@@ -31,9 +31,9 @@ export async function POST(_request: Request, { params }: Params) {
       .from(texts)
       .where(owned)
       .limit(1);
-    if (!current) return jsonError("Texto nao encontrado.", 404);
+    if (!current) return jsonError("Texto não encontrado.", 404);
     if (current.wordCount > 0 && current.progressIndex >= current.wordCount) {
-      return jsonError("Texto ja concluido nao pode ser largado.", 409);
+      return jsonError("Texto já concluído não pode ser largado.", 409);
     }
 
     await db
@@ -59,14 +59,14 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const [updated] = await db
       .update(texts)
       .set({ abandonedAt: null, abandonedWords: null, updatedAt: new Date() })
       .where(and(eq(texts.id, id), eq(texts.userId, session.id)))
       .returning({ id: texts.id });
-    if (!updated) return jsonError("Texto nao encontrado.", 404);
+    if (!updated) return jsonError("Texto não encontrado.", 404);
 
     return NextResponse.json({ abandoned: false });
   } catch (error) {

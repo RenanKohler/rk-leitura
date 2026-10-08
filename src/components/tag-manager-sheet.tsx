@@ -39,7 +39,7 @@ export function TagManagerSheet({
       setEditingId(null);
       setConfirmingId(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui salvar.");
+      setError(cause instanceof Error ? cause.message : "Não consegui salvar.");
     } finally {
       setBusy(false);
     }

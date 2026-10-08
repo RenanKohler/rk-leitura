@@ -39,7 +39,7 @@ export function ReprocessCard() {
       }
       setCandidates(found);
     } catch {
-      setError("Nao consegui procurar na biblioteca.");
+      setError("Não consegui procurar na biblioteca.");
     } finally {
       setSearching(false);
     }
@@ -62,29 +62,29 @@ export function ReprocessCard() {
     setRunning(false);
     setProgress("");
     setCandidates(null);
-    notify(`Referencias omitidas em ${done} texto${done === 1 ? "" : "s"}.`, "success");
+    notify(`Referências omitidas em ${done} texto${done === 1 ? "" : "s"}.`, "success");
     if (failed.length > 0) {
-      setError(`Nao deu para processar ${failed.length}: ${failed.slice(0, 3).join("; ")}${failed.length > 3 ? "..." : ""}`);
+      setError(`Não deu para processar ${failed.length}: ${failed.slice(0, 3).join("; ")}${failed.length > 3 ? "..." : ""}`);
     }
   };
 
   return (
     <Card className="space-y-3 p-5">
-      <SectionTitle>Referencias em artigos</SectionTitle>
+      <SectionTitle>Referências em artigos</SectionTitle>
       <p className="text-sm text-muted">
-        Artigos importados daqui em diante ja entram sem as citacoes do corpo, como [12] e (Silva,
-        2020). Para os que ja estao na biblioteca, procure e omita. A posicao de leitura, os
+        Artigos importados daqui em diante já entram sem as citações do corpo, como [12] e (Silva,
+        2020). Para os que já estão na biblioteca, procure e omita. A posição de leitura, os
         destaques e os marcadores acompanham, e cada texto pode ser restaurado depois pelo leitor.
       </p>
       {error ? <Alert>{error}</Alert> : null}
 
       {candidates === null ? (
         <Button variant="secondary" full loading={searching} onClick={() => void search()}>
-          Procurar artigos com referencias
+          Procurar artigos com referências
         </Button>
       ) : candidates.length === 0 ? (
         <p className="text-sm text-faint" data-testid="reprocessar-vazio">
-          Nenhum texto com referencias no corpo.
+          Nenhum texto com referências no corpo.
         </p>
       ) : (
         <div className="space-y-3" data-testid="reprocessar-lista">
@@ -92,7 +92,7 @@ export function ReprocessCard() {
             {candidates.map((candidate) => (
               <li key={candidate.id} className="flex justify-between gap-3">
                 <span className="truncate">{candidate.title}</span>
-                <span className="tabular shrink-0 text-muted">{candidate.citations} citacoes</span>
+                <span className="tabular shrink-0 text-muted">{candidate.citations} citações</span>
               </li>
             ))}
           </ul>

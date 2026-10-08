@@ -14,7 +14,7 @@ import { DashboardClient } from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Inicio" };
+export const metadata = { title: "Início" };
 
 const RECENT_LIMIT = 5;
 

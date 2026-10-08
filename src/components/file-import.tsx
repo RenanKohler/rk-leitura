@@ -107,7 +107,7 @@ export function FileImport() {
           ? cause.message
           : cause instanceof Error
             ? cause.message
-            : "Nao consegui ler o arquivo."
+            : "Não consegui ler o arquivo."
       );
     } finally {
       setBusy(false);
@@ -124,12 +124,12 @@ export function FileImport() {
     setProgress("Abrindo o PDF");
     const { extractPdf } = await import("@/lib/pdf-client");
     const result = await extractPdf(file, (page, total) =>
-      setProgress(`Lendo pagina ${page} de ${total}`)
+      setProgress(`Lendo página ${page} de ${total}`)
     );
 
     if (hasNoText(result.content)) {
       throw new Error(
-        "Este PDF nao tem texto extraivel. Provavelmente e digitalizado, e so imagem."
+        "Este PDF não tem texto extraível. Provavelmente é digitalizado, é só imagem."
       );
     }
 
@@ -151,7 +151,7 @@ export function FileImport() {
 
     const source = (await file.text()).replace(/^\uFEFF/, "");
     if (countWords(source, "markdown") === 0) {
-      throw new Error("Este arquivo nao tem texto para ler.");
+      throw new Error("Este arquivo não tem texto para ler.");
     }
 
     const long = source.length > MAX_IMPORT_CHARS;
@@ -172,7 +172,7 @@ export function FileImport() {
 
     const source = (await file.text()).replace(/^﻿/, "").replace(/\r\n?/g, "\n");
     if (countWords(source, "plain") === 0) {
-      throw new Error("Este arquivo nao tem texto para ler.");
+      throw new Error("Este arquivo não tem texto para ler.");
     }
 
     const long = source.length > MAX_IMPORT_CHARS;
@@ -192,7 +192,7 @@ export function FileImport() {
     const JSZip = (await import("jszip")).default;
     // Documento protegido por senha nao e zip, e sim um arquivo cifrado: cai
     // aqui junto com o corrompido.
-    const unreadable = new DocxError("Nao foi possivel ler o documento. Ele pode estar protegido por senha ou corrompido.");
+    const unreadable = new DocxError("Não foi possível ler o documento. Ele pode estar protegido por senha ou corrompido.");
 
     let zip;
     try {
@@ -208,7 +208,7 @@ export function FileImport() {
 
     const source = docxToMarkdown(documentXml, numberingXml);
     if (countWords(source, "markdown") === 0) {
-      throw new DocxError("Este documento nao tem texto para ler.");
+      throw new DocxError("Este documento não tem texto para ler.");
     }
 
     const long = source.length > MAX_IMPORT_CHARS;
@@ -230,21 +230,21 @@ export function FileImport() {
     try {
       zip = await JSZip.loadAsync(file);
     } catch {
-      throw new EpubError("Nao consegui abrir o arquivo. Ele pode estar corrompido.");
+      throw new EpubError("Não consegui abrir o arquivo. Ele pode estar corrompido.");
     }
 
     // Um EPUB protegido traz este arquivo; o conteudo nem chega a ser lido.
     if (zip.file("META-INF/encryption.xml")) {
-      throw new EpubError("Este EPUB tem protecao de copia e nao pode ser importado.");
+      throw new EpubError("Este EPUB tem proteção de cópia e não pode ser importado.");
     }
 
     const container = await zip.file("META-INF/container.xml")?.async("string");
-    if (!container) throw new EpubError("Este arquivo nao parece um EPUB valido.");
+    if (!container) throw new EpubError("Este arquivo não parece um EPUB válido.");
 
     const opf = opfPath(container);
     const base = baseDir(opf);
     const opfXml = await zip.file(opf)?.async("string");
-    if (!opfXml) throw new EpubError("Este arquivo nao parece um EPUB valido.");
+    if (!opfXml) throw new EpubError("Este arquivo não parece um EPUB válido.");
 
     const index = parseOpf(opfXml, base);
 
@@ -257,7 +257,7 @@ export function FileImport() {
 
     const found: Chapter[] = [];
     for (const [position, href] of index.spine.entries()) {
-      setProgress(`Lendo capitulo ${position + 1} de ${index.spine.length}`);
+      setProgress(`Lendo capítulo ${position + 1} de ${index.spine.length}`);
       const xhtml = await zip.file(href)?.async("string");
       if (!xhtml) continue;
 
@@ -275,7 +275,7 @@ export function FileImport() {
     }
 
     if (found.length === 0) {
-      throw new EpubError("Nao encontrei capitulos com texto neste EPUB.");
+      throw new EpubError("Não encontrei capítulos com texto neste EPUB.");
     }
 
     setBookTitle(index.title);
@@ -325,7 +325,7 @@ export function FileImport() {
         first ??= text.id;
       }
 
-      notify(`${chosen.length} capitulos salvos.`, "success");
+      notify(`${chosen.length} capítulos salvos.`, "success");
       router.replace(first ? `/leitor/${first}` : "/textos");
     } catch (cause) {
       notify(cause instanceof Error ? cause.message : "Falha ao salvar.", "error");
@@ -365,7 +365,7 @@ export function FileImport() {
           <FileIcon className="size-7 text-muted" />
           <span className="font-medium">{busy ? progress || "Lendo" : "Escolher arquivo"}</span>
           <span className="text-sm text-muted">
-            {`PDF com texto selecionavel ate ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB, EPUB sem protecao, Word (.docx), Markdown (.md) ou texto (.txt)`}
+            {`PDF com texto selecionável até ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB, EPUB sem proteção, Word (.docx), Markdown (.md) ou texto (.txt)`}
           </span>
         </button>
       </Card>
@@ -374,7 +374,7 @@ export function FileImport() {
 
       {truncated ? (
         <Alert tone="positive">
-          O documento passa do tamanho maximo. Vamos importar o trecho inicial, de{" "}
+          O documento passa do tamanho máximo. Vamos importar o trecho inicial, de{" "}
           {formatNumber(countWords(content, format))} palavras.
         </Alert>
       ) : null}
@@ -382,13 +382,13 @@ export function FileImport() {
       {content ? (
         <Card className="space-y-4 p-4">
           <Field
-            label="Titulo"
+            label="Título"
             name="titulo-arquivo"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
           />
           <div>
-            <p className="text-sm font-medium text-muted">Previa</p>
+            <p className="text-sm font-medium text-muted">Prévia</p>
             <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-muted">
               {preview.slice(0, 500)}
               {preview.length > 500 ? "…" : ""}
@@ -407,7 +407,7 @@ export function FileImport() {
       {chapters ? (
         <Card className="space-y-4 p-4">
           <Field
-            label="Titulo do livro"
+            label="Título do livro"
             name="titulo-livro"
             value={bookTitle}
             onChange={(event) => setBookTitle(event.target.value)}
@@ -416,7 +416,7 @@ export function FileImport() {
           <div>
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-muted">
-                {`${chapters.length} capitulos`}
+                {`${chapters.length} capítulos`}
               </p>
               <button
                 type="button"
@@ -472,7 +472,7 @@ export function FileImport() {
               ? progress
               : chosenCount === chapters.length
                 ? "Importar o livro inteiro"
-                : `Importar ${chosenCount} ${chosenCount === 1 ? "capitulo" : "capitulos"}`}
+                : `Importar ${chosenCount} ${chosenCount === 1 ? "capítulo" : "capítulos"}`}
           </Button>
         </Card>
       ) : null}

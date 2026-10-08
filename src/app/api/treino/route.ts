@@ -38,10 +38,10 @@ export async function POST(request: Request) {
     if (!length) return jsonError("Escolha um programa de 14 ou 30 dias.", 400);
 
     const settings = await loadSettings(session.id);
-    if (!settings) return jsonError("Sessao expirada. Entre novamente.", 401);
+    if (!settings) return jsonError("Sessão expirada. Entre novamente.", 401);
 
     if (await activeProgram(session.id)) {
-      return jsonError("Ja existe um programa em andamento.", 409);
+      return jsonError("Já existe um programa em andamento.", 409);
     }
 
     // A partida e a velocidade medida no teste, quando houve; senao, a base.
@@ -73,7 +73,7 @@ export async function DELETE() {
 
   try {
     const program = await activeProgram(session.id);
-    if (!program) return jsonError("Nao ha programa em andamento.", 404);
+    if (!program) return jsonError("Não há programa em andamento.", 404);
 
     await db.transaction(async (tx) => {
       await tx

@@ -37,19 +37,19 @@ export function BookmarkletCard() {
       await navigator.clipboard.writeText(value);
       notify(message, "success");
     } catch {
-      notify("Nao consegui copiar. Selecione o texto e copie a mao.", "error");
+      notify("Não consegui copiar. Selecione o texto e copie à mão.", "error");
     }
   };
 
   return (
     <Card className="space-y-4 p-5">
-      <SectionTitle>Enviar a pagina atual</SectionTitle>
+      <SectionTitle>Enviar a página atual</SectionTitle>
 
       <div className="space-y-2">
         <p className="text-sm font-medium">No computador</p>
         <p className="text-sm text-muted">
-          Arraste o botao abaixo para a barra de favoritos. Em qualquer pagina, um clique nele
-          abre a importacao aqui com o endereco ja preenchido.
+          Arraste o botão abaixo para a barra de favoritos. Em qualquer página, um clique nele
+          abre a importação aqui com o endereço já preenchido.
         </p>
         {/* Arrastar um link e a unica forma de criar um favorito: nenhuma API
             do navegador permite adicionar um por conta propria. */}
@@ -72,44 +72,44 @@ export function BookmarkletCard() {
       <div className="space-y-2">
         <p className="text-sm font-medium">No iPhone</p>
         <p className="text-sm text-muted">
-          O Safari nao oferece o Leitura na lista de compartilhamento. Crie um Atalho:
+          O Safari não oferece o Leitura na lista de compartilhamento. Crie um Atalho:
         </p>
         <ol className="space-y-1.5 text-sm text-muted">
           <li>1. Abra o app Atalhos e crie um atalho novo.</li>
           <li>
-            2. Em Informacoes, ligue &ldquo;Mostrar na Folha de Compartilhamento&rdquo; e aceite
+            2. Em Informações, ligue &ldquo;Mostrar na Folha de Compartilhamento&rdquo; e aceite
             apenas URLs.
           </li>
           <li>
-            3. Adicione a acao &ldquo;Abrir URL&rdquo; com o endereco abaixo, colando a Entrada
+            3. Adicione a ação &ldquo;Abrir URL&rdquo; com o endereço abaixo, colando a Entrada
             do Atalho no lugar indicado.
           </li>
         </ol>
 
         <button
           type="button"
-          onClick={() => void copy(`${origin}/compartilhar?url=`, "Endereco copiado.")}
+          onClick={() => void copy(`${origin}/compartilhar?url=`, "Endereço copiado.")}
           className="break-anywhere w-full rounded-xl bg-surface-2 p-3 text-left font-mono text-xs"
         >
           {origin ? `${origin}/compartilhar?url=` : "…"}
           <span className="text-muted">[Entrada do Atalho]</span>
         </button>
         <p className="text-sm text-faint">
-          Depois, em qualquer pagina do Safari: Compartilhar, e escolha o atalho.
+          Depois, em qualquer página do Safari: Compartilhar, e escolha o atalho.
         </p>
       </div>
 
       <div className="flex flex-col gap-2">
         <Button variant="secondary" full onClick={() => setShowCode(!showCode)}>
-          {showCode ? "Esconder o codigo do favorito" : "Ver o codigo do favorito"}
+          {showCode ? "Esconder o código do favorito" : "Ver o código do favorito"}
         </Button>
 
         {showCode ? (
           <>
             <p className="break-anywhere rounded-xl bg-surface-2 p-3 font-mono text-xs">{code}</p>
-            <Button variant="secondary" full onClick={() => void copy(code, "Codigo copiado.")}>
+            <Button variant="secondary" full onClick={() => void copy(code, "Código copiado.")}>
               <CopyIcon className="size-4" />
-              Copiar o codigo
+              Copiar o código
             </Button>
           </>
         ) : null}

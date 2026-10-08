@@ -37,7 +37,7 @@ export default function RecoverPage() {
       router.replace("/dashboard");
       router.refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui redefinir a senha.");
+      setError(cause instanceof Error ? cause.message : "Não consegui redefinir a senha.");
       setLoading(false);
     }
   };
@@ -46,7 +46,7 @@ export default function RecoverPage() {
     <div className="space-y-5">
       <form onSubmit={submit} className="space-y-4" noValidate>
         <p className="text-sm text-muted">
-          Use um dos codigos de recuperacao que voce gerou em Ajustes. Cada codigo vale uma vez.
+          Use um dos códigos de recuperação que você gerou em Ajustes. Cada código vale uma vez.
         </p>
         {error ? <Alert>{error}</Alert> : null}
 
@@ -62,7 +62,7 @@ export default function RecoverPage() {
           required
         />
         <Field
-          label="Codigo de recuperacao"
+          label="Código de recuperação"
           name="code"
           autoComplete="one-time-code"
           autoCapitalize="characters"
