@@ -2530,8 +2530,8 @@ Como leitor, eu quero ver quanto ainda posso usar de cada função de IA hoje, p
 **Épico:** Leitura assistida por IA
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** a folha de toque longo do leitor oferece só o significado da palavra, "Começar daqui" e "Destacar frase" (`src/app/(app)/leitor/[id]/reader-client.tsx:1815-1825` e `GESTURES`, `:2196`)
+**Status:** Implementada
+**Evidência:** `src/app/api/texts/[id]/explicacao/route.ts` (cache em `ai_results`, consentimento, cota `explicacao`), `src/lib/explain.ts` (frase pelo segmentador, contexto só anterior, teto de 80 palavras, chave do cache), `src/lib/explain-generator.ts`, `src/components/explain-sheet.tsx`, "Explicar frase" na folha de toque longo e atalho "E" em `src/app/(app)/leitor/[id]/reader-client.tsx`; testes em `tests/explain.test.ts` e `e2e/ia-leitura.spec.ts`
 
 Como leitor, eu quero pedir a explicação de uma frase que não entendi, para que eu siga a leitura sem reler o parágrafo várias vezes nem sair do app.
 
@@ -2549,8 +2549,8 @@ Como leitor, eu quero pedir a explicação de uma frase que não entendi, para q
 **Épico:** Leitura assistida por IA
 **Prioridade:** Must
 **Story points:** 8
-**Status:** Proposta
-**Evidência:** não há forma de tirar uma dúvida sobre o conteúdo; "Navegar no texto" (`src/components/navigate-sheet.tsx`) só busca expressões literais
+**Status:** Implementada
+**Evidência:** `src/app/api/texts/[id]/pergunta/route.ts` (Citations com `cache_control`, cota `pergunta`), `src/lib/ask.ts` (`askExcerpt` termina na palavra N, `readAnswer` converte `char_location` em índice de palavra), `src/components/ask-sheet.tsx`, botão "Perguntar ao texto" e atalho "P" em `src/app/(app)/leitor/[id]/reader-client.tsx`; testes em `tests/ask.test.ts` e `e2e/ia-leitura.spec.ts`
 
 Como leitor de textos longos, eu quero fazer uma pergunta sobre o que já li e receber a resposta com o trecho que a sustenta, para que eu esclareça uma dúvida sem voltar páginas procurando.
 
@@ -2568,8 +2568,8 @@ Como leitor de textos longos, eu quero fazer uma pergunta sobre o que já li e r
 **Épico:** Leitura assistida por IA
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `highlights.note` e `MAX_NOTE_CHARS` em `src/lib/highlights.ts:15`
+**Status:** Implementada
+**Evidência:** "Guardar como nota" em `src/components/ask-sheet.tsx`, sobre as rotas de destaques existentes; `appendNote` e `noteTarget` em `src/lib/ask.ts`; testes em `tests/ask.test.ts` e `e2e/ia-leitura.spec.ts`
 
 Como leitor, eu quero guardar uma resposta útil junto do trecho que ela cita, para que a explicação volte na revisão de destaques (US-114) e na exportação anotada (US-100).
 
