@@ -70,9 +70,11 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
   preços citados (Opus 5.5 a US$ 4 e US$ 20 por milhão de tokens de entrada e
   saída, Batches a 50%) são pontos de partida, referentes a outubro de 2026.
   A US-124 existe para substituí-los por dados de uso.
-- A escolha de um modelo menor para tarefas leves (etiquetas, limpeza da
-  importação) não está decidida em nenhuma story. Fica para depois da medição
-  da US-124, comparada antes com o mesmo modelo em esforço menor.
+- Modelo por tarefa, decidido na implementação sobre a família 5.5: Opus 5.5
+  no questionário e nas perguntas ao texto, Sonnet 5.5 na explicação e nos
+  resumos, Haiku 5.5 no dicionário, na limpeza da importação, nas etiquetas e
+  na sinopse. A tabela fica em `AI_MODELS` (`src/lib/ai.ts`) e é revista com
+  os dados da US-124. O Haiku 5.5 não tem fallback de recusa no servidor.
 - Velocidade de referência para planejamento: 20 a 25 pontos por sprint de 2
   semanas.
 
@@ -2449,8 +2451,8 @@ Como leitor, eu quero achar estatísticas, histórico, palavras e treino num só
 **Épico:** Plataforma de IA
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `MODEL`, `client()` e o tratamento de erro repetidos em `src/lib/quiz-generator.ts:24-110` e `src/lib/word-lookup.ts:19-103`; `src/app/api/health/route.ts:14` não informa a presença de `ANTHROPIC_API_KEY`
+**Status:** Implementada
+**Evidência:** `src/lib/ai.ts` (`aiParse`, `aiCreate`, `AI_MODELS`, `AiUnavailable`), `src/lib/quiz-generator.ts` e `src/lib/word-lookup.ts` sobre ele, `config.anthropicApiKey` em `src/app/api/health/route.ts`
 
 Como mantenedor, eu quero um único ponto de acesso ao modelo, com chave, modelo, fallback e tratamento de erro definidos uma vez, para que cada funcionalidade nova de IA não repita essas decisões e uma troca de modelo seja feita em um lugar só.
 
@@ -2468,8 +2470,8 @@ Como mantenedor, eu quero um único ponto de acesso ao modelo, com chave, modelo
 **Épico:** Plataforma de IA
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** o uso de tokens hoje só vai para o log (`console.info` em `src/lib/quiz-generator.ts:113` e `src/lib/word-lookup.ts:105`), sem agregação
+**Status:** Implementada
+**Evidência:** tabela `ai_usage` (drizzle/0024), `recordUsage` em `src/lib/ai.ts`, `src/lib/ai-cost.ts`, `src/app/api/uso-ia/route.ts`, `tests/ai-cost.test.ts`
 
 Como mantenedor, eu quero saber quantos tokens e quanto custo cada funcionalidade de IA gera por dia, para que eu ajuste cotas, esforço e modelo com dados reais em vez de estimativa.
 
@@ -2487,8 +2489,8 @@ Como mantenedor, eu quero saber quantos tokens e quanto custo cada funcionalidad
 **Épico:** Plataforma de IA
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** o aviso de envio a serviço externo existe só no questionário (`src/components/quiz-sheet.tsx:260-263`); o dicionário (`src/components/word-sheet.tsx`) envia a frase sem aviso equivalente
+**Status:** Implementada
+**Evidência:** `speed_settings.ai_enabled` (drizzle/0024), `aiGate` em `src/lib/ai.ts`, `src/components/ai-consent.tsx`, folhas do dicionário e do questionário, cartão em `src/components/ai-card.tsx`
 
 Como leitor, eu quero decidir uma vez se o conteúdo dos meus textos pode ser enviado ao serviço de IA, para que nada da minha biblioteca saia do app sem eu saber.
 
@@ -2506,8 +2508,8 @@ Como leitor, eu quero decidir uma vez se o conteúdo dos meus textos pode ser en
 **Épico:** Plataforma de IA
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
-**Evidência:** `DAILY_QUOTAS` em `src/lib/quota.ts`; o leitor só descobre o limite quando recebe o 429
+**Status:** Implementada
+**Evidência:** `readDailyUsage` em `src/lib/daily-quota.ts`, `src/app/api/ia/uso/route.ts`, `src/components/ai-card.tsx`
 
 Como leitor, eu quero ver quanto ainda posso usar de cada função de IA hoje, para que eu não descubra o limite no meio de uma leitura.
 
