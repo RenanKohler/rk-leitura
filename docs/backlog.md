@@ -2588,8 +2588,8 @@ Como leitor, eu quero guardar uma resposta útil junto do trecho que ela cita, p
 **Épico:** Retomada com resumo
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `recapWindow` e `RecapPlayer` em `src/app/(app)/leitor/[id]/reader-client.tsx:372` e `:1498` (US-77) mostram só as últimas 40 palavras
+**Status:** Implementada
+**Evidência:** `ReadSummary` em `src/components/recap-summary.tsx` dentro do cartão "Recapitular o contexto" (`src/app/(app)/leitor/[id]/reader-client.tsx`), rota `src/app/api/texts/[id]/resumo/route.ts` (GET diz se o botão aparece e traz o resumo guardado; POST gera), `buildReadSummaryRequest`, `readSummaryKey` e `canReuseReadSummary` em `src/lib/summaries.ts`, chamada em `src/lib/summary-generator.ts`, `tests/summaries.test.ts`, `e2e/retomada-resumo.spec.ts`
 
 Como leitor, eu quero ver um resumo do que já li quando volto a um texto parado há dias, para que eu retome com o enredo ou o argumento na cabeça, e não só a última frase.
 
@@ -2607,8 +2607,8 @@ Como leitor, eu quero ver um resumo do que já li quando volto a um texto parado
 **Épico:** Retomada com resumo
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
-**Evidência:** `recapTail` em `src/lib/series.ts:185` e `src/lib/learning-queries.ts:366` (US-119) mostram o final e os destaques do capítulo anterior
+**Status:** Implementada
+**Evidência:** `ChapterSummaryGate` em `src/components/recap-summary.tsx` antes do `RecapPlayer` do capítulo anterior, rota `src/app/api/texts/[id]/resumo-capitulo/route.ts` (só capítulo concluído, cache por texto e impressão do conteúdo), `PreviousChapter.id` em `src/lib/types.ts`, `buildChapterSummaryRequest` em `src/lib/summaries.ts`, `tests/summaries.test.ts`, `e2e/retomada-resumo.spec.ts`
 
 Como leitor de séries, eu quero ver um resumo do capítulo anterior antes de começar o próximo, para que eu lembre o que aconteceu no capítulo inteiro, e não só no final dele.
 
@@ -2625,8 +2625,8 @@ Como leitor de séries, eu quero ver um resumo do capítulo anterior antes de co
 **Épico:** Retomada com resumo
 **Prioridade:** Could
 **Story points:** 5
-**Status:** Proposta
-**Evidência:** `src/lib/xray.ts` e `src/components/xray-panel.tsx` (US-118) listam nomes e contagens, sem dizer quem é cada um
+**Status:** Implementada
+**Evidência:** `NamesPanel` em `src/components/names-panel.tsx` ("Navegar no texto" > "Nomes no texto"), descrições em `src/components/xray-panel.tsx`, rota `src/app/api/texts/[id]/nomes/route.ts`, `namesToDescribe`, `buildNamesRequest`, `canReuseNames` e `normalizeDescriptions` em `src/lib/summaries.ts`, `tests/summaries.test.ts`, `e2e/retomada-resumo.spec.ts`
 
 Como leitor de textos longos, eu quero uma descrição curta de cada personagem ou termo recorrente, limitada ao que já li, para que eu lembre quem é quem sem correr o risco de ler um spoiler.
 

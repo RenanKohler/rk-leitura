@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiSend } from "@/lib/client";
 import { Alert, Button, Sheet } from "@/components/ui";
 import { BookmarkIcon, TrashIcon } from "@/components/icons";
-import { XrayPanel } from "@/components/xray-panel";
+import { NamesPanel } from "@/components/names-panel";
 import {
   bookmarkLabel,
   currentHeading,
@@ -285,7 +285,9 @@ export function NavigateSheet({
             <span aria-hidden="true">{showNames ? "\u2212" : "+"}</span>
           </button>
           {showNames ? (
-            <XrayPanel
+            <NamesPanel
+              textId={textId}
+              position={index}
               words={words}
               paragraphs={paragraphs}
               onGo={(position) => {

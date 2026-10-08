@@ -172,6 +172,8 @@ export interface TextDetail extends TextSummary {
 
 /** O que o leitor mostra para retomar o fio da serie (PROD-12). */
 export interface PreviousChapter {
+  /** Id do capitulo anterior, para pedir o resumo dele (US-131). */
+  id: string;
   /** Titulo do capitulo anterior. */
   title: string;
   /** Ultimos paragrafos do capitulo anterior, do mais antigo ao ultimo. */
