@@ -79,6 +79,8 @@ import {
 } from "@/lib/navigation";
 import { HighlightSheet } from "@/components/highlight-sheet";
 import { WordSheet } from "@/components/word-sheet";
+import { ExplainSheet } from "@/components/explain-sheet";
+import { AskSheet } from "@/components/ask-sheet";
 import { MIN_WORDS_FOR_QUIZ } from "@/lib/quiz";
 import { useWordSelection, wordIndexFromPoint } from "@/hooks/use-word-selection";
 import { useWordTouch } from "@/hooks/use-word-touch";
@@ -1131,6 +1133,9 @@ function Reader({
   );
 
   const [navigating, setNavigating] = useState(false);
+  // Frase a explicar (US-127) e conversa com o texto (US-128).
+  const [explaining, setExplaining] = useState<number | null>(null);
+  const [asking, setAsking] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
@@ -1217,6 +1222,8 @@ function Reader({
   const sheetOpen =
     showSettings ||
     navigating ||
+    explaining !== null ||
+    asking ||
     shortcutsOpen ||
     openMark !== null ||
     wordOpen ||
@@ -1310,6 +1317,10 @@ function Reader({
         lookupCurrent();
       } else if (event.key === "h" || event.key === "H") {
         markSentenceAt(stateRef.current.index);
+      } else if (event.key === "e" || event.key === "E") {
+        setExplaining(Math.min(stateRef.current.index, words.length - 1));
+      } else if (event.key === "p" || event.key === "P") {
+        setAsking(true);
       } else if (event.key === "ArrowLeft") {
         // Correndo, as setas andam por frase; parado, viram a pagina.
         if (stateRef.current.playing) backSentence();
@@ -1338,6 +1349,7 @@ function Reader({
     recapPlaying,
     lookupCurrent,
     markSentenceAt,
+    words.length,
   ]);
 
   // Pausar pelo toque no Word Runner tira o foco da tela: ele volta para o
@@ -1453,6 +1465,15 @@ function Reader({
               </span>
             </Link>
           ) : null}
+
+          <button
+            type="button"
+            onClick={() => setAsking(true)}
+            aria-label="Perguntar ao texto"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+          >
+            <SparkIcon className="size-5" />
+          </button>
 
           <button
             type="button"
@@ -1824,6 +1845,17 @@ function Reader({
                 >
                   Destacar frase
                 </Button>
+                <Button
+                  variant="secondary"
+                  className="col-span-2"
+                  onClick={() => {
+                    const position = word.touched?.index;
+                    word.clear();
+                    if (position !== undefined) setExplaining(position);
+                  }}
+                >
+                  Explicar frase
+                </Button>
               </div>
             ) : null
           }
@@ -1839,6 +1871,28 @@ function Reader({
           onRemove={() => removeMark(openMark)}
         />
       ) : null}
+
+      {explaining !== null ? (
+        <ExplainSheet
+          key={`explicar-${explaining}`}
+          textId={text.id}
+          index={explaining}
+          onClose={() => setExplaining(null)}
+        />
+      ) : null}
+
+      <AskSheet
+        key={`perguntar-${anchor}`}
+        open={asking}
+        onClose={() => setAsking(false)}
+        textId={text.id}
+        position={anchor}
+        onGo={(position) => {
+          goTo(position);
+          setTapped(position);
+        }}
+        onHighlights={setMarks}
+      />
 
       <NavigateSheet
         open={navigating}
@@ -2193,7 +2247,7 @@ const GESTURES: [string, string][] = [
   ["Tocar no Word Runner", "Freia: volta a página com a palavra atual marcada"],
   ["Tocar numa palavra", "A leitura seguinte começa dela"],
   ["Tocar na borda ou deslizar", "Vira a página"],
-  ["Tocar e segurar", "Mostra o significado da palavra"],
+  ["Tocar e segurar", "Mostra o significado da palavra e explica a frase"],
   ["Arrastar sobre o texto", "Seleciona para destacar"],
 ];
 
@@ -2204,6 +2258,8 @@ const SHORTCUTS: [string, string][] = [
   ["Shift + seta para a esquerda", "Voltar ao início da frase"],
   ["D", "Significado da palavra atual"],
   ["H", "Destacar a frase atual"],
+  ["E", "Explicar a frase atual"],
+  ["P", "Perguntar ao texto"],
   ["/", "Buscar e navegar no texto"],
   ["?", "Esta ajuda"],
   ["Esc", "Fechar a janela aberta"],
