@@ -362,6 +362,7 @@ export async function loadPreviousChapter(
 
   const { words, paragraphs } = parseParagraphs(previous.content, asTextFormat(previous.format));
   return {
+    id: previous.id,
     title: previous.title,
     tail: recapTail(paragraphs.map((paragraph) => paragraph.words)),
     highlights: marks.map((mark) => ({

@@ -67,6 +67,7 @@ import { apiGet, apiSend } from "@/lib/client";
 import { SPEED_BAND_LABELS, speedBand, speedBandWarning } from "@/lib/speed-bands";
 import { QuizSheet } from "@/components/quiz-sheet";
 import { NavigateSheet } from "@/components/navigate-sheet";
+import { ChapterSummaryGate, ReadSummary } from "@/components/recap-summary";
 import { countCitations } from "@/lib/citations";
 import {
   EYE_REST_AFTER_MS,
@@ -1514,20 +1515,23 @@ function Reader({
         className={`relative flex min-h-0 flex-1 flex-col ${finished || recapPlaying || chapterRecapPlaying ? "overflow-y-auto" : ""}`}
       >
         {chapterRecapPlaying && chapterRecap ? (
-          <RecapPlayer
-            marks={chapterRecap.highlights}
-            words={chapterRecapWords}
-            wpm={wpm}
-            title={`Antes: ${chapterRecap.title}`}
-            onDone={() => {
-              setChapterRecap(null);
-              setChapterRecapPlaying(false);
-            }}
-            onSkip={() => {
-              setChapterRecap(null);
-              setChapterRecapPlaying(false);
-            }}
-          />
+          // Resumo do capitulo inteiro antes dos destaques e do final (US-131).
+          <ChapterSummaryGate chapterId={chapterRecap.id} title={chapterRecap.title}>
+            <RecapPlayer
+              marks={chapterRecap.highlights}
+              words={chapterRecapWords}
+              wpm={wpm}
+              title={`Antes: ${chapterRecap.title}`}
+              onDone={() => {
+                setChapterRecap(null);
+                setChapterRecapPlaying(false);
+              }}
+              onSkip={() => {
+                setChapterRecap(null);
+                setChapterRecapPlaying(false);
+              }}
+            />
+          </ChapterSummaryGate>
         ) : recapPlaying && recap ? (
           <RecapPlayer
             marks={recapMarks}
@@ -1626,6 +1630,12 @@ function Reader({
                   </Button>
                   <Button onClick={() => setRecapPlaying(true)}>Recapitular</Button>
                 </div>
+                {/* Resumo do que li (US-130): some quando a IA nao serve. */}
+                <ReadSummary
+                  textId={text.id}
+                  position={recap.to}
+                  onContinue={() => endRecap(true)}
+                />
               </div>
             ) : null}
 
