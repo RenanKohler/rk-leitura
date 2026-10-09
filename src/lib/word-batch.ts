@@ -190,7 +190,7 @@ async function applyResults(client: Anthropic, row: typeof aiBatches.$inferSelec
         "dicionario",
         item.result.message.model,
         item.result.message.usage,
-        true
+        { batch: true }
       );
     }
 

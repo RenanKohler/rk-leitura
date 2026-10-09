@@ -36,7 +36,11 @@ export type AiTask =
   | "resumo"
   | "sinopse"
   | "limpeza"
-  | "etiquetas";
+  | "etiquetas"
+  | "sugestoes"
+  | "cartoes"
+  | "secoes"
+  | "semana";
 
 /**
  * Modelo de cada tarefa (decidido sobre a recomendacao da familia 5.5):
@@ -62,6 +66,14 @@ export const AI_MODELS: Record<AiTask, string> = {
   limpeza: HAIKU,
   etiquetas: HAIKU,
   sinopse: HAIKU,
+  // Perguntas sugeridas (US-148): curtas e de alto volume.
+  sugestoes: HAIKU,
+  // Cartoes de revisao (US-150) e ideias da semana (US-154): texto curto, mas
+  // com escolha do que importa.
+  cartoes: SONNET,
+  semana: SONNET,
+  // Secoes de um documento longo (US-153): entrada longa, saida fechada.
+  secoes: SONNET,
 };
 
 /**
@@ -157,15 +169,42 @@ interface UsageLike {
   cache_creation_input_tokens?: number | null;
 }
 
+/** Como a chamada terminou (US-141). */
+export type AiOutcome = "sucesso" | "recusa" | "tempo" | "falha";
+
+const NO_USAGE: UsageLike = { input_tokens: 0, output_tokens: 0 };
+
+/** O que a chamada levou do texto do leitor (US-144). */
+export interface SentFrom {
+  /** Texto de onde saiu o conteudo; ausente no dicionario e na importacao. */
+  textId?: string | null;
+  /** Palavras do texto enviadas. */
+  wordsSent?: number;
+}
+
+export interface UsageExtra extends SentFrom {
+  batch?: boolean;
+  outcome?: AiOutcome;
+  /** Tempo ate o primeiro trecho, nas chamadas com streaming (US-145). */
+  firstTokenMs?: number | null;
+}
+
+/** Palavras de um trecho, para o registro do que foi enviado (US-144). */
+export function countWords(text: string): number {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
 /** Grava o uso de uma chamada. Falhar aqui nunca derruba a resposta ao leitor. */
 export async function recordUsage(
   userId: string,
   task: AiTask,
   model: string,
   usage: UsageLike,
-  batch = false
+  extra: UsageExtra = {}
 ): Promise<void> {
-  console.info(`[ia] ${task}:`, model, JSON.stringify(usage));
+  const outcome = extra.outcome ?? "sucesso";
+  console.info(`[ia] ${task} (${outcome}):`, model, JSON.stringify(usage));
   try {
     await db.insert(aiUsage).values({
       userId,
@@ -175,7 +214,11 @@ export async function recordUsage(
       outputTokens: usage.output_tokens,
       cacheReadTokens: usage.cache_read_input_tokens ?? 0,
       cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
-      batch,
+      batch: extra.batch ?? false,
+      outcome,
+      textId: extra.textId ?? null,
+      wordsSent: Math.max(0, Math.trunc(extra.wordsSent ?? 0)),
+      firstTokenMs: extra.firstTokenMs ?? null,
     });
   } catch (error) {
     console.error("[ia] falha ao registrar uso:", error);
@@ -186,7 +229,7 @@ export async function recordUsage(
 
 type Effort = "low" | "medium" | "high";
 
-interface CallOptions {
+export interface CallOptions extends SentFrom {
   /** Decide o modelo e o nome gravado no uso. */
   task: AiTask;
   userId: string;
@@ -199,7 +242,39 @@ interface CallOptions {
   timeoutMs?: number;
 }
 
-function translate(error: unknown, messages: AiMessages, scope: string): AiUnavailable {
+/** Classifica a falha de uma chamada para o registro (US-141). */
+export function failureOutcome(error: unknown): AiOutcome {
+  return error instanceof Anthropic.APIConnectionTimeoutError ? "tempo" : "falha";
+}
+
+/**
+ * Registra uma chamada que nao chegou a responder. Sem chave nada saiu do
+ * app, entao nao ha o que registrar.
+ */
+export async function recordFailure(options: CallOptions, error: unknown): Promise<void> {
+  if (error instanceof AiUnavailable) return;
+  await recordUsage(options.userId, options.task, AI_MODELS[options.task], NO_USAGE, {
+    textId: options.textId,
+    wordsSent: options.wordsSent,
+    outcome: failureOutcome(error),
+  });
+}
+
+/** Registro de uma chamada que respondeu, com recusa ou sucesso. */
+export async function recordResponse(
+  options: CallOptions,
+  response: { model: string; usage: UsageLike; stop_reason: string | null },
+  firstTokenMs?: number | null
+): Promise<void> {
+  await recordUsage(options.userId, options.task, response.model, response.usage, {
+    textId: options.textId,
+    wordsSent: options.wordsSent,
+    outcome: response.stop_reason === "refusal" ? "recusa" : "sucesso",
+    firstTokenMs,
+  });
+}
+
+export function translate(error: unknown, messages: AiMessages, scope: string): AiUnavailable {
   if (error instanceof AiUnavailable) return error;
   if (error instanceof Anthropic.RateLimitError) return new AiUnavailable(AI_BUSY);
   if (error instanceof Anthropic.AuthenticationError) {
@@ -231,10 +306,11 @@ export async function aiParse<S extends z.ZodType>(
       options.timeoutMs ? { timeout: options.timeoutMs, maxRetries: 0 } : undefined
     );
   } catch (error) {
+    await recordFailure(options, error);
     throw translate(error, options.messages, options.task);
   }
 
-  await recordUsage(options.userId, options.task, response.model, response.usage);
+  await recordResponse(options, response);
 
   // O modelo pode recusar por seguranca, e o fallback nem sempre resolve.
   if (response.stop_reason === "refusal") throw new AiUnavailable(options.messages.refusal);
@@ -262,10 +338,11 @@ export async function aiCreate(
       options.timeoutMs ? { timeout: options.timeoutMs, maxRetries: 0 } : undefined
     );
   } catch (error) {
+    await recordFailure(options, error);
     throw translate(error, options.messages, options.task);
   }
 
-  await recordUsage(options.userId, options.task, response.model, response.usage);
+  await recordResponse(options, response);
 
   if (response.stop_reason === "refusal") throw new AiUnavailable(options.messages.refusal);
   return response;

@@ -176,6 +176,13 @@
       "when": 1791500518020,
       "tag": "0024_ia",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791562546241,
+      "tag": "0025_ia_segunda_rodada",
+      "breakpoints": true
     }
   ]
 }
