@@ -1,0 +1,11 @@
+{
+  "id": "en-relojoeiro",
+  "title": "The Clockmaker's Apprentice",
+  "language": "en",
+  "content": "Mara was fourteen when her aunt sent her to work for Mr. Hollis, the clockmaker on Tinder Lane. The shop was narrow and dark, and every wall was covered with clocks that disagreed with each other by a few seconds. Mr. Hollis said the disagreement was deliberate: customers trusted a shop where the clocks argued, because it meant someone was still adjusting them.\n\nFor the first month, Mara was not allowed to touch a single movement. She swept brass filings from the floor, sorted screws by size into glass jars, and learned the names of the parts by drawing them in a notebook. Escapement, balance wheel, mainspring, crown. Mr. Hollis checked the drawings every evening and returned them with corrections in red ink.\n\nIn the second month, he gave her an old kitchen clock that had stopped years before. Take it apart, he said, and put it back together so that it runs. Mara spent three evenings on it. The first time she reassembled it, two screws were left over. The second time, the hands moved backwards. On the third evening, the clock ticked, slowly at first, and then steadily.\n\nMr. Hollis listened to it for a long time without saying anything. Then he wrote the date on a paper label, stuck it to the back of the case, and hung the clock on the wall with the others.\n\nThat winter, a letter arrived from the Harrowgate Guild announcing a competition for young makers. The prize was a year of study in the city. Mr. Hollis read it aloud and then mentioned, almost in passing, that Wendeline Price would certainly enter, as she had every year, and that she had never lost.",
+  "stopAfter": "hung the clock on the wall with the others.",
+  "question": "What did Mara do during her first month in the shop?",
+  "explain": "Mr. Hollis said the disagreement was deliberate: customers trusted a shop where the clocks argued, because it meant someone was still adjusting them.",
+  "names": ["Mara", "Mr. Hollis", "Tinder Lane", "Harrowgate", "Wendeline Price"],
+  "afterPosition": ["Harrowgate", "Wendeline"]
+}

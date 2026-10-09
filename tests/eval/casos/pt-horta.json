@@ -1,0 +1,11 @@
+{
+  "id": "pt-horta",
+  "title": "A horta da Rua das Acácias",
+  "language": "pt-BR",
+  "content": "Há quatro anos, o terreno no fim da Rua das Acácias era um depósito de entulho. Sofás velhos, restos de obra e sacos de lixo se acumulavam atrás de um muro baixo, e os moradores atravessavam a rua para não passar perto do cheiro.\n\nA mudança começou com uma reunião de condomínio que nada tinha a ver com o terreno. Discutia-se o preço da água quando Rosana, professora de ciências aposentada, sugeriu que a sobra da água da chuva, guardada em caixas no telhado, poderia regar alguma coisa. Alguém respondeu que não havia onde plantar, e ela apontou pela janela para o terreno abandonado.\n\nO primeiro mutirão reuniu nove pessoas e levou dois fins de semana só para retirar o entulho. A associação de moradores conseguiu emprestada uma caçamba, e um vizinho marceneiro construiu os primeiros canteiros com tábuas de demolição. Plantaram alface, cebolinha e couve, porque eram as mudas mais baratas da feira.\n\nOs resultados do primeiro ano foram modestos. Metade da alface foi comida por lagartas, e a couve cresceu amarga por falta de sol na parte de trás do terreno. Ainda assim, as crianças da rua passaram a aparecer depois da escola para regar, e a horta virou ponto de encontro nas tardes de sábado.\n\nNo segundo ano, o grupo mudou de estratégia. Os canteiros foram para a parte ensolarada, e Dona Benedita, que tinha crescido num sítio no interior, ensinou a fazer compostagem com as cascas de fruta das cozinhas da rua. Em poucos meses, o solo escureceu, as lagartas diminuíram e a colheita passou a abastecer doze famílias toda semana.",
+  "stopAfter": "a horta virou ponto de encontro nas tardes de sábado.",
+  "question": "Quem sugeriu usar o terreno abandonado e por quê?",
+  "explain": "Plantaram alface, cebolinha e couve, porque eram as mudas mais baratas da feira.",
+  "names": ["Rua das Acácias", "Rosana", "Benedita"],
+  "afterPosition": ["Benedita", "compostagem"]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "en-trem",
+  "title": "The Last Train North",
+  "language": "en",
+  "content": "Tom missed the six o'clock train by the width of a closing door. The next one north, the station board said, was the overnight service at eleven, which stopped at every village along the coast and arrived just after dawn. He bought a ticket, a cup of tea that tasted of the paper cup, and sat on a bench to wait.\n\nThe overnight train had only two carriages. The conductor, a tall woman named Agnes with a silver ticket punch on a chain, told him he could sit anywhere, because nobody ever took this train except people who had missed the earlier one. Tom chose a seat by the window and watched the platform lights slide away.\n\nAt the third stop, a boy of about ten climbed aboard alone, carrying a violin case almost as big as himself. He sat across the aisle, opened the case, and checked the instrument as if he expected it to have changed during the walk to the station. Agnes punched his ticket without asking where his parents were, and Tom decided not to ask either.\n\nSomewhere after midnight, the train stopped between stations. The lights flickered, the engine went quiet, and through the window there was nothing but black fields and a line of distant farmhouses. Agnes walked through the carriage saying it was only a signal and that they would move again soon.\n\nThey did not move for an hour. The boy took out his violin and began to play, softly at first, a tune Tom almost recognised. When the train finally started again, a woman in a grey coat stepped out of the other carriage and introduced herself as Dr. Helena Voss. She said she was going to Brannock, and that she had been listening to the boy since the third stop.",
+  "stopAfter": "Agnes walked through the carriage saying it was only a signal and that they would move again soon.",
+  "question": "Who is Agnes and what does she tell Tom?",
+  "explain": "He sat across the aisle, opened the case, and checked the instrument as if he expected it to have changed during the walk to the station.",
+  "names": ["Tom", "Agnes", "Helena Voss", "Brannock"],
+  "afterPosition": ["Voss", "Brannock", "Helena"]
+}

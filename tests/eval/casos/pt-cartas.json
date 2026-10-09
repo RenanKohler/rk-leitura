@@ -1,0 +1,11 @@
+{
+  "id": "pt-cartas",
+  "title": "A caixa de latão",
+  "language": "pt-BR",
+  "content": "Quando a avó Celina morreu, coube a Teresa esvaziar o apartamento da Rua Floriano. Os irmãos moravam longe e ela era a única que ainda tinha a chave. Levou uma semana para separar o que ia para doação, o que ia para o lixo e o que ninguém teria coragem de jogar fora.\n\nNo fundo do guarda-roupa, embaixo de uma pilha de toalhas de mesa bordadas, encontrou uma caixa de latão com a tampa amassada. Dentro havia cartas, mais de quarenta, amarradas em maços com fita de cetim azul. Todas endereçadas à avó, todas com a mesma letra inclinada, nenhuma com remetente no envelope.\n\nTeresa leu a primeira sentada no chão do quarto. Falava de um verão na praia, de um vestido amarelo e de uma promessa de voltar antes do Natal. A segunda era mais curta e pedia desculpas por uma ausência que não explicava. Nas seguintes, o tom mudava: menos promessas, mais lembranças, como se quem escrevia soubesse que não haveria resposta.\n\nA avó nunca tinha falado de ninguém antes do avô. Teresa ligou para a mãe, que não sabia de nada e achou melhor não saber. Ligou para a tia, que ficou em silêncio por um tempo e depois disse que aquilo era assunto da Celina e de mais ninguém.\n\nNa última carta do maço, datada de mil novecentos e sessenta e um, finalmente havia uma assinatura: Aurélio. Junto vinha um endereço em Lisboa e uma frase sublinhada duas vezes, dizendo que a porta continuaria aberta. Teresa guardou a carta no bolso do casaco e passou a tarde procurando o endereço num mapa.",
+  "stopAfter": "aquilo era assunto da Celina e de mais ninguém.",
+  "question": "O que Teresa encontrou dentro da caixa?",
+  "explain": "como se quem escrevia soubesse que não haveria resposta.",
+  "names": ["Celina", "Teresa", "Rua Floriano", "Aurélio", "Lisboa"],
+  "afterPosition": ["Aurélio", "Lisboa"]
+}
