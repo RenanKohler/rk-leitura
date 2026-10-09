@@ -350,50 +350,51 @@ export function TextsClient({
           onChange={(event) => changeFilter(() => setQuery(event.target.value))}
         />
 
-        {/* Status e etiquetas numa linha so de chips, com rolagem horizontal:
-            antes eram duas faixas empilhadas, e no celular sobrava lugar para
-            um unico texto na primeira tela. A rolagem fica dentro da faixa,
-            sem estourar a largura da pagina em 320px (A11Y-17). */}
-        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1">
-          <div role="group" aria-label="Filtrar por leitura" className="flex shrink-0 gap-2">
-            {STATUS_OPTIONS.map((option) => (
-              <Chip
-                key={option.value}
-                pressed={status === option.value}
-                onClick={() => changeFilter(() => setStatus(option.value))}
-              >
-                {option.label}
-              </Chip>
-            ))}
-          </div>
-
-          {tags.length > 0 ? (
-            <>
-              <span aria-hidden="true" className="h-6 w-px shrink-0 bg-border" />
-              <div role="group" aria-label="Filtrar por etiqueta" className="flex shrink-0 gap-2">
-                {tags.map((tag) => (
-                  <Chip
-                    key={tag.id}
-                    pressed={tagId === tag.id}
-                    onClick={() =>
-                      changeFilter(() => setTagId(tagId === tag.id ? null : tag.id))
-                    }
-                  >
-                    {tag.name}
-                    <span className="tabular text-xs text-faint">{tag.texts}</span>
-                  </Chip>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => setManagingTags(true)}
-                className="flex min-h-11 shrink-0 items-center px-2 text-sm font-medium text-accent"
-              >
-                Organizar etiquetas
-              </button>
-            </>
-          ) : null}
+        {/* Status em chips que quebram linha: sao cinco rotulos curtos e cabem
+            em duas linhas no celular. Antes ficavam numa faixa com rolagem
+            horizontal, e o ultimo ("Largados") aparecia cortado na borda, sem
+            sinal de que havia mais. */}
+        <div role="group" aria-label="Filtrar por leitura" className="flex flex-wrap gap-1.5">
+          {STATUS_OPTIONS.map((option) => (
+            <Chip
+              key={option.value}
+              pressed={status === option.value}
+              onClick={() => changeFilter(() => setStatus(option.value))}
+            >
+              {option.label}
+            </Chip>
+          ))}
         </div>
+
+        {/* Etiquetas podem ser muitas: ficam numa faixa propria com rolagem
+            horizontal, sem barra visivel e com a borda esmaecida indicando que
+            ha mais. A rolagem fica dentro da faixa (A11Y-17). */}
+        {tags.length > 0 ? (
+          <div className="chip-scroller -mx-4 flex items-center gap-2 overflow-x-auto px-4">
+            <div role="group" aria-label="Filtrar por etiqueta" className="flex shrink-0 gap-2">
+              {tags.map((tag) => (
+                <Chip
+                  key={tag.id}
+                  pressed={tagId === tag.id}
+                  onClick={() => changeFilter(() => setTagId(tagId === tag.id ? null : tag.id))}
+                >
+                  {tag.name}
+                  <span className="tabular text-xs text-faint">{tag.texts}</span>
+                </Chip>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setManagingTags(true)}
+              className="flex min-h-11 shrink-0 items-center px-2 text-sm font-medium text-accent"
+            >
+              Organizar etiquetas
+            </button>
+            {/* Respiro no fim: o padding final de um contêiner com rolagem nem
+                sempre conta, e o ultimo item encostava na borda. */}
+            <span aria-hidden="true" className="w-2 shrink-0" />
+          </div>
+        ) : null}
       </div>
 
       {resource.loading ? (
@@ -883,13 +884,13 @@ function Chip({
       type="button"
       aria-pressed={pressed}
       onClick={onClick}
-      className={`flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-medium transition-colors ${
+      className={`flex min-h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2.5 text-sm font-medium transition-colors ${
         pressed
           ? "border-accent bg-accent-soft text-ink ring-1 ring-accent ring-inset"
           : "border-border text-muted hover:text-ink"
       }`}
     >
-      {pressed ? <CheckIcon className="size-4" /> : null}
+      {pressed ? <CheckIcon className="size-3.5" /> : null}
       {children}
     </button>
   );
