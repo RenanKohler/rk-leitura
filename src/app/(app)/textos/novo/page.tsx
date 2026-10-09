@@ -16,10 +16,11 @@ import { CitationsOption } from "@/components/citations-option";
 import { TagPicker } from "@/components/tag-picker";
 import { ImportPreviewContent } from "@/components/import-preview";
 import { useAiConsent } from "@/components/ai-consent";
-import { applyRemovals, type Leftover } from "@/lib/import-analysis";
+import { applyRemovals, UNTITLED, type Leftover } from "@/lib/import-analysis";
+import { SuggestedField, type SuggestedMeta } from "@/components/suggested-field";
 
-/** Resposta de POST /api/import-url/analise (US-136 e US-137). */
-interface ImportAnalysis {
+/** Resposta de POST /api/import-url/analise (US-136, US-137 e US-152). */
+interface ImportAnalysis extends Partial<SuggestedMeta> {
   leftovers: Leftover[];
   suggestedTags: string[];
 }
@@ -76,6 +77,11 @@ function FromLink() {
   const [preview, setPreview] = useState<ImportedText | null>(null);
   const [keepCitations, setKeepCitations] = useState(false);
   const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
+  // Campos que vieram da IA e ainda nao foram mexidos (US-152).
+  const [suggested, setSuggested] = useState({ title: false, author: false });
+  // O que a pessoa digitou vale: a sugestao que volta depois nao sobrescreve.
+  const touched = useRef({ title: false, author: false });
   const [knownTags, setKnownTags] = useState<string[]>([]);
   const [chosenTags, setChosenTags] = useState<string[]>([]);
   const [analysis, setAnalysis] = useState<ImportAnalysis | null>(null);
@@ -111,7 +117,11 @@ function FromLink() {
 
     // Sem permissao nada sai do app: a previa fica como sempre foi.
     if (consent !== "on") return;
-    if (imported.extraction !== "palpite" && known.length === 0) return;
+    // Titulo e autor (US-152) vao na chamada da limpeza. Sozinhos, so quando
+    // a pagina nao trouxe titulo; o autor ausente pega carona na limpeza.
+    const needsTitle = !imported.title.trim() || imported.title === UNTITLED;
+    const meta = needsTitle || (imported.extraction === "palpite" && !imported.author);
+    if (imported.extraction !== "palpite" && known.length === 0 && !meta) return;
 
     setAnalyzing(true);
     try {
@@ -119,8 +129,18 @@ function FromLink() {
         title: imported.title,
         content: imported.content,
         extraction: imported.extraction,
+        meta,
       });
-      if (attempt.current === id) setAnalysis(result);
+      if (attempt.current !== id) return;
+      setAnalysis(result);
+      if (needsTitle && result.suggestedTitle && !touched.current.title) {
+        setTitle(result.suggestedTitle);
+        setSuggested((current) => ({ ...current, title: true }));
+      }
+      if (!imported.author && result.suggestedAuthor && !touched.current.author) {
+        setAuthor(result.suggestedAuthor);
+        setSuggested((current) => ({ ...current, author: true }));
+      }
     } catch {
       // Analise e acessorio: falhou, a previa segue sem marcacoes.
     } finally {
@@ -144,10 +164,13 @@ function FromLink() {
     setAnalyzing(false);
     setKept(new Set());
     setChosenTags([]);
+    setSuggested({ title: false, author: false });
+    touched.current = { title: false, author: false };
     try {
       const imported = await apiSend<ImportedText>("/api/import-url", "POST", { url: trimmed });
       setPreview(imported);
       setTitle(imported.title);
+      setAuthor(imported.author ?? "");
       void enrich(imported, id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Falha ao importar.");
@@ -162,6 +185,7 @@ function FromLink() {
     try {
       const { text } = await apiSend<{ text: TextDetail }>("/api/texts", "POST", {
         title: title.trim(),
+        author: author.trim() || null,
         sourceUrl: preview.sourceUrl,
         // O texto extraido sem os restos removidos; o resto, intacto.
         content: finalContent,
@@ -208,11 +232,28 @@ function FromLink() {
             <span className="text-sm text-muted">{formatNumber(finalWords)} palavras</span>
           </div>
 
-          <Field
+          <SuggestedField
             label="Título"
             name="title"
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            suggested={suggested.title}
+            onChange={(value) => {
+              touched.current.title = true;
+              setSuggested((current) => ({ ...current, title: false }));
+              setTitle(value);
+            }}
+          />
+          <SuggestedField
+            label="Autor"
+            name="author"
+            value={author}
+            placeholder="Opcional"
+            suggested={suggested.author}
+            onChange={(value) => {
+              touched.current.author = true;
+              setSuggested((current) => ({ ...current, author: false }));
+              setAuthor(value);
+            }}
           />
 
           <div className="space-y-1.5">

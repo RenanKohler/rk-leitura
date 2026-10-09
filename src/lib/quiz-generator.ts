@@ -1,7 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
-import { aiParse, AiUnavailable, type AiMessages } from "@/lib/ai";
+import { aiParse, AiUnavailable, countWords, type AiMessages } from "@/lib/ai";
 import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
 import {
   CHOICES_PER_QUESTION,
@@ -12,6 +12,7 @@ import {
   quizSample,
   type Quiz,
 } from "@/lib/quiz";
+import { SESSION_CHECK_QUESTIONS } from "@/lib/session-check";
 
 /**
  * Geracao das perguntas de compreensao. O envio ao modelo, a chave e o
@@ -46,6 +47,11 @@ const QuizSchema = z.object({
   questions: z.array(QuestionSchema).min(MIN_QUESTIONS).max(MAX_QUESTIONS),
 });
 
+// Checagem da sessao (US-149): o mesmo formato, com exatamente duas perguntas.
+const SessionQuizSchema = z.object({
+  questions: z.array(QuestionSchema).min(SESSION_CHECK_QUESTIONS).max(SESSION_CHECK_QUESTIONS),
+});
+
 const SYSTEM = [
   "Você escreve perguntas de compreensão de leitura em português do Brasil.",
   "As perguntas verificam se quem leu entendeu o conteúdo, não se decorou detalhes irrelevantes.",
@@ -56,11 +62,19 @@ const SYSTEM = [
   "Nunca faça perguntas que possam ser respondidas sem ler o texto.",
 ].join(" ");
 
+/** Pedido em outro idioma (US-69): perguntas em portugues, citacoes no original. */
+function languageNoteFor(language: string): string {
+  return language === DEFAULT_LANGUAGE
+    ? ""
+    : `\n\nO texto está em ${languageName(language).toLowerCase()}. Escreva perguntas e alternativas em português do Brasil; quando citar o texto, inclusive na evidência, mantenha a citação no idioma original.`;
+}
+
 export async function generateQuiz(
   userId: string,
   title: string,
   content: string,
-  language: string = DEFAULT_LANGUAGE
+  language: string = DEFAULT_LANGUAGE,
+  textId?: string
 ): Promise<Quiz> {
   // Texto longo vai em trechos do comeco ao fim, nao so o comeco (US-133).
   const sample = quizSample(content);
@@ -68,15 +82,13 @@ export async function generateQuiz(
     sample.blocks.length > 0
       ? `\n\nO texto é longo: seguem ${sample.blocks.length} trechos, na ordem, distribuídos do começo ao fim. Distribua as perguntas pelo texto inteiro, não só pelo começo.`
       : "";
-  // Texto em outro idioma (US-69): perguntas em portugues, citacoes no original.
-  const languageNote =
-    language === DEFAULT_LANGUAGE
-      ? ""
-      : `\n\nO texto está em ${languageName(language).toLowerCase()}. Escreva perguntas e alternativas em português do Brasil; quando citar o texto, inclusive na evidência, mantenha a citação no idioma original.`;
+  const languageNote = languageNoteFor(language);
 
   const parsed = await aiParse({
     task: "questionario",
     userId,
+    textId,
+    wordsSent: countWords(sample.text),
     messages: MESSAGES,
     schema: QuizSchema,
     system: SYSTEM,
@@ -97,5 +109,49 @@ export async function generateQuiz(
   const quiz = parseQuiz(parsed);
   if (!quiz) throw new AiUnavailable(MESSAGES.failure);
 
+  return quiz;
+}
+
+/**
+ * Duas perguntas sobre o trecho lido numa sessao do Word Runner (US-149).
+ *
+ * `excerpt` ja vem recortado por `sessionExcerpt`: so as palavras entre o
+ * inicio da sessao e a posicao atual. As perguntas nao podem depender do que
+ * vem depois - o leitor ainda nao leu, e o modelo nem recebe.
+ */
+export async function generateSessionQuiz(
+  userId: string,
+  title: string,
+  excerpt: string,
+  language: string = DEFAULT_LANGUAGE,
+  textId?: string
+): Promise<Quiz> {
+  // Sessao muito longa vai em trechos, como o texto inteiro (US-133).
+  const sample = quizSample(excerpt);
+  const sampleNote =
+    sample.blocks.length > 0
+      ? `\n\nO trecho é longo: seguem ${sample.blocks.length} partes, na ordem, do começo ao fim do que foi lido.`
+      : "";
+
+  const parsed = await aiParse({
+    task: "questionario",
+    userId,
+    textId,
+    wordsSent: countWords(sample.text),
+    messages: MESSAGES,
+    schema: SessionQuizSchema,
+    system: SYSTEM,
+    maxTokens: 4000,
+    effort: "medium",
+    content: [
+      {
+        role: "user",
+        content: `Título: ${title}${sampleNote}\n\nTrecho lido nesta sessão (o leitor ainda não leu o resto do texto):\n${sample.text}\n\nEscreva exatamente ${SESSION_CHECK_QUESTIONS} perguntas de compreensão sobre este trecho. Não pergunte nada que dependa de partes do texto que não estão aqui.${languageNoteFor(language)}`,
+      },
+    ],
+  });
+
+  const quiz = parseQuiz(parsed, SESSION_CHECK_QUESTIONS, SESSION_CHECK_QUESTIONS);
+  if (!quiz) throw new AiUnavailable(MESSAGES.failure);
   return quiz;
 }

@@ -2,6 +2,8 @@
 
 /** Cliente HTTP minimo para as rotas internas. */
 
+import { isEventStream, readEvents, type StreamEvent } from "@/lib/ai-stream";
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -42,6 +44,32 @@ export async function apiSend<T>(
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   );
+}
+
+/**
+ * POST a uma rota de IA com streaming (US-145). Erro HTTP vira `ApiError`,
+ * como em `apiSend`. Resposta JSON comum (um resultado ja guardado, por
+ * exemplo) volta em `data`; um stream entrega cada evento a `onEvent` e
+ * devolve como terminou.
+ */
+export async function apiStream(
+  path: string,
+  body: unknown,
+  { signal, onEvent }: { signal?: AbortSignal; onEvent: (event: StreamEvent) => void }
+): Promise<
+  | { status: "json"; data: Record<string, unknown> }
+  | { status: "done" | "error" | "interrupted" }
+> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!response.ok || !isEventStream(response)) {
+    return { status: "json", data: await parse<Record<string, unknown>>(response) };
+  }
+  return { status: await readEvents(response, onEvent) };
 }
 
 /**

@@ -36,7 +36,11 @@ export type AiTask =
   | "resumo"
   | "sinopse"
   | "limpeza"
-  | "etiquetas";
+  | "etiquetas"
+  | "sugestoes"
+  | "cartoes"
+  | "secoes"
+  | "semana";
 
 /**
  * Modelo de cada tarefa (decidido sobre a recomendacao da familia 5.5):
@@ -62,6 +66,14 @@ export const AI_MODELS: Record<AiTask, string> = {
   limpeza: HAIKU,
   etiquetas: HAIKU,
   sinopse: HAIKU,
+  // Perguntas sugeridas (US-148): curtas e de alto volume.
+  sugestoes: HAIKU,
+  // Cartoes de revisao (US-150) e ideias da semana (US-154): texto curto, mas
+  // com escolha do que importa.
+  cartoes: SONNET,
+  semana: SONNET,
+  // Secoes de um documento longo (US-153): entrada longa, saida fechada.
+  secoes: SONNET,
 };
 
 /**
@@ -90,10 +102,13 @@ export interface AiMessages {
 
 export class AiUnavailable extends Error {
   readonly status: number;
-  constructor(message: string, status = 503) {
+  /** O modelo recusou: um texto parcial ja mostrado deve ser descartado (US-145). */
+  readonly refusal: boolean;
+  constructor(message: string, status = 503, refusal = false) {
     super(message);
     this.name = "AiUnavailable";
     this.status = status;
+    this.refusal = refusal;
   }
 }
 
@@ -157,15 +172,42 @@ interface UsageLike {
   cache_creation_input_tokens?: number | null;
 }
 
+/** Como a chamada terminou (US-141). */
+export type AiOutcome = "sucesso" | "recusa" | "tempo" | "falha";
+
+const NO_USAGE: UsageLike = { input_tokens: 0, output_tokens: 0 };
+
+/** O que a chamada levou do texto do leitor (US-144). */
+export interface SentFrom {
+  /** Texto de onde saiu o conteudo; ausente no dicionario e na importacao. */
+  textId?: string | null;
+  /** Palavras do texto enviadas. */
+  wordsSent?: number;
+}
+
+export interface UsageExtra extends SentFrom {
+  batch?: boolean;
+  outcome?: AiOutcome;
+  /** Tempo ate o primeiro trecho, nas chamadas com streaming (US-145). */
+  firstTokenMs?: number | null;
+}
+
+/** Palavras de um trecho, para o registro do que foi enviado (US-144). */
+export function countWords(text: string): number {
+  const trimmed = text.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
 /** Grava o uso de uma chamada. Falhar aqui nunca derruba a resposta ao leitor. */
 export async function recordUsage(
   userId: string,
   task: AiTask,
   model: string,
   usage: UsageLike,
-  batch = false
+  extra: UsageExtra = {}
 ): Promise<void> {
-  console.info(`[ia] ${task}:`, model, JSON.stringify(usage));
+  const outcome = extra.outcome ?? "sucesso";
+  console.info(`[ia] ${task} (${outcome}):`, model, JSON.stringify(usage));
   try {
     await db.insert(aiUsage).values({
       userId,
@@ -175,7 +217,11 @@ export async function recordUsage(
       outputTokens: usage.output_tokens,
       cacheReadTokens: usage.cache_read_input_tokens ?? 0,
       cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
-      batch,
+      batch: extra.batch ?? false,
+      outcome,
+      textId: extra.textId ?? null,
+      wordsSent: Math.max(0, Math.trunc(extra.wordsSent ?? 0)),
+      firstTokenMs: extra.firstTokenMs ?? null,
     });
   } catch (error) {
     console.error("[ia] falha ao registrar uso:", error);
@@ -186,7 +232,7 @@ export async function recordUsage(
 
 type Effort = "low" | "medium" | "high";
 
-interface CallOptions {
+export interface CallOptions extends SentFrom {
   /** Decide o modelo e o nome gravado no uso. */
   task: AiTask;
   userId: string;
@@ -199,7 +245,39 @@ interface CallOptions {
   timeoutMs?: number;
 }
 
-function translate(error: unknown, messages: AiMessages, scope: string): AiUnavailable {
+/** Classifica a falha de uma chamada para o registro (US-141). */
+export function failureOutcome(error: unknown): AiOutcome {
+  return error instanceof Anthropic.APIConnectionTimeoutError ? "tempo" : "falha";
+}
+
+/**
+ * Registra uma chamada que nao chegou a responder. Sem chave nada saiu do
+ * app, entao nao ha o que registrar.
+ */
+export async function recordFailure(options: CallOptions, error: unknown): Promise<void> {
+  if (error instanceof AiUnavailable) return;
+  await recordUsage(options.userId, options.task, AI_MODELS[options.task], NO_USAGE, {
+    textId: options.textId,
+    wordsSent: options.wordsSent,
+    outcome: failureOutcome(error),
+  });
+}
+
+/** Registro de uma chamada que respondeu, com recusa ou sucesso. */
+export async function recordResponse(
+  options: CallOptions,
+  response: { model: string; usage: UsageLike; stop_reason: string | null },
+  firstTokenMs?: number | null
+): Promise<void> {
+  await recordUsage(options.userId, options.task, response.model, response.usage, {
+    textId: options.textId,
+    wordsSent: options.wordsSent,
+    outcome: response.stop_reason === "refusal" ? "recusa" : "sucesso",
+    firstTokenMs,
+  });
+}
+
+export function translate(error: unknown, messages: AiMessages, scope: string): AiUnavailable {
   if (error instanceof AiUnavailable) return error;
   if (error instanceof Anthropic.RateLimitError) return new AiUnavailable(AI_BUSY);
   if (error instanceof Anthropic.AuthenticationError) {
@@ -231,10 +309,11 @@ export async function aiParse<S extends z.ZodType>(
       options.timeoutMs ? { timeout: options.timeoutMs, maxRetries: 0 } : undefined
     );
   } catch (error) {
+    await recordFailure(options, error);
     throw translate(error, options.messages, options.task);
   }
 
-  await recordUsage(options.userId, options.task, response.model, response.usage);
+  await recordResponse(options, response);
 
   // O modelo pode recusar por seguranca, e o fallback nem sempre resolve.
   if (response.stop_reason === "refusal") throw new AiUnavailable(options.messages.refusal);
@@ -262,13 +341,129 @@ export async function aiCreate(
       options.timeoutMs ? { timeout: options.timeoutMs, maxRetries: 0 } : undefined
     );
   } catch (error) {
+    await recordFailure(options, error);
     throw translate(error, options.messages, options.task);
   }
 
-  await recordUsage(options.userId, options.task, response.model, response.usage);
+  await recordResponse(options, response);
 
   if (response.stop_reason === "refusal") throw new AiUnavailable(options.messages.refusal);
   return response;
+}
+
+/** Saida estruturada pedida em streaming: so o esquema JSON, sem analise automatica. */
+export function jsonFormat(schema: z.ZodType): Anthropic.Beta.BetaJSONOutputFormat {
+  return { type: "json_schema", schema: betaZodOutputFormat(schema).schema };
+}
+
+/** O leitor fechou a folha ou a conexao caiu: nao ha a quem responder. */
+export class AiAborted extends Error {
+  constructor() {
+    super("Pedido cancelado.");
+    this.name = "AiAborted";
+  }
+}
+
+export interface StreamOptions extends CallOptions {
+  /** Saida estruturada: os trechos que chegam sao o JSON da resposta. */
+  format?: Anthropic.Beta.BetaJSONOutputFormat;
+  /** Cancela a chamada, por exemplo quando o cliente desconecta. */
+  signal?: AbortSignal;
+  /** Cada trecho de texto, na ordem em que chega. */
+  onText: (delta: string) => void;
+}
+
+/**
+ * Uso de uma chamada interrompida. O total de saida so chega no fim; antes
+ * disso ele e estimado pelo texto ja recebido (cerca de 4 caracteres por
+ * token), para o registro corresponder ao que foi gerado (US-145).
+ */
+function partialUsage(message: Anthropic.Beta.BetaMessage | undefined, chars: number): UsageLike {
+  const usage = message?.usage;
+  return {
+    input_tokens: usage?.input_tokens ?? 0,
+    output_tokens: Math.max(usage?.output_tokens ?? 0, Math.ceil(chars / 4)),
+    cache_read_input_tokens: usage?.cache_read_input_tokens ?? 0,
+    cache_creation_input_tokens: usage?.cache_creation_input_tokens ?? 0,
+  };
+}
+
+/**
+ * Pedido com streaming (US-145). Repassa cada trecho de texto a `onText` e
+ * devolve a mensagem final, com as citacoes e o uso completos.
+ *
+ * Consentimento e cota continuam com a rota, antes da chamada. Aqui ficam o
+ * registro de uso com o tempo ate o primeiro trecho, a recusa e o
+ * cancelamento: fechar a folha aborta a chamada, e o uso registrado e o que ja
+ * tinha sido gerado.
+ */
+export async function aiStream(options: StreamOptions): Promise<Anthropic.Beta.BetaMessage> {
+  const client = aiClient(options.messages);
+  const model = AI_MODELS[options.task];
+  const controller = new AbortController();
+  let timedOut = false;
+  const cancel = () => controller.abort();
+  if (options.signal?.aborted) controller.abort();
+  options.signal?.addEventListener("abort", cancel);
+  const timer = options.timeoutMs
+    ? setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, options.timeoutMs)
+    : null;
+
+  const started = Date.now();
+  let firstTokenMs: number | null = null;
+  let chars = 0;
+  let stream: ReturnType<typeof client.beta.messages.stream> | null = null;
+
+  try {
+    stream = client.beta.messages.stream(
+      {
+        model,
+        max_tokens: options.maxTokens,
+        system: options.system,
+        output_config: options.format
+          ? { effort: options.effort, format: options.format }
+          : { effort: options.effort },
+        ...fallbackParams(model),
+        messages: options.content,
+      },
+      { signal: controller.signal, ...(options.timeoutMs ? { maxRetries: 0 } : {}) }
+    );
+
+    for await (const event of stream) {
+      if (event.type !== "content_block_delta" || event.delta.type !== "text_delta") continue;
+      if (firstTokenMs === null) firstTokenMs = Date.now() - started;
+      chars += event.delta.text.length;
+      options.onText(event.delta.text);
+    }
+    const response = await stream.finalMessage();
+    await recordResponse(options, response, firstTokenMs);
+
+    // Recusa no meio do texto: o que ja foi enviado deve ser descartado.
+    if (response.stop_reason === "refusal") {
+      throw new AiUnavailable(options.messages.refusal, 503, true);
+    }
+    return response;
+  } catch (error) {
+    if (error instanceof AiUnavailable) throw error;
+    const cancelled = controller.signal.aborted && !timedOut;
+    const outcome: AiOutcome = timedOut ? "tempo" : failureOutcome(error);
+    await recordUsage(
+      options.userId,
+      options.task,
+      stream?.currentMessage?.model ?? model,
+      partialUsage(stream?.currentMessage, chars),
+      { textId: options.textId, wordsSent: options.wordsSent, outcome, firstTokenMs }
+    );
+    if (cancelled) throw new AiAborted();
+    if (timedOut) throw new AiUnavailable(options.messages.failure);
+    throw translate(error, options.messages, options.task);
+  } finally {
+    if (timer) clearTimeout(timer);
+    options.signal?.removeEventListener("abort", cancel);
+  }
 }
 
 /** Resposta de erro de uma funcionalidade de IA, com o status certo. */

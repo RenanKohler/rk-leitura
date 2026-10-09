@@ -1,0 +1,11 @@
+{
+  "id": "pt-faroleiro",
+  "title": "O faroleiro da Ponta do Seixo",
+  "language": "pt-BR",
+  "content": "Joaquim cuidava do farol da Ponta do Seixo havia trinta e dois anos. Subia os cento e quatro degraus da torre duas vezes por dia, uma ao entardecer, para acender a lâmpada, e outra ao amanhecer, para apagá-la e limpar as lentes com um pano de algodão que ele mesmo lavava no tanque.\n\nNaquele inverno, a neta Lia veio passar as férias com ele. Tinha onze anos, morava na capital e nunca tinha visto o mar de perto. No primeiro dia, perguntou por que o avô não deixava a luz acesa o tempo todo, já que dava tanto trabalho subir. Joaquim riu e explicou que a lâmpada esquentava demais e que o farol precisava descansar, como qualquer um.\n\nLia passou a subir com ele. Aprendeu a contar os segundos entre um giro e outro da luz, sete exatos, e a anotar no caderno de bordo o vento, a cor do céu e os barcos que passavam ao largo. Joaquim dizia que cada farol da costa tinha o seu ritmo, e que os pescadores reconheciam a Ponta do Seixo pelos sete segundos, mesmo sem ver a torre.\n\nNuma tarde de neblina espessa, o rádio do farol chiou e ficou mudo. Joaquim desceu para buscar pilhas no depósito e pediu que Lia vigiasse a lâmpada até ele voltar.\n\nFoi então que a luz piscou e apagou. Lia ouviu, ao longe, a buzina grave de um barco que se aproximava das pedras. Sem pensar, pegou a lanterna de emergência e começou a acendê-la e apagá-la contando sete segundos, como tinha aprendido. O barco era o Andorinha, do Capitão Ernesto, que conhecia o ritmo e virou a tempo. No dia seguinte, a vila inteira falava do naufrágio que não aconteceu, e Ernesto subiu os cento e quatro degraus só para agradecer à menina.",
+  "stopAfter": "pediu que Lia vigiasse a lâmpada até ele voltar.",
+  "question": "Por que o farol não fica aceso o tempo todo?",
+  "explain": "Joaquim dizia que cada farol da costa tinha o seu ritmo",
+  "names": ["Joaquim", "Lia", "Ponta do Seixo", "Ernesto", "Andorinha"],
+  "afterPosition": ["Ernesto", "Andorinha"]
+}

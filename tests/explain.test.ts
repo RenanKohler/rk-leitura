@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   explainRequest,
+  explanationFields,
   explanationKey,
+  FOLLOW_UP_WORDS,
+  followUpKey,
+  followUpPrompt,
   limitWords,
+  normalizeFollowUp,
+  parseFollowUp,
   MAX_EXPLANATION_WORDS,
   MAX_SENTENCE_WORDS,
   parseExplanation,
@@ -88,5 +94,49 @@ describe("parseExplanation", () => {
 
   it("limitWords deixa intacto o que cabe", () => {
     expect(limitWords("  uma  frase curta ", 10)).toBe("uma frase curta");
+  });
+});
+
+describe("continuacoes (US-146)", () => {
+  const request = explainRequest(words, paragraphs, words.indexOf("saiu"))!;
+
+  it("reaproveita o recorte: nada depois da frase entra no pedido", () => {
+    for (const kind of ["simples", "exemplo"] as const) {
+      const prompt = followUpPrompt(request, kind);
+      expect(prompt).toContain("Depois saiu sem dizer nada.");
+      expect(prompt).toContain("O Sr. Silva chegou cedo.");
+      expect(prompt).not.toContain("Ninguem");
+      expect(prompt).not.toContain("nunca deve ser enviado");
+      expect(prompt).toContain(`${FOLLOW_UP_WORDS[kind]} palavras`);
+    }
+  });
+
+  it("leva a explicacao ja dada, quando ha", () => {
+    const prompt = followUpPrompt(request, "simples", {
+      simple: "Ele foi embora calado.",
+      explanation: "A saida sem aviso cria suspense.",
+    });
+    expect(prompt).toContain("Ele foi embora calado.");
+    expect(prompt).toContain("A saida sem aviso cria suspense.");
+  });
+
+  it("corta no teto de cada tipo", () => {
+    const long = Array.from({ length: 80 }, (_, index) => `p${index}`).join(" ");
+    expect(parseFollowUp(long, "simples")!.split(" ")).toHaveLength(40);
+    expect(parseFollowUp(long, "exemplo")!.split(" ")).toHaveLength(50);
+    expect(parseFollowUp("   ", "exemplo")).toBeNull();
+    expect(parseFollowUp("Um  exemplo\ncurto.", "exemplo")).toBe("Um exemplo curto.");
+  });
+
+  it("aceita so os dois tipos e separa a chave do cache", () => {
+    expect(normalizeFollowUp("simples")).toBe("simples");
+    expect(normalizeFollowUp("exemplo")).toBe("exemplo");
+    expect(normalizeFollowUp("outro")).toBeNull();
+    expect(followUpKey("k", "exemplo")).toBe("k:exemplo");
+  });
+
+  it("lista os campos na ordem do esquema", () => {
+    expect(explanationFields(false)).toEqual(["simple", "explanation"]);
+    expect(explanationFields(true)).toEqual(["simple", "translation", "explanation"]);
   });
 });

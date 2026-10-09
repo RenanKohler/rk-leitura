@@ -96,6 +96,13 @@ export const texts = pgTable(
     abandonedWords: integer("abandoned_words"),
     // Maior marco (25, 50, 75) ja respondido em "isso ainda vale?" (US-80).
     checkpointAnswered: integer("checkpoint_answered").notNull().default(0),
+    /** Autor, quando a importacao achou ou o leitor informou (US-152). */
+    author: text("author"),
+    /**
+     * Secoes de navegacao aplicadas a um texto sem titulos (US-153). Ficam
+     * fora do conteudo: a contagem de palavras e as posicoes nao mudam.
+     */
+    sections: jsonb("sections").$type<{ index: number; title: string }[]>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -323,6 +330,12 @@ export const highlights = pgTable(
     /** Intervalo atual, em dias; 0 enquanto nunca foi revisado. */
     reviewInterval: integer("review_interval").notNull().default(0),
     lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
+    /**
+     * Cartao de revisao gerado a partir do destaque (US-150). Com os dois
+     * preenchidos, a revisao pergunta antes de mostrar o trecho.
+     */
+    cardPrompt: text("card_prompt"),
+    cardAnswer: text("card_answer"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -471,6 +484,11 @@ export const savedWords = pgTable(
     reviewInterval: integer("review_interval"),
     /** Marcada como aprendida: sai da revisao, continua na lista (US-66). */
     learnedAt: timestamp("learned_at", { withTimezone: true }),
+    /**
+     * Tres definicoes erradas e plausiveis, geradas na mesma consulta da
+     * definicao (US-151). Nulo nas palavras salvas antes disso.
+     */
+    distractors: jsonb("distractors").$type<string[]>(),
     /** Texto em que a palavra foi encontrada; nulo se ele for apagado. */
     textId: uuid("text_id").references(() => texts.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -709,6 +727,14 @@ export const aiUsage = pgTable(
     cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
     /** Chamada feita pela Batches API, cobrada pela metade. */
     batch: boolean("batch").notNull().default(false),
+    /** sucesso, recusa, tempo ou falha (US-141). */
+    outcome: text("outcome").notNull().default("sucesso"),
+    /** Texto de onde saiu o conteudo enviado; nulo no dicionario (US-144). */
+    textId: uuid("text_id").references(() => texts.id, { onDelete: "set null" }),
+    /** Palavras do texto enviadas na chamada (US-144). */
+    wordsSent: integer("words_sent").notNull().default(0),
+    /** Tempo ate o primeiro trecho da resposta, nas chamadas com streaming (US-145). */
+    firstTokenMs: integer("first_token_ms"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("ai_usage_created_idx").on(table.createdAt, table.feature)]
@@ -739,6 +765,31 @@ export const aiResults = pgTable(
     uniqueIndex("ai_results_user_kind_key_unique").on(table.userId, table.kind, table.key),
     index("ai_results_text_kind_idx").on(table.textId, table.kind),
   ]
+);
+
+/**
+ * Perguntas feitas a um texto e as respostas (US-147). A posicao e a de
+ * leitura no momento da pergunta; a impressao do conteudo diz se o texto
+ * mudou desde entao.
+ */
+export const askTurns = pgTable(
+  "ask_turns",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    textId: uuid("text_id")
+      .notNull()
+      .references(() => texts.id, { onDelete: "cascade" }),
+    question: text("question").notNull(),
+    /** Resposta com as citacoes, no formato que a folha mostra. */
+    answer: jsonb("answer").notNull(),
+    position: integer("position").notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("ask_turns_text_created_idx").on(table.userId, table.textId, table.createdAt)]
 );
 
 /**

@@ -104,7 +104,7 @@ export async function POST(request: Request, { params }: Params) {
       language: prepared.text.language,
     });
     const summary: ReadSummary = {
-      points: await generateReadSummary(session.id, built),
+      points: await generateReadSummary(session.id, id, built),
       to: built.excerpt.endWord,
     };
     await saveAiResult(session.id, id, "resumo", prepared.key, summary);

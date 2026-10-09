@@ -1,0 +1,11 @@
+{
+  "id": "en-pontes",
+  "title": "Why Some Bridges Hum",
+  "language": "en",
+  "content": "People who live near long suspension bridges sometimes report a low hum on windy days. The sound is not imagined. When wind flows past a cable or a deck, it does not pass smoothly; it breaks into small swirls that peel away from alternating sides of the structure. Each swirl gives the structure a tiny push.\n\nIf the swirls arrive at a steady rate, the pushes add up. Every structure has natural frequencies at which it prefers to vibrate, much like a guitar string has a note. When the rate of the swirls comes close to one of those frequencies, even a gentle wind can make a cable or a deck move visibly. Engineers call this vortex shedding, and the hum is the audible part of it.\n\nMost of the time the motion is harmless. Cables are designed to flex, and decks are heavy enough that small oscillations die out quickly. The problem appears when the motion feeds itself, so that each swing makes the next push stronger. In that case, the vibration can grow until it damages joints or frightens the people crossing.\n\nThere are three common ways to calm a humming bridge. The first is to change the shape of the deck, adding fairings that guide the wind smoothly around the edges. The second is to wrap cables in helical strips that break up the swirls before they line up. The third is to add dampers, devices that absorb energy the way shock absorbers do in a car.\n\nA recent case shows how these methods are chosen. On the Corran Viaduct, a team led by engineer Priya Okafor measured the deck for six months before deciding anything. They found that the hum came from a single cable group, and fixed it with dampers alone, at a fraction of the expected cost.",
+  "stopAfter": "In that case, the vibration can grow until it damages joints or frightens the people crossing.",
+  "question": "What causes the hum that people hear near suspension bridges?",
+  "explain": "Engineers call this vortex shedding, and the hum is the audible part of it.",
+  "names": ["vortex shedding", "Corran Viaduct", "Priya Okafor"],
+  "afterPosition": ["Corran", "Okafor"]
+}

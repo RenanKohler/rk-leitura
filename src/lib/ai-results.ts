@@ -10,7 +10,16 @@ import { aiResults } from "@/db/schema";
  * texto muda, o resultado antigo simplesmente nao e mais encontrado.
  */
 
-export type AiResultKind = "explicacao" | "resumo" | "capitulo" | "nomes" | "sinopse" | "sintese";
+export type AiResultKind =
+  | "explicacao"
+  | "resumo"
+  | "capitulo"
+  | "nomes"
+  | "sinopse"
+  | "sintese"
+  | "sugestoes"
+  | "secoes"
+  | "semana";
 
 export async function loadAiResult<T>(
   userId: string,

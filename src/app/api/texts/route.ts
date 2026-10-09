@@ -12,6 +12,7 @@ import { detectSeries, seriesKeyFor } from "@/lib/series";
 import { normalizeTagList } from "@/lib/tags";
 import { applyTags } from "@/lib/text-tags";
 import { importContent } from "@/lib/citations";
+import { normalizeAuthor } from "@/lib/import-analysis";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,8 @@ interface Body {
   language?: unknown;
   /** "markdown" para interpretar as marcas; qualquer outro valor e texto simples. */
   format?: unknown;
+  /** Autor achado na importacao ou informado na previa (US-152). */
+  author?: unknown;
 }
 
 export async function GET(request: Request) {
@@ -105,6 +108,7 @@ export async function POST(request: Request) {
           seriesTitle: series?.title ?? null,
           chapter: series?.chapter ?? null,
           language: asLanguage(body?.language),
+          author: normalizeAuthor(body?.author),
         })
         .returning();
 

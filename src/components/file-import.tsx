@@ -31,6 +31,9 @@ import { DocxError, docxTitle, docxToMarkdown, MAX_DOCX_BYTES } from "@/lib/docx
 import { CitationsOption } from "@/components/citations-option";
 import { FILE_ACCEPT, fileKind, UNSUPPORTED_FILE } from "@/lib/file-kind";
 import type { TextDetail } from "@/lib/types";
+import { useAiConsent } from "@/components/ai-consent";
+import { SuggestedField, type SuggestedMeta } from "@/components/suggested-field";
+import { metaExcerpt } from "@/lib/import-analysis";
 
 /** Markdown e texto puro: o limite e o mesmo do conteudo aceito pelo servidor. */
 const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
@@ -68,8 +71,24 @@ export function FileImport() {
   const [bookLanguage, setBookLanguage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [keepCitations, setKeepCitations] = useState(false);
+  const [author, setAuthor] = useState("");
+  // `dc:creator` do livro, repassado a cada capitulo salvo (US-152).
+  const [bookAuthor, setBookAuthor] = useState<string | null>(null);
+  // Campos preenchidos pela IA e ainda nao mexidos (US-152).
+  const [suggested, setSuggested] = useState({ title: false, author: false });
+  const [suggesting, setSuggesting] = useState(false);
+  const touched = useRef({ title: false, author: false });
+  // Cada arquivo escolhido invalida a sugestao do anterior que nao voltou.
+  const attempt = useRef(0);
+  const { state: consent } = useAiConsent();
 
   const reset = () => {
+    attempt.current += 1;
+    setAuthor("");
+    setBookAuthor(null);
+    setSuggested({ title: false, author: false });
+    setSuggesting(false);
+    touched.current = { title: false, author: false };
     setError("");
     setKeepCitations(false);
     setTitle("");
@@ -116,6 +135,37 @@ export function FileImport() {
     }
   };
 
+  /**
+   * Arquivo sem titulo (US-152): a IA sugere titulo e, se o nome estiver
+   * escrito no comeco, o autor. So os primeiros 2.000 caracteres saem do
+   * navegador. Falha ou demora deixam os campos como estavam.
+   */
+  const suggestMeta = async (source: string) => {
+    if (consent !== "on") return;
+    const id = attempt.current;
+    setSuggesting(true);
+    try {
+      const result = await apiSend<SuggestedMeta>("/api/import-url/analise", "POST", {
+        content: metaExcerpt(source),
+        meta: true,
+        tags: false,
+      });
+      if (attempt.current !== id) return;
+      if (result.suggestedTitle && !touched.current.title) {
+        setTitle(result.suggestedTitle);
+        setSuggested((current) => ({ ...current, title: true }));
+      }
+      if (result.suggestedAuthor && !touched.current.author) {
+        setAuthor(result.suggestedAuthor);
+        setSuggested((current) => ({ ...current, author: true }));
+      }
+    } catch {
+      // Sugestao e acessorio: falhou, fica o nome do arquivo.
+    } finally {
+      if (attempt.current === id) setSuggesting(false);
+    }
+  };
+
   const readPdf = async (file: File) => {
     if (file.size > MAX_PDF_BYTES) {
       throw new Error(`O PDF passa de ${Math.round(MAX_PDF_BYTES / 1024 / 1024)} MB.`);
@@ -139,9 +189,9 @@ export function FileImport() {
     setTruncated(long);
     setFormat("markdown");
     setContent(long ? result.content.slice(0, MAX_IMPORT_CHARS) : result.content);
-    setTitle(
-      usableMetaTitle(result.title) ?? markdownTitle(result.content) ?? fileTitle(null, file.name)
-    );
+    const known = usableMetaTitle(result.title) ?? markdownTitle(result.content);
+    setTitle(known ?? fileTitle(null, file.name));
+    if (!known) void suggestMeta(result.content);
   };
 
   const readMarkdown = async (file: File) => {
@@ -158,7 +208,9 @@ export function FileImport() {
     setTruncated(long);
     setFormat("markdown");
     setContent(long ? source.slice(0, MAX_IMPORT_CHARS) : source);
-    setTitle(markdownTitle(source) ?? fileTitle(null, file.name));
+    const known = markdownTitle(source);
+    setTitle(known ?? fileTitle(null, file.name));
+    if (!known) void suggestMeta(source);
   };
 
   /**
@@ -180,6 +232,7 @@ export function FileImport() {
     setFormat("plain");
     setContent(long ? source.slice(0, MAX_IMPORT_CHARS) : source);
     setTitle(fileTitle(null, file.name));
+    void suggestMeta(source);
   };
 
   /** Documento do Word (US-99): vira Markdown com titulos, listas e enfase. */
@@ -215,7 +268,9 @@ export function FileImport() {
     setTruncated(long);
     setFormat("markdown");
     setContent(long ? source.slice(0, MAX_IMPORT_CHARS) : source);
-    setTitle(docxTitle(coreXml) ?? markdownTitle(source) ?? fileTitle(null, file.name));
+    const known = docxTitle(coreXml) ?? markdownTitle(source);
+    setTitle(known ?? fileTitle(null, file.name));
+    if (!known) void suggestMeta(source);
   };
 
   const readEpub = async (file: File) => {
@@ -280,6 +335,7 @@ export function FileImport() {
 
     setBookTitle(index.title);
     setBookLanguage(index.language);
+    setBookAuthor(index.author);
     setChapters(found);
   };
 
@@ -289,6 +345,7 @@ export function FileImport() {
     try {
       const { text } = await apiSend<{ text: TextDetail }>("/api/texts", "POST", {
         title: title.trim(),
+        author: author.trim() || null,
         content,
         format,
         keepCitations,
@@ -321,6 +378,7 @@ export function FileImport() {
           tags: [bookTitle.slice(0, 30)],
           series: { title: bookTitle, chapter: position + 1 },
           language: bookLanguage,
+          author: bookAuthor,
         });
         first ??= text.id;
       }
@@ -381,12 +439,34 @@ export function FileImport() {
 
       {content ? (
         <Card className="space-y-4 p-4">
-          <Field
+          <SuggestedField
             label="Título"
             name="titulo-arquivo"
             value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            suggested={suggested.title}
+            onChange={(value) => {
+              touched.current.title = true;
+              setSuggested((current) => ({ ...current, title: false }));
+              setTitle(value);
+            }}
           />
+          <SuggestedField
+            label="Autor"
+            name="autor-arquivo"
+            value={author}
+            placeholder="Opcional"
+            suggested={suggested.author}
+            onChange={(value) => {
+              touched.current.author = true;
+              setSuggested((current) => ({ ...current, author: false }));
+              setAuthor(value);
+            }}
+          />
+          {suggesting ? (
+            <p className="text-xs text-faint" role="status">
+              Sugerindo título e autor...
+            </p>
+          ) : null}
           <div>
             <p className="text-sm font-medium text-muted">Prévia</p>
             <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-muted">

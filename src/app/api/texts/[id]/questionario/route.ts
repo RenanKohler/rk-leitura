@@ -106,7 +106,7 @@ async function generateAndStore(
   key: string,
   text: { title: string; content: string; language: string; format: TextFormat }
 ): Promise<Quiz> {
-  const generated = await generateQuiz(userId, text.title, text.content, text.language);
+  const generated = await generateQuiz(userId, text.title, text.content, text.language, textId);
   // A posicao de cada evidencia (US-134) e gravada junto da pergunta, na
   // mesma contagem de palavras do leitor. No idioma original do texto, em
   // que a evidencia ja vem (US-69).

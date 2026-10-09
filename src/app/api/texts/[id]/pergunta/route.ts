@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
-import { aiCreate, aiErrorResponse, aiGate, AiUnavailable, type AiMessages } from "@/lib/ai";
+import {
+  aiClient,
+  aiErrorResponse,
+  aiGate,
+  aiStream,
+  AiUnavailable,
+  countWords,
+  type AiMessages,
+} from "@/lib/ai";
 import {
   ASK_FAILURE,
   askExcerpt,
@@ -12,12 +20,15 @@ import {
   normalizeQuestion,
   readAnswer,
 } from "@/lib/ask";
+import { clearTurns, loadTurns, saveTurn } from "@/lib/ask-turns";
 import { consumeDailyQuota } from "@/lib/daily-quota";
 import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
 import { loadText } from "@/lib/queries";
 import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { contentKey } from "@/lib/quiz";
 import { parseParagraphs } from "@/lib/reading";
+import { streamResponse } from "@/lib/stream-response";
 
 export const dynamic = "force-dynamic";
 // Pergunta sobre um trecho longo, no modelo maior: pode passar de 30s.
@@ -52,8 +63,12 @@ function system(language: string): string {
  * Responde uma pergunta sobre o que ja foi lido (US-128).
  *
  * O documento vem do banco e termina na palavra `position`, inclusive: nada
- * depois da posicao de leitura sai do app. A conversa vive na folha; a rota
- * recebe o historico a cada pergunta e nao grava nada alem do uso.
+ * depois da posicao de leitura sai do app. A rota recebe o historico da
+ * sessao da folha a cada pergunta.
+ *
+ * A resposta chega em streaming (US-145): NDJSON com os trechos de texto e,
+ * no fim, a resposta com as citacoes ja em posicoes do texto. A pergunta
+ * respondida fica guardada com a posicao e a impressao do conteudo (US-147).
  */
 export async function POST(request: Request, { params }: Params) {
   const session = await requireSession();
@@ -97,27 +112,75 @@ export async function POST(request: Request, { params }: Params) {
     // Sem permissao da conta (US-125), nada sai do app.
     const gate = await aiGate(session.id);
     if (gate) return gate;
+    // Sem chave, o erro sai antes do stream e sem gastar cota.
+    aiClient(MESSAGES);
 
     const quota = await consumeDailyQuota("pergunta", session.id);
     if (!quota.allowed) {
       return jsonError(QUOTA_MESSAGES.pergunta, 429, { retryAfter: quota.retryAfterSeconds });
     }
 
-    const response = await aiCreate({
-      task: "pergunta",
-      userId: session.id,
-      messages: MESSAGES,
-      system: system(text.language),
-      maxTokens: 4000,
-      effort: "medium",
-      timeoutMs: 75_000,
-      content: askMessages(excerpt, text.title, history, question),
-    });
+    const fingerprint = contentKey(text.content);
+    return streamResponse(request, "texts/pergunta", async (emit, signal) => {
+      const response = await aiStream({
+        task: "pergunta",
+        userId: session.id,
+        textId: id,
+        wordsSent: countWords(excerpt.text),
+        messages: MESSAGES,
+        system: system(text.language),
+        maxTokens: 4000,
+        effort: "medium",
+        timeoutMs: 75_000,
+        signal,
+        content: askMessages(excerpt, text.title, history, question),
+        onText: (delta) => emit({ type: "delta", text: delta }),
+      });
 
-    const answer = readAnswer(response.content, excerpt);
-    return NextResponse.json({ answer, recentOnly: excerpt.truncated });
+      const answer = readAnswer(response.content, excerpt);
+      let turn = null;
+      try {
+        turn = await saveTurn(session.id, id, { question, answer, position, fingerprint });
+      } catch (error) {
+        // A resposta vale mesmo sem ficar guardada.
+        console.error("[ia] falha ao guardar a pergunta:", error);
+      }
+      emit({ type: "done", answer, recentOnly: excerpt.truncated, turn });
+    });
   } catch (error) {
     if (error instanceof AiUnavailable) return aiErrorResponse(error);
+    return serverError("texts/pergunta", error);
+  }
+}
+
+/** Conversa guardada do texto (US-147). */
+export async function GET(_request: Request, { params }: Params) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+  try {
+    const { id } = await params;
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
+    const text = await loadText(session.id, id);
+    if (!text) return jsonError("Texto não encontrado.", 404);
+    const turns = await loadTurns(session.id, id, contentKey(text.content));
+    return NextResponse.json({ turns });
+  } catch (error) {
+    return serverError("texts/pergunta", error);
+  }
+}
+
+/** "Limpar conversa": apaga as perguntas guardadas do texto (US-147). */
+export async function DELETE(_request: Request, { params }: Params) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+  try {
+    const { id } = await params;
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
+    const text = await loadText(session.id, id);
+    if (!text) return jsonError("Texto não encontrado.", 404);
+    await clearTurns(session.id, id);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
     return serverError("texts/pergunta", error);
   }
 }

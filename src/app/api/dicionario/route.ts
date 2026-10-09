@@ -119,7 +119,7 @@ export async function POST(request: Request) {
 
     let entry;
     try {
-      entry = await lookupWord(session.id, word, context, language);
+      entry = await lookupWord(session.id, word, context, language, textId);
     } catch (error) {
       if (error instanceof AiUnavailable) return aiErrorResponse(error, pending);
       throw error;
@@ -133,6 +133,8 @@ export async function POST(request: Request) {
           kind: entry.kind,
           definition: entry.definition,
           translation: entry.translation ?? null,
+          // Alternativas da revisao (US-151), da mesma consulta.
+          distractors: entry.distractors ?? null,
           updatedAt: new Date(),
         })
         .where(eq(savedWords.id, known.id));
@@ -148,6 +150,7 @@ export async function POST(request: Request) {
         kind: entry.kind,
         definition: entry.definition,
         translation: entry.translation ?? null,
+        distractors: entry.distractors ?? null,
         language,
         textId,
         // A frase volta na revisao (US-64); a primeira e no dia seguinte.

@@ -75,6 +75,8 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
   resumos, Haiku 5.5 no dicionário, na limpeza da importação, nas etiquetas e
   na sinopse. A tabela fica em `AI_MODELS` (`src/lib/ai.ts`) e é revista com
   os dados da US-124. O Haiku 5.5 não tem fallback de recusa no servidor.
+- A segunda rodada de IA (US-141 a US-154, 48 pontos) está em
+  `docs/backlog-ia.md`, com status, evidência e as notas da implementação.
 - Velocidade de referência para planejamento: 20 a 25 pontos por sprint de 2
   semanas.
 
