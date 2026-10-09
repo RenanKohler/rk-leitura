@@ -73,7 +73,8 @@ export async function generateQuiz(
   userId: string,
   title: string,
   content: string,
-  language: string = DEFAULT_LANGUAGE
+  language: string = DEFAULT_LANGUAGE,
+  textId?: string
 ): Promise<Quiz> {
   // Texto longo vai em trechos do comeco ao fim, nao so o comeco (US-133).
   const sample = quizSample(content);
@@ -86,6 +87,8 @@ export async function generateQuiz(
   const parsed = await aiParse({
     task: "questionario",
     userId,
+    textId,
+    wordsSent: countWords(sample.text),
     messages: MESSAGES,
     schema: QuizSchema,
     system: SYSTEM,

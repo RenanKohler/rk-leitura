@@ -150,6 +150,7 @@ export async function suggestTags(
     maxTokens: 2000,
     effort: "low",
     timeoutMs: ANALYSIS_TIMEOUT_MS,
+    wordsSent: countWords(tagExcerpt(title, content)),
     content: [{ role: "user", content: tagExcerpt(title, content) }],
   });
   return validSuggestions(parsed?.tags, known);
