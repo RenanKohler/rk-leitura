@@ -139,3 +139,64 @@ export function parseExplanation(raw: unknown, foreign: boolean): Explanation | 
   const translation = foreign ? read("translation") || null : null;
   return { simple, translation, explanation };
 }
+
+/** Campos da explicacao na ordem em que o modelo os escreve (US-145). */
+export function explanationFields(foreign: boolean): (keyof Explanation)[] {
+  return foreign ? ["simple", "translation", "explanation"] : ["simple", "explanation"];
+}
+
+/* --- continuacoes (US-146) ----------------------------------------------- */
+
+/** Pedido de continuacao: outra forma de explicar a mesma frase. */
+export type FollowUp = "simples" | "exemplo";
+
+/** Teto de cada continuacao, em palavras. */
+export const FOLLOW_UP_WORDS: Record<FollowUp, number> = { simples: 40, exemplo: 50 };
+
+/** Continuacoes por frase: uma de cada. */
+export const MAX_FOLLOW_UPS = 2;
+
+export const FOLLOW_UP_LABELS: Record<FollowUp, string> = {
+  simples: "Mais simples",
+  exemplo: "Dar um exemplo",
+};
+
+export function normalizeFollowUp(value: unknown): FollowUp | null {
+  return value === "simples" || value === "exemplo" ? value : null;
+}
+
+/** Chave da continuacao em cache: a da explicacao mais o tipo. */
+export function followUpKey(explanationKey: string, kind: FollowUp): string {
+  return `${explanationKey}:${kind}`;
+}
+
+/**
+ * Pedido da continuacao. Reaproveita o recorte da explicacao (a frase e o que
+ * veio antes): nenhum contexto novo sai do app. A explicacao anterior, gerada
+ * pelo proprio modelo, entra so para ele nao repeti-la.
+ */
+export function followUpPrompt(
+  request: Pick<ExplainRequest, "sentence" | "before">,
+  kind: FollowUp,
+  previous?: Pick<Explanation, "simple" | "explanation"> | null
+): string {
+  const parts = [];
+  if (request.before) parts.push(`Trecho anterior:\n${request.before}`);
+  parts.push(`Frase:\n${request.sentence}`);
+  if (previous) {
+    parts.push(`Explicação já dada:\n${previous.simple}\n${previous.explanation}`);
+  }
+  const max = FOLLOW_UP_WORDS[kind];
+  parts.push(
+    kind === "simples"
+      ? `A explicação não bastou. Explique a frase de forma ainda mais simples, em no máximo ${max} palavras, sem termos técnicos que não estejam na frase.`
+      : `Dê um exemplo concreto, do dia a dia, que ajude a entender a frase, em no máximo ${max} palavras. Use só a frase e o trecho anterior; não suponha o que vem depois.`
+  );
+  return parts.join("\n\n");
+}
+
+/** Continuacao aceita: texto nao vazio, cortado no teto do tipo. */
+export function parseFollowUp(raw: string, kind: FollowUp): string | null {
+  const text = limitWords(raw.replace(/\s+/g, " "), FOLLOW_UP_WORDS[kind]);
+  return text ? text : null;
+}
