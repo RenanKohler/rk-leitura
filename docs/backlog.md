@@ -56,6 +56,25 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
   US-05, que continua aguardando pendência.
 - Suporte a Markdown, leitura de PDF em colunas e sinal de início de
   parágrafo foram entregues fora do backlog, a pedido direto, e não têm story.
+- As épicas de US-123 a US-140 foram propostas sobre o commit `9c2ebdd` com a
+  restrição inversa da rodada anterior: toda funcionalidade nova de IA usa só a
+  integração que já existe com a API do Claude (`@anthropic-ai/sdk`, chave em
+  `ANTHROPIC_API_KEY`, modelo `claude-opus-5-5`). Nenhuma exige provedor novo
+  nem dependência nova no `package.json`: Citations, cache de prompt e Message
+  Batches já estão no SDK instalado.
+- As funções de IA que tratam "o que já li" (US-128, US-130 e US-132) nunca
+  enviam conteúdo posterior à posição de leitura. A regra é verificável por
+  teste da função que monta o pedido, e não depende do comportamento do modelo.
+- As cotas diárias propostas (100 explicações, 50 perguntas, 30 resumos, 50
+  análises de importação), o teto de 200 mil caracteres por pergunta e os
+  preços citados (Opus 5.5 a US$ 4 e US$ 20 por milhão de tokens de entrada e
+  saída, Batches a 50%) são pontos de partida, referentes a outubro de 2026.
+  A US-124 existe para substituí-los por dados de uso.
+- Modelo por tarefa, decidido na implementação sobre a família 5.5: Opus 5.5
+  no questionário e nas perguntas ao texto, Sonnet 5.5 na explicação e nos
+  resumos, Haiku 5.5 no dicionário, na limpeza da importação, nas etiquetas e
+  na sinopse. A tabela fica em `AI_MODELS` (`src/lib/ai.ts`) e é revista com
+  os dados da US-124. O Haiku 5.5 não tem fallback de recusa no servidor.
 - Velocidade de referência para planejamento: 20 a 25 pontos por sprint de 2
   semanas.
 
@@ -64,6 +83,11 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 - **Visitante:** pessoa sem sessão, com acesso apenas a login e cadastro.
 - **Leitor:** usuário autenticado que mantém sua biblioteca e lê os textos.
 - **Mantenedor:** responsável pelo deploy e pela operação da aplicação.
+
+As stories também citam variações do Leitor, com o mesmo acesso e um objetivo
+específico: **leitor em treino** (mede velocidade e compreensão), **leitor de
+séries** (lê histórias em capítulos), **leitor de textos longos** (livros e
+EPUB) e **leitor que estuda outro idioma**.
 
 ## Status possíveis
 
@@ -115,9 +139,24 @@ Fonte analisada: repositório `RenanKohler/rk-leitura`, branch `main`, commit
 | Leitor em uma tela | 7 | 25 | 2 | 3 | 2 |
 | Aprendizagem sem serviço externo | 7 | 23 | 0 | 3 | 4 |
 | Biblioteca e navegação | 3 | 10 | 0 | 2 | 1 |
-| **Total** | **122** | **483** | **45 (37%)** | **50 (41%)** | **27 (22%)** |
+| Plataforma de IA | 4 | 13 | 3 | 1 | 0 |
+| Leitura assistida por IA | 3 | 15 | 2 | 0 | 1 |
+| Retomada com resumo | 3 | 13 | 0 | 2 | 1 |
+| Compreensão com IA | 3 | 8 | 0 | 3 | 0 |
+| Biblioteca assistida por IA | 3 | 11 | 0 | 1 | 2 |
+| Vocabulário e destaques com IA | 2 | 6 | 0 | 0 | 2 |
+| **Total** | **140** | **549** | **50 (36%)** | **57 (41%)** | **33 (23%)** |
 
-Status: 116 Implementadas, 5 Substituídas (US-15, US-16, US-17, US-94 e US-103), 1 Aguardando pendência.
+Status: 134 Implementadas, 5 Substituídas (US-15, US-16, US-17, US-94 e US-103), 1 Aguardando pendência.
+
+As seis épicas de IA (Plataforma de IA em diante, US-123 a US-140) somam 66
+pontos: 5 Must (24 pontos), 7 Should (23) e 6 Could (19). Todas implementadas. A
+proporção de Must (28% do grupo) fica abaixo da faixa de 40 a 50% de
+propósito: o produto já está no ar e nenhuma story de IA impede a leitura.
+Entram como Must só o que a entrega não pode dispensar: o acesso único ao
+modelo (US-123), a medição de custo (US-124), o consentimento para enviar
+conteúdo a terceiro (US-125) e as duas funções que dão razão ao grupo, explicar
+um trecho (US-127) e perguntar ao texto (US-128).
 
 Os três épicos finais (Leitor em uma tela em diante, US-106 a US-122) vêm da
 unificação do leitor e de uma avaliação do app rodando, com achados
@@ -2405,18 +2444,382 @@ Como leitor, eu quero achar estatísticas, histórico, palavras e treino num só
 1. Dado a navegação principal, quando toco em "Você", então vejo os atalhos para Estatísticas, Histórico, Palavras e revisão, Treino e Ajustes.
 2. Dado Ajustes, quando a página abre, então há um índice das seções no topo.
 
+## Épico: Plataforma de IA
+
+### US-123: Centralizar o acesso ao modelo de linguagem
+
+**Épico:** Plataforma de IA
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `src/lib/ai.ts` (`aiParse`, `aiCreate`, `AI_MODELS`, `AiUnavailable`), `src/lib/quiz-generator.ts` e `src/lib/word-lookup.ts` sobre ele, `config.anthropicApiKey` em `src/app/api/health/route.ts`
+
+Como mantenedor, eu quero um único ponto de acesso ao modelo, com chave, modelo, fallback e tratamento de erro definidos uma vez, para que cada funcionalidade nova de IA não repita essas decisões e uma troca de modelo seja feita em um lugar só.
+
+**Critérios de aceitação**
+1. Dado que `ANTHROPIC_API_KEY` não está definida, quando qualquer rota de IA é chamada, então responde 503 com a mensagem "não está configurado nesta instalação" da funcionalidade e nenhuma requisição sai para a API.
+2. Dado que a API responde 429, quando qualquer função de IA é chamada, então a rota responde 503 com "O serviço está ocupado. Tente daqui a pouco."
+3. Dado que o modelo recusa mesmo depois do fallback (`stop_reason` igual a `refusal`), quando a resposta chega, então a rota responde 503 com a mensagem de recusa da funcionalidade e nada é gravado em cache.
+4. Dado o código-fonte, quando se procura o identificador do modelo, então ele aparece em um único arquivo de `src/lib`.
+5. Dado `GET /api/health`, quando a resposta chega, então `config.anthropicApiKey` indica `true` ou `false` sem expor o valor.
+
+**Notas técnicas:** novo `src/lib/ai.ts` (`server-only`) com o cliente preguiçoso, o modelo `claude-opus-5-5`, o `fallbacks: "default"` com a beta `server-side-fallback-2026-07-01` e uma classe de erro única (`AiUnavailable`), da qual `QuizUnavailable` e `LookupUnavailable` passam a derivar. O esforço (`output_config.effort`) continua por funcionalidade. É o ponto onde US-124 grava o uso e US-125 confere a permissão da conta. Pré-requisito de todas as stories deste grupo.
+
+### US-124: Registrar uso e custo da IA por funcionalidade
+
+**Épico:** Plataforma de IA
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** tabela `ai_usage` (drizzle/0024), `recordUsage` em `src/lib/ai.ts`, `src/lib/ai-cost.ts`, `src/app/api/uso-ia/route.ts`, `tests/ai-cost.test.ts`
+
+Como mantenedor, eu quero saber quantos tokens e quanto custo cada funcionalidade de IA gera por dia, para que eu ajuste cotas, esforço e modelo com dados reais em vez de estimativa.
+
+**Critérios de aceitação**
+1. Dado uma chamada ao modelo concluída, quando a resposta chega, então uma linha é gravada com conta, funcionalidade, modelo que respondeu, tokens de entrada, de saída, de leitura e de escrita de cache.
+2. Dado que o fallback atuou, quando a linha é gravada, então o modelo registrado é o que respondeu, não o pedido.
+3. Dado um resultado servido do banco (questionário já gerado, palavra já consultada, explicação já feita), quando a rota responde, então nenhuma linha de uso é gravada.
+4. Dado `GET /api/uso-ia` sem o segredo, quando a rota é chamada, então responde 401; com o segredo, devolve os totais por dia e por funcionalidade dos últimos 30 dias, com o custo estimado em dólares.
+5. Dado que a conta é excluída, quando a exclusão termina, então as linhas de uso dela são apagadas.
+
+**Notas técnicas:** tabela `ai_usage` com `onDelete: cascade`. Nenhum conteúdo (texto, frase, pergunta) é gravado, só contagens. Preços em constante (Opus 5.5: US$ 4 por milhão de tokens de entrada, US$ 20 de saída, US$ 0,20 de leitura de cache, escrita a 1,25x; Batches a 50%), conferidos na página de preços antes de fixar. A rota de leitura usa um segredo próprio (`AI_USAGE_SECRET`), no mesmo padrão de `CRON_SECRET`; sem ele, responde 401. Agregação feita no banco, como em `/api/stats`.
+
+### US-125: Escolher se meus textos podem ser enviados à IA
+
+**Épico:** Plataforma de IA
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `speed_settings.ai_enabled` (drizzle/0024), `aiGate` em `src/lib/ai.ts`, `src/components/ai-consent.tsx`, folhas do dicionário e do questionário, cartão em `src/components/ai-card.tsx`
+
+Como leitor, eu quero decidir uma vez se o conteúdo dos meus textos pode ser enviado ao serviço de IA, para que nada da minha biblioteca saia do app sem eu saber.
+
+**Critérios de aceitação**
+1. Dado uma conta que nunca decidiu, quando aciono pela primeira vez qualquer função de IA, então vejo o aviso "O conteúdo usado por esta função é enviado a um serviço externo (Anthropic)" com as opções "Permitir" e "Agora não", antes de qualquer envio.
+2. Dado que escolhi "Agora não", quando uso o leitor, então nenhuma requisição ao modelo é feita e as funções mostram a alternativa local: lacunas (US-113), guardar palavra sem definição (US-115) e recapitulação das últimas palavras (US-77).
+3. Dado que os recursos de IA estão desligados, quando uma rota de IA é chamada diretamente, então responde 403 com "Os recursos de IA estão desligados nesta conta." e não consome cota.
+4. Dado Ajustes, quando ligo ou desligo "Recursos de IA", então a escolha vale em todos os aparelhos a partir da próxima requisição.
+5. Dado uma conta criada antes desta entrega, quando usa o dicionário pela primeira vez depois dela, então vê o aviso uma vez.
+
+**Notas técnicas:** coluna `speed_settings.ai_enabled` anulável (nulo significa que a conta ainda não decidiu). A conferência fica no servidor, no módulo de US-123, e não só na tela. Substitui o aviso próprio do questionário. Depende de US-123.
+
+### US-126: Ver quanto resta das cotas de IA no dia
+
+**Épico:** Plataforma de IA
+**Prioridade:** Should
+**Story points:** 2
+**Status:** Implementada
+**Evidência:** `readDailyUsage` em `src/lib/daily-quota.ts`, `src/app/api/ia/uso/route.ts`, `src/components/ai-card.tsx`
+
+Como leitor, eu quero ver quanto ainda posso usar de cada função de IA hoje, para que eu não descubra o limite no meio de uma leitura.
+
+**Critérios de aceitação**
+1. Dado que gerei 3 questionários e fiz 40 consultas hoje, quando abro Ajustes > Uso de IA, então vejo "3 de 20" em Questionários e "40 de 200" em Dicionário.
+2. Dado que atingi um limite, quando abro o cartão, então a linha mostra "Limite atingido. Volta a valer às 00:00." no fuso da conta.
+3. Dado uma instalação sem `ANTHROPIC_API_KEY`, quando abro Ajustes, então o cartão mostra "Recursos de IA não configurados nesta instalação." sem contadores.
+4. Dado que desliguei os recursos de IA (US-125), quando abro o cartão, então vejo o estado desligado e o atalho para ligar.
+
+**Notas técnicas:** lê os contadores existentes em `rate_limits` pela `quotaKey`; nenhuma tabela nova. As cotas das funcionalidades novas entram em `DAILY_QUOTAS` e aparecem aqui sem mudança na tela.
+
+---
+
+## Épico: Leitura assistida por IA
+
+### US-127: Explicar um trecho difícil
+
+**Épico:** Leitura assistida por IA
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** `src/app/api/texts/[id]/explicacao/route.ts` (cache em `ai_results`, consentimento, cota `explicacao`), `src/lib/explain.ts` (frase pelo segmentador, contexto só anterior, teto de 80 palavras, chave do cache), `src/lib/explain-generator.ts`, `src/components/explain-sheet.tsx`, "Explicar frase" na folha de toque longo e atalho "E" em `src/app/(app)/leitor/[id]/reader-client.tsx`; testes em `tests/explain.test.ts` e `e2e/ia-leitura.spec.ts`
+
+Como leitor, eu quero pedir a explicação de uma frase que não entendi, para que eu siga a leitura sem reler o parágrafo várias vezes nem sair do app.
+
+**Critérios de aceitação**
+1. Dado que toco e seguro uma palavra, quando escolho "Explicar frase", então a leitura pausa e vejo a frase reescrita em linguagem simples e uma explicação de no máximo 80 palavras.
+2. Dado um texto em inglês, quando peço a explicação, então vejo a tradução da frase e a explicação em português.
+3. Dado que a mesma frase do mesmo texto já foi explicada, quando peço de novo, então a explicação volta do banco sem nova chamada e sem consumir cota.
+4. Dado que a cota de 100 explicações do dia acabou, quando peço, então vejo "Limite diário de explicações atingido. Volta a valer amanhã." e a leitura continua da mesma palavra.
+5. Dado que a resposta não chega em 30 segundos ou o serviço falha, quando o tempo acaba, então vejo "Não consegui explicar agora." e posso fechar a folha sem perder a posição.
+
+**Notas técnicas:** a frase vem do segmentador único (`src/lib/sentences.ts`), e o pedido leva a frase e o parágrafo anterior, nunca o que vem depois. Saída estruturada como a do dicionário, `effort: "low"`. Cache em tabela própria por `(texto, impressão do conteúdo, início e fim da frase)`. Atalho de teclado "E", ao lado de "D" e "H". Cota nova `explicacao` em `DAILY_QUOTAS`. Depende de US-123 e US-125.
+
+### US-128: Perguntar ao texto sobre o que já li
+
+**Épico:** Leitura assistida por IA
+**Prioridade:** Must
+**Story points:** 8
+**Status:** Implementada
+**Evidência:** `src/app/api/texts/[id]/pergunta/route.ts` (Citations com `cache_control`, cota `pergunta`), `src/lib/ask.ts` (`askExcerpt` termina na palavra N, `readAnswer` converte `char_location` em índice de palavra), `src/components/ask-sheet.tsx`, botão "Perguntar ao texto" e atalho "P" em `src/app/(app)/leitor/[id]/reader-client.tsx`; testes em `tests/ask.test.ts` e `e2e/ia-leitura.spec.ts`
+
+Como leitor de textos longos, eu quero fazer uma pergunta sobre o que já li e receber a resposta com o trecho que a sustenta, para que eu esclareça uma dúvida sem voltar páginas procurando.
+
+**Critérios de aceitação**
+1. Dado que estou no meio de um texto, quando abro "Perguntar ao texto" e envio uma pergunta de até 500 caracteres, então recebo a resposta em português com pelo menos uma citação do texto, ou a frase "O trecho lido até aqui não responde a isso."
+2. Dado uma resposta com citação, quando toco na citação, então o leitor vai até a palavra citada e oferece "Voltar para onde parou" (US-109).
+3. Dado que estou na palavra N, quando a pergunta é montada, então o conteúdo enviado termina na palavra N (verificado por teste da função que monta o pedido).
+4. Dado que já li mais de 200 mil caracteres do texto, quando pergunto, então o envio considera os 200 mil caracteres anteriores à posição e a folha avisa "Considerando só o trecho mais recente."
+5. Dado que a cota de 50 perguntas do dia acabou, quando envio, então vejo "Limite diário de perguntas atingido. Volta a valer amanhã." e o campo mantém a pergunta digitada.
+
+**Notas técnicas:** usa Citations da API (bloco `document` de texto simples com `citations.enabled`); a citação devolve `char_location`, convertida em índice de palavra por uma função pura com teste. Citations não aceita `output_config.format`, então esta rota usa `messages.create` e lê os blocos de texto, sem `parse`. O bloco do documento leva `cache_control`: as perguntas seguintes da mesma conversa, dentro de 5 minutos, leem o texto do cache a 5% do preço de entrada. Até 10 perguntas por conversa; a conversa vive na folha e não é gravada. `effort: "medium"`. Resposta em streaming é opcional para a primeira entrega. Depende de US-123 e US-125.
+
+### US-129: Guardar uma resposta como nota de destaque
+
+**Épico:** Leitura assistida por IA
+**Prioridade:** Could
+**Story points:** 2
+**Status:** Implementada
+**Evidência:** "Guardar como nota" em `src/components/ask-sheet.tsx`, sobre as rotas de destaques existentes; `appendNote` e `noteTarget` em `src/lib/ask.ts`; testes em `tests/ask.test.ts` e `e2e/ia-leitura.spec.ts`
+
+Como leitor, eu quero guardar uma resposta útil junto do trecho que ela cita, para que a explicação volte na revisão de destaques (US-114) e na exportação anotada (US-100).
+
+**Critérios de aceitação**
+1. Dado uma resposta com citação, quando toco "Guardar como nota", então um destaque é criado no primeiro trecho citado com a resposta como nota.
+2. Dado que o trecho citado já tem destaque, quando guardo, então a resposta é acrescentada à nota existente, separada por uma linha em branco, sem criar outro destaque.
+3. Dado uma resposta sem citação, quando ela aparece, então a opção "Guardar como nota" não é exibida.
+4. Dado que a nota resultante passa de 2.000 caracteres, quando guardo, então ela é cortada no limite e termina em "…".
+
+**Notas técnicas:** depende de US-128. Reaproveita a rota de destaques existente.
+
+---
+
+## Épico: Retomada com resumo
+
+### US-130: Resumir o que já li ao retomar um texto
+
+**Épico:** Retomada com resumo
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** `ReadSummary` em `src/components/recap-summary.tsx` dentro do cartão "Recapitular o contexto" (`src/app/(app)/leitor/[id]/reader-client.tsx`), rota `src/app/api/texts/[id]/resumo/route.ts` (GET diz se o botão aparece e traz o resumo guardado; POST gera), `buildReadSummaryRequest`, `readSummaryKey` e `canReuseReadSummary` em `src/lib/summaries.ts`, chamada em `src/lib/summary-generator.ts`, `tests/summaries.test.ts`, `e2e/retomada-resumo.spec.ts`
+
+Como leitor, eu quero ver um resumo do que já li quando volto a um texto parado há dias, para que eu retome com o enredo ou o argumento na cabeça, e não só a última frase.
+
+**Critérios de aceitação**
+1. Dado que o texto cumpre a regra do cartão "Recapitular o contexto" (US-77), quando o leitor abre, então o cartão oferece também "Resumo do que li".
+2. Dado que aciono "Resumo do que li", quando a resposta chega, então vejo de 3 a 5 tópicos com no máximo 120 palavras no total e o botão "Continuar a leitura" segue da posição salva.
+3. Dado que estou na palavra N, quando o resumo é pedido, então o conteúdo enviado termina na palavra N (verificado por teste).
+4. Dado que reabro o mesmo texto sem ter avançado, quando peço o resumo, então ele volta do banco sem nova chamada.
+5. Dado que estou offline, sem chave configurada, com IA desligada ou com a cota de resumos esgotada, quando o leitor abre, então o cartão mostra só Recapitular e Pular, como hoje.
+
+**Notas técnicas:** cache por `(texto, impressão do conteúdo, início do parágrafo da posição)`. Mesmo teto de 200 mil caracteres da US-128. Cota nova `resumo` (30 por dia), compartilhada por US-130, US-131, US-132, US-138 e US-140. Depende de US-123 e US-125.
+
+### US-131: Resumir o capítulo anterior de uma série
+
+**Épico:** Retomada com resumo
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `ChapterSummaryGate` em `src/components/recap-summary.tsx` antes do `RecapPlayer` do capítulo anterior, rota `src/app/api/texts/[id]/resumo-capitulo/route.ts` (só capítulo concluído, cache por texto e impressão do conteúdo), `PreviousChapter.id` em `src/lib/types.ts`, `buildChapterSummaryRequest` em `src/lib/summaries.ts`, `tests/summaries.test.ts`, `e2e/retomada-resumo.spec.ts`
+
+Como leitor de séries, eu quero ver um resumo do capítulo anterior antes de começar o próximo, para que eu lembre o que aconteceu no capítulo inteiro, e não só no final dele.
+
+**Critérios de aceitação**
+1. Dado que a regra da US-119 oferece "Recapitular o capítulo anterior", quando aceito, então vejo primeiro um resumo do capítulo anterior em até 5 tópicos, e depois os destaques e o final, como hoje.
+2. Dado que o resumo do capítulo já foi gerado, quando recapitulo de novo, então ele volta do banco sem nova chamada.
+3. Dado que o conteúdo do capítulo anterior mudou depois do resumo (edição ou continuação), quando recapitulo, então um resumo novo é gerado.
+4. Dado que a IA está indisponível ou a cota acabou, quando recapitulo, então vejo os destaques e o final, como hoje, sem mensagem de erro bloqueando a leitura.
+
+**Notas técnicas:** o capítulo anterior já foi concluído, então o envio do capítulo inteiro não revela nada que o leitor não tenha lido. Cache por `(texto do capítulo, impressão do conteúdo)`. Depende de US-130 pela cota e pela tabela de cache.
+
+### US-132: Ver quem é quem até onde li
+
+**Épico:** Retomada com resumo
+**Prioridade:** Could
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** `NamesPanel` em `src/components/names-panel.tsx` ("Navegar no texto" > "Nomes no texto"), descrições em `src/components/xray-panel.tsx`, rota `src/app/api/texts/[id]/nomes/route.ts`, `namesToDescribe`, `buildNamesRequest`, `canReuseNames` e `normalizeDescriptions` em `src/lib/summaries.ts`, `tests/summaries.test.ts`, `e2e/retomada-resumo.spec.ts`
+
+Como leitor de textos longos, eu quero uma descrição curta de cada personagem ou termo recorrente, limitada ao que já li, para que eu lembre quem é quem sem correr o risco de ler um spoiler.
+
+**Critérios de aceitação**
+1. Dado "Navegar no texto" > "Nomes no texto", quando toco "Descrever com IA", então cada nome da lista, até 30, ganha uma descrição de até 25 palavras.
+2. Dado que estou na palavra N, quando as descrições são pedidas, então o conteúdo enviado termina na palavra N (verificado por teste).
+3. Dado um nome sem contexto suficiente no trecho lido, quando as descrições chegam, então ele mostra "Pouco contexto até aqui."
+4. Dado que avancei menos de 10% do texto desde a última descrição, quando abro a lista, então as descrições voltam do banco sem nova chamada.
+5. Dado que a IA está indisponível, quando abro a lista, então os nomes e as contagens aparecem como hoje.
+
+**Notas técnicas:** a lista de nomes continua vindo de `xray.ts`; o modelo só descreve os nomes enviados, com saída estruturada indexada pelo nome. Cache por faixa de 10% de progresso. Depende de US-130 pela cota.
+
+---
+
+## Épico: Compreensão com IA
+
+### US-133: Gerar o questionário sobre o texto inteiro
+
+**Épico:** Compreensão com IA
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `quizSample` e `QUIZ_MAX_CHARS` em `src/lib/quiz.ts`, usados por `generateQuiz` em `src/lib/quiz-generator.ts`; testes em `tests/quiz-coverage.test.ts` (cobertura do primeiro décimo, da segunda metade e do último décimo, teto de 60 mil caracteres, texto inteiro até o teto, `quizKey` inalterada)
+
+Como leitor em treino, eu quero que as perguntas de um texto longo cubram o texto do começo ao fim, para que a nota de compreensão reflita a leitura inteira e não só as primeiras páginas.
+
+**Critérios de aceitação**
+1. Dado um texto com mais de 60 mil caracteres, quando o questionário é gerado, então o conteúdo enviado reúne trechos do primeiro décimo, da segunda metade e do último décimo do texto (verificado por teste da função de recorte).
+2. Dado qualquer texto, quando o questionário é gerado, então o conteúdo enviado não passa de 60 mil caracteres, e o custo por questionário fica igual ao de hoje.
+3. Dado um texto com até 60 mil caracteres, quando o questionário é gerado, então o envio é o texto inteiro, como hoje.
+4. Dado um questionário gerado antes desta entrega, quando o reabro, então ele continua valendo e nenhuma nova chamada é feita.
+
+**Notas técnicas:** o recorte é uma função pura em `src/lib/quiz.ts`: blocos equidistantes que começam em início de parágrafo, marcados com a posição relativa no pedido ("trecho 3 de 6"). A `quizKey` não muda, então os questionários já gravados continuam válidos.
+
+### US-134: Reler o trecho de uma pergunta errada
+
+**Épico:** Compreensão com IA
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `locateEvidence` e `withEvidencePositions` em `src/lib/quiz.ts` (dobra `searchKey` de `src/lib/navigation.ts`), gravadas na geração (`src/app/api/texts/[id]/questionario/route.ts`) e calculadas na correção para os questionários antigos (`.../questionario/respostas/route.ts`); "Reler o trecho" em `src/components/quiz-sheet.tsx` e marca do trecho com "Voltar para onde parou" em `src/app/(app)/leitor/[id]/reader-client.tsx`; testes em `tests/quiz-coverage.test.ts` e `e2e/questionario-releitura.spec.ts`
+
+Como leitor em treino, eu quero ir direto ao trecho que responde uma pergunta que errei, para que eu releia exatamente o ponto que não entendi.
+
+**Critérios de aceitação**
+1. Dado que errei uma pergunta, quando vejo o resultado, então a pergunta mostra "Reler o trecho", e o toque abre o leitor na primeira palavra da evidência, com o trecho marcado e a opção "Voltar para onde parou".
+2. Dado uma evidência que não é encontrada no texto, quando o resultado aparece, então o botão não é exibido e a evidência continua visível como hoje.
+3. Dado um questionário gerado antes desta entrega, quando vejo o resultado, então a posição é localizada no servidor, sem nova chamada ao modelo.
+4. Dado um texto em outro idioma, quando localizo a evidência, então a busca é feita no idioma original, em que a evidência já está (US-69).
+
+**Notas técnicas:** a localização ignora acento, caixa e pontuação, com a mesma dobra de `src/lib/content-search.ts`, e é gravada junto da pergunta. Nenhuma chamada nova ao modelo.
+
+### US-135: Entender por que errei uma pergunta
+
+**Épico:** Compreensão com IA
+**Prioridade:** Should
+**Story points:** 2
+**Status:** Implementada
+**Evidência:** campo `rationale` em `QuestionSchema` (`src/lib/quiz-generator.ts`) e em `parseQuiz` (`src/lib/quiz.ts`, até `MAX_RATIONALE_WORDS`), devolvido só por `/questionario/respostas`; explicação aberta na errada e recolhida em "Por que está certa" em `src/components/quiz-sheet.tsx`; testes em `tests/quiz-coverage.test.ts` e `e2e/questionario-releitura.spec.ts`
+
+Como leitor em treino, eu quero ler por que a alternativa que escolhi está errada, para que eu corrija o raciocínio e não só decore a resposta.
+
+**Critérios de aceitação**
+1. Dado que errei uma pergunta, quando confiro as respostas, então vejo, abaixo da resposta correta, uma explicação de até 40 palavras.
+2. Dado que acertei, quando confiro, então a explicação fica recolhida em "Por que está certa".
+3. Dado um questionário gerado antes desta entrega, quando confiro, então o resultado aparece como hoje, sem campo vazio e sem nova chamada.
+4. Dado que abro o questionário antes de responder, quando a rota de abertura responde, então a explicação não está na resposta (o gabarito continua no servidor).
+
+**Notas técnicas:** campo `rationale` no esquema da geração, produzido na mesma chamada: cerca de 60 tokens de saída a mais por pergunta e nenhuma chamada extra. Devolvido só por `/questionario/respostas`. Entregar junto com US-134, porque as duas mudam o JSON gravado em `comprehension_quizzes`.
+
+---
+
+## Épico: Biblioteca assistida por IA
+
+### US-136: Limpar restos de página na importação
+
+**Épico:** Biblioteca assistida por IA
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** `ParsedText.extraction` (`exata` ou `palpite`) em `src/lib/parser.ts`; `findLeftovers` em `src/lib/import-ai.ts` (Haiku, 15 s, cota `importacao`); rota `src/app/api/import-url/analise/route.ts`; `applyRemovals` e `validLeftovers` em `src/lib/import-analysis.ts`; prévia riscada com "Manter" em `src/components/import-preview.tsx` e `src/app/(app)/textos/novo/page.tsx`; `tests/import-analysis.test.ts`, `tests/parser.test.ts`, `e2e/ia-biblioteca.spec.ts`
+
+Como leitor, eu quero que a prévia da importação aponte os parágrafos que não fazem parte do artigo, para que eu não leia menus e anúncios no meio do texto.
+
+**Critérios de aceitação**
+1. Dado uma importação por URL com prévia em que a extração usou o palpite pelo maior container, quando a prévia aparece, então os parágrafos identificados como navegação, anúncio ou "leia também" aparecem riscados com a etiqueta "Provável resto de página".
+2. Dado um parágrafo riscado, quando toco "Manter", então ele volta ao texto que será salvo.
+3. Dado que a extração usou `articleBody`, `itemprop="articleBody"` ou `<article>`, quando a prévia aparece, então nenhuma chamada ao modelo é feita.
+4. Dado que a análise falha, passa de 15 segundos ou a cota de 50 análises do dia acabou, quando a prévia aparece, então ela vem sem marcações, como hoje.
+5. Dado o texto salvo, quando comparado ao extraído, então os parágrafos mantidos são idênticos: o modelo só aponta índices e nunca reescreve conteúdo.
+
+**Notas técnicas:** `ParsedText` ganha a origem da extração (exata ou palpite). O pedido envia os parágrafos numerados, e a saída estruturada é uma lista de índices com o motivo. Só a importação com prévia (US-08) usa a análise; importação sem prévia, compartilhamento e lote seguem iguais, porque não há quem confirme. Cota nova `importacao` (50 por dia), compartilhada com US-137.
+
+### US-137: Receber sugestão de etiquetas ao importar
+
+**Épico:** Biblioteca assistida por IA
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `suggestTags` em `src/lib/import-ai.ts` (esquema com `enum` das etiquetas da conta), `validSuggestions` em `src/lib/import-analysis.ts`, prop `suggested` com o selo "Sugerida" em `src/components/tag-picker.tsx`, seletor na prévia de `src/app/(app)/textos/novo/page.tsx`; `tests/import-analysis.test.ts`, `e2e/ia-biblioteca.spec.ts`
+
+Como leitor, eu quero que o app sugira quais das minhas etiquetas combinam com o texto que estou importando, para que a biblioteca continue organizada sem eu etiquetar tudo à mão.
+
+**Critérios de aceitação**
+1. Dado que tenho etiquetas criadas, quando importo um texto com prévia, então o seletor mostra até 3 sugestões entre as minhas etiquetas, marcadas como "Sugerida".
+2. Dado que não toco em uma sugestão, quando salvo, então o texto é salvo sem ela: nenhuma etiqueta é aplicada sozinha.
+3. Dado que não tenho etiquetas, quando importo, então nenhuma chamada é feita e o seletor fica como hoje.
+4. Dado que a sugestão falha ou a cota acabou, quando a prévia aparece, então o seletor aparece sem sugestões.
+
+**Notas técnicas:** o esquema da saída é um `enum` montado com as etiquetas da conta (até `MAX_TAGS_PER_USER`, 200), então o modelo não inventa etiqueta. Envia o título e as primeiras 1.500 palavras. `effort: "low"`. Depende de US-136 pela cota.
+
+### US-138: Ver uma sinopse sem spoiler antes de ler
+
+**Épico:** Biblioteca assistida por IA
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `synopsisExcerpt`, `canAskSynopsis` e `clampSynopsis` em `src/lib/synopsis.ts` (`tests/synopsis.test.ts`); geração e leitura em `src/lib/synopsis-ai.ts`; rota `src/app/api/texts/[id]/sinopse/route.ts` (cota `resumo`); botão e sinopse no cartão em `src/components/text-synopsis.tsx`; `e2e/ia-biblioteca.spec.ts`. Gravada em `ai_results` (tipo `sinopse`, chave com `contentKey`) em vez de `texts`, com o md5 do conteúdo para a biblioteca validar sem carregar o texto
+
+Como leitor, eu quero ver do que trata um texto parado na biblioteca, para que eu escolha o que ler agora sem abrir cada um.
+
+**Critérios de aceitação**
+1. Dado um texto não iniciado, quando toco "Do que se trata?" no cartão, então vejo uma sinopse de até 50 palavras.
+2. Dado que a sinopse foi gerada, quando volto à biblioteca, então ela aparece no cartão do texto e não é gerada de novo.
+3. Dado um texto, quando a sinopse é pedida, então o conteúdo enviado são os primeiros 15% do texto, com no máximo 20 mil caracteres (verificado por teste).
+4. Dado um texto com menos de 200 palavras, quando abro o cartão, então a opção não aparece.
+5. Dado que o conteúdo mudou por edição ou continuação, quando abro o cartão, então a sinopse antiga é descartada e a opção volta a aparecer.
+
+**Notas técnicas:** sob demanda, nunca na importação. Gravada em `texts` com a impressão do conteúdo que a gerou. Depende de US-124: entra depois de medir o custo das funções anteriores.
+
+---
+
+## Épico: Vocabulário e destaques com IA
+
+### US-139: Buscar em lote as definições pendentes
+
+**Épico:** Vocabulário e destaques com IA
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `src/lib/word-batch.ts`, `src/lib/definition-batch.ts`, `src/app/api/palavras/definicoes/route.ts`, `src/app/(app)/palavras/`, `src/app/api/cron/acompanhamento/route.ts`
+
+Como leitor, eu quero buscar de uma vez a definição de todas as palavras que guardei sem ela, para que a revisão fique completa sem eu abrir palavra por palavra.
+
+**Critérios de aceitação**
+1. Dado 12 palavras sem definição, quando toco "Buscar definições pendentes (12)", então elas aparecem como "Buscando" e 12 consultas são descontadas da cota do dicionário.
+2. Dado que restam 5 consultas na cota do dia, quando toco o botão, então só 5 palavras entram no lote e a tela informa quantas ficaram de fora.
+3. Dado que o lote terminou, quando abro Palavras, então as definições aparecem e as palavras saem da lista de pendentes.
+4. Dado um item recusado, com erro ou expirado depois de 24 horas, quando o lote termina, então a palavra continua sem definição e pode ser buscada de novo individualmente.
+5. Dado um lote em processamento, quando abro Palavras, então o botão fica desabilitado: um lote por conta por vez.
+
+**Notas técnicas:** usa Message Batches (50% do preço). O resultado chega em qualquer ordem, então o `custom_id` é o id da palavra. O parâmetro `fallbacks` não é aceito em lote: uma recusa vira item sem definição, tratada pelo critério 4. O andamento é conferido ao abrir Palavras e no passo de acompanhamento do fluxo horário (`/api/cron/acompanhamento`). Tabela pequena com o id do lote por conta.
+
+### US-140: Sintetizar os destaques de um texto
+
+**Épico:** Vocabulário e destaques com IA
+**Prioridade:** Could
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** `src/lib/highlight-synthesis.ts`, `src/lib/synthesis-generator.ts`, `src/app/api/texts/[id]/destaques/sintese/route.ts`, `src/app/(app)/textos/[id]/destaques/`, `annotatedMarkdown` em `src/lib/annotated-export.ts`
+
+Como leitor, eu quero uma síntese do que destaquei em um texto, para que eu tenha em poucas linhas o que considerei importante e leve isso na exportação anotada.
+
+**Critérios de aceitação**
+1. Dado um texto com 3 ou mais destaques, quando toco "Sintetizar meus destaques", então vejo uma síntese de até 150 palavras que indica, entre colchetes, o número dos destaques usados.
+2. Dado um texto com menos de 3 destaques, quando abro a página, então a opção não aparece.
+3. Dado que adicionei ou removi um destaque depois da síntese, quando abro a página, então a síntese aparece marcada como "Desatualizada" com a opção de gerar de novo.
+4. Dado que a síntese existe, quando exporto o texto em Markdown (US-100), então ela entra em uma seção "Síntese" no topo do arquivo.
+5. Dado que a IA está indisponível ou a cota acabou, quando toco o botão, então vejo a mensagem correspondente e a lista de destaques continua igual.
+
+**Notas técnicas:** envia só os trechos destacados e as notas, não o texto inteiro: menos custo e menos conteúdo fora do app. Cota `resumo`.
+
 ## Fora do escopo (Won't Have)
 
 - **Compartilhamento de textos e destaques entre usuários:** todas as consultas são restritas ao dono; compartilhar mudaria o modelo de privacidade. Não confundir com o épico Compartilhamento, que trata de trazer conteúdo de fora para dentro.
-- **Resumo automático do texto antes da leitura:** seria uma segunda dependência de modelo de linguagem, com custo próprio. Reavaliar depois de medir uso e custo do questionário (US-46).
+- **Resumo automático do texto na importação:** gera custo para textos que talvez nunca sejam lidos. Reavaliado: a versão sob demanda, sem spoiler e depois da medição de custo entrou como US-138.
 - **Aplicativos nativos:** o PWA com Share Target (US-33) e o modo offline (US-40) cobrem os principais casos de uso móvel.
 - **Tradução automática do texto inteiro:** multiplicaria o custo de modelo de linguagem por texto. A consulta pontual de palavras em outro idioma (US-69) cobre o caso de estudo com custo controlado.
 - **Ajuste automático das preferências por testes alternados:** com um único leitor, a amostra é pequena e a nota do questionário oscila demais para servir de critério; o app mudaria configurações sem motivo real.
 - **Sugestão de leitura pelo horário de melhor desempenho:** exige meses de dados de uma só pessoa para separar o efeito do horário do efeito do texto.
-- **Mapa das partes mal compreendidas:** as perguntas do questionário não estão ligadas a posições no texto, então o mapa não teria base.
+- **Mapa das partes mal compreendidas:** com a US-134 as perguntas passam a ter posição no texto, mas são de 3 a 5 por texto; o mapa teria pontos de menos para indicar um padrão.
 - **Modo só de áudio controlado pelo fone:** o controle de mídia na web é limitado e a narração com a tela bloqueada já é instável (US-39).
 - **Sincronizar a biblioteca do Kindle ou conectar catálogos externos de EPUB:** a Amazon não oferece API pública e os livros comprados têm DRM. As alternativas avaliadas (recortes do Kindle, exportação em EPUB, Project Gutenberg e catálogo OPDS próprio) não atendem ao objetivo.
 - **Ranking e competição entre leitores:** depende de dados compartilhados e não se alinha ao objetivo de treino individual.
+- **Busca por significado na biblioteca:** exige embeddings, que a API do Claude não oferece; seria um segundo provedor e um índice vetorial no Postgres. A busca no conteúdo (US-120) cobre a procura por expressão.
+- **Assistente de conversa sem texto aberto:** foge do objetivo do app, que é ajudar a ler o que está na biblioteca, e não tem limite natural de custo. A US-128 cobre perguntas ancoradas no texto.
+- **Perguntas abertas com correção por IA:** a nota de uma resposta livre varia entre correções da mesma resposta, e essa nota entraria no treino como medida de compreensão. A múltipla escolha com evidência (US-46) tem gabarito fixo.
+- **Frase de exemplo nova a cada revisão de palavra:** seria uma chamada por palavra revisada, na função de maior frequência de uso do app. A revisão já mostra a frase em que a palavra foi encontrada.
+- **Importar PDF escaneado com leitura de imagem pelo modelo:** cada página vira uma imagem de cerca de 1.500 tokens; um livro de 300 páginas passaria de 450 mil tokens em uma única importação.
+- **Ajuste automático da velocidade pela IA:** contradiz a regra da US-117, em que o app sugere e nunca muda a velocidade sozinho.
+- **Narração com voz gerada por IA:** a API do Claude não gera áudio. A voz baixável (US-105) e a voz do sistema (US-39) cobrem a narração.
 
 ## Sugestão de MVP e próximos passos
 
@@ -2434,7 +2837,8 @@ Entregue até aqui, em ordem:
 | US-07, US-06 | 6 | Exclusão de conta e edição de nome e senha |
 | US-46 | 8 | Perguntas de compreensão ao concluir um texto |
 
-Resta 1 story, travada por decisão externa (5 pontos). As épicas de US-62 a US-88 estão concluídas, nas ordens 9 a 18 abaixo. A ordem abaixo é o
+Resta 1 story, travada por decisão externa (5 pontos). As 18 stories de IA
+(US-123 a US-140, 66 pontos) estão entregues, nas ordens 24 a 29 abaixo. As épicas de US-62 a US-88 estão concluídas, nas ordens 9 a 18 abaixo. A ordem abaixo é o
 histórico do que foi entregue, agrupado por dependência.
 
 | Ordem | Stories | Pontos | Objetivo |
@@ -2449,6 +2853,46 @@ histórico do que foi entregue, agrupado por dependência.
 | ~~8~~ | ~~US-40, US-43~~ | ~~18~~ | Concluída: leitura offline e lembrete diário |
 | ~~—~~ | ~~US-31~~ | ~~5~~ | Concluída: limite de requisições compartilhado, sobre o Postgres |
 | — | US-05 | 5 | Aguardando pendência: provedor de e-mail transacional. |
+
+### Entregas: épicas de IA (US-123 a US-140)
+
+| Ordem | Stories | Pontos | Objetivo |
+| --- | --- | --- | --- |
+| ~~24~~ | ~~US-123, US-125, US-124~~ | ~~11~~ | Concluída: base: acesso único ao modelo, consentimento por conta e medição de custo |
+| ~~25~~ | ~~US-127, US-128~~ | ~~13~~ | Concluída: explicar um trecho e perguntar ao texto |
+| ~~26~~ | ~~US-133, US-134, US-135, US-126~~ | ~~10~~ | Concluída: questionário sobre o texto inteiro, reler o trecho errado, justificativa e cotas visíveis |
+| ~~27~~ | ~~US-130, US-131, US-136~~ | ~~13~~ | Concluída: resumos de retomada e limpeza da importação |
+| ~~28~~ | ~~US-129, US-132, US-137~~ | ~~10~~ | Concluída: resposta como nota, quem é quem e sugestão de etiquetas |
+| ~~29~~ | ~~US-138, US-139, US-140~~ | ~~9~~ | Concluída: sinopse, definições em lote e síntese de destaques |
+
+As seis ordens foram entregues juntas: a base (24) primeiro e as demais em
+paralelo sobre ela. Modelos por tarefa: Opus 5.5 no questionário e nas
+perguntas ao texto, Sonnet 5.5 na explicação e nos resumos, Haiku 5.5 no
+dicionário, na limpeza da importação, nas etiquetas e na sinopse.
+
+Critérios desta ordem:
+
+- **US-123 antes de tudo.** As funções novas usam o módulo único; começar
+  por elas criaria uma terceira e uma quarta cópia do cliente e do tratamento
+  de erro.
+- **US-125 antes de qualquer função nova em produção.** Explicação e pergunta
+  passam a enviar trechos e textos inteiros a terceiro, e o dicionário já
+  envia frases sem aviso. O consentimento vem primeiro.
+- **US-124 na primeira sprint.** Medir desde o primeiro dia das funções novas
+  dá duas sprints de dados antes das Could, que são as mais sensíveis a custo
+  (a US-138 foi Won't Have justamente por custo).
+- **US-134 e US-135 juntas.** As duas mudam o JSON das perguntas em
+  `comprehension_quizzes`; separadas, o formato mudaria duas vezes.
+- **US-130 antes de US-131 e US-132.** Ela cria a cota `resumo` e o cache de
+  resumos que as outras duas reaproveitam. Pelo mesmo motivo, US-136 vem
+  antes de US-137 (cota `importacao`).
+- **US-128 é a story de maior risco do grupo** (Citations, cache de prompt e a
+  conversão de posição de caractere em índice de palavra). Se não couber na
+  sprint, divide-se em resposta com citação exibida (critérios 1, 3, 4 e 5) e
+  citação navegável (critério 2).
+- **As ordens 28 e 29 dependem dos números da US-124.** Se o custo por conta
+  ativa ficar acima do previsto, o ajuste de esforço e de cotas vem antes de
+  mais funções.
 
 ### Entregas: épicas US-62 a US-76
 

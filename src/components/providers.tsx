@@ -221,11 +221,11 @@ function AuthProvider({
           body: JSON.stringify(payload),
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) return { error: data.error ?? "Nao foi possivel concluir." };
+        if (!response.ok) return { error: data.error ?? "Não foi possível concluir." };
         setUser(data.user);
         return {};
       } catch {
-        return { error: "Sem conexao com o servidor." };
+        return { error: "Sem conexão com o servidor." };
       }
     },
     []
@@ -289,6 +289,8 @@ export interface ReadingSettings {
   theme: ThemePreference;
   /** Guia de primeiro uso do leitor ja visto nesta conta. */
   readerTipsSeen: boolean;
+  /** Envio de conteudo ao servico de IA (US-125): nulo enquanto a conta nao decidiu. */
+  aiEnabled: boolean | null;
 }
 
 export const FALLBACK_SETTINGS: ReadingSettings = {
@@ -307,6 +309,7 @@ export const FALLBACK_SETTINGS: ReadingSettings = {
   weeklySummarySeenOn: null,
   theme: "system",
   readerTipsSeen: false,
+  aiEnabled: null,
 };
 
 interface SettingsContextValue {

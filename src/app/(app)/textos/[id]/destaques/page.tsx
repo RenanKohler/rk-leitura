@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { latestAiResult } from "@/lib/ai-results";
+import { asStoredSynthesis } from "@/lib/highlight-synthesis";
 import { loadHighlights } from "@/lib/queries";
 import { HighlightsClient } from "./highlights-client";
 
@@ -21,10 +23,15 @@ export default async function HighlightsPage({
   const { id } = await params;
   const loaded = UUID_PATTERN.test(id) ? await loadHighlights(session.id, id) : null;
 
+  // Sintese dos destaques (US-140), se ja houver: a tela compara a impressao
+  // com os destaques de agora para dizer se ela esta desatualizada.
+  const stored = loaded ? await latestAiResult<unknown>(session.id, loaded.text.id, "sintese") : null;
+  const synthesis = stored ? asStoredSynthesis(stored.payload) : null;
+
   if (!loaded) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center">
-        <h1 className="text-xl font-semibold tracking-tight">Texto nao encontrado</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Texto não encontrado</h1>
         <p className="mt-2 text-muted">Ele pode ter sido removido.</p>
         <Link href="/textos" className="mt-4 inline-block font-medium text-accent">
           Voltar para a biblioteca
@@ -41,6 +48,7 @@ export default async function HighlightsPage({
       content={loaded.text.content}
       format={loaded.text.format}
       initial={loaded.items}
+      synthesis={synthesis}
     />
   );
 }

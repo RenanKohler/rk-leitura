@@ -37,6 +37,7 @@ import { excerptOf } from "@/lib/highlights";
 import { MAX_SAVED_WORDS } from "@/lib/dictionary";
 import { tagKey } from "@/lib/tags";
 import { cleanTitle, nextChapterUrl } from "@/lib/series";
+import { synopsesFor } from "@/lib/synopsis-ai";
 import { currentInterval, REVIEW_SESSION_SIZE } from "@/lib/vocabulary";
 import {
   effectiveWpm,
@@ -114,6 +115,7 @@ export const DEFAULT_SETTINGS: SettingsPayload = {
   placementSeen: false,
   reminderHour: null,
   readerTipsSeen: false,
+  aiEnabled: null,
 };
 
 export interface Page<T> {
@@ -220,6 +222,7 @@ function settingsFrom(row: typeof speedSettings.$inferSelect | null): SettingsPa
     placementSeen: row.placementSeenAt !== null,
     reminderHour: row.reminderHour,
     readerTipsSeen: row.readerTipsSeen,
+    aiEnabled: row.aiEnabled,
   };
 }
 
@@ -352,10 +355,14 @@ type SummaryRow = {
             : number;
 };
 
-/** Acrescenta destaques e etiquetas em duas consultas para a pagina toda. */
+/** Acrescenta destaques, etiquetas e sinopses em tres consultas para a pagina toda. */
 async function decorate(items: SummaryRow[]): Promise<TextSummary[]> {
   const ids = items.map((item) => item.id);
-  const [marks, labels] = await Promise.all([highlightCounts(ids), tagsByText(ids)]);
+  const [marks, labels, synopses] = await Promise.all([
+    highlightCounts(ids),
+    tagsByText(ids),
+    synopsesFor(ids),
+  ]);
 
   return items.map(({ autoImportedAt, abandonedAt, ...item }) => ({
     ...item,
@@ -364,6 +371,7 @@ async function decorate(items: SummaryRow[]): Promise<TextSummary[]> {
     fresh: autoImportedAt !== null && item.progressIndex === 0,
     highlights: marks.get(item.id) ?? 0,
     tags: labels.get(item.id) ?? [],
+    synopsis: synopses.get(item.id) ?? null,
     archivedAt: item.archivedAt ? isoDate(item.archivedAt) : null,
     createdAt: isoDate(item.createdAt),
     updatedAt: isoDate(item.updatedAt),

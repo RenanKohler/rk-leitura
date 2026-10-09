@@ -5,7 +5,9 @@
 export class ApiError extends Error {
   constructor(
     message: string,
-    readonly status: number
+    readonly status: number,
+    /** Corpo da resposta de erro, para campos alem da mensagem. */
+    readonly data: Record<string, unknown> = {}
   ) {
     super(message);
     this.name = "ApiError";
@@ -15,7 +17,11 @@ export class ApiError extends Error {
 async function parse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new ApiError((data as { error?: string }).error ?? "Falha na requisicao.", response.status);
+    throw new ApiError(
+      (data as { error?: string }).error ?? "Falha na requisição.",
+      response.status,
+      data as Record<string, unknown>
+    );
   }
   return data as T;
 }
@@ -36,4 +42,14 @@ export async function apiSend<T>(
       body: body === undefined ? undefined : JSON.stringify(body),
     })
   );
+}
+
+/**
+ * Estado de consentimento que uma rota de IA devolve no 403 (US-125):
+ * `pending` quando a conta ainda nao decidiu, `off` quando desligou.
+ */
+export function consentFrom(cause: unknown): "pending" | "off" | null {
+  if (!(cause instanceof ApiError) || cause.status !== 403) return null;
+  const consent = cause.data.consent;
+  return consent === "pending" || consent === "off" ? consent : null;
 }

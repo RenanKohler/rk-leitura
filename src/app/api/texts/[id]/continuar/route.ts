@@ -40,7 +40,7 @@ export async function POST(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const [text] = await db
       .select()
@@ -48,12 +48,12 @@ export async function POST(request: Request, { params }: Params) {
       .where(and(eq(texts.id, id), eq(texts.userId, session.id)))
       .limit(1);
 
-    if (!text) return jsonError("Texto nao encontrado.", 404);
+    if (!text) return jsonError("Texto não encontrado.", 404);
 
     if (!text.sourceUrl) {
       return NextResponse.json({
         status: "no-source",
-        message: "Este texto foi colado manualmente, nao ha origem para buscar.",
+        message: "Este texto foi colado manualmente, não há origem para buscar.",
       });
     }
 
@@ -67,7 +67,7 @@ export async function POST(request: Request, { params }: Params) {
     if (text.content.length >= MAX_CONTENT_CHARS) {
       return NextResponse.json({
         status: "full",
-        message: "Este texto ja atingiu o tamanho maximo.",
+        message: "Este texto já atingiu o tamanho máximo.",
       });
     }
 
@@ -85,7 +85,7 @@ export async function POST(request: Request, { params }: Params) {
     if (!target) {
       return NextResponse.json({
         status: "no-source",
-        message: "A origem deste texto nao e um endereco valido.",
+        message: "A origem deste texto não é um endereço válido.",
       });
     }
 
@@ -104,7 +104,7 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({
         status: "unavailable",
         page: nextPage,
-        message: "Nao consegui interpretar a proxima parte.",
+        message: "Não consegui interpretar a próxima parte.",
       });
     }
 
@@ -112,7 +112,7 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({
         status: "end",
         page: nextPage,
-        message: "Nao ha mais partes neste texto.",
+        message: "Não há mais partes neste texto.",
       });
     }
 
@@ -122,7 +122,7 @@ export async function POST(request: Request, { params }: Params) {
       return NextResponse.json({
         status: "end",
         page: nextPage,
-        message: "A origem repetiu a parte anterior: nao ha mais paginas.",
+        message: "A origem repetiu a parte anterior: não há mais páginas.",
       });
     }
 
@@ -166,7 +166,7 @@ export async function POST(request: Request, { params }: Params) {
 function endOrUnavailable(error: unknown, page: number) {
   if (error instanceof SafeFetchError) {
     if (error.status === 404 || error.status === 410) {
-      return { status: "end", page, message: "Nao ha mais partes neste texto." };
+      return { status: "end", page, message: "Não há mais partes neste texto." };
     }
     return { status: "unavailable", page, message: error.message };
   }
@@ -176,5 +176,5 @@ function endOrUnavailable(error: unknown, page: number) {
   }
 
   console.error("[texts/continuar] falha inesperada na busca:", error);
-  return { status: "unavailable", page, message: "Nao consegui buscar a proxima parte." };
+  return { status: "unavailable", page, message: "Não consegui buscar a próxima parte." };
 }

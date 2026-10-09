@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     if (tipo === "sessoes") return await exportSessions(session.id);
     if (tipo === "biblioteca") return await exportLibrary(session.id);
 
-    return jsonError("Informe tipo=sessoes ou tipo=biblioteca.", 400);
+    return jsonError("Informe tipo=sessões ou tipo=biblioteca.", 400);
   } catch (error) {
     return serverError("exportar", error);
   }

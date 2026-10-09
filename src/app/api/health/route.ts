@@ -14,6 +14,8 @@ export async function GET() {
   const config = {
     databaseUrl: hasValue(process.env.DATABASE_URL),
     jwtSecret: hasValue(process.env.JWT_SECRET),
+    // Questionario, dicionario e as demais funcoes de IA (US-123).
+    anthropicApiKey: hasValue(process.env.ANTHROPIC_API_KEY),
   };
 
   try {

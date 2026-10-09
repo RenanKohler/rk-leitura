@@ -128,7 +128,7 @@ test("link de pular para o conteudo", async ({ page }) => {
   await registerByApi(page.request);
   await page.goto("/textos");
   await page.keyboard.press("Tab");
-  const skip = page.getByRole("link", { name: "Pular para o conteudo" });
+  const skip = page.getByRole("link", { name: "Pular para o conteúdo" });
   await expect(skip).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#conteudo")).toBeFocused();

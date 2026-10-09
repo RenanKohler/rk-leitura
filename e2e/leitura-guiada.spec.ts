@@ -28,7 +28,7 @@ test("tempo livre sugere o texto que cabe no tempo", async ({ page }) => {
     .locator("#tempo-livre")
     .getByRole("link", { name: /Texto curto para o tempo livre/ });
   await expect(suggestion).toBeVisible();
-  await expect(suggestion).toContainText("ate o fim do texto");
+  await expect(suggestion).toContainText("até o fim do texto");
 });
 
 test("o leitor pausa no ponto de parada e compara previsto e real", async ({ page }) => {
@@ -46,7 +46,7 @@ test("o leitor pausa no ponto de parada e compara previsto e real", async ({ pag
   await expect.poll(() => progressOf(page.request, text.id)).toBeGreaterThanOrEqual(60);
 
   await sheet.getByRole("button", { name: "Continuar" }).click();
-  await expect(page.getByRole("heading", { name: "Leitura concluida" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Leitura concluída" })).toBeVisible({
     timeout: 15_000,
   });
 });

@@ -6,6 +6,7 @@ import { useResource } from "@/hooks/use-resource";
 import { apiGet, apiSend } from "@/lib/client";
 import { useSettings, useToast } from "@/components/providers";
 import { TagPicker } from "@/components/tag-picker";
+import { TextSynopsis } from "@/components/text-synopsis";
 import { TagManagerSheet } from "@/components/tag-manager-sheet";
 import { ContentSearchResults } from "@/components/content-search-results";
 import {
@@ -61,7 +62,7 @@ import type {
 // (APP-13).
 const STATUS_OPTIONS: { value: TextStatus; label: string }[] = [
   { value: "todos", label: "Ativos" },
-  { value: "nao-iniciados", label: "Nao lidos" },
+  { value: "nao-iniciados", label: "Não lidos" },
   { value: "em-andamento", label: "Lendo" },
   { value: "concluidos", label: "Lidos" },
   { value: "largados", label: "Largados" },
@@ -146,9 +147,9 @@ export function TextsClient({
     try {
       await apiSend(`/api/series?serie=${encodeURIComponent(key)}`, "DELETE");
       resource.reload();
-      notify("Serie desfeita. Os capitulos continuam na biblioteca.", "success");
+      notify("Série desfeita. Os capítulos continuam na biblioteca.", "success");
     } catch {
-      notify("Falha ao desfazer a serie.", "error");
+      notify("Falha ao desfazer a série.", "error");
     }
   };
 
@@ -162,7 +163,7 @@ export function TextsClient({
       else await apiSend(`/api/series/acompanhar?serie=${encodeURIComponent(key)}`, "DELETE");
       resource.reload();
       notify(
-        follow ? "Voce sera avisado quando sair um capitulo novo." : "Serie nao e mais acompanhada.",
+        follow ? "Você será avisado quando sair um capítulo novo." : "Série não é mais acompanhada.",
         "success"
       );
     } catch (cause) {
@@ -174,7 +175,7 @@ export function TextsClient({
     try {
       await apiSend(`/api/series?texto=${id}`, "DELETE");
       resource.reload();
-      notify("Capitulo desvinculado.", "success");
+      notify("Capítulo desvinculado.", "success");
     } catch {
       notify("Falha ao desvincular.", "error");
     }
@@ -196,7 +197,7 @@ export function TextsClient({
     const restoring = text.archivedAt !== null;
     try {
       await apiSend(`/api/texts/${text.id}/arquivo`, restoring ? "DELETE" : "POST");
-      notify(restoring ? "Texto de volta a biblioteca." : "Texto arquivado.", "success");
+      notify(restoring ? "Texto de volta à biblioteca." : "Texto arquivado.", "success");
       resource.reload();
     } catch {
       notify(restoring ? "Falha ao desarquivar." : "Falha ao arquivar.", "error");
@@ -206,7 +207,7 @@ export function TextsClient({
   const resumeText = async (text: TextSummary) => {
     try {
       await apiSend(`/api/texts/${text.id}/largar`, "DELETE");
-      notify("Texto de volta a biblioteca.", "success");
+      notify("Texto de volta à biblioteca.", "success");
       resource.reload();
     } catch {
       notify("Falha ao retomar.", "error");
@@ -234,7 +235,7 @@ export function TextsClient({
       setOriginal(detail.content);
       setEditing(detail);
     } catch {
-      notify("Nao foi possivel abrir o texto.", "error");
+      notify("Não foi possível abrir o texto.", "error");
     }
   };
 
@@ -344,7 +345,7 @@ export function TextsClient({
           autoCorrect="off"
           spellCheck={false}
           maxLength={MAX_QUERY_CHARS}
-          placeholder="Titulo ou trecho do texto"
+          placeholder="Título ou trecho do texto"
           value={query}
           onChange={(event) => changeFilter(() => setQuery(event.target.value))}
         />
@@ -407,13 +408,13 @@ export function TextsClient({
             <EmptyState
               icon={<ArchiveIcon className="size-7" />}
               title="Nada arquivado"
-              description="Textos concluidos vem parar aqui, e o historico de leitura deles continua contando."
+              description="Textos concluídos vêm parar aqui, e o histórico de leitura deles continua contando."
             />
           ) : filtering ? (
             <EmptyState
               icon={<LibraryIcon className="size-7" />}
               title="Nenhum texto encontrado"
-              description="Nada na biblioteca corresponde a busca e ao filtro escolhidos."
+              description="Nada na biblioteca corresponde à busca e ao filtro escolhidos."
               action={
                 <Button variant="secondary" onClick={clearFilters}>
                   Limpar filtros
@@ -512,7 +513,7 @@ export function TextsClient({
         {editing ? (
           <div className="space-y-4">
             <Field
-              label="Titulo"
+              label="Título"
               name="title"
               value={editing.title}
               onChange={(event) => setEditing({ ...editing, title: event.target.value })}
@@ -527,7 +528,7 @@ export function TextsClient({
               onChange={(event) => setEditing({ ...editing, sourceUrl: event.target.value })}
             />
             <TextArea
-              label="Conteudo"
+              label="Conteúdo"
               name="content"
               rows={12}
               value={editing.content}
@@ -537,7 +538,7 @@ export function TextsClient({
             <SelectField
               label="Idioma do texto"
               name="language"
-              hint="Define a voz da leitura em voz alta, o dicionario e o questionario."
+              hint="Define a voz da leitura em voz alta, o dicionário e o questionário."
               value={editing.language}
               options={LANGUAGES.map((language) => ({
                 value: language.code,
@@ -583,8 +584,8 @@ export function TextsClient({
         }
       >
         <p className="text-muted">
-          &quot;{pendingDelete?.title}&quot; e todo o historico de leitura dele serao apagados. Essa
-          acao nao pode ser desfeita.
+          &quot;{pendingDelete?.title}&quot; e todo o histórico de leitura dele serão apagados. Essa
+          ação não pode ser desfeita.
         </p>
       </Sheet>
     </div>
@@ -628,14 +629,14 @@ function TextActionsSheet({
       <ul className="space-y-1">
         {!archived && !text?.abandoned ? (
           <MenuAction icon={<QueueIcon className="size-5" />} onClick={act(onQueue)}>
-            {text?.queuePosition == null ? "Adicionar a fila" : "Tirar da fila"}
+            {text?.queuePosition == null ? "Adicionar à fila" : "Tirar da fila"}
           </MenuAction>
         ) : null}
         <MenuAction
           icon={archived ? <RestoreIcon className="size-5" /> : <ArchiveIcon className="size-5" />}
           onClick={act(onToggleArchive)}
         >
-          {archived ? "Voltar a biblioteca" : "Arquivar"}
+          {archived ? "Voltar à biblioteca" : "Arquivar"}
         </MenuAction>
         <MenuAction icon={<EditIcon className="size-5" />} onClick={act(onEdit)}>
           Editar
@@ -694,7 +695,7 @@ function TextCard({
                 <RestoreIcon className="size-5" />
               </IconButton>
             ) : null}
-            <IconButton label={`Mais acoes: ${text.title}`} onClick={onMore}>
+            <IconButton label={`Mais ações: ${text.title}`} onClick={onMore}>
               <MoreIcon className="size-5" />
             </IconButton>
           </div>
@@ -714,6 +715,10 @@ function TextCard({
             ))}
           </div>
         ) : null}
+
+        {/* A chave leva a data de alteracao: editar ou continuar o texto
+            descarta a sinopse que estava na tela junto com a do banco. */}
+        <TextSynopsis key={`${text.id}:${text.updatedAt}`} text={text} />
 
         {/* Fora do <Link> do titulo: um link dentro de outro nao e valido, e
             o toque cairia no destino errado. */}
@@ -784,7 +789,7 @@ function SeriesCard({
           </Link>
 
           <IconButton
-            label={open ? "Fechar capitulos" : "Ver capitulos"}
+            label={open ? "Fechar capítulos" : "Ver capítulos"}
             onClick={() => setOpen(!open)}
           >
             <ChevronIcon className={`size-5 transition-transform ${open ? "rotate-180" : ""}`} />
@@ -835,7 +840,7 @@ function SeriesCard({
                 aria-pressed={series.follow !== null}
                 onClick={() => onFollow(series.follow === null)}
               >
-                {series.follow ? "Deixar de acompanhar" : "Acompanhar novos capitulos"}
+                {series.follow ? "Deixar de acompanhar" : "Acompanhar novos capítulos"}
               </Button>
             )}
             {series.follow?.paused ? (
@@ -845,7 +850,7 @@ function SeriesCard({
             ) : null}
 
             <Button variant="secondary" full onClick={onUnlink}>
-              Desfazer a serie
+              Desfazer a série
             </Button>
           </div>
         ) : null}

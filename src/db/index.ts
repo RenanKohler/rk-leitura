@@ -41,7 +41,7 @@ export function resolveConnectionString(): string {
   const explicit = process.env.DATABASE_URL;
   if (explicit && explicit.trim().length > 0) return explicit.trim();
 
-  throw new Error("DATABASE_URL nao esta definida. Veja .env.example.");
+  throw new Error("DATABASE_URL não está definida. Veja .env.example.");
 }
 
 export function getPool(): Pool {
@@ -59,7 +59,7 @@ export function getPool(): Pool {
   // Sem este handler uma conexao ociosa derrubada pelo provedor vira um
   // `unhandledRejection` e mata o processo.
   pool.on("error", (error) => {
-    console.error("[db] erro em conexao ociosa:", error.message);
+    console.error("[db] erro em conexão ociosa:", error.message);
   });
 
   globalForDb.__rkLeituraPool = pool;

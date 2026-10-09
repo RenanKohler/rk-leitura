@@ -31,7 +31,7 @@ async function setArchived(params: Params["params"], archivedAt: Date | null) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Texto nao encontrado.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
     const [updated] = await db
       .update(texts)
@@ -41,7 +41,7 @@ async function setArchived(params: Params["params"], archivedAt: Date | null) {
       .where(and(eq(texts.id, id), eq(texts.userId, session.id)))
       .returning({ id: texts.id, archivedAt: texts.archivedAt });
 
-    if (!updated) return jsonError("Texto nao encontrado.", 404);
+    if (!updated) return jsonError("Texto não encontrado.", 404);
     return NextResponse.json({ text: updated });
   } catch (error) {
     return serverError("texts/arquivo", error);

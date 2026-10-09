@@ -152,14 +152,14 @@ export function isPrivateAddress(ip: string): boolean {
 
 async function assertPublicUrl(url: URL): Promise<void> {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new SafeFetchError("Apenas enderecos http e https sao aceitos.");
+    throw new SafeFetchError("Apenas endereços http e https são aceitos.");
   }
 
   const host = url.hostname.replace(/^\[|\]$/g, "");
 
   if (isIP(host)) {
     if (isPrivateAddress(host)) {
-      throw new SafeFetchError("Esse endereco aponta para a rede interna.");
+      throw new SafeFetchError("Esse endereço aponta para a rede interna.");
     }
     return;
   }
@@ -168,11 +168,11 @@ async function assertPublicUrl(url: URL): Promise<void> {
   try {
     addresses = await lookup(host, { all: true });
   } catch {
-    throw new SafeFetchError("Nao foi possivel resolver o endereco.");
+    throw new SafeFetchError("Não foi possível resolver o endereço.");
   }
 
   if (addresses.length === 0 || addresses.some((entry) => isPrivateAddress(entry.address))) {
-    throw new SafeFetchError("Esse endereco aponta para a rede interna.");
+    throw new SafeFetchError("Esse endereço aponta para a rede interna.");
   }
 }
 
@@ -183,7 +183,7 @@ async function assertPublicUrl(url: URL): Promise<void> {
 async function readCapped(response: Response): Promise<string> {
   const declared = Number(response.headers.get("content-length") ?? 0);
   if (declared > MAX_BYTES) {
-    throw new SafeFetchError("A pagina e grande demais para importar.");
+    throw new SafeFetchError("A página é grande demais para importar.");
   }
 
   const reader = response.body?.getReader();
@@ -198,7 +198,7 @@ async function readCapped(response: Response): Promise<string> {
     total += value.length;
     if (total > MAX_BYTES) {
       await reader.cancel();
-      throw new SafeFetchError("A pagina e grande demais para importar.");
+      throw new SafeFetchError("A página é grande demais para importar.");
     }
     chunks.push(value);
   }
@@ -232,7 +232,7 @@ async function fetchPublic(
   try {
     url = new URL(rawUrl);
   } catch {
-    throw new SafeFetchError("URL invalida.");
+    throw new SafeFetchError("URL inválida.");
   }
 
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
@@ -256,12 +256,12 @@ async function fetchPublic(
     }
 
     if (!response.ok) {
-      throw new SafeFetchError(`A pagina respondeu com status ${response.status}.`, response.status);
+      throw new SafeFetchError(`A página respondeu com status ${response.status}.`, response.status);
     }
 
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType && !types.test(contentType)) {
-      throw new SafeFetchError("O endereco nao devolveu uma pagina de texto.");
+      throw new SafeFetchError("O endereço não devolveu uma página de texto.");
     }
 
     return { html: await readCapped(response), finalUrl: url.toString() };

@@ -146,7 +146,7 @@ export function GoalCard({
                 ? `${status.streak} ${status.streak === 1 ? "dia seguido" : "dias seguidos"}${
                     status.pendingToday ? " · falta hoje" : ""
                   } · melhor: ${status.bestStreak}`
-                : "Cumpra a meta hoje para comecar uma sequencia."}
+                : "Cumpra a meta hoje para começar uma sequência."}
             </div>
 
             {remaining !== null && remaining > 0 && onSuggest ? (
@@ -160,12 +160,12 @@ export function GoalCard({
           </>
         ) : (
           <p className="text-sm text-muted">
-            Defina quantos minutos ou palavras quer ler por dia e acompanhe a sequencia.
+            Defina quantos minutos ou palavras quer ler por dia e acompanhe a sequência.
           </p>
         )}
       </Card>
 
-      <Sheet open={editing} onClose={() => setEditing(false)} title="Meta diaria">
+      <Sheet open={editing} onClose={() => setEditing(false)} title="Meta diária">
         <div className="space-y-5">
           <Segmented<GoalKind>
             label="Tipo de meta"

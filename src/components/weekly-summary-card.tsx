@@ -39,10 +39,10 @@ export function WeeklySummaryCard({ summary }: { summary: WeeklySummary }) {
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <Figure label="Minutos" value={formatNumber(summary.minutes)} change={summary.minutesChange} />
-        <Figure label="Ritmo medio" value={`${summary.wpm} ppm`} change={summary.wpmChange} />
+        <Figure label="Ritmo médio" value={`${summary.wpm} ppm`} change={summary.wpmChange} />
         <Figure label="Palavras" value={formatNumber(summary.words)} />
         <Figure
-          label="Textos concluidos"
+          label="Textos concluídos"
           value={formatNumber(summary.texts)}
         />
       </div>
@@ -50,7 +50,7 @@ export function WeeklySummaryCard({ summary }: { summary: WeeklySummary }) {
       {/* Largar um texto fraco conta como ganho, nao como fracasso (US-81). */}
       {summary.savedMinutes > 0 ? (
         <p className="text-sm text-muted">
-          {`${formatNumber(summary.savedMinutes)} min economizados ao largar textos que nao valiam a leitura.`}
+          {`${formatNumber(summary.savedMinutes)} min economizados ao largar textos que não valiam a leitura.`}
         </p>
       ) : null}
 

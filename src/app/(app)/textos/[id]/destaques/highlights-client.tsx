@@ -2,12 +2,25 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { apiSend } from "@/lib/client";
+import { apiSend, consentFrom } from "@/lib/client";
+import { AiConsentNotice, AiOffNotice } from "@/components/ai-consent";
 import { useToast } from "@/components/providers";
 import { Button, Card, EmptyState, SectionTitle } from "@/components/ui";
-import { BackIcon, CopyIcon, DownloadIcon, MarkIcon, TrashIcon } from "@/components/icons";
+import {
+  BackIcon,
+  CopyIcon,
+  DownloadIcon,
+  MarkIcon,
+  SparkIcon,
+  TrashIcon,
+} from "@/components/icons";
 import { exportFileName, toMarkdown } from "@/lib/highlights";
 import { annotatedFileName, annotatedMarkdown } from "@/lib/annotated-export";
+import {
+  isSynthesisStale,
+  MIN_HIGHLIGHTS_FOR_SYNTHESIS,
+  type StoredSynthesis,
+} from "@/lib/highlight-synthesis";
 import type { TextFormat } from "@/lib/reading";
 import type { HighlightItem } from "@/lib/types";
 
@@ -25,6 +38,7 @@ export function HighlightsClient({
   content,
   format,
   initial,
+  synthesis: initialSynthesis = null,
 }: {
   textId: string;
   title: string;
@@ -32,10 +46,43 @@ export function HighlightsClient({
   content: string;
   format: TextFormat;
   initial: HighlightItem[];
+  /** Sintese guardada dos destaques (US-140). */
+  synthesis?: StoredSynthesis | null;
 }) {
   const notify = useToast();
   const [items, setItems] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const [synthesis, setSynthesis] = useState(initialSynthesis);
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [synthesisError, setSynthesisError] = useState("");
+  const [consent, setConsent] = useState<"pending" | "off" | null>(null);
+
+  // Destaque que entrou, saiu ou mudou de nota depois da sintese.
+  const stale = synthesis ? isSynthesisStale(synthesis, items) : false;
+  const canSynthesize = items.length >= MIN_HIGHLIGHTS_FOR_SYNTHESIS;
+
+  const synthesize = async () => {
+    setSynthesizing(true);
+    setSynthesisError("");
+    try {
+      const data = await apiSend<{ synthesis: StoredSynthesis }>(
+        `/api/texts/${textId}/destaques/sintese`,
+        "POST"
+      );
+      setSynthesis(data.synthesis);
+      setConsent(null);
+    } catch (cause) {
+      const state = consentFrom(cause);
+      if (state) {
+        setConsent(state);
+        return;
+      }
+      // IA indisponivel ou cota do dia: a mensagem fica no cartao, a lista nao muda.
+      setSynthesisError(cause instanceof Error ? cause.message : "Não consegui sintetizar agora.");
+    } finally {
+      setSynthesizing(false);
+    }
+  };
 
   const markdown = () =>
     toMarkdown(
@@ -60,7 +107,8 @@ export function HighlightsClient({
     save(
       annotatedMarkdown(
         { title, sourceUrl, content, format },
-        items.map((item) => ({ start: item.start, end: item.end, note: item.note }))
+        items.map((item) => ({ start: item.start, end: item.end, note: item.note })),
+        synthesis ? { text: synthesis.synthesis, stale } : null
       ),
       annotatedFileName(title)
     );
@@ -72,7 +120,7 @@ export function HighlightsClient({
     } catch {
       // Sem permissao de area de transferencia (ou fora de HTTPS) o arquivo
       // continua sendo um caminho: a exportacao nao depende de um so gesto.
-      notify("Nao consegui copiar. Use o download.", "error");
+      notify("Não consegui copiar. Use o download.", "error");
     }
   };
 
@@ -82,7 +130,7 @@ export function HighlightsClient({
       await apiSend(`/api/texts/${textId}/destaques/${id}`, "DELETE");
       setItems((current) => current.filter((item) => item.id !== id));
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Nao consegui remover.", "error");
+      notify(cause instanceof Error ? cause.message : "Não consegui remover.", "error");
     } finally {
       setBusy(false);
     }
@@ -142,6 +190,70 @@ export function HighlightsClient({
             Baixar o texto anotado (.md)
           </Button>
 
+          {canSynthesize ? (
+            <Card className="mt-6 space-y-3 p-4" data-testid="sintese">
+              <SectionTitle
+                action={
+                  synthesis && stale ? (
+                    <span
+                      className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted"
+                      data-testid="sintese-desatualizada"
+                    >
+                      Desatualizada
+                    </span>
+                  ) : null
+                }
+              >
+                Síntese
+              </SectionTitle>
+
+              {consent === "pending" ? (
+                <AiConsentNotice
+                  onDecided={(allowed) => {
+                    setConsent(allowed ? null : "off");
+                    if (allowed) void synthesize();
+                  }}
+                />
+              ) : (
+                <>
+                  {synthesis ? (
+                    <p className="text-sm leading-relaxed" data-testid="sintese-texto">
+                      {synthesis.synthesis}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted">
+                      Um parágrafo curto com o que os seus destaques dizem juntos, citando cada um
+                      pelo número. Só os trechos destacados e as notas são enviados.
+                    </p>
+                  )}
+                  {synthesis && stale ? (
+                    <p className="text-sm text-muted">
+                      Os destaques mudaram depois desta síntese.
+                    </p>
+                  ) : null}
+                  {synthesisError ? (
+                    <p className="text-sm text-danger" role="alert">
+                      {synthesisError}
+                    </p>
+                  ) : null}
+                  {consent === "off" ? <AiOffNotice /> : null}
+                  {!synthesis || stale ? (
+                    <Button
+                      variant="secondary"
+                      full
+                      loading={synthesizing}
+                      disabled={consent === "off"}
+                      onClick={() => void synthesize()}
+                    >
+                      <SparkIcon className="size-5" />
+                      {synthesis ? "Gerar de novo" : "Sintetizar meus destaques"}
+                    </Button>
+                  ) : null}
+                </>
+              )}
+            </Card>
+          ) : null}
+
           <div className="mt-6">
             <SectionTitle>Trechos</SectionTitle>
           </div>
@@ -154,6 +266,10 @@ export function HighlightsClient({
                 style={{ animationDelay: `${Math.min(position, 8) * 40}ms` }}
               >
                 <Card className="p-4">
+                  {synthesis && canSynthesize ? (
+                    // O numero que a sintese cita entre colchetes.
+                    <p className="mb-1 text-xs font-medium text-faint">[{position + 1}]</p>
+                  ) : null}
                   {/* O toque no trecho leva a leitura ate ele: revisar a nota
                       e voltar ao contexto sao a mesma tarefa. */}
                   <Link href={`/leitor/${textId}?de=${item.start}`} className="block">

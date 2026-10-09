@@ -28,7 +28,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Palavra nao encontrada.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Palavra não encontrada.", 404);
 
     const body = await readJson<{ learned?: unknown; definition?: unknown }>(request);
 
@@ -41,7 +41,7 @@ export async function PATCH(request: Request, { params }: Params) {
         .set({ definition, updatedAt: new Date() })
         .where(and(eq(savedWords.id, id), eq(savedWords.userId, session.id)))
         .returning({ id: savedWords.id });
-      if (!edited) return jsonError("Palavra nao encontrada.", 404);
+      if (!edited) return jsonError("Palavra não encontrada.", 404);
       return NextResponse.json({ definition });
     }
 
@@ -62,7 +62,7 @@ export async function PATCH(request: Request, { params }: Params) {
       .where(and(eq(savedWords.id, id), eq(savedWords.userId, session.id)))
       .returning({ id: savedWords.id });
 
-    if (!updated) return jsonError("Palavra nao encontrada.", 404);
+    if (!updated) return jsonError("Palavra não encontrada.", 404);
     return NextResponse.json({ learned: body.learned });
   } catch (error) {
     return serverError("palavras/aprendida", error);

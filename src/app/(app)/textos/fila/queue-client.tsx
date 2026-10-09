@@ -63,7 +63,7 @@ export function QueueClient({ initial, stale = [] }: { initial: TextSummary[]; s
       setUndo({ restore: result.restore, before });
       setReviewing(false);
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Nao consegui largar.", "error");
+      notify(cause instanceof Error ? cause.message : "Não consegui largar.", "error");
     } finally {
       setBankrupting(false);
     }
@@ -77,9 +77,9 @@ export function QueueClient({ initial, stale = [] }: { initial: TextSummary[]; s
       await apiSend("/api/fila/retomar", "POST", { restore: snapshot.restore });
       apply(snapshot.before);
       setStaleIds(stale);
-      notify("Textos de volta a fila.", "success");
+      notify("Textos de volta à fila.", "success");
     } catch {
-      notify("Nao consegui desfazer.", "error");
+      notify("Não consegui desfazer.", "error");
     }
   };
   const [dragging, setDragging] = useState<string | null>(null);
@@ -106,7 +106,7 @@ export function QueueClient({ initial, stale = [] }: { initial: TextSummary[]; s
       await apiSend("/api/fila", "PUT", { ids: next.map((item) => item.id) });
     } catch {
       apply(before);
-      notify("Nao consegui salvar a ordem.", "error");
+      notify("Não consegui salvar a ordem.", "error");
     }
   };
 
@@ -122,7 +122,7 @@ export function QueueClient({ initial, stale = [] }: { initial: TextSummary[]; s
       await apiSend(`/api/fila?texto=${id}`, "DELETE");
     } catch {
       apply(before);
-      notify("Nao consegui tirar da fila.", "error");
+      notify("Não consegui tirar da fila.", "error");
     }
   };
 
@@ -156,7 +156,7 @@ export function QueueClient({ initial, stale = [] }: { initial: TextSummary[]; s
       setDragging(null);
       // Grava uma vez, no fim do gesto: durante ele a ordem muda a cada pixel.
       void apiSend("/api/fila", "PUT", { ids: orderRef.current.map((item) => item.id) }).catch(
-        () => notify("Nao consegui salvar a ordem.", "error")
+        () => notify("Não consegui salvar a ordem.", "error")
       );
     };
 
@@ -180,7 +180,7 @@ export function QueueClient({ initial, stale = [] }: { initial: TextSummary[]; s
           <p className="mt-1 text-sm text-muted">
             {items.length === 0
               ? "Vazia"
-              : `${items.length} ${items.length === 1 ? "texto" : "textos"} na ordem que voce definiu`}
+              : `${items.length} ${items.length === 1 ? "texto" : "textos"} na ordem que você definiu`}
           </p>
         </div>
       </header>
@@ -202,8 +202,8 @@ export function QueueClient({ initial, stale = [] }: { initial: TextSummary[]; s
         <Card className="space-y-3 p-4">
           <p className="text-sm">
             {staleItems.length === 1
-              ? `1 texto parado ha mais de ${STALE_QUEUE_DAYS} dias.`
-              : `${staleItems.length} textos parados ha mais de ${STALE_QUEUE_DAYS} dias.`}
+              ? `1 texto parado há mais de ${STALE_QUEUE_DAYS} dias.`
+              : `${staleItems.length} textos parados há mais de ${STALE_QUEUE_DAYS} dias.`}
           </p>
           <Button variant="secondary" full onClick={openReview}>
             Revisar e largar
@@ -261,7 +261,7 @@ export function QueueClient({ initial, stale = [] }: { initial: TextSummary[]; s
           <EmptyState
             icon={<QueueIcon className="size-7" />}
             title="Fila vazia"
-            description="Use o botao de fila no cartao de um texto para coloca-lo aqui. Ao terminar uma leitura, o app oferece o proximo da fila."
+            description="Use o botão de fila no cartão de um texto para colocá-lo aqui. Ao terminar uma leitura, o app oferece o próximo da fila."
             action={<LinkButton href="/textos">Ir para a biblioteca</LinkButton>}
           />
         </Card>
@@ -328,14 +328,14 @@ export function QueueClient({ initial, stale = [] }: { initial: TextSummary[]; s
 
       {items.length > 1 ? (
         <p className="text-center text-sm text-faint">
-          Arraste pela alca, ou use as setas.
+          Arraste pela alça, ou use as setas.
         </p>
       ) : null}
 
       {items.length > 0 ? (
         <Link href={`/leitor/${items[0]!.id}`} className="block">
           <Button size="lg" full>
-            Comecar pelo primeiro
+            Começar pelo primeiro
           </Button>
         </Link>
       ) : null}

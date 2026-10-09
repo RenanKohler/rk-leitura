@@ -18,13 +18,13 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   try {
     const { deviceId } = await params;
-    if (!UUID_PATTERN.test(deviceId)) return jsonError("Aparelho nao encontrado.", 404);
+    if (!UUID_PATTERN.test(deviceId)) return jsonError("Aparelho não encontrado.", 404);
     if (deviceId === session.sid) {
       return jsonError("Para desconectar este aparelho, use Sair.", 400);
     }
 
     const revoked = await revokeSessions(session.id, deviceId);
-    if (revoked.length === 0) return jsonError("Aparelho nao encontrado.", 404);
+    if (revoked.length === 0) return jsonError("Aparelho não encontrado.", 404);
     return NextResponse.json({ success: true });
   } catch (error) {
     return serverError("aparelhos/delete", error);

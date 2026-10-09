@@ -45,3 +45,24 @@ describe("annotatedMarkdown (US-100)", () => {
     expect(annotatedFileName("A/B: teste")).toBe("ab-teste-anotado.md");
   });
 });
+
+describe("annotatedMarkdown com sintese (US-140)", () => {
+  it("poe a secao Sintese no topo, antes do texto", () => {
+    const md = annotatedMarkdown(plain, [], { text: "Ideia central [1][2]." });
+    expect(md).toContain("## Síntese");
+    expect(md.indexOf("# Ensaio")).toBeLessThan(md.indexOf("## Síntese"));
+    expect(md.indexOf("## Síntese")).toBeLessThan(md.indexOf("Primeiro"));
+    expect(md).toContain("Ideia central [1][2].");
+    expect(md).not.toContain("Gerada antes");
+  });
+
+  it("avisa quando a sintese esta desatualizada", () => {
+    const md = annotatedMarkdown(plain, [], { text: "Ideia [1].", stale: true });
+    expect(md).toContain("_Gerada antes da última mudança nos destaques._");
+  });
+
+  it("sem sintese nao ha secao", () => {
+    expect(annotatedMarkdown(plain, [], null)).not.toContain("Síntese");
+    expect(annotatedMarkdown(plain, [], { text: "  " })).not.toContain("Síntese");
+  });
+});

@@ -67,6 +67,7 @@ import { apiGet, apiSend } from "@/lib/client";
 import { SPEED_BAND_LABELS, speedBand, speedBandWarning } from "@/lib/speed-bands";
 import { QuizSheet } from "@/components/quiz-sheet";
 import { NavigateSheet } from "@/components/navigate-sheet";
+import { ChapterSummaryGate, ReadSummary } from "@/components/recap-summary";
 import { countCitations } from "@/lib/citations";
 import {
   EYE_REST_AFTER_MS,
@@ -79,6 +80,8 @@ import {
 } from "@/lib/navigation";
 import { HighlightSheet } from "@/components/highlight-sheet";
 import { WordSheet } from "@/components/word-sheet";
+import { ExplainSheet } from "@/components/explain-sheet";
+import { AskSheet } from "@/components/ask-sheet";
 import { MIN_WORDS_FOR_QUIZ } from "@/lib/quiz";
 import { useWordSelection, wordIndexFromPoint } from "@/hooks/use-word-selection";
 import { useWordTouch } from "@/hooks/use-word-touch";
@@ -174,6 +177,9 @@ interface ReaderProps {
   /** Palavras ja consultadas, que ganham tempo no Word Runner (US-88). */
   knownWords?: string[];
 }
+
+/** Id da marca do trecho em releitura (US-134): nao e um destaque gravado. */
+const REREAD_MARK = "releitura";
 
 export function ReaderClient(props: ReaderProps) {
   return <Reader key={props.text.id} {...props} />;
@@ -417,6 +423,9 @@ function Reader({
   const savedIndexRef = useRef(index);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [quizOpen, setQuizOpen] = useState(false);
+  // Trecho de uma pergunta errada aberto para reler (US-134): fica marcado na
+  // pagina ate "Voltar para onde parou" devolver a tela de conclusao.
+  const [reread, setReread] = useState<Span | null>(null);
   const [comprehension, setComprehension] = useState<number | null>(null);
   // Tempo lido nesta visita, somado a cada sessao fechada: o cabecalho nao
   // pode voltar a 0:00 so porque uma sessao foi gravada.
@@ -502,6 +511,17 @@ function Reader({
     () => marks.map(({ id, start, end, note }) => ({ id, start, end, note })),
     [marks]
   );
+  // A marca da releitura e so visual: tira da frente os destaques que ela cruza.
+  const pageMarks: StoredHighlight[] = useMemo(
+    () =>
+      reread
+        ? [
+            ...stored.filter((mark) => mark.end <= reread.start || mark.start >= reread.end),
+            { id: REREAD_MARK, start: reread.start, end: reread.end, note: null },
+          ]
+        : stored,
+    [stored, reread]
+  );
 
   const createMark = useCallback(
     async (range: Span) => {
@@ -518,7 +538,7 @@ function Reader({
         if (stateRef.current.playing) setAnnouncement("Frase destacada.");
         else notify("Trecho destacado.", "success");
       } catch (cause) {
-        notify(cause instanceof Error ? cause.message : "Nao consegui destacar.", "error");
+        notify(cause instanceof Error ? cause.message : "Não consegui destacar.", "error");
       } finally {
         setMarking(false);
         clearSelection();
@@ -589,9 +609,9 @@ function Reader({
       );
 
       if (result.id) router.push(`/leitor/${result.id}`);
-      else notify(result.message ?? "Esta e a ultima parte da serie.", "info");
+      else notify(result.message ?? "Esta é a última parte da série.", "info");
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Sem conexao para buscar.", "error");
+      notify(cause instanceof Error ? cause.message : "Sem conexão para buscar.", "error");
     } finally {
       setLoadingNext(false);
     }
@@ -705,10 +725,11 @@ function Reader({
       setPlaying(false);
       setIndex(stateRef.current.total);
       setFinished(true);
+      setReread(null);
       saveProgress(stateRef.current.total);
       setSummary(done);
       flushSession(true);
-      setAnnouncement("Leitura concluida.");
+      setAnnouncement("Leitura concluída.");
     },
     [saveProgress, flushSession]
   );
@@ -755,7 +776,7 @@ function Reader({
     setFinished(false);
     setTapped(null);
     setPlaying(true);
-    setAnnouncement(playMode === "guia" ? "Guia na pagina iniciado." : "Word Runner iniciado.");
+    setAnnouncement(playMode === "guia" ? "Guia na página iniciado." : "Word Runner iniciado.");
   }, [resumeRewind, words, paragraphs, wpm, language, postRecord, playMode, speech]);
 
   const togglePlay = useCallback(() => {
@@ -1032,12 +1053,12 @@ function Reader({
       }
 
       notify(
-        result.message ?? "Nao ha mais partes neste texto.",
+        result.message ?? "Não há mais partes neste texto.",
         result.status === "unavailable" ? "error" : "info"
       );
       return false;
     } catch {
-      notify("Sem conexao para buscar a proxima parte.", "error");
+      notify("Sem conexão para buscar a próxima parte.", "error");
       return false;
     } finally {
       setLoadingMore(false);
@@ -1069,7 +1090,7 @@ function Reader({
       if (target === undefined) {
         if (direction === -1) {
           // Na primeira pagina, voltar nao mexe na posicao escolhida.
-          notify("Inicio do texto.", "info");
+          notify("Início do texto.", "info");
           return;
         }
         // Fim do que ja foi importado: tenta trazer a proxima parte da origem;
@@ -1131,6 +1152,9 @@ function Reader({
   );
 
   const [navigating, setNavigating] = useState(false);
+  // Frase a explicar (US-127) e conversa com o texto (US-128).
+  const [explaining, setExplaining] = useState<number | null>(null);
+  const [asking, setAsking] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
@@ -1168,7 +1192,7 @@ function Reader({
         flushSession(false, true);
         window.location.reload();
       } catch (cause) {
-        notify(cause instanceof Error ? cause.message : "Nao consegui reprocessar.", "error");
+        notify(cause instanceof Error ? cause.message : "Não consegui reprocessar.", "error");
         setReprocessing(false);
       }
     },
@@ -1178,6 +1202,7 @@ function Reader({
   const restart = useCallback(() => {
     pause("folha");
     setFinished(false);
+    setReread(null);
     setSummary(null);
     setAnchor(0);
     seek(0);
@@ -1217,6 +1242,8 @@ function Reader({
   const sheetOpen =
     showSettings ||
     navigating ||
+    explaining !== null ||
+    asking ||
     shortcutsOpen ||
     openMark !== null ||
     wordOpen ||
@@ -1236,7 +1263,7 @@ function Reader({
       notify("Texto largado. Ele fica no filtro Largados da biblioteca.", "success");
       router.push("/textos");
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Nao consegui largar.", "error");
+      notify(cause instanceof Error ? cause.message : "Não consegui largar.", "error");
       setAbandoning(false);
     }
   }, [text.id, saveProgress, notify, router]);
@@ -1246,9 +1273,9 @@ function Reader({
     try {
       await apiSend(`/api/texts/${text.id}/largar`, "DELETE");
       setResumed(true);
-      notify("Texto de volta a biblioteca.", "success");
+      notify("Texto de volta à biblioteca.", "success");
     } catch {
-      notify("Nao consegui retomar.", "error");
+      notify("Não consegui retomar.", "error");
     }
   }, [text.id, notify]);
 
@@ -1310,6 +1337,10 @@ function Reader({
         lookupCurrent();
       } else if (event.key === "h" || event.key === "H") {
         markSentenceAt(stateRef.current.index);
+      } else if (event.key === "e" || event.key === "E") {
+        setExplaining(Math.min(stateRef.current.index, words.length - 1));
+      } else if (event.key === "p" || event.key === "P") {
+        setAsking(true);
       } else if (event.key === "ArrowLeft") {
         // Correndo, as setas andam por frase; parado, viram a pagina.
         if (stateRef.current.playing) backSentence();
@@ -1338,6 +1369,7 @@ function Reader({
     recapPlaying,
     lookupCurrent,
     markSentenceAt,
+    words.length,
   ]);
 
   // Pausar pelo toque no Word Runner tira o foco da tela: ele volta para o
@@ -1387,7 +1419,7 @@ function Reader({
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-4 px-6 text-center">
         <h1 className="text-xl font-semibold tracking-tight">Texto vazio</h1>
-        <p className="text-muted">Nao ha palavras para ler neste registro.</p>
+        <p className="text-muted">Não há palavras para ler neste registro.</p>
         <Link href="/textos" className="font-medium text-accent">
           Voltar para a biblioteca
         </Link>
@@ -1456,6 +1488,15 @@ function Reader({
 
           <button
             type="button"
+            onClick={() => setAsking(true)}
+            aria-label="Perguntar ao texto"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+          >
+            <SparkIcon className="size-5" />
+          </button>
+
+          <button
+            type="button"
             onClick={() => setNavigating(true)}
             aria-label="Navegar no texto"
             className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
@@ -1495,20 +1536,23 @@ function Reader({
         className={`relative flex min-h-0 flex-1 flex-col ${finished || recapPlaying || chapterRecapPlaying ? "overflow-y-auto" : ""}`}
       >
         {chapterRecapPlaying && chapterRecap ? (
-          <RecapPlayer
-            marks={chapterRecap.highlights}
-            words={chapterRecapWords}
-            wpm={wpm}
-            title={`Antes: ${chapterRecap.title}`}
-            onDone={() => {
-              setChapterRecap(null);
-              setChapterRecapPlaying(false);
-            }}
-            onSkip={() => {
-              setChapterRecap(null);
-              setChapterRecapPlaying(false);
-            }}
-          />
+          // Resumo do capitulo inteiro antes dos destaques e do final (US-131).
+          <ChapterSummaryGate chapterId={chapterRecap.id} title={chapterRecap.title}>
+            <RecapPlayer
+              marks={chapterRecap.highlights}
+              words={chapterRecapWords}
+              wpm={wpm}
+              title={`Antes: ${chapterRecap.title}`}
+              onDone={() => {
+                setChapterRecap(null);
+                setChapterRecapPlaying(false);
+              }}
+              onSkip={() => {
+                setChapterRecap(null);
+                setChapterRecapPlaying(false);
+              }}
+            />
+          </ChapterSummaryGate>
         ) : recapPlaying && recap ? (
           <RecapPlayer
             marks={recapMarks}
@@ -1542,14 +1586,14 @@ function Reader({
               pageEnd={pageEnd}
               ready={pagesReady}
               loadingMore={loadingMore}
-              marks={stored}
+              marks={pageMarks}
               emphasis={emphasis}
               current={currentOnPage}
               hidden={runnerVisible}
               touch={word.handlers}
               onTurn={turnPage}
               onTap={onPageTap}
-              onOpenMark={setOpenMark}
+              onOpenMark={(id) => (id === REREAD_MARK ? undefined : setOpenMark(id))}
             />
             {!settings.readerTipsSeen &&
             !tipsDismissed &&
@@ -1586,7 +1630,7 @@ function Reader({
           <div className="pointer-events-none absolute inset-x-0 bottom-full flex flex-col items-center gap-2 px-4 pb-2">
             {text.abandoned && !resumed ? (
               <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-float">
-                <p className="flex-1 text-sm">Voce largou este texto. Ele esta fora da biblioteca.</p>
+                <p className="flex-1 text-sm">Você largou este texto. Ele está fora da biblioteca.</p>
                 <Button size="sm" onClick={() => void resume()}>
                   Retomar
                 </Button>
@@ -1598,7 +1642,7 @@ function Reader({
                 <div>
                   <p className="font-medium">Recapitular o contexto</p>
                   <p className="text-sm text-muted">
-                    Faz tempo desde a ultima leitura. Reveja o trecho anterior antes de continuar.
+                    Faz tempo desde a última leitura. Reveja o trecho anterior antes de continuar.
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -1607,13 +1651,19 @@ function Reader({
                   </Button>
                   <Button onClick={() => setRecapPlaying(true)}>Recapitular</Button>
                 </div>
+                {/* Resumo do que li (US-130): some quando a IA nao serve. */}
+                <ReadSummary
+                  textId={text.id}
+                  position={recap.to}
+                  onContinue={() => endRecap(true)}
+                />
               </div>
             ) : null}
 
             {chapterRecap && !recap && !playing && !narrating ? (
               <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
                 <div>
-                  <p className="font-medium">Recapitular o capitulo anterior</p>
+                  <p className="font-medium">Recapitular o capítulo anterior</p>
                   <p className="text-sm text-muted">
                     {`Faz tempo desde "${chapterRecap.title}". Reveja os destaques e o final antes de seguir.`}
                   </p>
@@ -1641,7 +1691,7 @@ function Reader({
                 </Button>
                 <button
                   type="button"
-                  aria-label="Dispensar sugestao"
+                  aria-label="Dispensar sugestão"
                   onClick={() => setSlowdown(null)}
                   className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
                 >
@@ -1678,13 +1728,29 @@ function Reader({
                   <MarkIcon className="size-5" />
                   Destacar
                 </Button>
-                <ControlButton label="Cancelar selecao" onClick={clearSelection}>
+                <ControlButton label="Cancelar seleção" onClick={clearSelection}>
                   <CloseIcon className="size-5" />
                 </ControlButton>
               </div>
             ) : null}
 
-            {showReturn && !selection ? (
+            {reread && !playing && !narrating && !finished && !selection ? (
+              <button
+                type="button"
+                onClick={() => {
+                  // Volta ao fim, onde a leitura tinha parado, com o resultado.
+                  setReread(null);
+                  stateRef.current.index = stateRef.current.total;
+                  setIndex(stateRef.current.total);
+                  saveProgress(stateRef.current.total);
+                  setFinished(true);
+                  setQuizOpen(true);
+                }}
+                className="pointer-events-auto min-h-11 rounded-full border border-border bg-surface px-4 text-sm font-medium shadow-float"
+              >
+                Voltar para onde parou
+              </button>
+            ) : showReturn && !selection ? (
               <button
                 type="button"
                 onClick={() => seek(anchor)}
@@ -1716,7 +1782,7 @@ function Reader({
             <div className="grid grid-cols-5 items-center justify-items-center">
               {!playing ? (
                 <ControlButton
-                  label={narrating ? "Parar a narracao" : "Ler em voz alta"}
+                  label={narrating ? "Parar a narração" : "Ler em voz alta"}
                   onClick={toggleSpeech}
                   active={narrating}
                 >
@@ -1731,7 +1797,7 @@ function Reader({
                   <RewindIcon className="size-5" />
                 </ControlButton>
               ) : (
-                <ControlButton label="Pagina anterior" onClick={() => turnPage(-1)}>
+                <ControlButton label="Página anterior" onClick={() => turnPage(-1)}>
                   <BackIcon className="size-5" />
                 </ControlButton>
               )}
@@ -1747,11 +1813,11 @@ function Reader({
               </button>
 
               {playing ? (
-                <ControlButton label="Avancar a frase" onClick={forwardSentence}>
+                <ControlButton label="Avançar a frase" onClick={forwardSentence}>
                   <FastForwardIcon className="size-5" />
                 </ControlButton>
               ) : (
-                <ControlButton label="Proxima pagina" onClick={() => turnPage(1)}>
+                <ControlButton label="Próxima página" onClick={() => turnPage(1)}>
                   <ForwardIcon className="size-5" />
                 </ControlButton>
               )}
@@ -1780,10 +1846,10 @@ function Reader({
                     : `${wpm} ppm`
                   : pagesReady
                     ? stopPage !== null && !stopReached
-                      ? `Pagina ${currentPage + 1} de ${pages.length} · trecho ate a p. ${stopPage}${
+                      ? `Página ${currentPage + 1} de ${pages.length} · trecho até a p. ${stopPage}${
                           plannedMs ? ` (~${formatClock(plannedMs)})` : ""
                         }`
-                      : `Pagina ${currentPage + 1} de ${pages.length}`
+                      : `Página ${currentPage + 1} de ${pages.length}`
                     : ""}
               </p>
             </div>
@@ -1812,7 +1878,7 @@ function Reader({
                     setAnchor(position);
                   }}
                 >
-                  Comecar daqui
+                  Começar daqui
                 </Button>
                 <Button
                   variant="secondary"
@@ -1823,6 +1889,17 @@ function Reader({
                   }}
                 >
                   Destacar frase
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="col-span-2"
+                  onClick={() => {
+                    const position = word.touched?.index;
+                    word.clear();
+                    if (position !== undefined) setExplaining(position);
+                  }}
+                >
+                  Explicar frase
                 </Button>
               </div>
             ) : null
@@ -1839,6 +1916,28 @@ function Reader({
           onRemove={() => removeMark(openMark)}
         />
       ) : null}
+
+      {explaining !== null ? (
+        <ExplainSheet
+          key={`explicar-${explaining}`}
+          textId={text.id}
+          index={explaining}
+          onClose={() => setExplaining(null)}
+        />
+      ) : null}
+
+      <AskSheet
+        key={`perguntar-${anchor}`}
+        open={asking}
+        onClose={() => setAsking(false)}
+        textId={text.id}
+        position={anchor}
+        onGo={(position) => {
+          goTo(position);
+          setTapped(position);
+        }}
+        onHighlights={setMarks}
+      />
 
       <NavigateSheet
         open={navigating}
@@ -1894,6 +1993,10 @@ function Reader({
         open={quizOpen}
         onClose={() => setQuizOpen(false)}
         onScored={setComprehension}
+        onReread={(span) => {
+          setReread(span);
+          seek(span.start);
+        }}
       />
 
       <Sheet open={showSettings} onClose={() => setShowSettings(false)} title="Ajustes de leitura">
@@ -1915,7 +2018,7 @@ function Reader({
               value={adaptive ? "dinamico" : "uniforme"}
               onChange={(value) => void save({ adaptiveRhythm: value === "dinamico" })}
               options={[
-                { value: "dinamico", label: "Dinamico" },
+                { value: "dinamico", label: "Dinâmico" },
                 { value: "uniforme", label: "Uniforme" },
               ]}
             />
@@ -1929,13 +2032,13 @@ function Reader({
               onChange={setPlayMode}
               options={[
                 { value: "runner", label: "Word Runner" },
-                { value: "guia", label: "Guia na pagina" },
+                { value: "guia", label: "Guia na página" },
               ]}
             />
             <p className="text-sm text-faint">
               {playMode === "runner"
                 ? "Uma palavra por vez no centro da tela, com a frase em volta embaixo."
-                : "A palavra atual anda marcada na propria pagina, no mesmo ritmo, e a pagina vira sozinha."}
+                : "A palavra atual anda marcada na própria página, no mesmo ritmo, e a página vira sozinha."}
             </p>
           </div>
 
@@ -2008,17 +2111,17 @@ function Reader({
             }}
           >
             <RestartIcon className="size-5" />
-            Comecar do inicio
+            Começar do início
           </Button>
 
           {citations > 0 && !text.referencesOmitted ? (
             <Button variant="secondary" full loading={reprocessing} onClick={() => void reprocess("omitir")}>
-              {`Omitir referencias do texto (${citations})`}
+              {`Omitir referências do texto (${citations})`}
             </Button>
           ) : null}
           {text.referencesOmitted ? (
             <Button variant="secondary" full loading={reprocessing} onClick={() => void reprocess("restaurar")}>
-              Restaurar referencias
+              Restaurar referências
             </Button>
           ) : null}
 
@@ -2026,7 +2129,7 @@ function Reader({
             href={`/textos/${text.id}/leituras`}
             className="flex min-h-11 items-center justify-center rounded-full text-sm font-medium text-muted hover:bg-surface-2 hover:text-ink"
           >
-            Historico deste texto
+            Histórico deste texto
           </Link>
           <Link
             href="/ajustes"
@@ -2051,10 +2154,10 @@ function Reader({
         </div>
       </Sheet>
 
-      <Sheet open={confirmRestart} onClose={() => setConfirmRestart(false)} title="Comecar do inicio?">
+      <Sheet open={confirmRestart} onClose={() => setConfirmRestart(false)} title="Começar do início?">
         <div className="space-y-4">
           <p className="text-sm text-muted">
-            {`A leitura esta em ${Math.round((index / total) * 100)}%. Voltar ao inicio troca a posicao salva.`}
+            {`A leitura está em ${Math.round((index / total) * 100)}%. Voltar ao início troca a posição salva.`}
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Button variant="secondary" size="lg" onClick={() => setConfirmRestart(false)}>
@@ -2068,7 +2171,7 @@ function Reader({
                 notify("Leitura reiniciada.");
               }}
             >
-              Comecar do inicio
+              Começar do início
             </Button>
           </div>
         </div>
@@ -2081,8 +2184,8 @@ function Reader({
       >
         <div className="space-y-4">
           <p className="text-sm text-muted">
-            Ele sai da biblioteca e da fila e fica no filtro Largados. O que voce ja leu continua
-            contando na meta e no historico, e da para retomar depois.
+            Ele sai da biblioteca e da fila e fica no filtro Largados. O que você já leu continua
+            contando na meta e no histórico, e dá para retomar depois.
           </p>
           <Button variant="danger" size="lg" full loading={abandoning} onClick={() => void abandon()}>
             Largar texto
@@ -2095,7 +2198,7 @@ function Reader({
       <Sheet open={checkpoint !== null} onClose={() => setCheckpoint(null)} title="Isso ainda vale?">
         <div className="space-y-4">
           <p className="text-sm text-muted">
-            {`Voce leu ${checkpoint ?? 0}% de "${text.title}". Se o texto deixou de interessar, largar agora economiza o resto do tempo.`}
+            {`Você leu ${checkpoint ?? 0}% de "${text.title}". Se o texto deixou de interessar, largar agora economiza o resto do tempo.`}
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Button
@@ -2164,7 +2267,7 @@ function Reader({
 const FONT_LABELS: Record<FontFamily, string> = {
   sans: "Sem serifa",
   serif: "Com serifa",
-  legivel: "Legivel",
+  legivel: "Legível",
 };
 
 const LINE_HEIGHT_LABELS = ["Compacto", "Normal", "Folgado"];
@@ -2184,26 +2287,28 @@ function formatRemaining(ms: number): string {
 function speedHint(wpm: number, real: number | null): string {
   const band = `Faixa: ${SPEED_BAND_LABELS[speedBand(wpm)]}.`;
   const warning = speedBandWarning(wpm);
-  const parts = [band, warning, real !== null ? `Com as pausas de pontuacao, ~${real} ppm neste texto.` : null];
+  const parts = [band, warning, real !== null ? `Com as pausas de pontuação, ~${real} ppm neste texto.` : null];
   return parts.filter(Boolean).join(" ");
 }
 
 const GESTURES: [string, string][] = [
-  ["Play", "Inicia o Word Runner (ou o guia na pagina) da palavra atual"],
-  ["Tocar no Word Runner", "Freia: volta a pagina com a palavra atual marcada"],
-  ["Tocar numa palavra", "A leitura seguinte comeca dela"],
-  ["Tocar na borda ou deslizar", "Vira a pagina"],
-  ["Tocar e segurar", "Mostra o significado da palavra"],
+  ["Play", "Inicia o Word Runner (ou o guia na página) da palavra atual"],
+  ["Tocar no Word Runner", "Freia: volta a página com a palavra atual marcada"],
+  ["Tocar numa palavra", "A leitura seguinte começa dela"],
+  ["Tocar na borda ou deslizar", "Vira a página"],
+  ["Tocar e segurar", "Mostra o significado da palavra e explica a frase"],
   ["Arrastar sobre o texto", "Seleciona para destacar"],
 ];
 
 const SHORTCUTS: [string, string][] = [
-  ["Espaco ou K", "Iniciar ou pausar o Word Runner"],
+  ["Espaço ou K", "Iniciar ou pausar o Word Runner"],
   ["Seta para cima / baixo", "Mais ou menos 25 ppm"],
-  ["Seta para a esquerda / direita", "Pagina anterior ou seguinte; no Word Runner, frase"],
-  ["Shift + seta para a esquerda", "Voltar ao inicio da frase"],
+  ["Seta para a esquerda / direita", "Página anterior ou seguinte; no Word Runner, frase"],
+  ["Shift + seta para a esquerda", "Voltar ao início da frase"],
   ["D", "Significado da palavra atual"],
   ["H", "Destacar a frase atual"],
+  ["E", "Explicar a frase atual"],
+  ["P", "Perguntar ao texto"],
   ["/", "Buscar e navegar no texto"],
   ["?", "Esta ajuda"],
   ["Esc", "Fechar a janela aberta"],
@@ -2251,7 +2356,7 @@ function EyeRestSheet({
             Continuar a leitura
           </Button>
         ) : (
-          <p className="text-sm text-muted">A leitura esta pausada.</p>
+          <p className="text-sm text-muted">A leitura está pausada.</p>
         )}
       </div>
     </Sheet>
@@ -2292,15 +2397,15 @@ function blockLabel(block: Paragraph | undefined): string | null {
     case "h1":
     case "h2":
     case "h3":
-      return "Titulo";
+      return "Título";
     case "li":
       return "Item de lista";
     case "oli":
       return block.marker ? `Item ${block.marker}` : "Item de lista";
     case "quote":
-      return "Citacao";
+      return "Citação";
     case "code":
-      return "Codigo";
+      return "Código";
     default:
       return null;
   }
@@ -2814,7 +2919,7 @@ const PageStage = memo(function PageStage({
       {loadingMore ? (
         <p className="absolute inset-x-0 bottom-1 flex items-center justify-center gap-2 text-sm text-muted">
           <Spinner />
-          Buscando a proxima parte
+          Buscando a próxima parte
         </p>
       ) : null}
     </div>
@@ -2863,7 +2968,7 @@ function Finished({
         <CheckIcon className="size-8" />
       </div>
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Leitura concluida</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Leitura concluída</h2>
         <p className="mt-1 text-muted">
           {`${formatNumber(total)} ${total === 1 ? "palavra" : "palavras"}`}
         </p>
@@ -2901,7 +3006,7 @@ function Finished({
       ) : null}
       {measurable ? (
         <p className="-mt-3 max-w-sm text-xs text-faint">
-          O ritmo real inclui as pausas de pontuacao; o historico e o treino usam o ritmo das palavras.
+          O ritmo real inclui as pausas de pontuação; o histórico e o treino usam o ritmo das palavras.
         </p>
       ) : null}
 
@@ -2913,9 +3018,9 @@ function Finished({
             <ForwardIcon className="size-5" />
             {nextUp.source === "capitulo"
               ? nextUp.textId
-                ? `Capitulo ${nextUp.chapter ?? ""}`.trim()
-                : `Buscar o capitulo ${nextUp.chapter ?? ""}`.trim()
-              : "Proximo da fila"}
+                ? `Capítulo ${nextUp.chapter ?? ""}`.trim()
+                : `Buscar o capítulo ${nextUp.chapter ?? ""}`.trim()
+              : "Próximo da fila"}
           </Button>
         ) : null}
 
@@ -2926,7 +3031,7 @@ function Finished({
         {canQuiz ? (
           <Button variant="secondary" size="lg" full onClick={onQuiz}>
             <SparkIcon className="size-5" />
-            {comprehension === null ? "Testar compreensao" : "Ver o questionario"}
+            {comprehension === null ? "Testar compreensão" : "Ver o questionário"}
           </Button>
         ) : null}
 
@@ -2939,7 +3044,7 @@ function Finished({
             onClick={onContinue}
           >
             <ForwardIcon className="size-5" />
-            {loadingMore ? "Buscando" : "Buscar proxima parte"}
+            {loadingMore ? "Buscando" : "Buscar próxima parte"}
           </Button>
         ) : null}
 
@@ -3011,7 +3116,7 @@ function RecapPlayer({
     <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 text-center">
       {title ? <p className="text-sm font-semibold">{title}</p> : null}
       <p className="text-sm font-medium text-muted">
-        {mark ? "Seus destaques ate aqui" : "Onde voce parou"}
+        {mark ? "Seus destaques até aqui" : "Onde você parou"}
       </p>
       {mark ? (
         <div className="w-full max-w-2xl space-y-3">
@@ -3024,7 +3129,7 @@ function RecapPlayer({
         </p>
       )}
       <Button variant="ghost" onClick={onSkip}>
-        Pular a recapitulacao
+        Pular a recapitulação
       </Button>
     </div>
   );
@@ -3038,15 +3143,15 @@ function RecapPlayer({
 const TIPS: { title: string; body: string }[] = [
   {
     title: "O play abre o Word Runner",
-    body: "Uma palavra por vez no centro, com a frase em volta embaixo. Pausas curtas na virgula e maiores no fim da frase e do paragrafo.",
+    body: "Uma palavra por vez no centro, com a frase em volta embaixo. Pausas curtas na vírgula e maiores no fim da frase e do parágrafo.",
   },
   {
     title: "Toque no Word Runner para frear",
-    body: "A pagina volta com a palavra atual marcada. Durante a leitura, os botoes do rodape voltam e avancam uma frase.",
+    body: "A página volta com a palavra atual marcada. Durante a leitura, os botões do rodapé voltam e avançam uma frase.",
   },
   {
-    title: "Na pagina",
-    body: "Toque numa palavra para comecar dela. Toque na borda ou deslize para virar. Toque e segure para ver o significado.",
+    title: "Na página",
+    body: "Toque numa palavra para começar dela. Toque na borda ou deslize para virar. Toque e segure para ver o significado.",
   },
 ];
 
@@ -3076,7 +3181,7 @@ function ReaderTips({ onDone }: { onDone: () => void }) {
             </Button>
           ) : null}
           <Button size="sm" onClick={() => (last ? onDone() : setStep(step + 1))}>
-            {last ? "Entendi" : "Proximo"}
+            {last ? "Entendi" : "Próximo"}
           </Button>
         </div>
       </section>

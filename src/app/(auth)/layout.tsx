@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           <LogoMark className="size-12 text-accent" />
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Leitura</h1>
-            <p className="mt-1 text-sm text-muted">Leia mais rapido, sem perder o fio.</p>
+            <p className="mt-1 text-sm text-muted">Leia mais rápido, sem perder o fio.</p>
           </div>
         </header>
         {children}

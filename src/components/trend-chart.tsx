@@ -58,7 +58,7 @@ export function TrendChart({
         <span className="tabular text-sm text-muted">
           {shown
             ? `${formatDay(shown.day, weekly)} · ${shown[metric]} ${unit}`
-            : `maximo ${max} ${unit}`}
+            : `máximo ${max} ${unit}`}
         </span>
       </figcaption>
 

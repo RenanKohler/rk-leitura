@@ -59,7 +59,7 @@ export function ExportCard() {
       }
       notify(
         `${created.length} texto${created.length === 1 ? "" : "s"} restaurado${created.length === 1 ? "" : "s"}` +
-          (skipped > 0 ? `. ${skipped} ja existia${skipped === 1 ? "" : "m"}.` : "."),
+          (skipped > 0 ? `. ${skipped} já existia${skipped === 1 ? "" : "m"}.` : "."),
         "success"
       );
     } catch (cause) {
@@ -68,7 +68,7 @@ export function ExportCard() {
         await apiSend("/api/importar", "DELETE", { ids: created }).catch(() => undefined);
       }
       setError(
-        `${cause instanceof Error ? cause.message : "A restauracao falhou."} Nada foi gravado.`
+        `${cause instanceof Error ? cause.message : "A restauração falhou."} Nada foi gravado.`
       );
     } finally {
       setRestoring(false);
@@ -80,12 +80,12 @@ export function ExportCard() {
     <Card className="space-y-3 p-5">
       <SectionTitle>Seus dados</SectionTitle>
       <p className="text-sm text-muted">
-        Baixe o que e seu quando quiser. O historico sai em CSV, pronto para planilha; a
-        biblioteca sai em JSON, porque o conteudo dos textos tem quebras de linha.
+        Baixe o que é seu quando quiser. O histórico sai em CSV, pronto para planilha; a
+        biblioteca sai em JSON, porque o conteúdo dos textos tem quebras de linha.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <LinkButton href="/api/exportar?tipo=sessoes" variant="secondary" full>
-          Historico (CSV)
+          Histórico (CSV)
         </LinkButton>
         <LinkButton href="/api/exportar?tipo=biblioteca" variant="secondary" full>
           Biblioteca (JSON)
@@ -94,7 +94,7 @@ export function ExportCard() {
 
       <p className="pt-2 text-sm text-muted">
         Para trazer a biblioteca de volta, nesta ou em outra conta, escolha o arquivo JSON baixado
-        aqui. Textos que ja estao na biblioteca sao pulados.
+        aqui. Textos que já estão na biblioteca são pulados.
       </p>
       {error ? <Alert>{error}</Alert> : null}
       <input

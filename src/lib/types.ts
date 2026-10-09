@@ -27,6 +27,8 @@ export interface TextSummary {
   fresh: boolean;
   /** Largado no meio (US-79): fora da lista principal e da fila. */
   abandoned: boolean;
+  /** Sinopse sem spoiler ja gerada para o conteudo atual (US-138). */
+  synopsis?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -172,6 +174,8 @@ export interface TextDetail extends TextSummary {
 
 /** O que o leitor mostra para retomar o fio da serie (PROD-12). */
 export interface PreviousChapter {
+  /** Id do capitulo anterior, para pedir o resumo dele (US-131). */
+  id: string;
   /** Titulo do capitulo anterior. */
   title: string;
   /** Ultimos paragrafos do capitulo anterior, do mais antigo ao ultimo. */
@@ -243,6 +247,8 @@ export interface ImportedText {
   wordCount: number;
   sourceUrl: string;
   language: string | null;
+  /** `palpite` quando a extracao caiu no maior container (US-136). */
+  extraction?: "exata" | "palpite";
 }
 
 /** Resposta de POST /api/share: o texto ja existia ou acabou de ser criado. */
@@ -291,6 +297,8 @@ export interface SettingsPayload {
   placementWpm: number | null;
   /** Se o teste ja foi oferecido - feito ou pulado. */
   placementSeen: boolean;
+  /** Envio de conteudo ao servico de IA (US-125): nulo enquanto a conta nao decidiu. */
+  aiEnabled: boolean | null;
   /** Hora local do lembrete diario; nulo quando nao ha lembrete. */
   reminderHour: number | null;
   /** Guia de primeiro uso do leitor ja visto nesta conta. */

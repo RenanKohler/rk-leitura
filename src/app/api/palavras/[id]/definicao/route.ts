@@ -6,7 +6,8 @@ import { jsonError, requireSession, serverError } from "@/lib/api";
 import { consumeDailyQuota } from "@/lib/daily-quota";
 import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { lookupWord, LookupUnavailable } from "@/lib/word-lookup";
+import { lookupWord } from "@/lib/word-lookup";
+import { aiErrorResponse, aiGate, AiUnavailable } from "@/lib/ai";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -35,7 +36,7 @@ export async function POST(request: Request, { params }: Params) {
 
   try {
     const { id } = await params;
-    if (!UUID_PATTERN.test(id)) return jsonError("Palavra nao encontrada.", 404);
+    if (!UUID_PATTERN.test(id)) return jsonError("Palavra não encontrada.", 404);
 
     const owned = and(eq(savedWords.id, id), eq(savedWords.userId, session.id));
     const [word] = await db
@@ -43,14 +44,17 @@ export async function POST(request: Request, { params }: Params) {
       .from(savedWords)
       .where(owned)
       .limit(1);
-    if (!word) return jsonError("Palavra nao encontrada.", 404);
+    if (!word) return jsonError("Palavra não encontrada.", 404);
+
+    const gate = await aiGate(session.id);
+    if (gate) return gate;
 
     const quota = await consumeDailyQuota("dicionario", session.id);
     if (!quota.allowed) {
       return jsonError(QUOTA_MESSAGES.dicionario, 429, { retryAfter: quota.retryAfterSeconds });
     }
 
-    const entry = await lookupWord(word.word, word.context ?? "", word.language);
+    const entry = await lookupWord(session.id, word.word, word.context ?? "", word.language);
     await db
       .update(savedWords)
       .set({
@@ -64,7 +68,7 @@ export async function POST(request: Request, { params }: Params) {
 
     return NextResponse.json({ entry });
   } catch (error) {
-    if (error instanceof LookupUnavailable) return jsonError(error.message, 503);
+    if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("palavras/definicao", error);
   }
 }

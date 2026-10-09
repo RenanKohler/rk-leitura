@@ -45,7 +45,7 @@ export function ImportCard({ onImported }: { onImported?: () => void }) {
       });
 
       setUrl("");
-      notify(`"${text.title}" adicionado a biblioteca.`, "success");
+      notify(`"${text.title}" adicionado à biblioteca.`, "success");
       onImported?.();
       router.refresh();
     } catch (error) {

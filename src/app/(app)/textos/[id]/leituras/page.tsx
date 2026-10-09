@@ -49,18 +49,18 @@ export default async function TextHistoryPage({ params }: { params: Promise<{ id
         <Card>
           <EmptyState
             icon={<HistoryIcon className="size-7" />}
-            title="Nenhuma sessao registrada"
-            description="Sessoes com menos de 10 palavras lidas nao sao gravadas."
+            title="Nenhuma sessão registrada"
+            description="Sessões com menos de 10 palavras lidas não são gravadas."
           />
         </Card>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3" data-testid="resumo-texto">
             <Stat label="Tempo total" value={formatClock(history.totalMs)} />
-            <Stat label="Sessoes" value={formatNumber(history.sessions)} />
-            <Stat label="Ritmo medio" value={`${formatNumber(history.wpm)} ppm`} />
+            <Stat label="Sessões" value={formatNumber(history.sessions)} />
+            <Stat label="Ritmo médio" value={`${formatNumber(history.wpm)} ppm`} />
             <Stat
-              label="Primeira e ultima"
+              label="Primeira e última"
               value={`${DATE.format(new Date(history.firstAt!))} - ${DATE.format(new Date(history.lastAt!))}`}
               small
             />
@@ -69,15 +69,15 @@ export default async function TextHistoryPage({ params }: { params: Promise<{ id
           {concluded ? (
             <Card className="p-4 text-sm">
               <p>
-                Leitura concluida em <strong>{formatClock(history.totalMs)}</strong>. Pelo seu ritmo
-                atual ({formatNumber(pace.wpm)} ppm), a previsao para este texto seria de{" "}
+                Leitura concluída em <strong>{formatClock(history.totalMs)}</strong>. Pelo seu ritmo
+                atual ({formatNumber(pace.wpm)} ppm), a previsão para este texto seria de{" "}
                 <strong>{formatClock(estimateMs)}</strong>.
               </p>
             </Card>
           ) : null}
 
           <Card as="section" className="p-4">
-            <h2 className="mb-2 text-base font-semibold">Sessoes</h2>
+            <h2 className="mb-2 text-base font-semibold">Sessões</h2>
             <ul className="divide-y divide-border">
               {rows.map((row) => (
                 <li key={row.createdAt.toISOString()} className="flex items-center justify-between gap-3 py-2 text-sm">

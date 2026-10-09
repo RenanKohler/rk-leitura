@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export const dynamic = "force-static";
 
-export const metadata = { title: "Sem conexao" };
+export const metadata = { title: "Sem conexão" };
 
 /**
  * Tela que o service worker mostra quando a navegacao falha e nao ha copia
@@ -15,10 +15,10 @@ export const metadata = { title: "Sem conexao" };
 export default function OfflinePage() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
-      <h1 className="text-xl font-semibold tracking-tight">Sem conexao</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Sem conexão</h1>
       <p className="max-w-xs text-muted">
-        Esta tela ainda nao foi aberta com internet, entao nao ha copia dela aqui. Os textos que
-        voce ja abriu continuam disponiveis.
+        Esta tela ainda não foi aberta com internet, então não há cópia dela aqui. Os textos que
+        você já abriu continuam disponíveis.
       </p>
       <Link
         href="/textos"

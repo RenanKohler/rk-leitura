@@ -1,8 +1,7 @@
 import "server-only";
 
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import { aiParse, AiUnavailable, type AiMessages } from "@/lib/ai";
 import { parseEntry, type WordEntry } from "@/lib/dictionary";
 import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
 
@@ -16,45 +15,34 @@ import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
  * flexionada, sem uma tabela de conjugacoes.
  */
 
-const MODEL = "claude-opus-5-5";
-
-export class LookupUnavailable extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "LookupUnavailable";
-  }
-}
+const MESSAGES: AiMessages = {
+  notConfigured: "O dicionário não está configurado nesta instalação.",
+  refusal: "Não consigo definir esta palavra.",
+  failure: "Não consegui consultar agora.",
+};
 
 const EntrySchema = z.object({
-  base: z.string().describe("Forma de dicionario: infinitivo, singular, masculino."),
+  base: z.string().describe("Forma de dicionário: infinitivo, singular, masculino."),
   kind: z
     .string()
     .describe("Classe gramatical no uso desta frase: substantivo, verbo, adjetivo, etc."),
   definition: z
     .string()
-    .describe("Definicao curta, em uma ou duas frases, no sentido usado no trecho."),
+    .describe("Definição curta, em uma ou duas frases, no sentido usado no trecho."),
   translation: z
     .string()
     .describe(
-      "Traducao para o portugues no sentido do trecho; vazia quando a palavra ja e portuguesa."
+      "Tradução para o português no sentido do trecho; vazia quando a palavra já é portuguesa."
     ),
 });
 
 const SYSTEM = [
-  "Voce e um dicionario de portugues do Brasil.",
+  "Você é um dicionário de português do Brasil.",
   "Recebe uma palavra e a frase em que ela aparece, e devolve o sentido usado ali.",
-  "A definicao e curta e direta, escrita para quem esta lendo e nao quer parar.",
-  "Nunca repete a palavra consultada dentro da propria definicao.",
-  "Quando uma palavra de outro idioma aparecer em texto em portugues, define em portugues e diz o idioma em `kind`.",
+  "A definição é curta e direta, escrita para quem está lendo e não quer parar.",
+  "Nunca repete a palavra consultada dentro da própria definição.",
+  "Quando uma palavra de outro idioma aparecer em texto em português, define em português e diz o idioma em `kind`.",
 ].join(" ");
-
-function client(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
-  if (!apiKey) {
-    throw new LookupUnavailable("O dicionario nao esta configurado nesta instalacao.");
-  }
-  return new Anthropic({ apiKey });
-}
 
 /**
  * Pedido ao modelo. Em texto de outro idioma (US-69) a forma de dicionario e a
@@ -68,49 +56,40 @@ function prompt(word: string, context: string, language: string): string {
   if (language === DEFAULT_LANGUAGE) return base;
 
   const name = languageName(language).toLowerCase();
-  return `${base}\n\nO texto esta em ${name}. Devolva a forma de dicionario em ${name}, a traducao para o portugues e a definicao em portugues.`;
+  return `${base}\n\nO texto está em ${name}. Devolva a forma de dicionário em ${name}, a tradução para o português e a definição em português.`;
 }
 
 export async function lookupWord(
+  userId: string,
   word: string,
   context: string,
   language: string = DEFAULT_LANGUAGE
 ): Promise<WordEntry> {
-  let response;
-  try {
-    response = await client().beta.messages.parse({
-      model: MODEL,
-      max_tokens: 1000,
-      system: SYSTEM,
-      // Consulta no meio da leitura: pouco raciocinio, resposta rapida.
-      output_config: { effort: "low", format: betaZodOutputFormat(EntrySchema) },
-      // Recusa dos classificadores de seguranca e refeita em outro modelo na mesma chamada.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      messages: [{ role: "user", content: prompt(word, context, language) }],
-    });
-  } catch (error) {
-    if (error instanceof LookupUnavailable) throw error;
-    if (error instanceof Anthropic.RateLimitError) {
-      throw new LookupUnavailable("O servico esta ocupado. Tente daqui a pouco.");
-    }
-    if (error instanceof Anthropic.AuthenticationError) {
-      throw new LookupUnavailable("O dicionario nao esta configurado nesta instalacao.");
-    }
-    console.error("[dicionario] falha:", error);
-    throw new LookupUnavailable("Nao consegui consultar agora.");
-  }
+  const parsed = await aiParse({
+    task: "dicionario",
+    userId,
+    messages: MESSAGES,
+    schema: EntrySchema,
+    system: SYSTEM,
+    // No Haiku o raciocinio conta no teto: folga para ele e a resposta curta.
+    maxTokens: 2000,
+    // Consulta no meio da leitura: pouco raciocinio, resposta rapida.
+    effort: "low",
+    content: [{ role: "user", content: prompt(word, context, language) }],
+  });
 
-  // Custo por consulta: modelo que respondeu (muda quando o fallback atua) e tokens.
-  console.info("[dicionario] uso:", response.model, JSON.stringify(response.usage));
-
-  if (response.stop_reason === "refusal") {
-    throw new LookupUnavailable("Nao consigo definir esta palavra.");
-  }
-
-  const entry = parseEntry(response.parsed_output, word);
-  if (!entry) throw new LookupUnavailable("Nao encontrei esta palavra.");
+  const entry = parseEntry(parsed, word);
+  if (!entry) throw new AiUnavailable("Não encontrei esta palavra.");
 
   // Palavra portuguesa nao tem traducao a mostrar.
   return language === DEFAULT_LANGUAGE ? { ...entry, translation: null } : entry;
 }
+
+// O lote de definicoes pendentes (US-139) faz o mesmo pedido, pela Message
+// Batches: mesmas instrucoes, mesmo esquema, mesma frase de contexto.
+export {
+  EntrySchema as LOOKUP_SCHEMA,
+  MESSAGES as LOOKUP_MESSAGES,
+  SYSTEM as LOOKUP_SYSTEM,
+  prompt as lookupPrompt,
+};

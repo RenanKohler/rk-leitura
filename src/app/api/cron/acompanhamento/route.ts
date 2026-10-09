@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { serverError } from "@/lib/api";
 import { runFollowUps } from "@/lib/follow-runner";
+import { pruneDefinitionBatches, settleDefinitionBatches } from "@/lib/word-batch";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -14,6 +15,10 @@ const BUDGET_MS = 45_000;
  * Chamada de hora em hora pelo mesmo fluxo do GitHub que dispara o lembrete.
  * Cada fonte e consultada no maximo a cada 6 horas, entao chamadas extras nao
  * sobrecarregam as origens nem duplicam importacoes.
+ *
+ * Antes delas, confere os lotes de definicoes em andamento (US-139): e uma
+ * consulta curta por lote, e o resultado fica pronto mesmo sem o leitor abrir
+ * Palavras.
  */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -23,7 +28,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    return NextResponse.json(await runFollowUps(new Date(), Date.now() + BUDGET_MS));
+    const now = new Date();
+    const deadline = Date.now() + BUDGET_MS;
+    const batches = await settleDefinitionBatches(deadline);
+    await pruneDefinitionBatches(now);
+    return NextResponse.json({ ...(await runFollowUps(now, deadline)), batches });
   } catch (error) {
     return serverError("cron/acompanhamento", error);
   }

@@ -47,9 +47,9 @@ export function FeedsCard() {
       });
       setItems(data.feeds);
       setUrl("");
-      notify("Feed assinado. Os proximos artigos entram na biblioteca.", "success");
+      notify("Feed assinado. Os próximos artigos entram na biblioteca.", "success");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui assinar.");
+      setError(cause instanceof Error ? cause.message : "Não consegui assinar.");
     } finally {
       setBusy(false);
     }
@@ -61,7 +61,7 @@ export function FeedsCard() {
       const data = await apiSend<{ feeds: FeedSummary[] }>(`/api/feeds?id=${id}`, "DELETE");
       setItems(data.feeds);
     } catch {
-      notify("Nao consegui remover.", "error");
+      notify("Não consegui remover.", "error");
     } finally {
       setBusy(false);
     }
@@ -74,7 +74,7 @@ export function FeedsCard() {
       <SectionTitle>Feeds</SectionTitle>
       <p className="text-sm text-muted">
         Assine o feed RSS ou Atom de um site: os artigos novos entram na biblioteca sozinhos, com
-        uma etiqueta com o nome do feed. Ate {MAX_FEEDS} feeds.
+        uma etiqueta com o nome do feed. Até {MAX_FEEDS} feeds.
       </p>
 
       {items && items.length > 0 ? (
@@ -104,7 +104,7 @@ export function FeedsCard() {
 
       <form onSubmit={subscribe} className="space-y-3">
         <Field
-          label="Endereco do feed"
+          label="Endereço do feed"
           name="feed"
           type="url"
           inputMode="url"

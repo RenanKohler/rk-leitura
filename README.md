@@ -91,7 +91,8 @@ Trocar o `JWT_SECRET` invalida todas as sessoes ativas.
 | `JWT_SECRET` | sim | Chave de assinatura das sessoes, minimo 32 caracteres. |
 | `DATABASE_POOL_MAX` | nao | Tamanho maximo do pool (padrao 5). |
 | `NEXT_PUBLIC_DEMO_HINT` | nao | `true` mostra as credenciais de demo no login. |
-| `ANTHROPIC_API_KEY` | nao | Questionario de compreensao e dicionario. Sem ela, as duas telas dizem que a funcionalidade nao esta configurada. |
+| `ANTHROPIC_API_KEY` | nao | Funcoes de IA: questionario, dicionario, explicacao, perguntas ao texto, resumos, limpeza da importacao, etiquetas, sinopse e sintese. Sem ela, cada tela diz que a funcionalidade nao esta configurada e o resto do app segue igual. |
+| `AI_USAGE_SECRET` | nao | Protege `GET /api/uso-ia`, o uso e o custo estimado da IA por dia e por funcionalidade. Sem ela a rota responde 401. |
 | `NEXT_PUBLIC_VAPID_KEY` | nao | Chave publica do lembrete diario. |
 | `VAPID_PRIVATE_KEY` | nao | Chave privada do lembrete diario. |
 | `VAPID_SUBJECT` | nao | `mailto:` de contato exigido pelo protocolo de push. |
@@ -331,6 +332,17 @@ e2e/                testes no navegador: fluxo principal e acessibilidade
   tela de erro do navegador relata em `POST /api/erros`.
 - **Custo por conta.** Questionario e dicionario tem teto diario por conta
   (20 e 200), alem do limite por IP. So geracao nova conta.
+- **IA em um ponto so.** Toda chamada ao modelo passa por `src/lib/ai.ts`:
+  chave, modelo por tarefa, fallback de recusa, traducao de erro, registro de
+  uso (`ai_usage`) e consentimento da conta. Modelos da familia 5.5 por
+  tarefa: Opus no questionario e nas perguntas ao texto, Sonnet na explicacao
+  e nos resumos, Haiku no dicionario, na limpeza da importacao, nas etiquetas
+  e na sinopse. O Haiku nao tem fallback no servidor, entao a recusa cai na
+  alternativa local de cada tela.
+- **Consentimento.** Nenhum conteudo vai ao servico de IA antes de a conta
+  permitir (`speed_settings.ai_enabled`). A rota recusa com 403 e `consent`, e
+  a folha que pediu mostra o aviso no lugar da resposta. Ajustes > Recursos
+  de IA liga, desliga e mostra o uso do dia.
 - **Idioma do texto.** Lido do `lang` da pagina ou do `dc:language` do EPUB,
   portugues quando ausente. Decide a voz da narracao e o pedido ao modelo no
   dicionario e no questionario.

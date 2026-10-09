@@ -73,8 +73,8 @@ test("sessao com modo e freios, sugestao e ritmo por modo", async ({ page }) => 
   await page.goto("/estatisticas");
   const modes = page.getByTestId("ritmo-por-modo");
   await expect(modes).toContainText("Guiada");
-  await expect(modes).toContainText("Narracao");
-  await expect(modes).toContainText("Pagina");
+  await expect(modes).toContainText("Narração");
+  await expect(modes).toContainText("Página");
 });
 
 /** PROD-3 e PROD-13: sem IA, as lacunas medem a compreensao e ela chega as estatisticas. */
@@ -144,16 +144,16 @@ test("palavra guardada sem definicao e revisao com quatro respostas", async ({ p
   await expect(page.getByText("remendada", { exact: true })).toBeVisible();
   await expect(page.getByText("Carregava uma rede remendada")).toBeVisible();
   await page.getByRole("button", { name: "Mostrar" }).click();
-  await expect(page.getByText("sem definicao")).toBeVisible();
+  await expect(page.getByText("sem definição")).toBeVisible();
   await expect(page.getByRole("button", { name: /Errei/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Dificil/ })).toBeVisible();
-  await page.getByRole("button", { name: /Facil, volta em 4 dias/ }).click();
-  await expect(page.getByText("Revisao concluida")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Difícil/ })).toBeVisible();
+  await page.getByRole("button", { name: /Fácil, volta em 4 dias/ }).click();
+  await expect(page.getByText("Revisão concluída")).toBeVisible();
 
   await page.goto("/palavras");
-  await expect(page.getByTestId("retencao")).toHaveText("Retencao em 30 dias: 100% de 1 resposta");
+  await expect(page.getByTestId("retencao")).toHaveText("Retenção em 30 dias: 100% de 1 resposta");
   await page.getByRole("button", { name: "Escrever" }).click();
-  await page.getByRole("textbox", { name: "Definicao de remendada" }).fill("Consertada com remendos.");
+  await page.getByRole("textbox", { name: "Definição de remendada" }).fill("Consertada com remendos.");
   await page.getByRole("button", { name: "Salvar" }).click();
   await expect(page.getByText("Consertada com remendos.")).toBeVisible();
 });
@@ -180,7 +180,7 @@ test("revisao espacada de destaques", async ({ page }) => {
   await expect(page.getByTestId("lacuna")).toHaveCount(0);
   await expect(page.getByText("Coragem sem desespero")).toBeVisible();
   await page.getByRole("button", { name: /^Bom/ }).click();
-  await expect(page.getByText("Revisao concluida")).toBeVisible();
+  await expect(page.getByText("Revisão concluída")).toBeVisible();
 
   const review = await (await page.request.get("/api/destaques/revisao")).json();
   expect(review.due).toBe(0);

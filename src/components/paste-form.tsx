@@ -75,9 +75,9 @@ export function PasteForm({
         {error ? <Alert>{error}</Alert> : null}
 
         <Field
-          label="Titulo"
+          label="Título"
           name="title"
-          placeholder="Opcional - usamos o inicio do texto se ficar vazio"
+          placeholder="Opcional - usamos o início do texto se ficar vazio"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
         />
@@ -86,7 +86,7 @@ export function PasteForm({
           label="Texto"
           name="content"
           rows={12}
-          placeholder="Cole aqui o conteudo que quer ler."
+          placeholder="Cole aqui o conteúdo que quer ler."
           hint={wordCount > 0 ? `${formatNumber(wordCount)} palavras` : undefined}
           value={content}
           onChange={(event) => setContent(event.target.value)}
@@ -102,9 +102,9 @@ export function PasteForm({
               onChange={(event) => setMarkdownChoice(event.target.checked)}
             />
             <span>
-              Interpretar formatacao Markdown
+              Interpretar formatação Markdown
               <span className="block text-faint">
-                Titulos, listas, negrito e links aparecem formatados no leitor.
+                Títulos, listas, negrito e links aparecem formatados no leitor.
               </span>
             </span>
           </label>

@@ -46,13 +46,13 @@ export function HistoryClient({
   return (
     <div className="space-y-6">
       <header className="pt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Historico</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Histórico</h1>
         <p className="mt-1 text-sm text-muted">
           {resource.loading
             ? "Carregando"
             : sessions.length === 0
-              ? "Nenhuma sessao registrada"
-              : `${total} ${total === 1 ? "sessao" : "sessoes"} · melhor ritmo ${best} ppm`}
+              ? "Nenhuma sessão registrada"
+              : `${total} ${total === 1 ? "sessão" : "sessões"} · melhor ritmo ${best} ppm`}
         </p>
       </header>
 
@@ -66,8 +66,8 @@ export function HistoryClient({
         <Card>
           <EmptyState
             icon={<HistoryIcon className="size-7" />}
-            title="Sem historico ainda"
-            description="Cada leitura concluida registra ritmo, palavras e tempo aqui."
+            title="Sem histórico ainda"
+            description="Cada leitura concluída registra ritmo, palavras e tempo aqui."
             action={<LinkButton href="/textos">Ir para a biblioteca</LinkButton>}
           />
         </Card>
@@ -87,7 +87,7 @@ export function HistoryClient({
                           <p className="min-w-0 flex-1 truncate font-medium">{session.textTitle}</p>
                           {session.completed ? (
                             <span
-                              title="Concluido"
+                              title="Concluído"
                               className="flex size-6 shrink-0 items-center justify-center rounded-full bg-positive-soft text-positive"
                             >
                               <CheckIcon className="size-3.5" />

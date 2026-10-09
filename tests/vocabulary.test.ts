@@ -63,7 +63,7 @@ describe("exportacao em CSV", () => {
     expect(csv.startsWith("﻿")).toBe(true);
     const lines = csv.slice(1).trimEnd().split("\r\n");
     expect(lines).toHaveLength(2);
-    expect(lines[0]).toContain("palavra,forma base,classe,definicao");
+    expect(lines[0]).toContain("palavra,forma base,classe,definição");
   });
 
   it("protege virgula, aspas e quebra de linha", () => {

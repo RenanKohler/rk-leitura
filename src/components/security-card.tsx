@@ -43,7 +43,7 @@ export function SecurityCard() {
         setDevices(deviceData.devices);
       })
       .catch(() => {
-        if (active) setError("Nao consegui carregar os dados de seguranca.");
+        if (active) setError("Não consegui carregar os dados de segurança.");
       });
     return () => {
       active = false;
@@ -60,7 +60,7 @@ export function SecurityCard() {
       setRemaining(data.codes.length);
       setPassword("");
     } catch (cause) {
-      setGenerateError(cause instanceof Error ? cause.message : "Nao consegui gerar os codigos.");
+      setGenerateError(cause instanceof Error ? cause.message : "Não consegui gerar os códigos.");
     } finally {
       setGenerating(false);
     }
@@ -73,20 +73,20 @@ export function SecurityCard() {
       setDevices((current) => current?.filter((item) => item.id !== device.id) ?? null);
       notify(`${device.name} desconectado.`, "info");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Nao consegui desconectar.");
+      setError(cause instanceof Error ? cause.message : "Não consegui desconectar.");
     }
   };
 
   const codesText = codes
-    ? `Codigos de recuperacao - Leitura\nCada codigo vale uma vez.\n\n${codes.join("\n")}\n`
+    ? `Códigos de recuperação - Leitura\nCada código vale uma vez.\n\n${codes.join("\n")}\n`
     : "";
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(codesText);
-      notify("Codigos copiados.", "success");
+      notify("Códigos copiados.", "success");
     } catch {
-      notify("Nao consegui copiar. Selecione e copie os codigos.", "error");
+      notify("Não consegui copiar. Selecione e copie os códigos.", "error");
     }
   };
 
@@ -101,28 +101,28 @@ export function SecurityCard() {
 
   return (
     <Card className="space-y-5 p-5">
-      <SectionTitle>Seguranca</SectionTitle>
+      <SectionTitle>Segurança</SectionTitle>
       {error ? <Alert>{error}</Alert> : null}
 
       <section className="space-y-2">
-        <h3 className="text-sm font-medium">Codigos de recuperacao</h3>
+        <h3 className="text-sm font-medium">Códigos de recuperação</h3>
         <p className="text-sm text-muted">
-          Servem para redefinir a senha se voce esquece-la. Guarde-os fora do celular.
+          Servem para redefinir a senha se você esquecê-la. Guarde-os fora do celular.
           {remaining !== null
             ? remaining > 0
-              ? ` Voce tem ${remaining} codigo${remaining === 1 ? "" : "s"} sem usar.`
-              : " Voce ainda nao tem codigos."
+              ? ` Você tem ${remaining} código${remaining === 1 ? "" : "s"} sem usar.`
+              : " Você ainda não tem códigos."
             : ""}
         </p>
         <Button variant="secondary" onClick={() => setAsking(true)}>
-          {remaining ? "Gerar codigos novos" : "Gerar codigos"}
+          {remaining ? "Gerar códigos novos" : "Gerar códigos"}
         </Button>
       </section>
 
       <section className="space-y-2">
         <h3 className="text-sm font-medium">Aparelhos conectados</h3>
         {devices === null ? null : devices.length === 0 ? (
-          <p className="text-sm text-faint">Nenhum aparelho registrado desde a ultima entrada.</p>
+          <p className="text-sm text-faint">Nenhum aparelho registrado desde a última entrada.</p>
         ) : (
           <ul className="space-y-1" data-testid="aparelhos">
             {devices.map((device) => (
@@ -133,7 +133,7 @@ export function SecurityCard() {
                     {device.current ? <span className="ml-2 text-xs text-accent">Este aparelho</span> : null}
                   </p>
                   <p className="text-xs text-muted">
-                    Ultimo acesso {DATE.format(new Date(device.lastSeenAt))}
+                    Último acesso {DATE.format(new Date(device.lastSeenAt))}
                   </p>
                 </div>
                 {device.current ? null : (
@@ -154,12 +154,12 @@ export function SecurityCard() {
           setCodes(null);
           setGenerateError("");
         }}
-        title="Codigos de recuperacao"
+        title="Códigos de recuperação"
       >
         {codes ? (
           <div className="space-y-4">
             <Alert tone="positive">
-              Estes codigos aparecem so agora. Os anteriores deixaram de valer.
+              Estes códigos aparecem só agora. Os anteriores deixaram de valer.
             </Alert>
             <ul className="grid grid-cols-2 gap-2 font-mono text-base" data-testid="codigos">
               {codes.map((code) => (
@@ -183,8 +183,8 @@ export function SecurityCard() {
           <form onSubmit={generate} className="space-y-4">
             <p className="text-sm text-muted">
               {remaining
-                ? "Gerar codigos novos invalida os que voce tem. Confirme a senha."
-                : "Confirme a senha para gerar os codigos."}
+                ? "Gerar códigos novos invalida os que você tem. Confirme a senha."
+                : "Confirme a senha para gerar os códigos."}
             </p>
             {generateError ? <Alert>{generateError}</Alert> : null}
             <Field

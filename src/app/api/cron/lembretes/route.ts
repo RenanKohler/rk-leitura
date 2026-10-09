@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   }
 
   if (!pushConfigured()) {
-    return NextResponse.json({ enviados: 0, motivo: "push nao configurado" });
+    return NextResponse.json({ enviados: 0, motivo: "push não configurado" });
   }
 
   try {

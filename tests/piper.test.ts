@@ -32,7 +32,7 @@ describe("catalogo de vozes", () => {
     const ids = PIPER_VOICES.map((voice) => voice.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const voice of PIPER_VOICES) {
-      expect(["CC0", "Dominio publico"]).toContain(voice.license);
+      expect(["CC0", "Domínio público"]).toContain(voice.license);
     }
   });
 

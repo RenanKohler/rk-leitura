@@ -54,7 +54,7 @@ const PAGE = `<!doctype html>
     if (window.caches) {
       caches.keys()
         .then(function (keys) {
-          // As vozes baixadas nao guardam nada da conta: ficam para a proxima.
+          // As vozes baixadas não guardam nada da conta: ficam para a próxima.
           return Promise.all(keys.filter(function (k) { return k !== "leitura-vozes"; })
             .map(function (k) { return caches.delete(k); }));
         })

@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import type { Paragraph } from "@/lib/reading";
-import { contextAround, namesInText } from "@/lib/xray";
+import { LITTLE_CONTEXT } from "@/lib/summaries";
+import { contextAround, namesInText, type NameEntry } from "@/lib/xray";
 
 /**
  * Painel de nomes do texto (PROD-11): quem aparece, quantas vezes e onde.
@@ -11,23 +12,34 @@ import { contextAround, namesInText } from "@/lib/xray";
  * paragrafos ja processados pelo leitor e devolve o indice escolhido por
  * `onGo`, sem saber nada de modo de leitura. Toque no nome abre as
  * ocorrencias com um pedaco de contexto; toque na ocorrencia leva ate ela.
+ *
+ * `descriptions` (US-132) acrescenta, embaixo de cada nome, quem ele e ate
+ * onde a leitura foi; null vira "Pouco contexto ate aqui".
  */
 export function XrayPanel({
   words,
   paragraphs,
   onGo,
+  names: given,
+  descriptions,
 }: {
   words: string[];
   paragraphs: Paragraph[];
   onGo: (index: number) => void;
+  /** Lista ja calculada por quem envolve o painel. */
+  names?: NameEntry[];
+  descriptions?: Record<string, string | null> | null;
 }) {
-  const names = useMemo(() => namesInText(words, paragraphs), [words, paragraphs]);
+  const names = useMemo(
+    () => given ?? namesInText(words, paragraphs),
+    [given, words, paragraphs]
+  );
   const [open, setOpen] = useState<string | null>(null);
 
   if (names.length === 0) {
     return (
       <p className="py-4 text-center text-sm text-muted" data-testid="xray-vazio">
-        Nenhum nome aparece tres vezes ou mais neste texto.
+        Nenhum nome aparece três vezes ou mais neste texto.
       </p>
     );
   }
@@ -51,6 +63,11 @@ export function XrayPanel({
                 {entry.count} {entry.count === 1 ? "vez" : "vezes"}
               </span>
             </button>
+            {descriptions && entry.name in descriptions ? (
+              <p className="px-3 pb-2 text-sm text-muted" data-testid="xray-descricao">
+                {descriptions[entry.name] ?? LITTLE_CONTEXT}
+              </p>
+            ) : null}
             {expanded ? (
               <ol id={panelId} className="space-y-1 border-t border-border px-2 py-2">
                 {entry.positions.map((index) => (
@@ -66,7 +83,7 @@ export function XrayPanel({
                 ))}
                 {entry.count > entry.positions.length ? (
                   <li className="px-2 py-1 text-xs text-faint">
-                    {`e mais ${entry.count - entry.positions.length} ocorrencias`}
+                    {`e mais ${entry.count - entry.positions.length} ocorrências`}
                   </li>
                 ) : null}
               </ol>

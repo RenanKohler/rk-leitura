@@ -44,7 +44,7 @@ export function HighlightReviewClient({ initial }: { initial: HighlightReviewSes
       setRevealed(false);
       setPosition((current) => current + 1);
     } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Nao consegui registrar.", "error");
+      notify(cause instanceof Error ? cause.message : "Não consegui registrar.", "error");
     } finally {
       setBusy(false);
     }
@@ -73,7 +73,7 @@ export function HighlightReviewClient({ initial }: { initial: HighlightReviewSes
 
       {cards.length > 0 && !done ? (
         <Segmented<Mode>
-          label="Modo da revisao"
+          label="Modo da revisão"
           value={mode}
           onChange={(value) => {
             setMode(value);
@@ -92,14 +92,14 @@ export function HighlightReviewClient({ initial }: { initial: HighlightReviewSes
             <EmptyState
               icon={<LibraryIcon className="size-7" />}
               title="Nenhum destaque ainda"
-              description="Durante a leitura, marque os trechos que valem a pena. Eles entram na revisao no dia seguinte."
+              description="Durante a leitura, marque os trechos que valem a pena. Eles entram na revisão no dia seguinte."
               action={<LinkButton href="/textos">Ir para a biblioteca</LinkButton>}
             />
           ) : (
             <EmptyState
               icon={<CheckIcon className="size-7" />}
               title="Nenhum destaque para revisar hoje"
-              description="Os proximos voltam conforme o intervalo de cada um."
+              description="Os próximos voltam conforme o intervalo de cada um."
               action={<LinkButton href="/textos">Ir para a biblioteca</LinkButton>}
             />
           )}
@@ -108,8 +108,8 @@ export function HighlightReviewClient({ initial }: { initial: HighlightReviewSes
         <Card>
           <EmptyState
             icon={<CheckIcon className="size-7" />}
-            title="Revisao concluida"
-            description={`Voce lembrou ${remembered} de ${cards.length}. Os que voce errou voltam amanha.`}
+            title="Revisão concluída"
+            description={`Você lembrou ${remembered} de ${cards.length}. Os que você errou voltam amanhã.`}
             action={<LinkButton href="/textos">Ir para a biblioteca</LinkButton>}
           />
         </Card>

@@ -39,7 +39,7 @@ export function LearningClient({ stats }: { stats: LearningStats }) {
                   <span className="ml-1 text-xs font-normal text-muted">ppm</span>
                 </p>
                 <p className="tabular text-xs text-faint">
-                  {row.sessions} {row.sessions === 1 ? "sessao" : "sessoes"}
+                  {row.sessions} {row.sessions === 1 ? "sessão" : "sessões"}
                 </p>
               </Card>
             ))}
@@ -50,11 +50,11 @@ export function LearningClient({ stats }: { stats: LearningStats }) {
       {points.length > 0 ? (
         <section className="space-y-3" aria-labelledby="compreensao">
           <SectionTitle>
-            <span id="compreensao">Compreensao</span>
+            <span id="compreensao">Compreensão</span>
           </SectionTitle>
           {last ? (
             <p className="text-sm text-muted" data-testid="ritmo-eficaz">
-              {`Ultima medida: ${last.percent}% de acertos a ${last.wpm} ppm, ritmo eficaz de ${last.effectiveWpm} ppm.`}
+              {`Última medida: ${last.percent}% de acertos a ${last.wpm} ppm, ritmo eficaz de ${last.effectiveWpm} ppm.`}
             </p>
           ) : null}
           {/* O grafico so recebe o valor; dia e rotulo seguem o formato das
