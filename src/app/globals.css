@@ -574,3 +574,18 @@ body[data-sheet="aberta"] .toast-region {
 .nobreak {
   white-space: nowrap;
 }
+
+/*
+ * Faixa de chips com rolagem horizontal (etiquetas da biblioteca). Sem barra
+ * de rolagem, que no celular aparecia como um traco solto embaixo da faixa;
+ * a borda direita esmaece para mostrar que a faixa continua.
+ */
+.chip-scroller {
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+}
+
+.chip-scroller::-webkit-scrollbar {
+  display: none;
+}
