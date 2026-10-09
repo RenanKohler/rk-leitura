@@ -17,6 +17,7 @@ import { applyTags } from "@/lib/text-tags";
 import { detectSeries } from "@/lib/series";
 import { asTextFormat, clamp, countWords } from "@/lib/reading";
 import { acceptsPosition } from "@/lib/offline";
+import { normalizeAuthor } from "@/lib/import-analysis";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,7 @@ export async function PUT(request: Request, { params }: Params) {
       tags?: unknown;
       language?: unknown;
       format?: unknown;
+      author?: unknown;
     }>(request);
     const title = asString(body?.title);
     const content = asString(body?.content);
@@ -127,9 +129,13 @@ export async function PUT(request: Request, { params }: Params) {
           format,
           wordCount,
           ...(language ? { language } : {}),
+          // Autor ausente nao muda o salvo; vazio apaga (US-152).
+          ...(body?.author !== undefined ? { author: normalizeAuthor(body.author) } : {}),
           // Conteudo reescrito a mao: o original guardado para desfazer a
           // omissao de referencias deixa de corresponder a ele.
-          ...(rewritten ? { progressIndex: 0, originalContent: null } : {}),
+          // As secoes sugeridas (US-153) apontam para posicoes do conteudo
+          // antigo: reescrito, elas saem junto com os destaques.
+          ...(rewritten ? { progressIndex: 0, originalContent: null, sections: null } : {}),
           ...(retitled && current.seriesKey !== null
             ? {
                 seriesKey: series?.key ?? null,
