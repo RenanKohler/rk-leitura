@@ -138,3 +138,97 @@ export function validSuggestions(
   }
   return result;
 }
+
+/* --- titulo e autor (US-152) ---------------------------------------------- */
+
+/** Titulo que a extracao da pagina devolve quando nao acha nenhum. */
+export const UNTITLED = "Sem título";
+
+/** Caracteres do comeco do texto enviados para sugerir titulo e autor. */
+export const META_EXCERPT_CHARS = 2_000;
+
+/** Teto do titulo sugerido, em palavras. */
+export const MAX_SUGGESTED_TITLE_WORDS = 12;
+
+/** Teto do autor, em caracteres: nome de gente, nao paragrafo. */
+export const MAX_AUTHOR_CHARS = 120;
+
+/** Os primeiros caracteres do texto, cortados na ultima palavra inteira. */
+export function metaExcerpt(content: string, maxChars: number = META_EXCERPT_CHARS): string {
+  const trimmed = content.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  const cut = trimmed.slice(0, maxChars);
+  // Corta no ultimo espaco, se a palavra seguinte ficaria pela metade.
+  if (/\s/.test(trimmed[maxChars] ?? " ")) return cut.trim();
+  const space = cut.search(/\s\S*$/);
+  return (space > 0 ? cut.slice(0, space) : cut).trim();
+}
+
+/**
+ * Pedido da analise: os paragrafos numerados para a limpeza (US-136), quando
+ * pedida, e o comeco do texto para titulo e autor (US-152). As duas partes vao
+ * na mesma mensagem, para a mesma chamada.
+ */
+export function analysisPrompt(
+  content: string,
+  wants: { cleanup: boolean; meta: boolean }
+): { prompt: string; count: number } {
+  const parts: string[] = [];
+  let count = 0;
+  if (wants.cleanup) {
+    const numbered = numberedParagraphs(content);
+    count = numbered.count;
+    parts.push(`<paragrafos>\n${numbered.prompt}\n</paragrafos>`);
+  }
+  if (wants.meta) parts.push(`<comeco>\n${metaExcerpt(content)}\n</comeco>`);
+  return { prompt: parts.join("\n\n"), count };
+}
+
+const QUOTES = /^["'“”‘’«»]+|["'“”‘’«»]+$/g;
+
+/** Titulo sugerido utilizavel: sem aspas em volta e ate o teto de palavras. */
+export function validSuggestedTitle(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const clean = raw
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(QUOTES, "")
+    .replace(/[.;:,]+$/, "")
+    .trim();
+  if (clean.length < 3 || clean === UNTITLED) return null;
+  return clean.split(" ").slice(0, MAX_SUGGESTED_TITLE_WORDS).join(" ").slice(0, 200);
+}
+
+/** Sem acento, caixa e espacos repetidos, para comparar nomes. */
+function folded(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Autor sugerido so quando o nome esta escrito no trecho enviado: um nome que
+ * nao aparece nas primeiras linhas e palpite do modelo, e o campo fica vazio.
+ */
+export function validSuggestedAuthor(raw: unknown, excerpt: string): string | null {
+  if (typeof raw !== "string") return null;
+  const clean = raw
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(QUOTES, "")
+    .replace(/^(por|by)\s+/i, "")
+    .replace(/[.;:,]+$/, "")
+    .trim();
+  if (clean.length < 3 || clean.length > MAX_AUTHOR_CHARS) return null;
+  if (!folded(excerpt).includes(folded(clean))) return null;
+  return clean;
+}
+
+/** Autor informado ao salvar: texto curto, ou nulo quando vazio. */
+export function normalizeAuthor(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const clean = raw.replace(/\s+/g, " ").trim();
+  return clean ? clean.slice(0, MAX_AUTHOR_CHARS) : null;
+}

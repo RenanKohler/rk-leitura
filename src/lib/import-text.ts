@@ -23,6 +23,8 @@ export interface ImportedDocument {
   language: Language | null;
   /** Corpo declarado pela pagina ou palpite pelo maior container (US-136). */
   extraction: Extraction;
+  /** Autor declarado pela pagina; null quando ela nao declara (US-152). */
+  author: string | null;
 }
 
 /** Falha esperada da importacao, com o status que a rota deve devolver. */
@@ -54,6 +56,7 @@ export async function importFromUrl(url: string): Promise<ImportedDocument> {
       sourceUrl: finalUrl,
       language: parsed.language,
       extraction: parsed.extraction,
+      author: parsed.author,
     };
   } catch (error) {
     if (error instanceof ImportError) throw error;

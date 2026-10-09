@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { apiSend } from "@/lib/client";
-import { Button, Card, SectionTitle } from "@/components/ui";
+import { useEffect, useState } from "react";
+import { apiGet, apiSend } from "@/lib/client";
+import { Alert, Button, Card, SectionTitle } from "@/components/ui";
 import { formatNumber } from "@/lib/reading";
 import type { WeeklySummary } from "@/lib/types";
 
@@ -18,8 +18,54 @@ export function WeeklySummaryCard({ summary }: { summary: WeeklySummary }) {
 
   if (!visible) return null;
 
+  return <SummaryBody summary={summary} onDismiss={() => setVisible(false)} />;
+}
+
+/** Estado das ideias da semana (US-154), vindo de GET /api/resumo-semanal/ideias. */
+interface IdeasState {
+  available: boolean;
+  ideas: string | null;
+}
+
+function SummaryBody({ summary, onDismiss }: { summary: WeeklySummary; onDismiss: () => void }) {
+  // Sem resposta, o cartao fica como sempre foi: so os numeros.
+  const [ideasState, setIdeasState] = useState<IdeasState | null>(null);
+  const [ideas, setIdeas] = useState<string | null>(null);
+  const [loadingIdeas, setLoadingIdeas] = useState(false);
+  const [ideasError, setIdeasError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void apiGet<IdeasState>("/api/resumo-semanal/ideias")
+      .then((state) => {
+        if (active) setIdeasState(state);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const showIdeas = async () => {
+    // Guardado da mesma semana: aparece sem nova chamada.
+    if (ideasState?.ideas) {
+      setIdeas(ideasState.ideas);
+      return;
+    }
+    setLoadingIdeas(true);
+    setIdeasError("");
+    try {
+      const result = await apiSend<{ ideas: string }>("/api/resumo-semanal/ideias", "POST");
+      setIdeas(result.ideas);
+    } catch (cause) {
+      setIdeasError(cause instanceof Error ? cause.message : "Não consegui reunir as ideias agora.");
+    } finally {
+      setLoadingIdeas(false);
+    }
+  };
+
   const dismiss = () => {
-    setVisible(false);
+    onDismiss();
     // Sem await: o cartao ja saiu da tela, e se a gravacao falhar o pior caso
     // e ele voltar na proxima abertura.
     void apiSend("/api/resumo-semanal", "POST").catch(() => {});
@@ -52,6 +98,20 @@ export function WeeklySummaryCard({ summary }: { summary: WeeklySummary }) {
         <p className="text-sm text-muted">
           {`${formatNumber(summary.savedMinutes)} min economizados ao largar textos que não valiam a leitura.`}
         </p>
+      ) : null}
+
+      {ideas ? (
+        <div className="space-y-1" data-testid="ideias-semana">
+          <p className="text-sm font-medium text-muted">Ideias da semana</p>
+          <p className="text-sm leading-relaxed">{ideas}</p>
+        </div>
+      ) : ideasState?.available ? (
+        <div className="space-y-2">
+          {ideasError ? <Alert>{ideasError}</Alert> : null}
+          <Button variant="secondary" full loading={loadingIdeas} onClick={() => void showIdeas()}>
+            Ver as ideias da semana
+          </Button>
+        </div>
       ) : null}
 
       <Button variant="ghost" full onClick={dismiss}>

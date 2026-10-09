@@ -677,6 +677,11 @@ function TextCard({
               {text.fresh ? <NewBadge /> : null}
               {text.title}
             </p>
+            {text.author ? (
+              <p className="mt-0.5 line-clamp-1 text-sm text-muted" data-testid="autor">
+                {text.author}
+              </p>
+            ) : null}
             <p className="mt-1 text-sm text-muted">
               {`${formatNumber(text.wordCount)} palavras · ~${estimatedMinutes(text.wordCount, wpm)} min`}
               {percent > 0 ? ` · ${percent}% lido` : ""}

@@ -86,6 +86,8 @@ export async function reprocessCitations(
         originalContent: original,
         wordCount,
         progressIndex,
+        // As posicoes mudam: secoes sugeridas (US-153) deixam de valer.
+        sections: null,
         // Palavras que faltavam ao largar (US-81) seguem a contagem nova.
         ...(text.abandonedAt ? { abandonedWords: Math.max(0, wordCount - progressIndex) } : {}),
         updatedAt: new Date(),

@@ -11,9 +11,11 @@ import {
   MAX_BOOKMARK_LABEL,
   MAX_SEARCH_RESULTS,
   searchWords,
-  textHeadings,
 } from "@/lib/navigation";
 import type { Paragraph } from "@/lib/reading";
+import { canSuggestSections, navigationHeadings, type Section } from "@/lib/sections";
+import { SectionsReview } from "@/components/sections-review";
+import { useAiConsent } from "@/components/ai-consent";
 
 interface Bookmark {
   id: string;
@@ -49,8 +51,18 @@ export function NavigateSheet({
   const searchRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState(0);
   const results = useMemo(() => searchWords(words, query), [words, query]);
-  const headings = useMemo(() => textHeadings(paragraphs), [paragraphs]);
+  // Secoes aplicadas (US-153): entram no sumario so quando o texto nao tem
+  // titulos proprios.
+  const [sections, setSections] = useState<Section[]>([]);
+  const headings = useMemo(() => navigationHeadings(paragraphs, sections), [paragraphs, sections]);
   const section = currentHeading(headings, index);
+  const sectionable = useMemo(
+    () => canSuggestSections(words.length, paragraphs),
+    [words.length, paragraphs]
+  );
+  const { state: consent } = useAiConsent();
+  // Com a IA desligada, so as secoes ja aplicadas aparecem.
+  const offerSections = sectionable && (consent !== "off" || sections.length > 0);
 
   const [bookmarks, setBookmarks] = useState<Bookmark[] | null>(null);
   const [label, setLabel] = useState("");
@@ -72,6 +84,22 @@ export function NavigateSheet({
       active = false;
     };
   }, [open, textId]);
+
+  useEffect(() => {
+    // Texto com titulos proprios nunca usa secoes: nem pergunta.
+    if (!open || !sectionable) return;
+    let active = true;
+    void apiGet<{ sections: Section[] }>(`/api/texts/${textId}/secoes`)
+      .then((data) => {
+        if (active) setSections(data.sections);
+      })
+      .catch(() => {
+        // Sem as secoes o sumario fica como antes.
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, textId, sectionable]);
 
   const goToResult = (position: number) => {
     const target = results[position];
@@ -192,7 +220,7 @@ export function NavigateSheet({
           ) : null}
         </section>
 
-        {headings.length > 0 ? (
+        {headings.length > 0 || offerSections ? (
           <section className="space-y-2" aria-label="Sumário">
             <h3 className="text-sm font-medium text-muted">Sumário</h3>
             <ul className="max-h-60 space-y-1 overflow-y-auto">
@@ -214,6 +242,14 @@ export function NavigateSheet({
                 </li>
               ))}
             </ul>
+            {offerSections ? (
+              <SectionsReview
+                textId={textId}
+                words={words}
+                current={sections}
+                onApplied={setSections}
+              />
+            ) : null}
           </section>
         ) : null}
 
