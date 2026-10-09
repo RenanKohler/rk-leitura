@@ -206,6 +206,8 @@ async function applyResults(client: Anthropic, row: typeof aiBatches.$inferSelec
         kind: entry.kind,
         definition: entry.definition,
         translation: entry.translation ?? null,
+        // Alternativas da revisao (US-151): o lote usa o mesmo esquema.
+        distractors: entry.distractors ?? null,
         updatedAt: new Date(),
       })
       .where(and(eq(savedWords.id, word.id), pendingFilter(row.userId)));

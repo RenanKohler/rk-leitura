@@ -64,6 +64,11 @@ export interface ReviewCard {
   translation: string | null;
   context: string | null;
   textTitle: string | null;
+  /**
+   * Tres definicoes erradas (US-151): com elas, a revisao e de multipla
+   * escolha. Nulas nas palavras sem alternativas validas.
+   */
+  distractors: string[] | null;
   /** Intervalo atual em dias: a tela mostra quanto cada resposta adiaria. */
   interval: number;
 }

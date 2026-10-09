@@ -1,8 +1,8 @@
 import "server-only";
 
 import { z } from "zod";
-import { aiParse, AiUnavailable, type AiMessages } from "@/lib/ai";
-import { parseEntry, type WordEntry } from "@/lib/dictionary";
+import { aiParse, AiUnavailable, countWords, type AiMessages } from "@/lib/ai";
+import { DISTRACTOR_COUNT, parseEntry, type WordEntry } from "@/lib/dictionary";
 import { DEFAULT_LANGUAGE, languageName } from "@/lib/language";
 
 /**
@@ -34,6 +34,14 @@ const EntrySchema = z.object({
     .describe(
       "Tradução para o português no sentido do trecho; vazia quando a palavra já é portuguesa."
     ),
+  // Revisao de multipla escolha (US-151): cerca de 40 tokens a mais de saida,
+  // gerados uma vez, na consulta.
+  distractors: z
+    .array(z.string())
+    .length(DISTRACTOR_COUNT)
+    .describe(
+      "Três definições incorretas mas plausíveis para esta palavra, no mesmo estilo e tamanho da definição correta, em português."
+    ),
 });
 
 const SYSTEM = [
@@ -42,6 +50,7 @@ const SYSTEM = [
   "A definição é curta e direta, escrita para quem está lendo e não quer parar.",
   "Nunca repete a palavra consultada dentro da própria definição.",
   "Quando uma palavra de outro idioma aparecer em texto em português, define em português e diz o idioma em `kind`.",
+  "Além da definição correta, escreve três definições erradas e plausíveis, que alguém em dúvida poderia confundir com a certa; nenhuma pode ser sinônima da correta.",
 ].join(" ");
 
 /**
@@ -63,11 +72,15 @@ export async function lookupWord(
   userId: string,
   word: string,
   context: string,
-  language: string = DEFAULT_LANGUAGE
+  language: string = DEFAULT_LANGUAGE,
+  /** Texto em que a palavra apareceu (US-144); a frase e o que sai dele. */
+  textId?: string | null
 ): Promise<WordEntry> {
   const parsed = await aiParse({
     task: "dicionario",
     userId,
+    textId: textId ?? null,
+    wordsSent: textId ? countWords(context || word) : 0,
     messages: MESSAGES,
     schema: EntrySchema,
     system: SYSTEM,

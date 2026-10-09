@@ -26,7 +26,15 @@ export interface WordEntry {
   definition: string;
   /** Traducao para o portugues, quando a palavra e de outro idioma (US-69). */
   translation?: string | null;
+  /**
+   * Tres definicoes erradas e plausiveis (US-151), guardadas com a palavra
+   * para a revisao de multipla escolha. Nulas quando nao vieram validas.
+   */
+  distractors?: string[] | null;
 }
+
+/** Definicoes erradas pedidas na consulta (US-151). */
+export const DISTRACTOR_COUNT = 3;
 
 /**
  * Limpa a palavra tocada.
@@ -101,6 +109,7 @@ export function parseEntry(raw: unknown, word: string): WordEntry | null {
 
   const definition = asText(item.definition);
   if (!definition) return null;
+  const distractors = parseDistractors(item.distractors, definition);
 
   return {
     word,
@@ -108,7 +117,29 @@ export function parseEntry(raw: unknown, word: string): WordEntry | null {
     kind: asText(item.kind) ?? "",
     definition,
     translation: asText(item.translation),
+    // So entra quando veio valida: as consultas de antes nao tinham o campo.
+    ...(distractors ? { distractors } : {}),
   };
+}
+
+/**
+ * As tres definicoes erradas, ou null. Precisam ser exatamente tres,
+ * diferentes entre si e da correta - uma repetida deixaria duas alternativas
+ * iguais na tela, e uma igual a correta tornaria a pergunta insoluvel.
+ */
+export function parseDistractors(raw: unknown, definition: string): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  const seen = new Set([wordKey(definition).replace(/[\s.]+$/u, "")]);
+  const list: string[] = [];
+  for (const value of raw) {
+    const text = asText(value);
+    if (!text) continue;
+    const key = wordKey(text).replace(/[\s.]+$/u, "");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    list.push(text);
+  }
+  return list.length >= DISTRACTOR_COUNT ? list.slice(0, DISTRACTOR_COUNT) : null;
 }
 
 function asText(value: unknown): string | null {

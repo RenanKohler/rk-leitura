@@ -241,3 +241,59 @@ test("cartoes criados dos destaques sao revisados e perguntam antes do trecho", 
   // O descartado continua com a revisao de sempre, em lacuna.
   await expect(page.getByTestId("lacuna")).toHaveCount(1);
 });
+
+/** US-151: palavra com alternativas vira multipla escolha; sem elas, a revisao de sempre. */
+test("revisao de palavra com quatro definicoes volta ao inicio quando erra", async ({ page }) => {
+  await registerByApi(page.request);
+  const text = await createText(page.request, "Palavras", PROSE);
+  const me = (await (await page.request.get("/api/auth/me")).json()).user.id as string;
+
+  for (const word of ["remendada", "prateados"]) {
+    const saved = await page.request.post("/api/palavras", {
+      data: { word, context: word === "remendada" ? "Carregava uma rede remendada e uma garrafa" : "havia peixes prateados pulando", textId: text.id },
+    });
+    expect(saved.status()).toBe(201);
+  }
+  // A consulta guardaria as alternativas; sem chave aqui, elas vao direto ao banco.
+  await runSql(
+    `update saved_words set definition = 'Consertada com remendos.',
+       distractors = '["Pintada de novo.", "Rasgada ao meio.", "Comprada na feira."]'::jsonb,
+       review_interval = 14, next_review_on = current_date - 2
+     where user_id = $1 and word = 'remendada'`,
+    [me]
+  );
+  await runSql(
+    `update saved_words set definition = 'Da cor da prata.', next_review_on = current_date - 1
+     where user_id = $1 and word = 'prateados'`,
+    [me]
+  );
+
+  await page.goto("/palavras/revisar");
+  await expect(page.getByTestId("frase-origem").locator("mark")).toHaveText("remendada");
+  const options = page.getByTestId("alternativas").getByRole("button");
+  await expect(options).toHaveCount(4);
+  await expect(page.getByRole("button", { name: "Mostrar" })).toHaveCount(0);
+
+  const graded = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/palavras/revisao") && response.request().method() === "POST"
+  );
+  await page.getByRole("button", { name: "Pintada de novo." }).click();
+  const response = await graded;
+  expect(response.request().postDataJSON()).toMatchObject({ grade: "errei" });
+  // Errou: de 14 dias volta ao intervalo inicial, de 1 dia.
+  expect((await response.json()).interval).toBe(1);
+  await expect(page.getByTestId("errou")).toBeVisible();
+  await expect(page.getByTestId("alternativas").locator('[data-correct="true"]')).toHaveText(
+    "Consertada com remendos."
+  );
+  await page.getByRole("button", { name: "Continuar" }).click();
+
+  // Sem alternativas: a revisao de sempre.
+  await expect(page.getByText("prateados", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("alternativas")).toHaveCount(0);
+  await page.getByRole("button", { name: "Mostrar" }).click();
+  await expect(page.getByText("Da cor da prata.")).toBeVisible();
+  await page.getByRole("button", { name: /^Bom/ }).click();
+  await expect(page.getByText("Revisão concluída")).toBeVisible();
+});
