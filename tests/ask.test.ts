@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  answeredUntil,
   appendNote,
   askExcerpt,
+  MAX_STORED_TURNS,
+  parseStoredAnswer,
+  parseSuggestions,
+  suggestionCut,
+  suggestionsKey,
+  turnsToDrop,
   askMessages,
   MAX_QUESTION_CHARS,
   NO_ANSWER,
@@ -161,5 +168,92 @@ describe("guardar como nota", () => {
     expect(noteTarget(marks, { start: 11, end: 13 })?.id).toBe("b");
     expect(noteTarget(marks, { start: 4, end: 6 })?.id).toBe("a");
     expect(noteTarget(marks, { start: 6, end: 8 })).toBeNull();
+  });
+});
+
+describe("turnsToDrop (US-147)", () => {
+  const turns = Array.from({ length: 53 }, (_, index) => ({
+    id: `t${index}`,
+    createdAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+  }));
+
+  it("guarda as 50 mais recentes e apaga as mais antigas", () => {
+    expect(MAX_STORED_TURNS).toBe(50);
+    expect(turnsToDrop(turns)).toEqual(["t0", "t1", "t2"]);
+    expect(turnsToDrop([...turns].reverse())).toEqual(["t0", "t1", "t2"]);
+  });
+
+  it("nada a apagar abaixo do teto", () => {
+    expect(turnsToDrop(turns.slice(0, 50))).toEqual([]);
+    expect(turnsToDrop([])).toEqual([]);
+    expect(turnsToDrop(turns.slice(0, 3), 1)).toEqual(["t0", "t1"]);
+  });
+});
+
+describe("parseStoredAnswer", () => {
+  it("le a resposta guardada e descarta citacao malformada", () => {
+    expect(
+      parseStoredAnswer({
+        text: "Sim.",
+        citations: [{ start: 1, end: 3, quote: "a b" }, { start: "x" }, null],
+      })
+    ).toEqual({ text: "Sim.", citations: [{ start: 1, end: 3, quote: "a b" }] });
+    expect(parseStoredAnswer(null)).toBeNull();
+    expect(parseStoredAnswer({ text: 1, citations: [] })).toBeNull();
+  });
+});
+
+describe("answeredUntil", () => {
+  it("mostra a palavra como o leitor conta, com milhar", () => {
+    expect(answeredUntil(1999)).toBe("Respondida até a palavra 2.000");
+    expect(answeredUntil(0)).toBe("Respondida até a palavra 1");
+  });
+});
+
+describe("suggestionCut (US-148)", () => {
+  it("sem sugestoes antes de 300 palavras lidas", () => {
+    expect(suggestionCut(0)).toBeNull();
+    expect(suggestionCut(298)).toBeNull();
+    expect(suggestionCut(Number.NaN)).toBeNull();
+  });
+
+  it("corta no comeco da faixa, nunca depois da posicao", () => {
+    expect(suggestionCut(299)).toBe(300);
+    expect(suggestionCut(998)).toBe(300);
+    expect(suggestionCut(999)).toBe(1000);
+    expect(suggestionCut(1998)).toBe(1000);
+    expect(suggestionCut(5432)).toBe(5000);
+    for (const position of [299, 450, 999, 1000, 1500, 2999, 12_345]) {
+      // O trecho termina na palavra cut - 1, que ja foi lida.
+      expect(suggestionCut(position)! - 1).toBeLessThanOrEqual(position);
+    }
+  });
+
+  it("o recorte das sugestoes nao inclui nada depois da posicao", () => {
+    const content = Array.from({ length: 1500 }, (_, index) => `w${index}`).join(" ");
+    const parsed = parseParagraphs(content);
+    const cut = suggestionCut(1200)!;
+    const excerpt = askExcerpt(parsed.paragraphs, cut - 1);
+    expect(excerpt.endWord).toBe(1000);
+    expect(excerpt.text).not.toContain("w1000");
+    expect(excerpt.text).toContain("w999");
+  });
+
+  it("a chave muda com a impressao do conteudo e com a faixa", () => {
+    expect(suggestionsKey("t", "f1", 1000)).not.toBe(suggestionsKey("t", "f2", 1000));
+    expect(suggestionsKey("t", "f1", 1000)).not.toBe(suggestionsKey("t", "f1", 2000));
+  });
+});
+
+describe("parseSuggestions", () => {
+  it("ate tres perguntas, sem repeticao e com no maximo 15 palavras", () => {
+    const long = Array.from({ length: 16 }, () => "palavra").join(" ");
+    expect(
+      parseSuggestions({
+        questions: ["Quem é o narrador?", "quem é o narrador?", long, "", 3, "Por quê?", "Onde?", "Quando?"],
+      })
+    ).toEqual(["Quem é o narrador?", "Por quê?", "Onde?"]);
+    expect(parseSuggestions(null)).toEqual([]);
+    expect(parseSuggestions(["A?"])).toEqual(["A?"]);
   });
 });

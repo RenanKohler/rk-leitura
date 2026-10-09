@@ -12,7 +12,10 @@ import { MAX_NOTE_CHARS, type Span } from "@/lib/highlights";
 import type { Paragraph } from "@/lib/reading";
 
 export const MAX_QUESTION_CHARS = 500;
-/** Perguntas por conversa: a conversa vive na folha e nao e gravada. */
+/**
+ * Perguntas por sessao da folha. As respostas ficam guardadas (US-147), mas o
+ * limite conta so o que foi perguntado desde que a folha abriu.
+ */
 export const MAX_QUESTIONS = 10;
 
 export const NO_ANSWER = "O trecho lido até aqui não responde a isso.";
@@ -185,4 +188,121 @@ export function noteTarget<T extends Span & { id: string }>(marks: T[], span: Sp
     .filter((mark) => mark.start <= span.end && mark.end >= span.start)
     .sort((a, b) => a.start - b.start);
   return touching[0] ?? null;
+}
+
+/* --- conversa guardada (US-147) ------------------------------------------ */
+
+/** Perguntas guardadas por texto; a mais antiga sai quando passa disso. */
+export const MAX_STORED_TURNS = 50;
+
+export const TEXT_CHANGED = "O texto mudou desde esta resposta.";
+
+/** Pergunta guardada, como a folha recebe. */
+export interface StoredTurn {
+  id: string;
+  question: string;
+  answer: Answer;
+  /** Palavra onde a leitura estava quando a pergunta foi feita. */
+  position: number;
+  /** O conteudo do texto mudou desde a resposta. */
+  stale: boolean;
+  createdAt: string;
+}
+
+/**
+ * Ids que passam do teto, do mais antigo ao mais novo. Recebe as perguntas
+ * em qualquer ordem; ficam as `cap` mais recentes.
+ */
+export function turnsToDrop<T extends { id: string; createdAt: Date | string }>(
+  turns: T[],
+  cap: number = MAX_STORED_TURNS
+): string[] {
+  const time = (turn: T) => new Date(turn.createdAt).getTime();
+  const ordered = [...turns].sort((a, b) => time(b) - time(a));
+  return ordered
+    .slice(Math.max(0, cap))
+    .reverse()
+    .map((turn) => turn.id);
+}
+
+/** Resposta lida do banco, ou null quando o formato nao confere. */
+export function parseStoredAnswer(raw: unknown): Answer | null {
+  if (!raw || typeof raw !== "object") return null;
+  const source = raw as { text?: unknown; citations?: unknown };
+  if (typeof source.text !== "string" || !Array.isArray(source.citations)) return null;
+  const citations: AnswerCitation[] = [];
+  for (const item of source.citations) {
+    const citation = item as Partial<AnswerCitation> | null;
+    if (
+      !citation ||
+      !Number.isInteger(citation.start) ||
+      !Number.isInteger(citation.end) ||
+      typeof citation.quote !== "string"
+    ) {
+      continue;
+    }
+    citations.push({ start: citation.start!, end: citation.end!, quote: citation.quote });
+  }
+  return { text: source.text, citations };
+}
+
+/** Numero da palavra como o leitor mostra: a contagem comeca em 1. */
+export function wordNumber(position: number): string {
+  return (Math.max(0, Math.trunc(position)) + 1).toLocaleString("pt-BR");
+}
+
+export function answeredUntil(position: number): string {
+  return `Respondida até a palavra ${wordNumber(position)}`;
+}
+
+/* --- perguntas sugeridas (US-148) ---------------------------------------- */
+
+/** Palavras lidas para haver sugestoes. */
+export const SUGGESTION_MIN_WORDS = 300;
+/** Faixa de posicao que compartilha as mesmas sugestoes. */
+export const SUGGESTION_BUCKET = 1_000;
+export const MAX_SUGGESTIONS = 3;
+export const MAX_SUGGESTION_WORDS = 15;
+
+/**
+ * Ate onde vai o trecho das sugestoes para quem esta na palavra `position`,
+ * ou null quando leu pouco. O corte e o comeco da faixa de 1.000 palavras (no
+ * minimo as 300 primeiras), entao todos na mesma faixa recebem as mesmas
+ * sugestoes, e nenhuma delas usa palavra depois da posicao de quem le.
+ */
+export function suggestionCut(position: number): number | null {
+  if (!Number.isFinite(position)) return null;
+  const read = Math.trunc(position) + 1;
+  if (read < SUGGESTION_MIN_WORDS) return null;
+  return Math.max(SUGGESTION_MIN_WORDS, Math.floor(read / SUGGESTION_BUCKET) * SUGGESTION_BUCKET);
+}
+
+/**
+ * Chave das sugestoes em cache: texto, impressao do conteudo e corte. O
+ * conteudo mudado nao encontra as antigas.
+ */
+export function suggestionsKey(textId: string, fingerprint: string, cut: number): string {
+  return `${textId}:${fingerprint}:${cut}`;
+}
+
+/** Ate tres perguntas validas, sem repeticao e com no maximo 15 palavras. */
+export function parseSuggestions(raw: unknown): string[] {
+  const list = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === "object" && Array.isArray((raw as { questions?: unknown }).questions)
+      ? (raw as { questions: unknown[] }).questions
+      : [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of list) {
+    const question = normalizeQuestion(item);
+    if (!question) continue;
+    if (question.split(" ").length > MAX_SUGGESTION_WORDS) continue;
+    const key = question.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(question);
+    if (result.length === MAX_SUGGESTIONS) break;
+  }
+  return result;
 }
