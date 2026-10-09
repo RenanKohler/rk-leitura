@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { jsonError, requireSession, serverError } from "@/lib/api";
+import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { loadCloze } from "@/lib/cloze-quiz";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +13,11 @@ type Params = { params: Promise<{ id: string }> };
  *
  * E o que a folha de compreensao oferece quando o questionario por IA nao
  * esta disponivel. Como no questionario, o gabarito nao sai daqui.
+ *
+ * Na checagem de uma sessao (US-149) a tela manda o trecho da sessao
+ * (`from`, `to`), e as lacunas saem dele em vez do trecho da ultima sessao.
  */
-export async function POST(_request: Request, { params }: Params) {
+export async function POST(request: Request, { params }: Params) {
   const session = await requireSession();
   if (session instanceof NextResponse) return session;
 
@@ -22,7 +25,12 @@ export async function POST(_request: Request, { params }: Params) {
     const { id } = await params;
     if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
-    const result = await loadCloze(session.id, id);
+    const body = await readJson<{ from?: unknown; to?: unknown }>(request);
+    const range =
+      typeof body?.from === "number" && typeof body?.to === "number"
+        ? { from: body.from, to: body.to }
+        : null;
+    const result = await loadCloze(session.id, id, range);
     if (result.status === "not-found") return jsonError("Texto não encontrado.", 404);
     if (result.status === "too-short") {
       return jsonError("O trecho lido não tem frases suficientes para as lacunas.", 422);

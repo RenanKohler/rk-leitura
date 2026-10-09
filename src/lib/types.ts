@@ -218,6 +218,18 @@ export interface SessionSummary {
   createdAt: string;
 }
 
+/** Sessao com compreensao medida, como o treino a mostra (US-149). */
+export interface CheckedSession {
+  id: string;
+  textTitle: string;
+  wpm: number;
+  wordsRead: number;
+  /** Modo da sessao: "runner", "narracao" ou "pagina". */
+  mode: string;
+  comprehension: number;
+  createdAt: string;
+}
+
 /** Ritmo medio de um modo nos ultimos 30 dias. */
 export interface ModePace {
   mode: string;
