@@ -72,7 +72,8 @@ que é a função de IA ligada diretamente ao objetivo de treino.
 **Épico:** Qualidade e controle da IA
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/ai.ts` (`recordFailure`, `recordResponse`), `src/lib/ai-usage-report.ts`, `src/app/api/uso-ia/route.ts`
 
 Como mantenedor, eu quero saber quantas chamadas de cada função falharam, foram
 recusadas ou passaram do tempo, para que eu troque modelo, esforço ou tempo
@@ -99,7 +100,8 @@ para as linhas antigas. O ponto de gravação é `src/lib/ai.ts`, nos blocos
 **Épico:** Qualidade e controle da IA
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `tests/eval/run.ts`, `tests/eval/checks.ts`, `tests/eval/casos/`, `npm run eval:ia`
 
 Como mantenedor, eu quero rodar as funções de IA sobre um conjunto fixo de
 textos e verificar as respostas automaticamente, para que uma troca de modelo
@@ -132,7 +134,8 @@ da rodada. Rodar antes de qualquer mudança em `AI_MODELS` ou nos prompts.
 **Épico:** Qualidade e controle da IA
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/app/api/ia/resultados/route.ts`, `src/components/ai-card.tsx`
 
 Como leitor, eu quero apagar as explicações, resumos, sinopses e sínteses que a
 IA gerou sobre os meus textos, para que esse conteúdo não fique guardado depois
@@ -158,7 +161,8 @@ confirmação diz isso.
 **Épico:** Qualidade e controle da IA
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/app/api/ia/historico/route.ts`, `src/lib/ai-history.ts`, `src/components/ai-history.tsx`
 
 Como leitor, eu quero ver a lista das últimas chamadas à IA com a função, o
 texto e o volume enviado, para que eu confira que só saiu do app o que eu pedi.
@@ -185,7 +189,8 @@ contrariaria o objetivo da story.
 **Épico:** Leitura assistida por IA (ampliação)
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/ai-stream.ts`, `src/lib/stream-response.ts`, `src/app/api/texts/[id]/pergunta/route.ts`, `src/app/api/texts/[id]/explicacao/route.ts`
 
 Como leitor, eu quero ver a explicação e a resposta ao texto surgirem enquanto
 são geradas, para que eu não fique diante de um indicador de carregamento por
@@ -212,7 +217,8 @@ validação no fim. Medir o tempo até o primeiro trecho no registro da US-141.
 **Épico:** Leitura assistida por IA (ampliação)
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/app/api/texts/[id]/explicacao/route.ts` (`followUp`), `src/components/explain-sheet.tsx`
 
 Como leitor, eu quero pedir outra forma de explicação quando a primeira não
 resolveu, para que eu entenda a frase sem sair do texto para pesquisar.
@@ -236,7 +242,8 @@ reaproveita o recorte da US-127; nenhum contexto novo sai do app.
 **Épico:** Leitura assistida por IA (ampliação)
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/ask-turns.ts`, `src/app/api/texts/[id]/pergunta/route.ts` (GET e DELETE), `src/components/ask-sheet.tsx`
 
 Como leitor de textos longos, eu quero que as perguntas que fiz a um texto
 fiquem guardadas, para que eu consulte as respostas dias depois sem perguntar
@@ -264,7 +271,8 @@ por sessão da folha, não pelo total guardado.
 **Épico:** Leitura assistida por IA (ampliação)
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/suggestions-generator.ts`, `src/app/api/texts/[id]/sugestoes/route.ts`
 
 Como leitor, eu quero ver três perguntas sugeridas ao abrir "Perguntar ao
 texto", para que eu use a função mesmo quando não sei por onde começar.
@@ -291,7 +299,8 @@ perguntas, só a pergunta enviada.
 **Épico:** Compreensão e revisão com IA
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/session-check.ts`, `src/lib/session-quiz.ts`, `src/app/api/texts/[id]/compreensao/`, `src/app/(app)/treino/training-client.tsx`
 
 Como leitor em treino, eu quero responder duas perguntas sobre o que li na
 sessão ao parar de ler, para que a velocidade registrada venha acompanhada de
@@ -321,7 +330,8 @@ sessão exige coluna nova em `reading_sessions`.
 **Épico:** Compreensão e revisão com IA
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/highlight-cards.ts`, `src/lib/card-generator.ts`, `src/app/api/texts/[id]/destaques/cartoes/route.ts`, `src/app/(app)/textos/[id]/destaques/cards-panel.tsx`
 
 Como leitor, eu quero transformar os destaques de um texto em cartões de
 pergunta e resposta revisados ao longo dos dias, para que eu retenha as ideias
@@ -348,7 +358,8 @@ revisão; avaliar se reaproveita o agendamento de `saved_words`.
 **Épico:** Compreensão e revisão com IA
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/word-lookup.ts`, `src/lib/word-choices.ts`, `src/app/(app)/palavras/revisar/review-client.tsx`
 
 Como leitor que estuda outro idioma, eu quero revisar uma palavra escolhendo a
 definição correta entre quatro, para que a revisão teste a lembrança e não só a
@@ -378,7 +389,8 @@ mesmo esquema.
 **Épico:** Biblioteca e hábito com IA
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/import-ai.ts` (`analyzePreview`), `src/lib/import-analysis.ts`, `src/components/suggested-field.tsx`
 
 Como leitor, eu quero que a prévia da importação sugira título e autor quando o
 arquivo ou a página não trazem esses dados, para que a biblioteca não fique
@@ -403,7 +415,8 @@ nova. Só os primeiros 2.000 caracteres são enviados para esta parte.
 **Épico:** Biblioteca e hábito com IA
 **Prioridade:** Could
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/sections.ts`, `src/lib/sections-ai.ts`, `src/app/api/texts/[id]/secoes/route.ts`, `src/components/sections-review.tsx`
 
 Como leitor de textos longos, eu quero que um documento sem estrutura ganhe
 seções com título, para que eu navegue por ele em "Navegar no texto" como faço
@@ -429,7 +442,8 @@ caracteres, processar em partes. Cota de resumos.
 **Épico:** Biblioteca e hábito com IA
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/week-ideas.ts`, `src/lib/week-ideas-ai.ts`, `src/app/api/resumo-semanal/ideias/`, `weekly-summary-card.tsx`
 
 Como leitor, eu quero que o resumo semanal traga um parágrafo com as ideias
 principais do que li na semana, para que eu relembre o conteúdo além dos
@@ -469,6 +483,37 @@ Cota de resumos.
   externo, fora da integração existente.
 - **Modelo rodando no navegador:** dependência nova e download de centenas de
   megabytes, para funções que já têm cota e custo controlados.
+
+## Notas da implementação
+
+As 14 stories foram implementadas sobre o commit `210362d`. Onde a entrega se
+afastou do texto da story:
+
+- **US-141:** a visão por função fica em `/api/uso-ia` (US-124), que já é a
+  rota do mantenedor e mantém a autenticação por `AI_USAGE_SECRET`; a
+  `/api/ia/uso` continua sendo a das cotas do leitor.
+- **US-142:** o comando roda com `tsx --conditions=react-server` e usa uma conta
+  local própria (`avaliacao-ia@rk-leitura.local`). Ainda não foi executado
+  contra o modelo, por falta de chave no ambiente de desenvolvimento.
+- **US-145:** o protocolo é NDJSON (`start`, `delta`, `done`, `error`). Uma
+  resposta interrompida porque o leitor fechou a folha é registrada como
+  `falha`, com os tokens de saída estimados até o corte.
+- **US-148:** a geração das sugestões não usa a cota de perguntas; o limite é o
+  cache por faixa de 1.000 palavras, 60 pedidos por hora por IP e 100 gerações
+  por conta por dia.
+- **US-149:** a sessão é gravada no momento em que o leitor toca "Checar
+  compreensão", e a nota é escrita nessa sessão. Retomar a leitura abre outra.
+- **US-152:** o autor também é lido dos metadados da página (JSON-LD e
+  `meta author`), sem chamada ao modelo. Aparece nos cartões da biblioteca, não
+  no cabeçalho do leitor.
+- **US-153:** as seções são apagadas quando o conteúdo é reescrito, e posições
+  que deixaram de começar um parágrafo são descartadas ao montar o sumário.
+- **US-154:** textos da semana sem sinopse guardada vão só com o título e os
+  destaques; a sinopse não é gerada para isso.
+
+Nenhuma das funções foi exercitada contra o modelo real neste ambiente: os
+testes de ponta a ponta simulam as rotas de IA. A US-142 existe para fazer essa
+verificação antes de colocar em produção.
 
 ## Sugestão de MVP
 
