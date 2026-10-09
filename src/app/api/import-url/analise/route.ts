@@ -5,7 +5,7 @@ import { tags } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { aiConfigured, aiGate } from "@/lib/ai";
 import { consumeDailyQuota } from "@/lib/daily-quota";
-import { findLeftovers, suggestTags } from "@/lib/import-ai";
+import { analyzePreview, suggestTags, type PreviewAnalysis } from "@/lib/import-ai";
 import type { Leftover } from "@/lib/import-analysis";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -20,15 +20,26 @@ interface Analysis {
   leftovers: Leftover[];
   /** Etiquetas da conta que combinam com o texto (US-137). */
   suggestedTags: string[];
+  /** Titulo sugerido quando a origem nao trouxe um (US-152). */
+  suggestedTitle: string | null;
+  /** Autor sugerido, so quando o nome aparece no comeco do texto (US-152). */
+  suggestedAuthor: string | null;
 }
 
-const EMPTY: Analysis = { leftovers: [], suggestedTags: [] };
+const EMPTY: Analysis = {
+  leftovers: [],
+  suggestedTags: [],
+  suggestedTitle: null,
+  suggestedAuthor: null,
+};
 
 /**
- * Analise da previa da importacao por URL (US-136 e US-137).
+ * Analise da previa da importacao (US-136, US-137 e US-152).
  *
  * So a importacao com previa chama esta rota: e nela que alguem confere o
- * resultado antes de salvar. Cada analise feita gasta uma unidade da cota
+ * resultado antes de salvar. A importacao de arquivo tambem chama, mas so
+ * para titulo e autor (`meta`), quando o arquivo nao trouxe titulo. Limpeza
+ * e titulo vao na mesma chamada. Cada chamada feita gasta uma unidade da cota
  * `importacao`; falha, tempo esgotado ou cota acabada devolvem a analise
  * vazia, e a previa segue como antes.
  */
@@ -40,7 +51,13 @@ export async function POST(request: Request) {
   if (!limit.allowed) return NextResponse.json(EMPTY);
 
   try {
-    const body = await readJson<{ title?: unknown; content?: unknown; extraction?: unknown }>(
+    const body = await readJson<{
+      title?: unknown;
+      content?: unknown;
+      extraction?: unknown;
+      meta?: unknown;
+      tags?: unknown;
+    }>(
       request
     );
     // Sem `trim`: os indices devolvidos contam os paragrafos do texto como a
@@ -55,28 +72,47 @@ export async function POST(request: Request) {
 
     // Corpo declarado pela pagina nao tem o que limpar (US-136, criterio 3).
     const wantsCleanup = body?.extraction === "palpite";
-    const known = (
-      await db.select({ name: tags.name }).from(tags).where(eq(tags.userId, session.id))
-    ).map((row) => row.name);
+    // A importacao de arquivo nao tem seletor de etiquetas: pede `tags: false`.
+    const known =
+      body?.tags === false
+        ? []
+        : (
+            await db.select({ name: tags.name }).from(tags).where(eq(tags.userId, session.id))
+          ).map((row) => row.name);
     // Sem etiquetas na conta, nenhuma chamada (US-137, criterio 3).
     const wantsTags = known.length > 0;
-    if (!wantsCleanup && !wantsTags) return NextResponse.json(EMPTY);
+    // Origem sem titulo: a mesma chamada sugere titulo e autor (US-152).
+    const wantsMeta = body?.meta === true;
+    if (!wantsCleanup && !wantsTags && !wantsMeta) return NextResponse.json(EMPTY);
 
     const gate = await aiGate(session.id);
     if (gate) return gate;
 
-    const cleanupAllowed =
-      wantsCleanup && (await consumeDailyQuota("importacao", session.id)).allowed;
+    const previewAllowed =
+      (wantsCleanup || wantsMeta) &&
+      (await consumeDailyQuota("importacao", session.id)).allowed;
     const tagsAllowed = wantsTags && (await consumeDailyQuota("importacao", session.id)).allowed;
 
-    const [leftovers, suggestedTags] = await Promise.all([
-      cleanupAllowed ? findLeftovers(session.id, content).catch(quiet("limpeza")) : [],
+    const [preview, suggestedTags] = await Promise.all([
+      previewAllowed
+        ? analyzePreview(session.id, content, { cleanup: wantsCleanup, meta: wantsMeta }).catch(
+            (error: unknown): PreviewAnalysis => {
+              quiet("limpeza")(error);
+              return { leftovers: [], title: null, author: null };
+            }
+          )
+        : { leftovers: [], title: null, author: null },
       tagsAllowed
         ? suggestTags(session.id, title, content, known).catch(quiet("etiquetas"))
         : [],
     ]);
 
-    return NextResponse.json({ leftovers, suggestedTags } satisfies Analysis);
+    return NextResponse.json({
+      leftovers: preview.leftovers,
+      suggestedTags,
+      suggestedTitle: preview.title,
+      suggestedAuthor: preview.author,
+    } satisfies Analysis);
   } catch (error) {
     return serverError("import-url/analise", error);
   }

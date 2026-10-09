@@ -14,6 +14,8 @@ export interface ParsedText {
    * maior container, que pode trazer menus e "leia tambem" junto.
    */
   extraction: Extraction;
+  /** Autor declarado pela pagina (meta ou JSON-LD), ou null (US-152). */
+  author: string | null;
 }
 
 export type Extraction = "exata" | "palpite";
@@ -79,7 +81,12 @@ const MIN_FALLBACK_BLOCK_CHARS = 25;
 
 export function extractTextFromHtml(html: string): ParsedText {
   const $ = cheerio.load(html);
+  // Antes do corpo: a extracao tira cabecalhos e rodapes do documento.
+  const author = extractAuthor($);
+  return { ...extractBody($), author };
+}
 
+function extractBody($: cheerio.CheerioAPI): Omit<ParsedText, "author"> {
   const title = extractTitle($);
   const language = extractLanguage($);
 
@@ -292,6 +299,37 @@ function foldForCompare(value: string): string {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * Autor declarado pela pagina: `author` do JSON-LD, depois as metas. Endereco
+ * de perfil (comum em `article:author`) nao e nome e fica de fora.
+ */
+function extractAuthor($: cheerio.CheerioAPI): string | null {
+  const fromLd = collectJsonLd($).flatMap((node) => {
+    const raw = (node as { author?: unknown }).author;
+    const list = Array.isArray(raw) ? raw : [raw];
+    return list.map((item) =>
+      typeof item === "string"
+        ? item
+        : item && typeof item === "object"
+          ? (item as { name?: unknown }).name
+          : undefined
+    );
+  });
+  const candidates = [
+    ...fromLd,
+    $("meta[name='author']").attr("content"),
+    $("meta[property='article:author']").attr("content"),
+    $("meta[name='byl']").attr("content"),
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const clean = candidate.replace(/\s+/g, " ").trim().replace(/^(por|by)\s+/i, "");
+    if (clean.length < 3 || clean.length > 120 || /:\/\/|^www\.|[@/]/.test(clean)) continue;
+    return clean;
+  }
+  return null;
 }
 
 function firstText(values: unknown[]): string | undefined {

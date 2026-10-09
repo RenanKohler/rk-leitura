@@ -337,6 +337,7 @@ const summaryColumns = {
   archivedAt: texts.archivedAt,
   autoImportedAt: texts.autoImportedAt,
   abandonedAt: texts.abandonedAt,
+  author: texts.author,
   createdAt: texts.createdAt,
   updatedAt: texts.updatedAt,
 };
@@ -346,7 +347,7 @@ type SummaryRow = {
     ? Date | null
     : K extends "createdAt" | "updatedAt"
       ? Date
-      : K extends "sourceUrl" | "seriesKey" | "seriesTitle"
+      : K extends "sourceUrl" | "seriesKey" | "seriesTitle" | "author"
         ? string | null
         : K extends "chapter" | "queuePosition"
           ? number | null
@@ -776,6 +777,7 @@ export async function loadText(userId: string, id: string): Promise<TextDetail |
     lastReadAt: lastSession?.at ? isoDate(lastSession.at) : null,
     checkpointAnswered: text.checkpointAnswered,
     referencesOmitted: text.originalContent !== null,
+    author: text.author,
     createdAt: isoDate(text.createdAt),
     updatedAt: isoDate(text.updatedAt),
   };

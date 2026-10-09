@@ -68,6 +68,7 @@ export async function POST(request: Request) {
         wordCount: countWords(content),
         sourcePage: pageFromUrl(finalUrl),
         language: asLanguage(imported.language),
+        author: imported.author,
         ...seriesFields(imported.title, finalUrl),
       })
       .returning({ id: texts.id, title: texts.title });
