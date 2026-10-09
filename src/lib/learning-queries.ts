@@ -1,6 +1,19 @@
 import "server-only";
 
-import { and, asc, count, desc, eq, gt, inArray, isNull, lt, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { db } from "@/db";
 import { highlights, readingSessions, reviewAnswers, texts } from "@/db/schema";
 import { asTextFormat, parseParagraphs } from "@/lib/reading";
@@ -14,6 +27,7 @@ import { contentMatchFrom, EXCERPT_AFTER } from "@/lib/content-search";
 import { recapTail } from "@/lib/series";
 import { DEFAULT_SETTINGS, loadSettings } from "@/lib/queries";
 import type {
+  CheckedSession,
   ContentMatch,
   HighlightReviewCard,
   HighlightReviewSession,
@@ -104,6 +118,8 @@ export async function loadHighlightReview(userId: string): Promise<HighlightRevi
         start: highlights.startIndex,
         end: highlights.endIndex,
         note: highlights.note,
+        cardPrompt: highlights.cardPrompt,
+        cardAnswer: highlights.cardAnswer,
         interval: highlights.reviewInterval,
         createdAt: highlights.createdAt,
       })
@@ -149,6 +165,10 @@ export async function loadHighlightReview(userId: string): Promise<HighlightRevi
         words,
         blank: heaviestWordIndex(words),
         note: row.note,
+        card:
+          row.cardPrompt && row.cardAnswer
+            ? { prompt: row.cardPrompt, answer: row.cardAnswer }
+            : null,
         interval: currentInterval(row.interval),
         createdAt: isoDate(row.createdAt),
       },
@@ -222,6 +242,38 @@ export async function loadLearningStats(
       effectiveWpm: Math.round(Number(row.effective ?? 0)),
     })),
   };
+}
+
+/** Sessoes com nota mostradas no treino. */
+export const CHECKED_SESSIONS_SHOWN = 8;
+
+/**
+ * Ultimas sessoes com compreensao medida - pelo questionario, pelas lacunas
+ * ou pela checagem da sessao (US-149) -, cada uma com o proprio ppm. A nota
+ * fica na linha da sessao, entao a ligacao e direta.
+ */
+export async function loadCheckedSessions(userId: string): Promise<CheckedSession[]> {
+  const rows = await db
+    .select({
+      id: readingSessions.id,
+      textTitle: texts.title,
+      wpm: readingSessions.wpm,
+      wordsRead: readingSessions.wordsRead,
+      mode: readingSessions.mode,
+      comprehension: readingSessions.comprehension,
+      createdAt: readingSessions.createdAt,
+    })
+    .from(readingSessions)
+    .innerJoin(texts, eq(texts.id, readingSessions.textId))
+    .where(and(eq(readingSessions.userId, userId), isNotNull(readingSessions.comprehension)))
+    .orderBy(desc(readingSessions.createdAt))
+    .limit(CHECKED_SESSIONS_SHOWN);
+
+  return rows.map((row) => ({
+    ...row,
+    comprehension: row.comprehension ?? 0,
+    createdAt: isoDate(row.createdAt),
+  }));
 }
 
 /** Sessoes lidas para a sugestao de desacelerar: folga para achar 3 do runner. */

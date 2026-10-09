@@ -34,7 +34,7 @@ import {
 import { DEFAULT_PAGE_SIZE } from "@/lib/api";
 import { asFontFamily, asTextFormat, parseParagraphs } from "@/lib/reading";
 import { excerptOf } from "@/lib/highlights";
-import { MAX_SAVED_WORDS } from "@/lib/dictionary";
+import { MAX_SAVED_WORDS, parseDistractors } from "@/lib/dictionary";
 import { tagKey } from "@/lib/tags";
 import { cleanTitle, nextChapterUrl } from "@/lib/series";
 import { synopsesFor } from "@/lib/synopsis-ai";
@@ -828,6 +828,10 @@ export async function loadHighlights(
       end: row.endIndex,
       note: row.note,
       excerpt: excerptOf(words, row.startIndex, row.endIndex),
+      card:
+        row.cardPrompt && row.cardAnswer
+          ? { prompt: row.cardPrompt, answer: row.cardAnswer }
+          : null,
       createdAt: isoDate(row.createdAt),
     })),
   };
@@ -1256,6 +1260,7 @@ export async function loadReview(userId: string): Promise<ReviewSession> {
         translation: savedWords.translation,
         context: savedWords.context,
         textTitle: texts.title,
+        distractors: savedWords.distractors,
         step: savedWords.reviewStep,
         storedInterval: savedWords.reviewInterval,
       })
@@ -1273,8 +1278,12 @@ export async function loadReview(userId: string): Promise<ReviewSession> {
   ]);
 
   return {
-    cards: cards.map(({ step, storedInterval, ...card }) => ({
+    cards: cards.map(({ step, storedInterval, distractors, ...card }) => ({
       ...card,
+      // So vale com definicao e tres alternativas validas (US-151).
+      distractors: card.definition.trim()
+        ? parseDistractors(distractors, card.definition)
+        : null,
       interval: currentInterval(storedInterval, step),
     })),
     due: dueCount?.value ?? 0,

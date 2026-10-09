@@ -23,6 +23,8 @@ import {
 } from "@/lib/highlight-synthesis";
 import type { TextFormat } from "@/lib/reading";
 import type { HighlightItem } from "@/lib/types";
+import type { HighlightCardDraft } from "@/lib/highlight-cards";
+import { CardsPanel } from "./cards-panel";
 
 /**
  * Lista dos destaques de um texto, na ordem da leitura.
@@ -122,6 +124,17 @@ export function HighlightsClient({
       // continua sendo um caminho: a exportacao nao depende de um so gesto.
       notify("Não consegui copiar. Use o download.", "error");
     }
+  };
+
+  /** Cartoes salvos (US-150): cada um volta ao destaque de origem. */
+  const cardsSaved = (cards: HighlightCardDraft[]) => {
+    const byId = new Map(cards.map((card) => [card.highlightId, card]));
+    setItems((current) =>
+      current.map((item) => {
+        const card = byId.get(item.id);
+        return card ? { ...item, card: { prompt: card.prompt, answer: card.answer } } : item;
+      })
+    );
   };
 
   const remove = async (id: string) => {
@@ -254,6 +267,8 @@ export function HighlightsClient({
             </Card>
           ) : null}
 
+          <CardsPanel textId={textId} items={items} onSaved={cardsSaved} />
+
           <div className="mt-6">
             <SectionTitle>Trechos</SectionTitle>
           </div>
@@ -281,6 +296,13 @@ export function HighlightsClient({
                   {item.note ? (
                     <p className="mt-3 whitespace-pre-line rounded-xl bg-surface-2 px-3 py-2 text-sm text-muted">
                       {item.note}
+                    </p>
+                  ) : null}
+
+                  {item.card ? (
+                    <p className="mt-3 text-sm" data-testid="destaque-cartao">
+                      <span className="text-faint">Cartão: </span>
+                      {item.card.prompt}
                     </p>
                   ) : null}
 

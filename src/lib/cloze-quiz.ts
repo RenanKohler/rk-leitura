@@ -65,8 +65,22 @@ function valid(range: { from: number; to: number }, total: number): boolean {
  *
  * E por ela que a compreensao chega ao treino: o dia do programa aponta para
  * a sessao, e `earnedSteps` le a nota dali.
+ *
+ * Na checagem de uma sessao (US-149) a tela diz qual sessao foi: a nota vai
+ * para ela, e so se ela for deste texto e desta conta. Sem a sessao gravada
+ * (o envio falhou), a nota nao vai para outra.
  */
-export async function recordComprehension(userId: string, textId: string, score: number) {
+export async function recordComprehension(
+  userId: string,
+  textId: string,
+  score: number,
+  sessionId?: string | null
+) {
+  if (sessionId !== undefined) {
+    if (sessionId) await recordSessionScore(userId, textId, sessionId, score);
+    return;
+  }
+
   const [latest] = await db
     .select({ id: readingSessions.id })
     .from(readingSessions)
@@ -80,4 +94,37 @@ export async function recordComprehension(userId: string, textId: string, score:
       .set({ comprehension: score })
       .where(eq(readingSessions.id, latest.id));
   }
+}
+
+/** Nota numa sessao conhecida, conferindo a conta e o texto. */
+export async function recordSessionScore(
+  userId: string,
+  textId: string,
+  sessionId: string,
+  score: number
+): Promise<boolean> {
+  const updated = await db
+    .update(readingSessions)
+    .set({ comprehension: score })
+    .where(
+      and(
+        eq(readingSessions.id, sessionId),
+        eq(readingSessions.userId, userId),
+        eq(readingSessions.textId, textId)
+      )
+    )
+    .returning({ id: readingSessions.id });
+  return updated.length > 0;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Sessao informada pela tela: `undefined` quando o campo nao veio (o
+ * comportamento de antes, sessao mais recente), null quando veio vazio ou
+ * invalido (checagem sem sessao gravada).
+ */
+export function sessionIdFrom(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  return typeof value === "string" && UUID.test(value) ? value : null;
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
-import { loadCloze, recordComprehension } from "@/lib/cloze-quiz";
+import { loadCloze, recordComprehension, sessionIdFrom } from "@/lib/cloze-quiz";
 import { scoreQuiz } from "@/lib/quiz";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,8 @@ type Params = { params: Promise<{ id: string }> };
 
 /**
  * Corrige as lacunas remontando as mesmas perguntas (mesmo trecho, mesma
- * semente) e grava a nota na sessao mais recente, como o questionario.
+ * semente) e grava a nota na sessao mais recente, como o questionario. Na
+ * checagem de uma sessao (US-149) a nota vai para a sessao informada.
  */
 export async function POST(request: Request, { params }: Params) {
   const session = await requireSession();
@@ -21,7 +22,12 @@ export async function POST(request: Request, { params }: Params) {
     const { id } = await params;
     if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
-    const body = await readJson<{ answers?: unknown; from?: unknown; to?: unknown }>(request);
+    const body = await readJson<{
+      answers?: unknown;
+      from?: unknown;
+      to?: unknown;
+      sessionId?: unknown;
+    }>(request);
     const answers = Array.isArray(body?.answers) ? body.answers.map((value) => Number(value)) : null;
     if (!answers) return jsonError("Envie as respostas.", 400);
 
@@ -34,7 +40,7 @@ export async function POST(request: Request, { params }: Params) {
     if (result.status === "too-short") return jsonError("Peça as lacunas antes de responder.", 409);
 
     const score = scoreQuiz({ questions: result.questions }, answers);
-    await recordComprehension(session.id, id, score);
+    await recordComprehension(session.id, id, score, sessionIdFrom(body?.sessionId));
 
     return NextResponse.json({
       score,

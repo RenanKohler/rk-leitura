@@ -84,3 +84,22 @@ describe("batchStartNotice (US-139)", () => {
     );
   });
 });
+
+describe("batchItemEntry com alternativas (US-151)", () => {
+  it("le as tres definicoes erradas do mesmo esquema da consulta", () => {
+    const entry = batchItemEntry(
+      succeeded(
+        JSON.stringify({
+          base: "percorrer",
+          kind: "verbo",
+          definition: "Andar de um lado a outro.",
+          translation: "",
+          distractors: ["Ficar parado.", "Correr em circulos.", "Voltar para casa."],
+        })
+      ),
+      "percorreram",
+      "pt-BR"
+    );
+    expect(entry?.distractors).toEqual(["Ficar parado.", "Correr em circulos.", "Voltar para casa."]);
+  });
+});

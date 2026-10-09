@@ -114,6 +114,7 @@ import {
   MIN_WORDS_TO_RECORD,
   type SessionRecord,
 } from "@/lib/reader-session";
+import { sessionCheckRange, type SessionRange } from "@/lib/session-check";
 
 /*
  * Uma tela so. Parado, o texto aparece em paginas, como num e-reader; ao
@@ -427,6 +428,15 @@ function Reader({
   // pagina ate "Voltar para onde parou" devolver a tela de conclusao.
   const [reread, setReread] = useState<Span | null>(null);
   const [comprehension, setComprehension] = useState<number | null>(null);
+  // Checagem de compreensao da sessao do Word Runner (US-149): onde a sessao
+  // comecou, o trecho oferecido ao pausar e o trecho ja gravado em checagem.
+  const sessionFromRef = useRef<number | null>(null);
+  const [sessionCheck, setSessionCheck] = useState<SessionRange | null>(null);
+  const [checkTarget, setCheckTarget] = useState<
+    (SessionRange & { sessionId: string | null }) | null
+  >(null);
+  const [checkOpen, setCheckOpen] = useState(false);
+  const [checkSaving, setCheckSaving] = useState(false);
   // Tempo lido nesta visita, somado a cada sessao fechada: o cabecalho nao
   // pode voltar a 0:00 so porque uma sessao foi gravada.
   const visitMsRef = useRef(0);
@@ -454,13 +464,18 @@ function Reader({
     [text.id]
   );
 
+  /** Grava uma sessao fechada. Devolve o id dela, para a checagem (US-149). */
   const postRecord = useCallback(
-    (record: SessionRecord | null, completed: boolean, useKeepalive = false) => {
-      if (!record) return;
+    (
+      record: SessionRecord | null,
+      completed: boolean,
+      useKeepalive = false
+    ): Promise<string | null> => {
+      if (!record) return Promise.resolve(null);
       visitMsRef.current += record.wallMs;
       const planned = plannedRef.current;
       plannedRef.current = undefined;
-      void fetch("/api/reading-sessions", {
+      return fetch("/api/reading-sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -474,7 +489,13 @@ function Reader({
           plannedMs: planned,
         }),
         keepalive: useKeepalive,
-      }).catch(() => undefined);
+      })
+        .then(async (response) =>
+          response.ok
+            ? (((await response.json()) as { session?: { id?: string } }).session?.id ?? null)
+            : null
+        )
+        .catch(() => null);
     },
     [text.id]
   );
@@ -487,11 +508,32 @@ function Reader({
       // Sessao curta demais para gravar ainda conta no relogio da visita.
       const wall = wallMs(meter, now);
       const record = takeRecord(meter, now);
-      if (record) postRecord(record, completed, useKeepalive);
+      if (record) void postRecord(record, completed, useKeepalive);
       else visitMsRef.current += wall;
+      // Sessao gravada: a checagem dela deixa de ser oferecida.
+      setSessionCheck(null);
     },
     [postRecord]
   );
+
+  /**
+   * Abre a checagem de compreensao da sessao (US-149). A sessao e gravada
+   * agora, com o ppm do trecho lido, e a nota da checagem vai para ela; ao
+   * continuar a leitura, comeca outra sessao.
+   */
+  const openSessionCheck = useCallback(async () => {
+    if (!sessionCheck || checkSaving) return;
+    setCheckSaving(true);
+    const meter = meterRef.current;
+    const now = Date.now();
+    stopClock(meter, now);
+    const sessionId = await postRecord(takeRecord(meter, now), false);
+    sessionFromRef.current = null;
+    setSessionCheck(null);
+    setCheckTarget({ ...sessionCheck, sessionId });
+    setCheckOpen(true);
+    setCheckSaving(false);
+  }, [sessionCheck, checkSaving, postRecord]);
 
   /* --- avisos para leitor de tela ------------------------------------------ */
   // A palavra do Word Runner nao e anunciada (a 300 ppm inundaria o leitor de
@@ -702,6 +744,16 @@ function Reader({
       stateRef.current.playing = false;
       setPlaying(false);
       setAnchor(position);
+      // Sessao longa no Word Runner: oferece checar o trecho lido (US-149).
+      setSessionCheck(
+        sessionCheckRange({
+          mode: meterRef.current.mode,
+          words: meterRef.current.words,
+          from: sessionFromRef.current,
+          position,
+          total: stateRef.current.total,
+        })
+      );
       touchPage();
       setAnnouncement(
         `Pausado na palavra ${formatNumber(position + 1)} de ${formatNumber(stateRef.current.total)}.`
@@ -770,7 +822,13 @@ function Reader({
     if (pausedAtRef.current === 0 || pausedMs >= EYE_REST_RESET_MS) restAccumRef.current = 0;
     restStartRef.current = now;
 
-    postRecord(startClock(meterRef.current, "runner", now), false);
+    // Sessao nova do Word Runner comeca aqui: e daqui que sai o trecho da
+    // checagem de compreensao (US-149).
+    if (meterRef.current.mode !== "runner" || meterRef.current.words === 0) {
+      sessionFromRef.current = from;
+    }
+    setSessionCheck(null);
+    void postRecord(startClock(meterRef.current, "runner", now), false);
     wordStartRef.current = performance.now();
     stateRef.current.playing = true;
     setFinished(false);
@@ -905,7 +963,7 @@ function Reader({
       const meter = meterRef.current;
       stopClock(meter, Date.now());
       saveProgress(stateRef.current.index, true);
-      postRecord(takeRecord(meter, Date.now()), false, true);
+      void postRecord(takeRecord(meter, Date.now()), false, true);
     },
     [saveProgress, postRecord]
   );
@@ -948,7 +1006,7 @@ function Reader({
         },
       });
       if (!began) return false;
-      postRecord(startClock(meterRef.current, "narracao", Date.now()), false);
+      void postRecord(startClock(meterRef.current, "narracao", Date.now()), false);
       setFinished(false);
       const notice = rateNotice(wpm);
       if (notice) notify(notice, "info");
@@ -1084,7 +1142,7 @@ function Reader({
         const from = Math.max(pages[page] ?? 0, pageEnteredRef.current.from);
         const end = pages[page + 1] ?? stateRef.current.total;
         const { closed } = addPage(meterRef.current, end - from, now - pageEnteredRef.current.at, now);
-        postRecord(closed, false);
+        void postRecord(closed, false);
       }
 
       if (target === undefined) {
@@ -1249,7 +1307,8 @@ function Reader({
     wordOpen ||
     confirmAbandon ||
     confirmRestart ||
-    quizOpen;
+    quizOpen ||
+    checkOpen;
   useEffect(() => {
     if (sheetOpen && stateRef.current.playing) pause("folha");
   }, [sheetOpen, pause]);
@@ -1677,6 +1736,20 @@ function Reader({
               </div>
             ) : null}
 
+            {sessionCheck && !playing && !narrating && !finished && !recap && !chapterRecap ? (
+              <div
+                className="pointer-events-auto flex w-full max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface p-3 text-sm shadow-float"
+                data-testid="checar-sessao"
+              >
+                <p className="flex-1">
+                  {`Você leu ${formatNumber(sessionCheck.to - sessionCheck.from)} palavras nesta sessão.`}
+                </p>
+                <Button size="sm" loading={checkSaving} onClick={() => void openSessionCheck()}>
+                  Checar compreensão
+                </Button>
+              </div>
+            ) : null}
+
             {slowdown && !playing && !narrating && !recap && !chapterRecap ? (
               <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface p-3 text-sm shadow-float">
                 <p className="flex-1">{slowdown.message}</p>
@@ -1997,6 +2070,15 @@ function Reader({
           setReread(span);
           seek(span.start);
         }}
+      />
+
+      {/* Checagem da sessao do Word Runner (US-149): outra folha, para nao
+          misturar com o questionario do fim do texto. */}
+      <QuizSheet
+        textId={text.id}
+        open={checkOpen}
+        onClose={() => setCheckOpen(false)}
+        session={checkTarget}
       />
 
       <Sheet open={showSettings} onClose={() => setShowSettings(false)} title="Ajustes de leitura">

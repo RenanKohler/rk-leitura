@@ -39,6 +39,10 @@ interface Result {
  * No resultado, uma pergunta errada oferece "Reler o trecho" (US-134) quando a
  * evidencia foi achada no texto: `onReread` leva o leitor ate ela. A folha so
  * fecha, sem limpar, para que reabrir mostre o mesmo resultado.
+ *
+ * Com `session`, a folha e a checagem de uma sessao do Word Runner (US-149):
+ * duas perguntas so sobre o trecho `[from, to)` lido nela, a nota gravada na
+ * sessao `sessionId` e, sem IA, as lacunas do mesmo trecho.
  */
 export function QuizSheet({
   textId,
@@ -46,12 +50,15 @@ export function QuizSheet({
   onClose,
   onScored,
   onReread,
+  session,
 }: {
   textId: string;
   open: boolean;
   onClose: () => void;
   onScored?: (score: number) => void;
   onReread?: (span: { start: number; end: number }) => void;
+  /** Trecho e sessao da checagem do Word Runner (US-149). */
+  session?: { from: number; to: number; sessionId: string | null } | null;
 }) {
   const [questions, setQuestions] = useState<Question[] | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
@@ -75,7 +82,8 @@ export function QuizSheet({
   const startCloze = async (note = "") => {
     const data = await apiSend<{ quiz: { questions: Question[] }; from: number; to: number }>(
       `/api/texts/${textId}/lacunas`,
-      "POST"
+      "POST",
+      session ? { from: session.from, to: session.to } : undefined
     );
     setKind("lacunas");
     setRange({ from: data.from, to: data.to });
@@ -87,10 +95,16 @@ export function QuizSheet({
     setLoading(true);
     setError("");
     try {
-      const data = await apiSend<{ quiz: { questions: Question[] } }>(
-        `/api/texts/${textId}/questionario`,
-        "POST"
-      );
+      const data = session
+        ? await apiSend<{ quiz: { questions: Question[] } }>(
+            `/api/texts/${textId}/compreensao`,
+            "POST",
+            { from: session.from, to: session.to }
+          )
+        : await apiSend<{ quiz: { questions: Question[] } }>(
+            `/api/texts/${textId}/questionario`,
+            "POST"
+          );
       setKind("ia");
       begin(data.quiz.questions);
     } catch (cause) {
@@ -134,12 +148,20 @@ export function QuizSheet({
     setLoading(true);
     setError("");
     try {
+      // Na checagem da sessao, a nota vai para a sessao gravada ao abrir.
+      const target = session ? { sessionId: session.sessionId } : {};
       const data = await apiSend<{ score: number; results: Result[] }>(
         kind === "lacunas"
           ? `/api/texts/${textId}/lacunas/respostas`
-          : `/api/texts/${textId}/questionario/respostas`,
+          : session
+            ? `/api/texts/${textId}/compreensao/respostas`
+            : `/api/texts/${textId}/questionario/respostas`,
         "POST",
-        kind === "lacunas" ? { answers, ...range } : { answers }
+        kind === "lacunas"
+          ? { answers, ...range, ...target }
+          : session
+            ? { answers, from: session.from, to: session.to, ...target }
+            : { answers }
       );
       setResults(data.results);
       setScore(data.score);
@@ -171,7 +193,7 @@ export function QuizSheet({
   const answered = answers.length > 0 && answers.every((value) => value >= 0);
 
   return (
-    <Sheet open={open} onClose={close} title="Compreensão">
+    <Sheet open={open} onClose={close} title={session ? "Checar compreensão" : "Compreensão"}>
       <div className="space-y-5">
         {error ? <Alert>{error}</Alert> : null}
 
@@ -314,14 +336,29 @@ export function QuizSheet({
           </>
         ) : (
           <>
-            <p className="text-sm text-muted">
-              Algumas perguntas sobre o que você acabou de ler, para saber se a velocidade está
-              atrapalhando o entendimento.
-            </p>
-            <p className="text-sm text-faint">
-              As perguntas são geradas por um modelo de linguagem, e para isso o conteúdo do texto é
-              enviado a um serviço externo.
-            </p>
+            {session ? (
+              <>
+                <p className="text-sm text-muted" data-testid="checagem-intro">
+                  Duas perguntas sobre o trecho que você leu nesta sessão. A nota fica com a sessão,
+                  ao lado do ppm dela no treino.
+                </p>
+                <p className="text-sm text-faint">
+                  As perguntas são geradas por um modelo de linguagem, e para isso só o trecho lido
+                  nesta sessão é enviado a um serviço externo.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted">
+                  Algumas perguntas sobre o que você acabou de ler, para saber se a velocidade está
+                  atrapalhando o entendimento.
+                </p>
+                <p className="text-sm text-faint">
+                  As perguntas são geradas por um modelo de linguagem, e para isso o conteúdo do
+                  texto é enviado a um serviço externo.
+                </p>
+              </>
+            )}
             <Button size="lg" full loading={loading} onClick={start}>
               {loading ? <Spinner className="size-5" /> : null}
               {loading ? "Montando as perguntas" : "Começar"}

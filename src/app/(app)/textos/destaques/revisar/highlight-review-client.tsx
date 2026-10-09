@@ -22,6 +22,10 @@ type Mode = "lacuna" | "trecho";
  * trecho relido e facil, lembrar a palavra que faltava e o que mostra se ele
  * ficou. No modo "trecho" o cartao mostra o trecho e pede para lembrar a nota
  * ou o porque da marcacao.
+ *
+ * Destaque com cartao (US-150) pergunta primeiro: a pergunta sozinha, depois
+ * a resposta e, abaixo dela, o trecho de origem e a nota. O agendamento e o
+ * mesmo.
  */
 export function HighlightReviewClient({ initial }: { initial: HighlightReviewSession }) {
   const notify = useToast();
@@ -71,7 +75,7 @@ export function HighlightReviewClient({ initial }: { initial: HighlightReviewSes
         </div>
       </header>
 
-      {cards.length > 0 && !done ? (
+      {cards.length > 0 && !done && !card?.card ? (
         <Segmented<Mode>
           label="Modo da revisão"
           value={mode}
@@ -112,6 +116,53 @@ export function HighlightReviewClient({ initial }: { initial: HighlightReviewSes
             description={`Você lembrou ${remembered} de ${cards.length}. Os que você errou voltam amanhã.`}
             action={<LinkButton href="/textos">Ir para a biblioteca</LinkButton>}
           />
+        </Card>
+      ) : card?.card ? (
+        <Card className="space-y-5 p-5">
+          <div data-testid="cartao-pergunta">
+            <p className="text-xs font-medium uppercase tracking-wide text-faint">Pergunta</p>
+            <p className="mt-1 text-lg font-medium leading-relaxed">{card.card.prompt}</p>
+          </div>
+
+          {revealed ? (
+            <div className="space-y-4 border-t border-border pt-4" aria-live="polite">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-faint">Resposta</p>
+                <p className="mt-1 leading-relaxed" data-testid="cartao-resposta">
+                  {card.card.answer}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-faint">
+                  Destaque de origem
+                </p>
+                <Excerpt card={card} hideWord={false} />
+                {card.note ? (
+                  <p className="text-sm text-muted">
+                    <span>Sua nota: </span>
+                    {card.note}
+                  </p>
+                ) : null}
+                <p className="text-xs text-faint">
+                  em{" "}
+                  <Link
+                    href={`/leitor/${card.textId}?de=${card.start}`}
+                    className="text-muted underline"
+                  >
+                    {card.textTitle}
+                  </Link>
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {revealed ? (
+            <GradeButtons interval={card.interval} busy={busy} onGrade={(grade) => void answer(grade)} />
+          ) : (
+            <Button size="lg" full onClick={() => setRevealed(true)}>
+              Mostrar a resposta
+            </Button>
+          )}
         </Card>
       ) : card ? (
         <Card className="space-y-5 p-5">

@@ -38,7 +38,9 @@ export async function PATCH(request: Request, { params }: Params) {
       const definition = body.definition.trim().slice(0, MAX_DEFINITION_CHARS);
       const [edited] = await db
         .update(savedWords)
-        .set({ definition, updatedAt: new Date() })
+        // As alternativas da revisao (US-151) eram erradas em relacao a
+        // definicao antiga: com a nova, a palavra volta a revisao de sempre.
+        .set({ definition, distractors: null, updatedAt: new Date() })
         .where(and(eq(savedWords.id, id), eq(savedWords.userId, session.id)))
         .returning({ id: savedWords.id });
       if (!edited) return jsonError("Palavra não encontrada.", 404);

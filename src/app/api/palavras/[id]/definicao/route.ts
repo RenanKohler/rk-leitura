@@ -40,7 +40,12 @@ export async function POST(request: Request, { params }: Params) {
 
     const owned = and(eq(savedWords.id, id), eq(savedWords.userId, session.id));
     const [word] = await db
-      .select({ word: savedWords.word, context: savedWords.context, language: savedWords.language })
+      .select({
+        word: savedWords.word,
+        context: savedWords.context,
+        language: savedWords.language,
+        textId: savedWords.textId,
+      })
       .from(savedWords)
       .where(owned)
       .limit(1);
@@ -54,7 +59,13 @@ export async function POST(request: Request, { params }: Params) {
       return jsonError(QUOTA_MESSAGES.dicionario, 429, { retryAfter: quota.retryAfterSeconds });
     }
 
-    const entry = await lookupWord(session.id, word.word, word.context ?? "", word.language);
+    const entry = await lookupWord(
+      session.id,
+      word.word,
+      word.context ?? "",
+      word.language,
+      word.textId
+    );
     await db
       .update(savedWords)
       .set({
@@ -62,6 +73,8 @@ export async function POST(request: Request, { params }: Params) {
         kind: entry.kind,
         definition: entry.definition,
         translation: entry.translation ?? null,
+        // Alternativas da revisao (US-151), da mesma consulta.
+        distractors: entry.distractors ?? null,
         updatedAt: new Date(),
       })
       .where(owned);

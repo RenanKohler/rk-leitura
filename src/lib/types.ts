@@ -66,6 +66,11 @@ export interface ReviewCard {
   translation: string | null;
   context: string | null;
   textTitle: string | null;
+  /**
+   * Tres definicoes erradas (US-151): com elas, a revisao e de multipla
+   * escolha. Nulas nas palavras sem alternativas validas.
+   */
+  distractors: string[] | null;
   /** Intervalo atual em dias: a tela mostra quanto cada resposta adiaria. */
   interval: number;
 }
@@ -99,8 +104,16 @@ export interface HighlightReviewCard {
   /** Posicao, dentro de `words`, da palavra escondida no modo lacuna; nula sem candidata. */
   blank: number | null;
   note: string | null;
+  /** Cartao gerado do destaque (US-150): a revisao pergunta antes do trecho. */
+  card: HighlightCard | null;
   interval: number;
   createdAt: string;
+}
+
+/** Pergunta e resposta de um cartao de revisao (US-150). */
+export interface HighlightCard {
+  prompt: string;
+  answer: string;
 }
 
 export interface HighlightReviewSession {
@@ -220,6 +233,18 @@ export interface SessionSummary {
   createdAt: string;
 }
 
+/** Sessao com compreensao medida, como o treino a mostra (US-149). */
+export interface CheckedSession {
+  id: string;
+  textTitle: string;
+  wpm: number;
+  wordsRead: number;
+  /** Modo da sessao: "runner", "narracao" ou "pagina". */
+  mode: string;
+  comprehension: number;
+  createdAt: string;
+}
+
 /** Ritmo medio de um modo nos ultimos 30 dias. */
 export interface ModePace {
   mode: string;
@@ -272,6 +297,8 @@ export interface HighlightItem {
   note: string | null;
   /** Trecho citado, derivado do conteudo pelos indices. */
   excerpt: string;
+  /** Cartao de revisao salvo (US-150), quando houver. */
+  card?: HighlightCard | null;
   createdAt: string;
 }
 

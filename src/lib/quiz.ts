@@ -86,8 +86,15 @@ export function quizKey(content: string, language: string): string {
  * Uma pergunta com indice fora das alternativas, ou com menos alternativas do
  * que o esperado, seria pior que nenhuma pergunta: ela pareceria valida e
  * marcaria a resposta certa como errada.
+ *
+ * O minimo e o maximo mudam na checagem da sessao (US-149), que pede so duas
+ * perguntas; o questionario do texto inteiro continua com 3 a 5.
  */
-export function parseQuiz(raw: unknown): Quiz | null {
+export function parseQuiz(
+  raw: unknown,
+  minQuestions: number = MIN_QUESTIONS,
+  maxQuestions: number = MAX_QUESTIONS
+): Quiz | null {
   const source = typeof raw === "string" ? safeJson(raw) : raw;
   if (!source || typeof source !== "object") return null;
 
@@ -100,8 +107,8 @@ export function parseQuiz(raw: unknown): Quiz | null {
     if (question) questions.push(question);
   }
 
-  if (questions.length < MIN_QUESTIONS) return null;
-  return { questions: questions.slice(0, MAX_QUESTIONS) };
+  if (questions.length < minQuestions) return null;
+  return { questions: questions.slice(0, maxQuestions) };
 }
 
 function parseQuestion(raw: unknown): QuizQuestion | null {

@@ -15,6 +15,7 @@ import {
   type ProgramLength,
   type ProgramStatus,
 } from "@/lib/training";
+import type { CheckedSession } from "@/lib/types";
 
 /**
  * Teste de velocidade e programa de treino.
@@ -26,10 +27,13 @@ export function TrainingClient({
   placementWpm,
   baseWpm,
   program: initial,
+  checked = [],
 }: {
   placementWpm: number | null;
   baseWpm: number;
   program: ProgramStatus | null;
+  /** Ultimas sessoes com compreensao medida (US-149). */
+  checked?: CheckedSession[];
 }) {
   const notify = useToast();
   const { save } = useSettings();
@@ -130,6 +134,53 @@ export function TrainingClient({
           </div>
         </>
       )}
+
+      {checked.length > 0 ? <CheckedSessions sessions={checked} /> : null}
+    </div>
+  );
+}
+
+const MODE_LABELS: Record<string, string> = {
+  runner: "Word Runner",
+  narracao: "Narração",
+  pagina: "Página",
+};
+
+/**
+ * Compreensao de cada sessao ao lado do ppm dela (US-149): a velocidade so
+ * diz algo junto com o quanto ficou do trecho.
+ */
+function CheckedSessions({ sessions }: { sessions: CheckedSession[] }) {
+  return (
+    <div>
+      <SectionTitle>Compreensão por sessão</SectionTitle>
+      <ul className="mt-3 space-y-1.5" data-testid="sessoes-compreensao">
+        {sessions.map((session) => (
+          <li
+            key={session.id}
+            className="flex items-center gap-3 rounded-2xl border border-border px-3 py-2.5"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="tabular text-sm font-medium">
+                {`${session.wpm} ppm`}
+                <span className="text-muted">{` · ${session.wordsRead} palavras`}</span>
+              </p>
+              <p className="truncate text-xs text-faint">
+                {`${session.textTitle} · ${MODE_LABELS[session.mode] ?? session.mode} · ${formatDate(session.createdAt)}`}
+              </p>
+            </div>
+            <span
+              className={`tabular shrink-0 rounded-full px-2 py-1 text-xs font-medium ${
+                session.comprehension < 60
+                  ? "bg-danger-soft text-danger"
+                  : "bg-positive-soft text-positive"
+              }`}
+            >
+              {`${session.comprehension}%`}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
