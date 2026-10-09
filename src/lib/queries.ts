@@ -826,6 +826,10 @@ export async function loadHighlights(
       end: row.endIndex,
       note: row.note,
       excerpt: excerptOf(words, row.startIndex, row.endIndex),
+      card:
+        row.cardPrompt && row.cardAnswer
+          ? { prompt: row.cardPrompt, answer: row.cardAnswer }
+          : null,
       createdAt: isoDate(row.createdAt),
     })),
   };

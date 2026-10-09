@@ -97,8 +97,16 @@ export interface HighlightReviewCard {
   /** Posicao, dentro de `words`, da palavra escondida no modo lacuna; nula sem candidata. */
   blank: number | null;
   note: string | null;
+  /** Cartao gerado do destaque (US-150): a revisao pergunta antes do trecho. */
+  card: HighlightCard | null;
   interval: number;
   createdAt: string;
+}
+
+/** Pergunta e resposta de um cartao de revisao (US-150). */
+export interface HighlightCard {
+  prompt: string;
+  answer: string;
 }
 
 export interface HighlightReviewSession {
@@ -280,6 +288,8 @@ export interface HighlightItem {
   note: string | null;
   /** Trecho citado, derivado do conteudo pelos indices. */
   excerpt: string;
+  /** Cartao de revisao salvo (US-150), quando houver. */
+  card?: HighlightCard | null;
   createdAt: string;
 }
 

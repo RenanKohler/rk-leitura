@@ -118,6 +118,8 @@ export async function loadHighlightReview(userId: string): Promise<HighlightRevi
         start: highlights.startIndex,
         end: highlights.endIndex,
         note: highlights.note,
+        cardPrompt: highlights.cardPrompt,
+        cardAnswer: highlights.cardAnswer,
         interval: highlights.reviewInterval,
         createdAt: highlights.createdAt,
       })
@@ -163,6 +165,10 @@ export async function loadHighlightReview(userId: string): Promise<HighlightRevi
         words,
         blank: heaviestWordIndex(words),
         note: row.note,
+        card:
+          row.cardPrompt && row.cardAnswer
+            ? { prompt: row.cardPrompt, answer: row.cardAnswer }
+            : null,
         interval: currentInterval(row.interval),
         createdAt: isoDate(row.createdAt),
       },

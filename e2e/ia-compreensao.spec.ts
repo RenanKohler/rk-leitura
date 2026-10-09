@@ -172,3 +172,72 @@ test("checagem some abaixo de 800 palavras e cai nas lacunas do mesmo trecho sem
   expect(sessions.sessions[0].comprehension).not.toBeNull();
   expect(sessions.sessions[0].wordsRead).toBeGreaterThanOrEqual(800);
 });
+
+/** US-150: cartoes dos destaques, revisados antes de salvar e perguntados na revisao. */
+test("cartoes criados dos destaques sao revisados e perguntam antes do trecho", async ({ page }) => {
+  await registerByApi(page.request);
+  const text = await createText(page.request, "Pescadora curta", PROSE);
+  const mark = async (start: number, end: number) =>
+    (
+      await (
+        await page.request.post(`/api/texts/${text.id}/destaques`, { data: { start, end } })
+      ).json()
+    ).id as string;
+  const first = await mark(0, 10);
+  const second = await mark(14, 24);
+
+  // Menos de 3 destaques: o botao fica desativado, com o aviso.
+  await page.goto(`/textos/${text.id}/destaques`);
+  await expect(page.getByRole("button", { name: "Criar cartões" })).toBeDisabled();
+  await expect(page.getByTestId("cartoes-minimo")).toHaveText("Destaque pelo menos 3 trechos.");
+
+  const third = await mark(40, 52);
+  let generated = 0;
+  await page.route("**/api/texts/*/destaques/cartoes", async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    generated += 1;
+    await route.fulfill({
+      json: {
+        cards: [
+          { highlightId: first, prompt: "Quando a pescadora saiu?", answer: "Cedo, com a cidade dormindo." },
+          { highlightId: second, prompt: "O que ela carregava?", answer: "Uma rede remendada." },
+          { highlightId: third, prompt: "O que mudou na travessia?", answer: "O vento." },
+        ],
+      },
+    });
+  });
+
+  await page.reload();
+  await page.getByRole("button", { name: "Criar cartões" }).click();
+  await expect(page.getByTestId("cartao-rascunho")).toHaveCount(3);
+  expect(generated).toBe(1);
+
+  await page.getByLabel("Pergunta 1").fill("A que horas a pescadora saiu para o mar?");
+  await page.getByTestId("cartao-rascunho").nth(1).getByRole("button", { name: "Descartar" }).click();
+  await expect(page.getByTestId("cartao-rascunho")).toHaveCount(2);
+  await page.getByRole("button", { name: "Salvar 2 cartões" }).click();
+  await expect(page.getByText("2 cartões salvos.")).toBeVisible();
+  await expect(page.getByTestId("destaque-cartao")).toHaveCount(2);
+  await expect(page.getByTestId("destaque-cartao").first()).toContainText(
+    "A que horas a pescadora saiu para o mar?"
+  );
+
+  // Vencidos hoje, o com cartao primeiro.
+  await runSql("update highlights set created_at = now() - interval '3 days' where id = $1", [first]);
+  await runSql(
+    "update highlights set created_at = now() - interval '2 days' where id = any($1::uuid[])",
+    [[second, third]]
+  );
+
+  await page.goto("/textos/destaques/revisar");
+  const card = page.getByTestId("cartao-pergunta");
+  await expect(card).toContainText("A que horas a pescadora saiu para o mar?");
+  await expect(page.getByTestId("destaque-trecho")).toHaveCount(0);
+  await page.getByRole("button", { name: "Mostrar a resposta" }).click();
+  await expect(page.getByTestId("cartao-resposta")).toHaveText("Cedo, com a cidade dormindo.");
+  await expect(page.getByTestId("destaque-trecho")).toContainText("A pescadora saiu cedo");
+  await page.getByRole("button", { name: /^Bom/ }).click();
+
+  // O descartado continua com a revisao de sempre, em lacuna.
+  await expect(page.getByTestId("lacuna")).toHaveCount(1);
+});
