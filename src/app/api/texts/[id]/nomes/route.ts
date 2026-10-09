@@ -107,7 +107,7 @@ export async function POST(request: Request, { params }: Params) {
         names: sent,
         language: text.language,
       });
-      descriptions = await generateNameDescriptions(session.id, built, listed, sent);
+      descriptions = await generateNameDescriptions(session.id, id, built, listed, sent);
     }
 
     const payload: NameDescriptions = { contentKey: key, position, descriptions };

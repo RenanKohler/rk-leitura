@@ -69,7 +69,7 @@ export async function POST(request: Request, { params }: Params) {
       return jsonError(QUOTA_MESSAGES.resumo, 429, { retryAfter: quota.retryAfterSeconds });
     }
 
-    const result = await synthesizeHighlights(session.id, loaded.text.title, loaded.items);
+    const result = await synthesizeHighlights(session.id, id, loaded.text.title, loaded.items);
     const synthesis: StoredSynthesis = {
       ...result,
       fingerprint,

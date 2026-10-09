@@ -5,7 +5,7 @@ import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { aiResults, texts } from "@/db/schema";
-import { aiParse, AiUnavailable, type AiMessages } from "@/lib/ai";
+import { aiParse, AiUnavailable, countWords, type AiMessages } from "@/lib/ai";
 import { loadAiResult, saveAiResult } from "@/lib/ai-results";
 import { contentKey } from "@/lib/quiz";
 import { clampSynopsis, synopsisExcerpt } from "@/lib/synopsis";
@@ -78,6 +78,8 @@ export async function generateSynopsis(
   const parsed = await aiParse({
     task: "sinopse",
     userId,
+    textId,
+    wordsSent: countWords(excerpt),
     messages: MESSAGES,
     schema: Schema,
     system: SYSTEM,

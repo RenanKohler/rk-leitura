@@ -1,7 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
-import { aiParse, AiUnavailable, type AiMessages } from "@/lib/ai";
+import { aiParse, AiUnavailable, countWords, type AiMessages } from "@/lib/ai";
 import {
   cleanSynthesis,
   MAX_SYNTHESIS_WORDS,
@@ -40,6 +40,7 @@ const SYSTEM = [
 
 export async function synthesizeHighlights(
   userId: string,
+  textId: string,
   title: string,
   items: SynthesisHighlight[]
 ): Promise<{ synthesis: string; cited: number[] }> {
@@ -47,6 +48,9 @@ export async function synthesizeHighlights(
   const parsed = await aiParse({
     task: "resumo",
     userId,
+    // Vai o pedido com os destaques e as notas, nao o texto: e isso que conta.
+    textId,
+    wordsSent: countWords(prompt),
     messages: SYNTHESIS_MESSAGES,
     schema: SynthesisSchema,
     system: SYSTEM,

@@ -9,6 +9,7 @@ import {
   aiGate,
   aiParse,
   AiUnavailable,
+  countWords,
   type AiConsent,
   type AiMessages,
 } from "@/lib/ai";
@@ -111,11 +112,21 @@ export async function admitSummary(userId: string): Promise<NextResponse | null>
   return null;
 }
 
+/** O que o historico de envios registra do pedido (US-144): o texto e as palavras do trecho. */
+function sentFrom(textId: string, request: SummaryRequest) {
+  return { textId, wordsSent: countWords(request.excerpt.text) };
+}
+
 /** Resumo do que ja li (US-130): de 3 a 5 topicos, ate 120 palavras. */
-export async function generateReadSummary(userId: string, request: SummaryRequest): Promise<string[]> {
+export async function generateReadSummary(
+  userId: string,
+  textId: string,
+  request: SummaryRequest
+): Promise<string[]> {
   const parsed = await aiParse({
     task: "resumo",
     userId,
+    ...sentFrom(textId, request),
     messages: MESSAGES,
     schema: PointsSchema(SUMMARY_MIN_POINTS, SUMMARY_MAX_POINTS),
     system: SYSTEM,
@@ -132,11 +143,13 @@ export async function generateReadSummary(userId: string, request: SummaryReques
 /** Resumo do capitulo anterior (US-131): ate 5 topicos. */
 export async function generateChapterSummary(
   userId: string,
+  textId: string,
   request: SummaryRequest
 ): Promise<string[]> {
   const parsed = await aiParse({
     task: "resumo",
     userId,
+    ...sentFrom(textId, request),
     messages: MESSAGES,
     schema: PointsSchema(1, CHAPTER_MAX_POINTS),
     system: SYSTEM,
@@ -153,6 +166,7 @@ export async function generateChapterSummary(
 /** Descricoes dos nomes (US-132), indexadas pelo nome da lista. */
 export async function generateNameDescriptions(
   userId: string,
+  textId: string,
   request: SummaryRequest,
   listed: string[],
   sent: string[]
@@ -160,6 +174,7 @@ export async function generateNameDescriptions(
   const parsed = await aiParse({
     task: "resumo",
     userId,
+    ...sentFrom(textId, request),
     messages: NAME_MESSAGES,
     schema: NamesSchema,
     system: NAMES_SYSTEM,

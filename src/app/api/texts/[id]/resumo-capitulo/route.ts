@@ -58,7 +58,7 @@ export async function POST(request: Request, { params }: Params) {
       wordCount: text.wordCount,
       language: text.language,
     });
-    const summary = { points: await generateChapterSummary(session.id, built) };
+    const summary = { points: await generateChapterSummary(session.id, id, built) };
     await saveAiResult(session.id, id, "capitulo", key, summary);
     return NextResponse.json({ summary });
   } catch (error) {
