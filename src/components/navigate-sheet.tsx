@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiSend } from "@/lib/client";
 import { Alert, Button, Sheet } from "@/components/ui";
@@ -333,6 +334,14 @@ export function NavigateSheet({
             />
           ) : null}
         </section>
+
+        {/* Cartoes, glossario e o resto do estudo do texto (US-155 a US-170). */}
+        <Link
+          href={`/textos/${textId}/estudar`}
+          className="flex min-h-11 w-full items-center rounded-lg px-2 text-sm font-medium text-muted hover:bg-surface-2"
+        >
+          Estudar este texto
+        </Link>
       </div>
     </Sheet>
   );
