@@ -2,11 +2,14 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { loadOverview, loadReview, loadTraining } from "@/lib/queries";
+import { loadOverview, loadReview, loadSettings, loadTraining } from "@/lib/queries";
 import { formatNumber } from "@/lib/reading";
-import { Card } from "@/components/ui";
+import { Card, SectionTitle } from "@/components/ui";
+import { countDailyReview, loadRereadList } from "@/lib/study-review-queries";
+import { countsLabel, itemsLabel } from "@/lib/daily-review";
 import {
   ChartIcon,
+  CheckIcon,
   ChevronIcon,
   HistoryIcon,
   SettingsIcon,
@@ -30,10 +33,13 @@ export default async function YouPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const [review, training, overview] = await Promise.all([
+  const timezone = (await loadSettings(session.id))?.timezone ?? "UTC";
+  const [review, training, overview, reread, daily] = await Promise.all([
     loadReview(session.id),
     loadTraining(session.id),
     loadOverview(session.id),
+    loadRereadList(session.id),
+    countDailyReview(session.id, timezone),
   ]);
 
   const stats = overview.stats;
@@ -73,6 +79,17 @@ export default async function YouPage() {
             detail="Todas as sessões de leitura"
           />
           <Destination
+            href="/revisar"
+            icon={<CheckIcon className="size-5" />}
+            title="Revisão do dia"
+            detail={
+              daily.total > 0
+                ? `${itemsLabel(daily.total)}: ${countsLabel(daily.counts)}`
+                : "Palavras, destaques e cartões em dia"
+            }
+            badge={daily.total > 0 ? `${daily.total}` : undefined}
+          />
+          <Destination
             href={review.due > 0 ? "/palavras/revisar" : "/palavras"}
             icon={<WordsIcon className="size-5" />}
             title="Palavras e revisão"
@@ -99,6 +116,30 @@ export default async function YouPage() {
           />
         </ul>
       </nav>
+
+      {reread.length > 0 ? (
+        <section aria-labelledby="para-reler" data-testid="para-reler">
+          <SectionTitle>
+            <span id="para-reler">Para reler</span>
+          </SectionTitle>
+          <p className="mb-3 text-sm text-muted">
+            Textos em que você acertou menos de 60% dos cartões nos últimos 30 dias.
+          </p>
+          <ul className="space-y-2">
+            {reread.map((text) => (
+              <li key={text.textId}>
+                <Link href={`/textos/${text.textId}/estudar`} className="block">
+                  <Card className="flex min-h-14 items-center gap-3 p-4 transition-colors hover:border-border-strong">
+                    <span className="min-w-0 flex-1 truncate font-medium">{text.title}</span>
+                    <span className="tabular text-sm text-danger">{text.percent}%</span>
+                    <ChevronIcon className="size-5 shrink-0 -rotate-90 text-faint" />
+                  </Card>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }
