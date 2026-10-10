@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { loadTextHistory } from "@/lib/queries";
+import { loadRecallHistory } from "@/lib/study-review-queries";
+import { RECALL_ROUNDS } from "@/lib/quiz-recall";
 import { textHistory } from "@/lib/calendar";
 import { estimatedMinutes, formatClock, formatNumber } from "@/lib/reading";
 import { Card, EmptyState } from "@/components/ui";
@@ -25,6 +27,7 @@ export default async function TextHistoryPage({ params }: { params: Promise<{ id
   if (!loaded) notFound();
 
   const { text, rows, pace } = loaded;
+  const quiz = await loadRecallHistory(session.id, text.id);
   const history = textHistory(rows);
   const concluded = text.wordCount > 0 && text.progressIndex >= text.wordCount;
   const estimateMs = estimatedMinutes(text.wordCount, pace.wpm) * 60_000;
@@ -73,6 +76,30 @@ export default async function TextHistoryPage({ params }: { params: Promise<{ id
                 atual ({formatNumber(pace.wpm)} ppm), a previsão para este texto seria de{" "}
                 <strong>{formatClock(estimateMs)}</strong>.
               </p>
+            </Card>
+          ) : null}
+
+          {quiz ? (
+            // US-169: a nota refeita fica ao lado da original, fora da media do treino.
+            <Card as="section" className="p-4">
+              <h2 className="mb-2 text-base font-semibold">Questionário</h2>
+              <ul className="divide-y divide-border text-sm" data-testid="notas-questionario">
+                <li className="flex items-center justify-between gap-3 py-2">
+                  <span>Na conclusão</span>
+                  <span className="tabular font-medium">{quiz.original}%</span>
+                </li>
+                {RECALL_ROUNDS.map((round) => {
+                  const recall = quiz.recalls.find((item) => item.round === round);
+                  return (
+                    <li key={round} className="flex items-center justify-between gap-3 py-2">
+                      <span>{`${round} dias depois`}</span>
+                      <span className={`tabular ${recall ? "font-medium" : "text-faint"}`}>
+                        {recall ? `${recall.score}%` : "--"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             </Card>
           ) : null}
 

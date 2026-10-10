@@ -82,3 +82,44 @@ export function reminderBody(streak: number): string {
   }
   return "Você ainda não leu hoje. Que tal alguns minutos agora?";
 }
+
+/* --- lembrete de revisao (US-163) ------------------------------------------ */
+
+/** Minimo de itens vencidos para o lembrete de revisao. */
+export const REVIEW_REMINDER_MIN_DUE = 5;
+
+export interface ReviewReminderCandidate {
+  /** Lembrete de revisao ligado em Ajustes. */
+  reviewReminder: boolean;
+  /** Hora do lembrete diario: o de revisao sai no mesmo horario. */
+  reminderHour: number | null;
+  timezone: string;
+  /** Ultimo dia em que o lembrete de revisao saiu, no fuso do leitor. */
+  reviewReminderSentOn: string | null;
+  /** Itens vencidos hoje na revisao do dia. */
+  due: number;
+  /** Ja respondeu algum item da revisao hoje. */
+  reviewedToday: boolean;
+}
+
+/**
+ * Deve sair o lembrete de revisao agora? Mesma regra de horario do lembrete
+ * de leitura ("a hora ja passou"), uma vez por dia, so com 5 itens ou mais e
+ * so para quem ainda nao revisou hoje.
+ */
+export function shouldRemindReview(
+  candidate: ReviewReminderCandidate,
+  today: string,
+  now = new Date()
+): boolean {
+  if (!candidate.reviewReminder || candidate.reminderHour === null) return false;
+  if (candidate.reviewReminderSentOn === today) return false;
+  if (candidate.reviewedToday) return false;
+  if (candidate.due < REVIEW_REMINDER_MIN_DUE) return false;
+  return hourIn(candidate.timezone, now) >= candidate.reminderHour;
+}
+
+/** Texto do lembrete de revisao. */
+export function reviewReminderBody(due: number): string {
+  return `${due} itens para revisar hoje.`;
+}
