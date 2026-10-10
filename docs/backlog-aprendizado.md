@@ -6,7 +6,7 @@ Proposta de stories para transformar a leitura no rk-leitura em estudo:
 cartões de memorização gerados pela IA com os pontos e conceitos principais de
 um texto, uma revisão diária única e ferramentas de estudo sobre o texto
 (glossário, fichamento, perguntas-guia). A análise partiu do `main` no commit
-`6d528cd`. A numeração continua a de `docs/backlog-ia.md`, a partir da US-155.
+`6d528cd`. A numeração continua a de `docs/backlog-ia.md`, da US-155 à US-170.
 
 ## Premissas
 
@@ -24,6 +24,11 @@ um texto, uma revisão diária única e ferramentas de estudo sobre o texto
 - Regra de não revelar o que vem depois: em texto não concluído, toda geração
   sobre o texto inteiro usa só o trecho até a posição de leitura. A regra fica
   na montagem do pedido e é coberta por teste, como nas US-128 e US-149.
+- Exceção decidida na aprovação: os cartões de estudo (US-155 e US-157) são
+  gerados a partir do texto completo, para terem o contexto inteiro. A regra
+  passa da geração para a exibição: só aparecem, e só entram na revisão,
+  cartões cujo trecho de origem já foi lido. Os demais ficam disponíveis apenas
+  no teste de conhecimento prévio (US-170), que o leitor abre por escolha.
 - Cartões novos (US-155 e seguintes) ficam numa tabela própria, separada dos
   cartões de destaque da US-150. A revisão unificada (US-161) mostra os dois.
 - Os intervalos de revisão seguem `src/lib/vocabulary.ts`, os mesmos de
@@ -46,10 +51,10 @@ um texto, uma revisão diária única e ferramentas de estudo sobre o texto
 
 | Épico | Stories | Pontos | Must | Should | Could |
 | --- | --- | --- | --- | --- | --- |
-| Cartões de estudo | 6 | 17 | 3 | 3 | 0 |
+| Cartões de estudo | 7 | 20 | 4 | 3 | 0 |
 | Revisão e retenção | 4 | 13 | 2 | 1 | 1 |
 | Estudo do texto com IA | 5 | 20 | 1 | 1 | 3 |
-| **Total** | **15** | **50** | **6 (40%)** | **5 (33%)** | **4 (27%)** |
+| **Total** | **16** | **53** | **7 (44%)** | **5 (31%)** | **4 (25%)** |
 
 Could fica acima da faixa de 10 a 20% porque três das quatro stories Could são
 formas alternativas de estudar o mesmo texto (perguntas-guia, explicar com as
@@ -70,12 +75,15 @@ pontos e conceitos principais do texto, para que eu revise o essencial sem
 precisar montar os cartões à mão.
 
 **Critérios de aceitação**
-1. Dado um texto com pelo menos 500 palavras lidas, quando toco "Criar cartões
-   de estudo" em "Estudar", então recebo de 5 a 20 cartões. Cada cartão traz
-   frente, verso, tipo ("conceito" ou "ponto principal") e o trecho de origem.
-2. Dado um texto não concluído, quando o pedido é montado, então ele leva só as
-   palavras até a posição de leitura. O teste da montagem verifica que nenhuma
-   palavra posterior é enviada.
+1. Dado um texto com pelo menos 300 palavras, quando toco "Criar cartões de
+   estudo" em "Estudar", então a IA gera de 5 a 30 cartões a partir do texto
+   completo. Cada cartão traz frente, verso, tipo ("conceito" ou "ponto
+   principal") e o trecho de origem com a posição.
+2. Dado um texto não concluído, quando os cartões gerados aparecem, então só
+   são mostrados os cartões cujo trecho de origem termina até a posição de
+   leitura, com a contagem "N cartões de trechos ainda não lidos". Um teste da
+   regra de exibição verifica que nenhum cartão de trecho não lido aparece fora
+   do teste de conhecimento prévio (US-170).
 3. Dado os cartões gerados, quando os reviso, então posso editar a frente e o
    verso, descartar cada um ou descartar todos, antes de tocar "Salvar
    cartões".
@@ -89,8 +97,9 @@ precisar montar os cartões à mão.
 **Notas técnicas:** tabela nova `study_cards` (conta, texto, frente, verso,
 tipo, posição de origem, agendamento de revisão). Sonnet, uma chamada por
 geração, na cota `estudo`. Texto acima de 200 mil caracteres vai em trechos
-distribuídos, como no questionário (`quizSample`). Gerar de novo depois de
-avançar na leitura propõe só cartões sobre o trecho novo.
+distribuídos, como no questionário (`quizSample`). Os cartões de trechos não
+lidos são salvos junto e passam a aparecer, e a entrar na revisão, conforme a
+leitura avança; não há nova geração por causa disso.
 
 ### US-156: Revisar os cartões de estudo com repetição espaçada
 
@@ -104,7 +113,8 @@ intervalos que crescem conforme acerto, para que os conceitos fiquem na memória
 e não só no texto.
 
 **Critérios de aceitação**
-1. Dado cartões salvos, quando abro a revisão de um texto, então vejo a frente;
+1. Dado cartões salvos de trechos já lidos, quando abro a revisão de um texto,
+   então vejo a frente;
    depois de tocar "Mostrar resposta", vejo o verso e as notas "Errei",
    "Difícil", "Bom" e "Fácil".
 2. Dado que marco "Errei", quando a nota é gravada, então o cartão volta para o
@@ -143,6 +153,34 @@ que li.
 
 **Notas técnicas:** Haiku, na cota `estudo`. Usa a mesma seleção que hoje cria
 destaques.
+
+### US-170: Testar o conhecimento prévio antes de ler
+
+**Épico:** Cartões de estudo
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+
+Como leitor que estuda, eu quero responder aos cartões de trechos que ainda
+não li, para que eu saiba o que já conheço do assunto e onde prestar mais
+atenção na leitura.
+
+**Critérios de aceitação**
+1. Dado cartões de trechos ainda não lidos, quando toco "Testar conhecimento
+   prévio" em "Estudar", então vejo esses cartões, um por vez, com o aviso
+   "Estes cartões são de partes que você ainda não leu."
+2. Dado um cartão do teste, quando toco "Mostrar resposta", então marco "Já
+   sabia" ou "Não sabia", e ao fim vejo quantos já sabia, em número e
+   porcentagem.
+3. Dado um cartão respondido no teste, quando a leitura passa pelo trecho dele,
+   então ele entra na revisão normal com vencimento no dia seguinte, e a
+   resposta do teste não altera o intervalo.
+4. Dado que todos os cartões são de trechos já lidos, quando abro "Estudar",
+   então a opção aparece desativada com "Nenhum cartão de trecho não lido."
+
+**Notas técnicas:** o teste fica fora da revisão espaçada e das estatísticas de
+retenção (US-162). O resultado do teste aparece em "Estudar" ao lado da
+retenção, como "Conhecimento prévio: N%".
 
 ### US-157: Escolher o tipo de cartão gerado
 
@@ -440,9 +478,10 @@ de origem do cartão.
 
 ## Sugestão de MVP
 
-**Sprint 1 (19 pontos, Must)**
+**Sprint 1 (22 pontos, Must)**
 - US-155 Gerar cartões dos pontos e conceitos principais (5)
 - US-156 Revisar os cartões com repetição espaçada (3)
+- US-170 Testar o conhecimento prévio antes de ler (3)
 - US-158 Criar cartão a partir de um trecho selecionado (3)
 - US-161 Revisão do dia num só lugar (5)
 - US-169 Refazer o questionário depois de alguns dias (3)
