@@ -18,6 +18,7 @@ import { ImportPreviewContent } from "@/components/import-preview";
 import { useAiConsent } from "@/components/ai-consent";
 import { applyRemovals, UNTITLED, type Leftover } from "@/lib/import-analysis";
 import { SuggestedField, type SuggestedMeta } from "@/components/suggested-field";
+import { MAX_IMPORT_PAGES } from "@/lib/continuation";
 
 /** Resposta de POST /api/import-url/analise (US-136, US-137 e US-152). */
 interface ImportAnalysis extends Partial<SuggestedMeta> {
@@ -71,6 +72,8 @@ export default function NewTextPage() {
 
 function FromLink() {
   const [url, setUrl] = useState("");
+  // Texto servido em partes (`?page=`): traz todas de uma vez, nao so a primeira.
+  const [allPages, setAllPages] = useState(false);
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -167,7 +170,10 @@ function FromLink() {
     setSuggested({ title: false, author: false });
     touched.current = { title: false, author: false };
     try {
-      const imported = await apiSend<ImportedText>("/api/import-url", "POST", { url: trimmed });
+      const imported = await apiSend<ImportedText>("/api/import-url", "POST", {
+        url: trimmed,
+        ...(allPages ? { allPages: true } : {}),
+      });
       setPreview(imported);
       setTitle(imported.title);
       setAuthor(imported.author ?? "");
@@ -192,6 +198,8 @@ function FromLink() {
         language: preview.language,
         keepCitations,
         tags: chosenTags,
+        // "Continuar" no leitor segue da ultima pagina trazida.
+        ...(preview.pages ? { lastPage: preview.pages.last } : {}),
       });
       notify("Texto salvo.", "success");
       router.replace(`/leitor/${text.id}`);
@@ -219,8 +227,27 @@ function FromLink() {
             onChange={(event) => setUrl(event.target.value)}
             error={error || undefined}
           />
+          <label className="flex min-h-11 items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              name="allPages"
+              className="mt-0.5 size-5 accent-[var(--color-accent)]"
+              checked={allPages}
+              onChange={(event) => setAllPages(event.target.checked)}
+            />
+            <span>
+              Importar o texto completo
+              <span className="block text-faint">
+                {`Busca também as páginas seguintes (?page=2, 3...) até o fim, no máximo ${MAX_IMPORT_PAGES} de uma vez.`}
+              </span>
+            </span>
+          </label>
           <Button type="submit" size="lg" full loading={importing} disabled={!url.trim()}>
-            {importing ? "Buscando a página" : "Importar"}
+            {importing
+              ? allPages
+                ? "Buscando as páginas"
+                : "Buscando a página"
+              : "Importar"}
           </Button>
         </form>
       </Card>
@@ -231,6 +258,8 @@ function FromLink() {
             <h2 className="font-semibold tracking-tight">Conferir e salvar</h2>
             <span className="text-sm text-muted">{formatNumber(finalWords)} palavras</span>
           </div>
+
+          {preview.pages ? <PagesNote pages={preview.pages} /> : null}
 
           <SuggestedField
             label="Título"
@@ -301,5 +330,25 @@ function FromLink() {
         </Card>
       ) : null}
     </div>
+  );
+}
+
+/** Quantas paginas vieram e, quando parou antes do fim, por que. */
+function PagesNote({ pages }: { pages: NonNullable<ImportedText["pages"]> }) {
+  const count = pages.last - pages.first + 1;
+  const fetched = count === 1 ? "1 página importada" : `${formatNumber(count)} páginas importadas`;
+
+  if (pages.complete) {
+    return (
+      <p className="text-sm text-muted" role="status" data-testid="paginas">
+        {count === 1 ? "A origem tem uma página só." : `${fetched}, até o fim do texto.`}
+      </p>
+    );
+  }
+  return (
+    <p className="text-sm text-muted" role="status" data-testid="paginas">
+      {`${fetched}, até a página ${formatNumber(pages.last)}. ${pages.stopMessage} `}
+      O restante pode ser buscado com Continuar, no leitor.
+    </p>
   );
 }

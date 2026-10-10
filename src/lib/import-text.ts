@@ -3,6 +3,10 @@ import "server-only";
 import type { Language } from "@/lib/language";
 import { extractTextFromHtml, type Extraction } from "@/lib/parser";
 import { fetchPublicHtml, SafeFetchError } from "@/lib/safe-fetch";
+import { collectPages } from "@/lib/continuation";
+import { fetchNextPart } from "@/lib/next-part";
+import { countWords } from "@/lib/reading";
+import { pageFromUrl } from "@/lib/source-url";
 
 /**
  * Busca e extracao de um texto a partir de uma URL.
@@ -71,4 +75,42 @@ export async function importFromUrl(url: string): Promise<ImportedDocument> {
     }
     throw error;
   }
+}
+
+/** Importacao de um texto em partes, com todas as paginas juntas. */
+export interface ImportedAllPages extends ImportedDocument {
+  pages: {
+    first: number;
+    last: number;
+    complete: boolean;
+    /** Por que parou antes do fim; vazio quando `complete`. */
+    stopMessage: string;
+  };
+}
+
+/**
+ * Importa a pagina pedida e as seguintes (`?page=`), ate a origem acabar.
+ *
+ * A primeira pagina falha como a importacao comum; as seguintes nunca viram
+ * erro: o que veio e devolvido com o motivo da parada, e o resto pode ser
+ * buscado depois com "Continuar".
+ */
+export async function importAllPages(url: string): Promise<ImportedAllPages> {
+  const first = await importFromUrl(url);
+  const collected = await collectPages(
+    { content: first.content, page: pageFromUrl(first.sourceUrl) },
+    async (page, existing) => fetchNextPart(first.sourceUrl, page, existing)
+  );
+
+  return {
+    ...first,
+    content: collected.content,
+    wordCount: countWords(collected.content),
+    pages: {
+      first: collected.firstPage,
+      last: collected.lastPage,
+      complete: collected.complete,
+      stopMessage: collected.stopMessage,
+    },
+  };
 }

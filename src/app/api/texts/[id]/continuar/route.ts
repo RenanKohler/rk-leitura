@@ -3,9 +3,8 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { texts } from "@/db/schema";
 import { jsonError, requireSession, serverError } from "@/lib/api";
-import { extractTextFromHtml } from "@/lib/parser";
-import { fetchPublicHtml, SafeFetchError } from "@/lib/safe-fetch";
-import { alreadyPresent, buildPageUrl } from "@/lib/continuation";
+import { MAX_SOURCE_PAGE } from "@/lib/continuation";
+import { fetchNextPart } from "@/lib/next-part";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { asTextFormat, countWords } from "@/lib/reading";
 import { stripCitations } from "@/lib/citations";
@@ -13,8 +12,6 @@ import { stripCitations } from "@/lib/citations";
 export const dynamic = "force-dynamic";
 
 const MAX_CONTENT_CHARS = 400_000;
-const MIN_WORDS = 10;
-const MAX_SOURCE_PAGE = 200;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Params = { params: Promise<{ id: string }> };
@@ -81,50 +78,11 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     const nextPage = text.sourcePage + 1;
-    const target = buildPageUrl(text.sourceUrl, nextPage);
-    if (!target) {
-      return NextResponse.json({
-        status: "no-source",
-        message: "A origem deste texto não é um endereço válido.",
-      });
+    const part = await fetchNextPart(text.sourceUrl, nextPage, text.content);
+    if (part.status !== "appended") {
+      return NextResponse.json({ status: part.status, page: part.page, message: part.message });
     }
-
-    let html: string;
-    try {
-      ({ html } = await fetchPublicHtml(target));
-    } catch (error) {
-      return NextResponse.json(endOrUnavailable(error, nextPage));
-    }
-
-    let parsed;
-    try {
-      parsed = extractTextFromHtml(html);
-    } catch (error) {
-      console.error("[texts/continuar] falha ao interpretar o HTML:", error);
-      return NextResponse.json({
-        status: "unavailable",
-        page: nextPage,
-        message: "Não consegui interpretar a próxima parte.",
-      });
-    }
-
-    if (parsed.wordCount < MIN_WORDS) {
-      return NextResponse.json({
-        status: "end",
-        page: nextPage,
-        message: "Não há mais partes neste texto.",
-      });
-    }
-
-    // Sites que ignoram ?page= devolvem a primeira parte de novo. Sem esta
-    // checagem o texto seria duplicado a cada tentativa.
-    if (alreadyPresent(text.content, parsed.content)) {
-      return NextResponse.json({
-        status: "end",
-        page: nextPage,
-        message: "A origem repetiu a parte anterior: não há mais páginas.",
-      });
-    }
+    const parsed = { content: part.content };
 
     // Texto com referencias omitidas: a parte nova entra do mesmo jeito, e o
     // original guardado recebe a parte completa, para desfazer continuar valendo.
@@ -157,24 +115,4 @@ export async function POST(request: Request, { params }: Params) {
   } catch (error) {
     return serverError("texts/continuar", error);
   }
-}
-
-/**
- * 404 e 410 na proxima parte significam que o conto acabou, nao que algo
- * deu errado. Qualquer outra falha e indisponibilidade temporaria.
- */
-function endOrUnavailable(error: unknown, page: number) {
-  if (error instanceof SafeFetchError) {
-    if (error.status === 404 || error.status === 410) {
-      return { status: "end", page, message: "Não há mais partes neste texto." };
-    }
-    return { status: "unavailable", page, message: error.message };
-  }
-
-  if (error instanceof Error && error.name === "TimeoutError") {
-    return { status: "unavailable", page, message: "A origem demorou demais para responder." };
-  }
-
-  console.error("[texts/continuar] falha inesperada na busca:", error);
-  return { status: "unavailable", page, message: "Não consegui buscar a próxima parte." };
 }
