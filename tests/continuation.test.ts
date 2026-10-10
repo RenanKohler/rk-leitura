@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { alreadyPresent, buildPageUrl } from "@/lib/continuation";
+import {
+  alreadyPresent,
+  buildPageUrl,
+  collectPages,
+  MAX_SOURCE_PAGE,
+  MAX_TEXT_CHARS,
+  type PartResult,
+} from "@/lib/continuation";
 import { pageFromUrl } from "@/lib/source-url";
 
 const STORY = "https://www.literotica.com/s/the-cabin-ch-01";
@@ -84,5 +91,95 @@ describe("continuacao a partir da URL importada", () => {
   it("comeca na 2 quando a importacao foi a primeira pagina", () => {
     const proxima = pageFromUrl(STORY) + 1;
     expect(buildPageUrl(STORY, proxima)).toBe(`${STORY}?page=2`);
+  });
+});
+
+describe("collectPages", () => {
+  const part = (page: number) => `Parte ${page}: ${"palavra ".repeat(20)}fim da parte ${page}.`;
+  const upTo =
+    (last: number) =>
+    async (page: number): Promise<PartResult> =>
+      page <= last
+        ? { status: "appended", content: part(page) }
+        : { status: "end", message: "Não há mais partes neste texto." };
+
+  it("junta as paginas ate a origem acabar e marca como completo", async () => {
+    const pages: number[] = [];
+    const result = await collectPages({ content: part(1), page: 1 }, async (page, existing) => {
+      pages.push(page);
+      expect(existing).toContain(`fim da parte ${page - 1}.`);
+      return upTo(4)(page);
+    });
+
+    expect(pages).toEqual([2, 3, 4, 5]);
+    expect(result).toMatchObject({ firstPage: 1, lastPage: 4, complete: true, stopMessage: "" });
+    expect(result.content.split("\n\n")).toEqual([part(1), part(2), part(3), part(4)]);
+  });
+
+  it("uma pagina so tambem e completa", async () => {
+    const result = await collectPages({ content: part(1), page: 1 }, upTo(1));
+    expect(result).toMatchObject({ lastPage: 1, complete: true, content: part(1) });
+  });
+
+  it("comeca da pagina do endereco", async () => {
+    const pages: number[] = [];
+    const result = await collectPages({ content: part(3), page: 3 }, async (page) => {
+      pages.push(page);
+      return upTo(4)(page);
+    });
+    expect(pages).toEqual([4, 5]);
+    expect(result).toMatchObject({ firstPage: 3, lastPage: 4, complete: true });
+  });
+
+  it("falha da origem para incompleto, com o que ja veio e o motivo", async () => {
+    const result = await collectPages({ content: part(1), page: 1 }, async (page) =>
+      page === 3
+        ? { status: "unavailable", message: "A origem demorou demais para responder." }
+        : { status: "appended", content: part(page) }
+    );
+    expect(result).toMatchObject({
+      lastPage: 2,
+      complete: false,
+      stopMessage: "A origem demorou demais para responder.",
+    });
+  });
+
+  it("para no teto de paginas", async () => {
+    const result = await collectPages({ content: part(1), page: 1 }, upTo(100), { maxPages: 5 });
+    expect(result).toMatchObject({ lastPage: 5, complete: false });
+    expect(result.stopMessage).toContain("5 páginas");
+  });
+
+  it("para no teto de partes do texto", async () => {
+    const result = await collectPages(
+      { content: part(MAX_SOURCE_PAGE - 1), page: MAX_SOURCE_PAGE - 1 },
+      upTo(1000)
+    );
+    expect(result).toMatchObject({ lastPage: MAX_SOURCE_PAGE, complete: false });
+  });
+
+  it("para no tamanho maximo sem passar dele", async () => {
+    const big = "a ".repeat(MAX_TEXT_CHARS / 4);
+    const result = await collectPages({ content: big, page: 1 }, async () => ({
+      status: "appended",
+      content: big,
+    }));
+    expect(result.content.length).toBeLessThanOrEqual(MAX_TEXT_CHARS);
+    expect(result.complete).toBe(false);
+    expect(result.stopMessage).toBe("O texto atingiu o tamanho máximo.");
+  });
+
+  it("para quando o tempo acaba", async () => {
+    let clock = 0;
+    const result = await collectPages(
+      { content: part(1), page: 1 },
+      async (page) => {
+        clock += 20_000;
+        return upTo(100)(page);
+      },
+      { now: () => clock, budgetMs: 45_000 }
+    );
+    expect(result).toMatchObject({ lastPage: 4, complete: false });
+    expect(result.stopMessage).toBe("A busca das páginas passou do tempo.");
   });
 });

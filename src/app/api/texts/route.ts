@@ -13,6 +13,7 @@ import { normalizeTagList } from "@/lib/tags";
 import { applyTags } from "@/lib/text-tags";
 import { importContent } from "@/lib/citations";
 import { normalizeAuthor } from "@/lib/import-analysis";
+import { MAX_SOURCE_PAGE } from "@/lib/continuation";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,8 @@ interface Body {
   format?: unknown;
   /** Autor achado na importacao ou informado na previa (US-152). */
   author?: unknown;
+  /** Ultima pagina trazida quando a importacao juntou todas as paginas. */
+  lastPage?: unknown;
 }
 
 export async function GET(request: Request) {
@@ -103,7 +106,7 @@ export async function POST(request: Request) {
           format,
           // Calculado no servidor: o cliente nao decide a contagem.
           wordCount,
-          sourcePage: pageFromUrl(sourceUrl),
+          sourcePage: sourcePageFor(sourceUrl, body?.lastPage),
           seriesKey: series?.key ?? null,
           seriesTitle: series?.title ?? null,
           chapter: series?.chapter ?? null,
@@ -132,4 +135,15 @@ function asDeclaredSeries(
 
   if (!title || !Number.isInteger(chapter) || chapter < 1 || chapter > 999) return null;
   return { key: seriesKeyFor(title), chapter, title: title.slice(0, 200) };
+}
+
+/**
+ * Ultima pagina ja trazida da origem. Na importacao de todas as paginas o
+ * cliente informa ate onde foi, e "Continuar" segue dali; o valor so vale com
+ * origem, nunca antes da pagina do proprio endereco nem alem do teto.
+ */
+function sourcePageFor(sourceUrl: string | null, lastPage: unknown): number {
+  const first = pageFromUrl(sourceUrl);
+  if (!sourceUrl || typeof lastPage !== "number" || !Number.isInteger(lastPage)) return first;
+  return Math.min(MAX_SOURCE_PAGE, Math.max(first, lastPage));
 }

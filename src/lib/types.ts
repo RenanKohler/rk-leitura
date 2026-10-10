@@ -278,6 +278,14 @@ export interface ImportedText {
   extraction?: "exata" | "palpite";
   /** Autor declarado pela pagina, quando ela declara (US-152). */
   author?: string | null;
+  /** Presente quando a importacao juntou todas as paginas (`?page=`). */
+  pages?: {
+    first: number;
+    last: number;
+    /** Chegou ao fim do texto; falso quando parou por limite ou falha. */
+    complete: boolean;
+    stopMessage: string;
+  };
 }
 
 /** Resposta de POST /api/share: o texto ja existia ou acabou de ser criado. */
