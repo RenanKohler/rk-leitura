@@ -8,6 +8,7 @@ import { useResource } from "@/hooks/use-resource";
 import { Card, EmptyState, LinkButton, SectionTitle, Skeleton } from "@/components/ui";
 import { ForwardIcon, LibraryIcon, PlayIcon, SpeedIcon, SparkIcon, WordsIcon } from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
+import { itemsLabel } from "@/lib/daily-review";
 import { GoalCard } from "@/components/goal-card";
 import { FreeTimeCard } from "@/components/free-time-card";
 import { PlacementTest } from "@/components/placement-test";
@@ -33,6 +34,7 @@ export function DashboardClient({
   offerPlacement,
   pace,
   dueHighlights = 0,
+  dailyReview = 0,
 }: {
   initialOverview: Overview;
   initialTexts: RecentTexts;
@@ -42,6 +44,8 @@ export function DashboardClient({
   pace: { wpm: number; fromSettings: boolean };
   /** Destaques com revisao vencida (PROD-4); o cartao so aparece com algum. */
   dueHighlights?: number;
+  /** Itens da revisao do dia (US-161): palavras, destaques, cartoes e questionarios. */
+  dailyReview?: number;
 }) {
   const { user } = useAuth();
   const { settings } = useSettings();
@@ -98,6 +102,8 @@ export function DashboardClient({
       <FreeTimeCard minutes={freeMinutes} onChoose={setFreeMinutes} />
 
       {inProgress ? <ContinueCard text={inProgress} wpm={settings.baseWpm} /> : null}
+
+      {dailyReview > 0 ? <DailyReviewCard due={dailyReview} /> : null}
 
       {dueHighlights > 0 ? <HighlightReviewCard due={dueHighlights} /> : null}
 
@@ -273,6 +279,24 @@ function HighlightReviewCard({ due }: { due: number }) {
           <p className="text-sm text-muted">
             {due === 1 ? "1 trecho marcado para rever hoje" : `${due} trechos marcados para rever hoje`}
           </p>
+        </div>
+        <ForwardIcon className="size-5 text-faint" />
+      </Card>
+    </Link>
+  );
+}
+
+/** Atalho para a revisao do dia (US-161). */
+function DailyReviewCard({ due }: { due: number }) {
+  return (
+    <Link href="/revisar" className="block" data-testid="cartao-revisao-do-dia">
+      <Card className="flex items-center gap-3 p-4 transition-colors hover:border-border-strong">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+          <WordsIcon className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">{`Revisão do dia: ${itemsLabel(due)}`}</p>
+          <p className="text-sm text-muted">Palavras, destaques, cartões e questionários vencidos</p>
         </div>
         <ForwardIcon className="size-5 text-faint" />
       </Card>

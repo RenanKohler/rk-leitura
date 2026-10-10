@@ -86,7 +86,7 @@ export const HIGHLIGHT_REVIEW_SIZE = 10;
  * Destaque vencido hoje. Nunca revisado entra um dia depois de criado: rever
  * no mesmo minuto em que marcou seria so reler.
  */
-function highlightDue(today: string): SQL {
+export function highlightDue(today: string): SQL {
   return sql`((${highlights.reviewDueOn} is not null and ${highlights.reviewDueOn} <= ${today})
     or (${highlights.reviewDueOn} is null and ${highlights.createdAt} < now() - interval '1 day'))`;
 }

@@ -183,6 +183,13 @@
       "when": 1791562546241,
       "tag": "0025_ia_segunda_rodada",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791645911293,
+      "tag": "0026_aprendizado",
+      "breakpoints": true
     }
   ]
 }

@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { apiGet, apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
-import { Alert, Button, Card, SectionTitle } from "@/components/ui";
+import { Alert, Button, Card, SectionTitle, Segmented } from "@/components/ui";
 import { CheckIcon } from "@/components/icons";
 
 interface Status {
   hour: number | null;
+  /** Lembrete de revisao no mesmo horario (US-163). */
+  reviewReminder?: boolean;
   devices: number;
   publicKey: string | null;
   available: boolean;
@@ -78,6 +80,19 @@ export function ReminderCard() {
     }
   };
 
+  /** Liga ou desliga o lembrete de revisao: so a preferencia, a inscricao e a mesma. */
+  const setReviewReminder = async (on: boolean) => {
+    const previous = status?.reviewReminder ?? false;
+    setStatus((current) => (current ? { ...current, reviewReminder: on } : current));
+    try {
+      await apiSend("/api/lembretes", "PATCH", { reviewReminder: on });
+      notify(on ? "Lembrete de revisão ligado." : "Lembrete de revisão desligado.", "info");
+    } catch (cause) {
+      setStatus((current) => (current ? { ...current, reviewReminder: previous } : current));
+      setError(cause instanceof Error ? cause.message : "Não consegui salvar.");
+    }
+  };
+
   const disable = async () => {
     setBusy(true);
     setError("");
@@ -140,6 +155,21 @@ export function ReminderCard() {
           <Button variant="secondary" size="lg" full loading={busy} onClick={() => void disable()}>
             Desligar o lembrete
           </Button>
+          <div className="space-y-1.5" data-testid="lembrete-revisao">
+            <Segmented
+              label="Lembrete de revisão"
+              value={status.reviewReminder ? "ligado" : "desligado"}
+              onChange={(value) => void setReviewReminder(value === "ligado")}
+              options={[
+                { value: "desligado", label: "Desligado" },
+                { value: "ligado", label: "Ligado" },
+              ]}
+            />
+            <p className="text-sm text-faint">
+              No mesmo horário, quando houver 5 ou mais itens vencidos e você ainda não tiver
+              revisado no dia: &ldquo;N itens para revisar hoje.&rdquo;
+            </p>
+          </div>
         </>
       ) : (
         <div>

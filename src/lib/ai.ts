@@ -40,7 +40,14 @@ export type AiTask =
   | "sugestoes"
   | "cartoes"
   | "secoes"
-  | "semana";
+  | "semana"
+  | "estudo"
+  | "cartao"
+  | "glossario"
+  | "fichamento"
+  | "guia"
+  | "apontamentos"
+  | "analogia";
 
 /**
  * Modelo de cada tarefa (decidido sobre a recomendacao da familia 5.5):
@@ -74,6 +81,16 @@ export const AI_MODELS: Record<AiTask, string> = {
   semana: SONNET,
   // Secoes de um documento longo (US-153): entrada longa, saida fechada.
   secoes: SONNET,
+  // Aprendizado assistido (US-155 a US-170). O texto inteiro e a escolha do
+  // que importa pedem o Sonnet; um cartao de um trecho, as perguntas-guia e a
+  // analogia sao curtos e vao no Haiku.
+  estudo: SONNET,
+  glossario: SONNET,
+  fichamento: SONNET,
+  apontamentos: SONNET,
+  cartao: HAIKU,
+  guia: HAIKU,
+  analogia: HAIKU,
 };
 
 /**

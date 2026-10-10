@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { pushSubscriptions } from "@/db/schema";
+import { pushSubscriptions, speedSettings } from "@/db/schema";
 import { upsertSettings } from "@/lib/settings-row";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { loadSettings } from "@/lib/queries";
@@ -16,18 +16,24 @@ export async function GET() {
   if (session instanceof NextResponse) return session;
 
   try {
-    const [settings, subscriptions] = await Promise.all([
+    const [settings, subscriptions, [review]] = await Promise.all([
       loadSettings(session.id),
       db
         .select({ endpoint: pushSubscriptions.endpoint })
         .from(pushSubscriptions)
         .where(eq(pushSubscriptions.userId, session.id)),
+      db
+        .select({ reviewReminder: speedSettings.reviewReminder })
+        .from(speedSettings)
+        .where(eq(speedSettings.userId, session.id))
+        .limit(1),
     ]);
 
     if (!settings) return jsonError("Sessão expirada. Entre novamente.", 401);
 
     return NextResponse.json({
       hour: settings.reminderHour,
+      reviewReminder: review?.reviewReminder ?? false,
       devices: subscriptions.length,
       publicKey: process.env.NEXT_PUBLIC_VAPID_KEY ?? null,
       available: pushConfigured(),
@@ -84,6 +90,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ hour, ok: true }, { status: 201 });
   } catch (error) {
     return serverError("lembretes/post", error);
+  }
+}
+
+/**
+ * Liga ou desliga o lembrete de revisao (US-163). Sai no mesmo horario do
+ * lembrete diario, pela mesma inscricao: aqui so muda a preferencia.
+ */
+export async function PATCH(request: Request) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
+  try {
+    const body = await readJson<{ reviewReminder?: unknown }>(request);
+    if (typeof body?.reviewReminder !== "boolean") {
+      return jsonError("Informe se o lembrete de revisão fica ligado.", 400);
+    }
+    await upsertSettings(db, session.id, { reviewReminder: body.reviewReminder });
+    return NextResponse.json({ reviewReminder: body.reviewReminder });
+  } catch (error) {
+    return serverError("lembretes/patch", error);
   }
 }
 

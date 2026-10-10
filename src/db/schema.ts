@@ -228,6 +228,9 @@ export const speedSettings = pgTable(
     reminderHour: integer("reminder_hour"),
     /** Ultimo dia em que o lembrete foi enviado, no fuso do leitor. */
     reminderSentOn: date("reminder_sent_on"),
+    /** Lembrete de revisao pendente no mesmo horario do lembrete diario (US-163). */
+    reviewReminder: boolean("review_reminder").notNull().default(false),
+    reviewReminderSentOn: date("review_reminder_sent_on"),
     /**
      * Guia de primeiro uso do leitor ja visto. Por conta e nao por aparelho:
      * quem ja aprendeu os gestos no celular nao precisa do guia no computador.
@@ -765,6 +768,72 @@ export const aiResults = pgTable(
     uniqueIndex("ai_results_user_kind_key_unique").on(table.userId, table.kind, table.key),
     index("ai_results_text_kind_idx").on(table.textId, table.kind),
   ]
+);
+
+/**
+ * Cartoes de estudo de um texto (US-155 a US-170).
+ *
+ * Gerados a partir do texto completo, mas so aparecem e entram na revisao
+ * quando o trecho de origem ja foi lido (`lib/study-cards.ts`). Os de trechos
+ * nao lidos servem ao teste de conhecimento previo (US-170).
+ */
+export const studyCards = pgTable(
+  "study_cards",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    textId: uuid("text_id")
+      .notNull()
+      .references(() => texts.id, { onDelete: "cascade" }),
+    front: text("front").notNull(),
+    back: text("back").notNull(),
+    /** conceito, ponto, lacuna, trecho (US-158), manual (US-159) ou glossario (US-164). */
+    kind: text("kind").notNull(),
+    /** Trecho de origem `[sourceStart, sourceEnd)`, no indice de palavras do texto. */
+    sourceStart: integer("source_start").notNull().default(0),
+    sourceEnd: integer("source_end").notNull().default(0),
+    /** Analogia guardada pelo leitor depois de errar o cartao (US-168). */
+    analogy: text("analogy"),
+    /** Proxima revisao; nula enquanto o trecho nao foi lido ou o cartao nunca entrou na revisao. */
+    nextReviewOn: date("next_review_on"),
+    /** Intervalo atual, em dias; 0 enquanto nunca foi revisado. */
+    reviewInterval: integer("review_interval").notNull().default(0),
+    lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
+    /** Resposta no teste de conhecimento previo (US-170): "sabia" ou "nao_sabia". */
+    pretest: text("pretest"),
+    pretestedAt: timestamp("pretested_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("study_cards_text_idx").on(table.userId, table.textId),
+    index("study_cards_review_idx").on(table.userId, table.nextReviewOn),
+  ]
+);
+
+/**
+ * Questionario refeito 7 e 30 dias depois de concluir o texto (US-169). A
+ * nota fica fora da media de compreensao do treino.
+ */
+export const quizRecalls = pgTable(
+  "quiz_recalls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    textId: uuid("text_id")
+      .notNull()
+      .references(() => texts.id, { onDelete: "cascade" }),
+    /** 7 ou 30: dias depois da conclusao. */
+    round: integer("round").notNull(),
+    /** Acertos, em porcentagem. */
+    score: integer("score").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("quiz_recalls_text_round_unique").on(table.userId, table.textId, table.round)]
 );
 
 /**

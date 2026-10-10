@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiSend } from "@/lib/client";
 import { Alert, Button, Sheet } from "@/components/ui";
@@ -16,6 +17,7 @@ import type { Paragraph } from "@/lib/reading";
 import { canSuggestSections, navigationHeadings, type Section } from "@/lib/sections";
 import { SectionsReview } from "@/components/sections-review";
 import { useAiConsent } from "@/components/ai-consent";
+import { GuideOption } from "@/components/guide-questions";
 
 interface Bookmark {
   id: string;
@@ -253,6 +255,8 @@ export function NavigateSheet({
           </section>
         ) : null}
 
+        <GuideOption hasSections={headings.length > 0} />
+
         <section className="space-y-2" aria-label="Marcadores">
           <h3 className="text-sm font-medium text-muted">Marcadores</h3>
           <div className="flex gap-2">
@@ -333,6 +337,14 @@ export function NavigateSheet({
             />
           ) : null}
         </section>
+
+        {/* Cartoes, glossario e o resto do estudo do texto (US-155 a US-170). */}
+        <Link
+          href={`/textos/${textId}/estudar`}
+          className="flex min-h-11 w-full items-center rounded-lg px-2 text-sm font-medium text-muted hover:bg-surface-2"
+        >
+          Estudar este texto
+        </Link>
       </div>
     </Sheet>
   );

@@ -6,7 +6,15 @@ import { serverError } from "@/lib/api";
 import { upsertSettings } from "@/lib/settings-row";
 import { loadGoalStatus } from "@/lib/queries";
 import { asTimezone, todayIn } from "@/lib/goals";
-import { reminderBody, shouldRemind } from "@/lib/reminder";
+import {
+  hourIn,
+  reminderBody,
+  REVIEW_REMINDER_MIN_DUE,
+  reviewReminderBody,
+  shouldRemind,
+  shouldRemindReview,
+} from "@/lib/reminder";
+import { countDailyReview, reviewedToday } from "@/lib/study-review-queries";
 import { pushConfigured, sendPush } from "@/lib/push";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +28,10 @@ export const maxDuration = 60;
  * depois da hora, e a marca do dia garante que saia uma vez so. Isso mantem a
  * funcionalidade correta tanto num agendador que roda de hora em hora quanto
  * num que roda uma vez por dia.
+ *
+ * O lembrete de revisao (US-163) sai no mesmo disparo, pela mesma inscricao,
+ * com a propria marca do dia: so com 5 ou mais itens vencidos e sem revisao
+ * feita hoje.
  */
 export async function GET(request: Request) {
   // O segredo separa o agendador de qualquer um que descubra a rota. Sem ele
@@ -41,6 +53,8 @@ export async function GET(request: Request) {
         reminderHour: speedSettings.reminderHour,
         timezone: speedSettings.timezone,
         reminderSentOn: speedSettings.reminderSentOn,
+        reviewReminder: speedSettings.reviewReminder,
+        reviewReminderSentOn: speedSettings.reviewReminderSentOn,
       })
       .from(speedSettings)
       .where(isNotNull(speedSettings.reminderHour));
@@ -48,6 +62,7 @@ export async function GET(request: Request) {
     const now = new Date();
     let enviados = 0;
     let expiradas = 0;
+    let revisoes = 0;
 
     for (const candidate of candidates) {
       const timezone = asTimezone(candidate.timezone);
@@ -71,7 +86,34 @@ export async function GET(request: Request) {
         now
       );
 
-      if (!send) continue;
+      // As filas da revisao so sao contadas quando o resto da regra ja
+      // permite: a contagem le palavras, destaques, cartoes e questionarios.
+      let reviewDue = 0;
+      let sendReview = false;
+      if (
+        candidate.reviewReminder &&
+        candidate.reviewReminderSentOn !== today &&
+        candidate.reminderHour !== null &&
+        hourIn(timezone, now) >= candidate.reminderHour
+      ) {
+        reviewDue = (await countDailyReview(candidate.userId, timezone, today)).total;
+        sendReview =
+          reviewDue >= REVIEW_REMINDER_MIN_DUE &&
+          shouldRemindReview(
+            {
+              reviewReminder: candidate.reviewReminder,
+              reminderHour: candidate.reminderHour,
+              timezone,
+              reviewReminderSentOn: candidate.reviewReminderSentOn,
+              due: reviewDue,
+              reviewedToday: await reviewedToday(candidate.userId, timezone, today),
+            },
+            today,
+            now
+          );
+      }
+
+      if (!send && !sendReview) continue;
 
       const targets = await db
         .select()
@@ -80,34 +122,50 @@ export async function GET(request: Request) {
 
       if (targets.length === 0) continue;
 
-      const dead: string[] = [];
+      const dead = new Set<string>();
       let delivered = false;
+      let deliveredReview = false;
 
       for (const target of targets) {
-        const result = await sendPush(target, {
-          title: "Leitura",
-          body: reminderBody(goal.defined ? goal.streak : 0),
-          url: "/dashboard",
-        });
-
-        if (result === "enviada") delivered = true;
-        if (result === "expirada") dead.push(target.endpoint);
+        if (send) {
+          const result = await sendPush(target, {
+            title: "Leitura",
+            body: reminderBody(goal.defined ? goal.streak : 0),
+            url: "/dashboard",
+          });
+          if (result === "enviada") delivered = true;
+          if (result === "expirada") dead.add(target.endpoint);
+        }
+        if (sendReview && !dead.has(target.endpoint)) {
+          const result = await sendPush(target, {
+            title: "Revisão",
+            body: reviewReminderBody(reviewDue),
+            url: "/revisar",
+          });
+          if (result === "enviada") deliveredReview = true;
+          if (result === "expirada") dead.add(target.endpoint);
+        }
       }
 
       // Inscricao que o navegador descartou nao volta: apagar evita repetir a
       // mesma falha todo dia.
-      if (dead.length > 0) {
-        await db.delete(pushSubscriptions).where(inArray(pushSubscriptions.endpoint, dead));
-        expiradas += dead.length;
+      if (dead.size > 0) {
+        await db.delete(pushSubscriptions).where(inArray(pushSubscriptions.endpoint, [...dead]));
+        expiradas += dead.size;
       }
 
-      if (delivered) {
-        await upsertSettings(db, candidate.userId, { reminderSentOn: today });
-        enviados += 1;
+      // Cada lembrete tem a propria marca do dia: um nao impede o outro.
+      if (delivered || deliveredReview) {
+        await upsertSettings(db, candidate.userId, {
+          ...(delivered ? { reminderSentOn: today } : {}),
+          ...(deliveredReview ? { reviewReminderSentOn: today } : {}),
+        });
       }
+      if (delivered) enviados += 1;
+      if (deliveredReview) revisoes += 1;
     }
 
-    return NextResponse.json({ enviados, expiradas, candidatos: candidates.length });
+    return NextResponse.json({ enviados, revisoes, expiradas, candidatos: candidates.length });
   } catch (error) {
     return serverError("cron/lembretes", error);
   }
