@@ -19,7 +19,10 @@ export type AiResultKind =
   | "sintese"
   | "sugestoes"
   | "secoes"
-  | "semana";
+  | "semana"
+  | "glossario"
+  | "fichamento"
+  | "guia";
 
 export async function loadAiResult<T>(
   userId: string,

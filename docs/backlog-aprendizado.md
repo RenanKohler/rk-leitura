@@ -173,7 +173,7 @@ atenção na leitura.
    sabia" ou "Não sabia", e ao fim vejo quantos já sabia, em número e
    porcentagem.
 3. Dado um cartão respondido no teste, quando a leitura passa pelo trecho dele,
-   então ele entra na revisão normal com vencimento no dia seguinte, e a
+   então ele entra na revisão normal, vencido a partir daquele dia, e a
    resposta do teste não altera o intervalo.
 4. Dado que todos os cartões são de trechos já lidos, quando abro "Estudar",
    então a opção aparece desativada com "Nenhum cartão de trecho não lido."

@@ -18,6 +18,8 @@ export const DAILY_QUOTAS = {
   resumo: 30,
   /** Limpeza e etiquetas na importacao (US-136, US-137). */
   importacao: 50,
+  /** Cartoes, glossario, fichamento, perguntas-guia e apontamentos (US-155 a US-170). */
+  estudo: 30,
 } as const;
 
 export type QuotaKind = keyof typeof DAILY_QUOTAS;
@@ -32,6 +34,7 @@ export const QUOTA_MESSAGES: Record<QuotaKind, string> = {
   pergunta: "Limite diário de perguntas atingido. Volta a valer amanhã.",
   resumo: "Limite diário de resumos atingido. Volta a valer amanhã.",
   importacao: "Limite diário de análises de importação atingido. Volta a valer amanhã.",
+  estudo: "Limite diário de recursos de estudo atingido. Volta a valer amanhã.",
 };
 
 /** Nome de cada cota no cartao de uso (US-126). */
@@ -42,6 +45,7 @@ export const QUOTA_LABELS: Record<QuotaKind, string> = {
   pergunta: "Perguntas ao texto",
   resumo: "Resumos",
   importacao: "Análises de importação",
+  estudo: "Recursos de estudo",
 };
 
 /**
