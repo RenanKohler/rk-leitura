@@ -82,6 +82,8 @@ import { HighlightSheet } from "@/components/highlight-sheet";
 import { WordSheet } from "@/components/word-sheet";
 import { ExplainSheet } from "@/components/explain-sheet";
 import { AskSheet } from "@/components/ask-sheet";
+import { PassageCardSheet } from "@/components/passage-card-sheet";
+import { GuideQuestions } from "@/components/guide-questions";
 import { MIN_WORDS_FOR_QUIZ } from "@/lib/quiz";
 import { useWordSelection, wordIndexFromPoint } from "@/hooks/use-word-selection";
 import { useWordTouch } from "@/hooks/use-word-touch";
@@ -1213,6 +1215,9 @@ function Reader({
   // Frase a explicar (US-127) e conversa com o texto (US-128).
   const [explaining, setExplaining] = useState<number | null>(null);
   const [asking, setAsking] = useState(false);
+  // Cartao do trecho selecionado (US-158) e perguntas-guia da secao (US-166).
+  const [carding, setCarding] = useState<Span | null>(null);
+  const [guiding, setGuiding] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
@@ -1308,7 +1313,9 @@ function Reader({
     confirmAbandon ||
     confirmRestart ||
     quizOpen ||
-    checkOpen;
+    checkOpen ||
+    carding !== null ||
+    guiding;
   useEffect(() => {
     if (sheetOpen && stateRef.current.playing) pause("folha");
   }, [sheetOpen, pause]);
@@ -1801,6 +1808,16 @@ function Reader({
                   <MarkIcon className="size-5" />
                   Destacar
                 </Button>
+                <Button
+                  size="md"
+                  variant="secondary"
+                  onClick={() => {
+                    setCarding(selection);
+                    clearSelection();
+                  }}
+                >
+                  Criar cartão
+                </Button>
                 <ControlButton label="Cancelar seleção" onClick={clearSelection}>
                   <CloseIcon className="size-5" />
                 </ControlButton>
@@ -2010,6 +2027,25 @@ function Reader({
           setTapped(position);
         }}
         onHighlights={setMarks}
+      />
+
+      {carding ? (
+        <PassageCardSheet
+          key={`cartao-${carding.start}-${carding.end}`}
+          textId={text.id}
+          span={carding}
+          words={words}
+          onClose={() => setCarding(null)}
+        />
+      ) : null}
+
+      <GuideQuestions
+        textId={text.id}
+        paragraphs={paragraphs}
+        total={total}
+        index={index}
+        onOpenChange={setGuiding}
+        onGo={goTo}
       />
 
       <NavigateSheet

@@ -17,6 +17,7 @@ import type { Paragraph } from "@/lib/reading";
 import { canSuggestSections, navigationHeadings, type Section } from "@/lib/sections";
 import { SectionsReview } from "@/components/sections-review";
 import { useAiConsent } from "@/components/ai-consent";
+import { GuideOption } from "@/components/guide-questions";
 
 interface Bookmark {
   id: string;
@@ -253,6 +254,8 @@ export function NavigateSheet({
             ) : null}
           </section>
         ) : null}
+
+        <GuideOption hasSections={headings.length > 0} />
 
         <section className="space-y-2" aria-label="Marcadores">
           <h3 className="text-sm font-medium text-muted">Marcadores</h3>
