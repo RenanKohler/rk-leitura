@@ -68,7 +68,8 @@ outras.
 **Épico:** Cartões de estudo
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/study-card-drafts.ts`, `src/lib/study-card-generator.ts`, `src/app/api/texts/[id]/cartoes-estudo/`, `src/app/(app)/textos/[id]/estudar/study-cards-panel.tsx`
 
 Como leitor que estuda, eu quero que a IA crie cartões de memorização com os
 pontos e conceitos principais do texto, para que eu revise o essencial sem
@@ -106,7 +107,8 @@ leitura avança; não há nova geração por causa disso.
 **Épico:** Cartões de estudo
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/app/api/cartoes/[id]/revisao/route.ts`, `src/app/(app)/textos/[id]/estudar/revisar/`, `src/components/study-card-review.tsx`
 
 Como leitor que estuda, eu quero revisar os cartões ao longo dos dias, com
 intervalos que crescem conforme acerto, para que os conceitos fiquem na memória
@@ -133,7 +135,8 @@ como já acontece com palavras e destaques.
 **Épico:** Cartões de estudo
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/passage-card.ts`, `src/app/api/texts/[id]/cartao/`, `src/components/passage-card-sheet.tsx`
 
 Como leitor que estuda, eu quero selecionar um trecho durante a leitura e pedir
 um cartão sobre ele, para que eu guarde o que achei importante no momento em
@@ -159,7 +162,8 @@ destaques.
 **Épico:** Cartões de estudo
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/app/api/cartoes/[id]/previo/route.ts`, `src/app/(app)/textos/[id]/estudar/pretest-session.tsx`
 
 Como leitor que estuda, eu quero responder aos cartões de trechos que ainda
 não li, para que eu saiba o que já conheço do assunto e onde prestar mais
@@ -187,7 +191,8 @@ retenção, como "Conhecimento prévio: N%".
 **Épico:** Cartões de estudo
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/study-card-drafts.ts` (lacuna), `study-cards-panel.tsx`
 
 Como leitor que estuda, eu quero escolher entre cartões de pergunta e resposta
 e cartões de lacuna, para que a revisão combine com o tipo de conteúdo que
@@ -206,7 +211,8 @@ estou estudando.
 **Épico:** Cartões de estudo
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/app/api/texts/[id]/cartoes-estudo/route.ts` (POST), `study-cards-panel.tsx`
 
 Como leitor, eu quero criar cartões sem a IA, para que eu estude mesmo com os
 recursos de IA desligados ou sem cota.
@@ -225,7 +231,8 @@ recursos de IA desligados ou sem cota.
 **Épico:** Cartões de estudo
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/anki.ts`, `src/app/api/cartoes/exportar/route.ts`
 
 Como leitor que estuda, eu quero exportar os cartões de um texto ou de todos os
 textos num arquivo que o Anki importa, para que eu revise onde já mantenho
@@ -250,7 +257,8 @@ dependência nova; o texto separado por tabulação é importado direto pelo Ank
 **Épico:** Revisão e retenção
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/daily-review.ts`, `src/app/(app)/revisar/`
 
 Como leitor que estuda, eu quero revisar palavras, destaques e cartões
 vencidos numa única sessão, para que eu não precise passar por três telas para
@@ -275,7 +283,8 @@ primeiro.
 **Épico:** Revisão e retenção
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/quiz-recall.ts`, `src/app/api/texts/[id]/recordar/route.ts`, `src/app/(app)/textos/[id]/leituras/page.tsx`
 
 Como leitor que estuda, eu quero responder de novo o questionário de um texto
 7 e 30 dias depois de concluir, para que eu saiba o que ainda lembro dele.
@@ -299,7 +308,8 @@ sem chamada ao modelo. As alternativas são reembaralhadas.
 **Épico:** Revisão e retenção
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/study-retention.ts`, `src/app/(app)/textos/[id]/estudar/retention-panel.tsx`, `src/app/(app)/voce/page.tsx`
 
 Como leitor que estuda, eu quero ver quanto acerto dos cartões de cada texto,
 para que eu saiba quais textos preciso reler.
@@ -320,7 +330,8 @@ para que eu saiba quais textos preciso reler.
 **Épico:** Revisão e retenção
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/reminder.ts` (`shouldRemindReview`), `src/app/api/cron/lembretes/route.ts`, `src/components/reminder-card.tsx`
 
 Como leitor que estuda, eu quero um lembrete no horário que escolhi quando
 houver itens para revisar, para que a revisão não acumule.
@@ -344,7 +355,8 @@ existentes (US-43).
 **Épico:** Estudo do texto com IA
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/glossary.ts`, `src/app/api/texts/[id]/glossario/`, `src/app/(app)/textos/[id]/estudar/glossary-panel.tsx`
 
 Como leitor que estuda, eu quero uma lista dos termos e conceitos do texto com
 a definição no sentido em que o texto os usa, para que eu consulte o
@@ -372,7 +384,8 @@ que não aparece literalmente no texto é descartado na validação.
 **Épico:** Estudo do texto com IA
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/study-notes.ts`, `src/app/api/texts/[id]/fichamento/route.ts`, `src/app/(app)/textos/[id]/estudar/notes-panel.tsx`
 
 Como leitor que estuda, eu quero um fichamento com a ideia central, os
 argumentos, as evidências e as conclusões do texto, cada item com o trecho de
@@ -398,7 +411,8 @@ origem, para que eu tenha um material de estudo confiável sobre o que li.
 **Épico:** Estudo do texto com IA
 **Prioridade:** Could
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/guide-questions.ts`, `src/app/api/texts/[id]/guia/route.ts`, `src/components/guide-questions.tsx`
 
 Como leitor que estuda, eu quero ver 2 ou 3 perguntas sobre a próxima seção
 antes de começar a lê-la, para que eu leia procurando as respostas.
@@ -421,7 +435,8 @@ aviso de consentimento diz isso. Haiku, cota `estudo`.
 **Épico:** Estudo do texto com IA
 **Prioridade:** Could
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/teach-back.ts`, `src/app/api/texts/[id]/apontamentos/route.ts`, `src/app/(app)/textos/[id]/estudar/teach-back-panel.tsx`
 
 Como leitor que estuda, eu quero escrever o que entendi de uma seção e receber
 apontamentos do que ficou de fora ou divergiu do texto, para que eu descubra
@@ -445,7 +460,8 @@ principal. Sonnet, cota `estudo`.
 **Épico:** Estudo do texto com IA
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
+**Evidência:** `src/lib/analogy.ts`, `src/app/api/cartoes/[id]/analogia/route.ts`
 
 Como leitor que estuda, eu quero pedir uma analogia ou um exemplo quando erro
 um cartão, para que o conceito fique mais fácil de lembrar.
@@ -475,6 +491,32 @@ de origem do cartão.
   todas as consultas são restritas ao dono.
 - **Plano de estudo com datas de prova:** exige calendário e metas por
   assunto, fora do objetivo de leitura do app.
+
+## Notas da implementação
+
+As 16 stories foram implementadas sobre o commit `ab89c2c`. A tela "Estudar"
+fica em `/textos/[id]/estudar`, com link no painel "Navegar no texto" do
+leitor; a revisão do dia fica em `/revisar`. Onde a entrega se afastou do texto:
+
+- **US-155:** gerar de novo não repete cartões: as frentes já salvas vão no
+  pedido e repetições são descartadas. Os cartões de trechos não lidos chegam
+  ao navegador na resposta da geração, para serem salvos, mas a tela não os
+  mostra; fora isso, só a rota do teste prévio os devolve.
+- **US-160:** a exportação leva só cartões de trechos já lidos.
+- **US-161:** cartões que acabaram de ser liberados pela leitura contam como
+  vencidos no dia e vão para o fim da sessão.
+- **US-163:** o lembrete de revisão sai no horário do lembrete diário e só
+  aparece em Ajustes quando o lembrete diário está ligado.
+- **US-165:** o fichamento usa saída estruturada com citações literais
+  conferidas no texto, e não a Citations API, que não se combina com formato
+  fixo. O resultado na tela é o mesmo.
+- **US-166:** a opção de perguntas-guia é guardada por aparelho, sem coluna nova
+  no banco.
+- **US-169:** a data de conclusão é a da primeira sessão concluída com nota de
+  questionário. Quem só volta depois de 30 dias faz apenas a rodada de 30.
+
+Nenhuma função foi exercitada contra o modelo real neste ambiente, por falta de
+chave; os testes de ponta a ponta simulam as rotas de IA.
 
 ## Sugestão de MVP
 
