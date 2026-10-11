@@ -13,6 +13,16 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Estudar" };
 
+/** Secoes da pagina, na ordem em que aparecem: ancora e rotulo. */
+const SECTIONS: [anchor: string, label: string][] = [
+  ["cartoes", "Cartões"],
+  ["previo", "Conhecimento prévio"],
+  ["retencao", "Revisão e retenção"],
+  ["glossario", "Glossário"],
+  ["fichamento", "Fichamento"],
+  ["explicar", "Explicar"],
+];
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
@@ -62,6 +72,23 @@ export default async function StudyPage({ params }: { params: Promise<{ id: stri
           <p className="truncate text-sm text-muted">{text.title}</p>
         </div>
       </header>
+
+      {/* Atalhos para as secoes: a pagina e longa no celular, e o teste de
+          conhecimento previo e a revisao ficavam fora da vista. */}
+      <nav aria-label="Seções de estudo" className="-mx-4 overflow-x-auto px-4">
+        <ul className="flex gap-2">
+          {SECTIONS.map(([anchor, label]) => (
+            <li key={anchor} className="shrink-0">
+              <a
+                href={`#${anchor}`}
+                className="inline-flex min-h-9 items-center rounded-full bg-surface-2 px-3 text-sm font-medium text-muted hover:text-ink"
+              >
+                {label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       <StudyCardsPanel {...study} />
       <RetentionPanel {...study} />

@@ -52,7 +52,7 @@ export function NotesPanel({ textId, title, progressIndex, wordCount }: StudyPro
   };
 
   return (
-    <Card as="section" className="space-y-4 p-5">
+    <Card as="section" id="fichamento" className="scroll-mt-4 space-y-4 p-5">
       <SectionTitle
         action={
           notes ? (

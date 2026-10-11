@@ -30,7 +30,7 @@ const NAV = [
     href: "/voce",
     label: "Você",
     Icon: UserIcon,
-    also: ["/historico", "/estatisticas", "/palavras", "/treino"],
+    also: ["/historico", "/estatisticas", "/palavras", "/treino", "/revisar"],
   },
   { href: "/ajustes", label: "Ajustes", Icon: SettingsIcon, also: [] },
 ] as const;

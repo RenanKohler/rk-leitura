@@ -36,6 +36,7 @@ import {
   QueueIcon,
   RestoreIcon,
   SeriesIcon,
+  StudyIcon,
   TrashIcon,
 } from "@/components/icons";
 import { estimatedMinutes, formatNumber } from "@/lib/reading";
@@ -628,6 +629,17 @@ function TextActionsSheet({
   return (
     <Sheet open={text !== null} onClose={onClose} title={text?.title ?? ""}>
       <ul className="space-y-1">
+        {text ? (
+          <li>
+            <Link
+              href={`/textos/${text.id}/estudar`}
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left font-medium text-ink hover:bg-surface-2"
+            >
+              <StudyIcon className="size-5" />
+              Estudar
+            </Link>
+          </li>
+        ) : null}
         {!archived && !text?.abandoned ? (
           <MenuAction icon={<QueueIcon className="size-5" />} onClick={act(onQueue)}>
             {text?.queuePosition == null ? "Adicionar à fila" : "Tirar da fila"}
@@ -728,15 +740,27 @@ function TextCard({
 
         {/* Fora do <Link> do titulo: um link dentro de outro nao e valido, e
             o toque cairia no destino errado. */}
-        {text.highlights > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {/* Estudar (US-155 a US-170) visivel no cartao: cartoes, teste de
+              conhecimento previo, glossario e fichamento do texto. */}
           <Link
-            href={`/textos/${text.id}/destaques`}
-            className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface-2 px-3 text-sm font-medium text-muted"
+            href={`/textos/${text.id}/estudar`}
+            aria-label={`Estudar: ${text.title}`}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface-2 px-3 text-sm font-medium text-muted hover:text-ink"
           >
-            <MarkIcon className="size-4" />
-            {text.highlights === 1 ? "1 destaque" : `${text.highlights} destaques`}
+            <StudyIcon className="size-4" />
+            Estudar
           </Link>
-        ) : null}
+          {text.highlights > 0 ? (
+            <Link
+              href={`/textos/${text.id}/destaques`}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface-2 px-3 text-sm font-medium text-muted"
+            >
+              <MarkIcon className="size-4" />
+              {text.highlights === 1 ? "1 destaque" : `${text.highlights} destaques`}
+            </Link>
+          ) : null}
+        </div>
 
         {percent > 0 ? (
           <div className="mt-3 h-1 overflow-hidden rounded-full bg-surface-2">

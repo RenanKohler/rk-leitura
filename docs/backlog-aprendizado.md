@@ -495,8 +495,8 @@ de origem do cartão.
 ## Notas da implementação
 
 As 16 stories foram implementadas sobre o commit `ab89c2c`. A tela "Estudar"
-fica em `/textos/[id]/estudar`, com link no painel "Navegar no texto" do
-leitor; a revisão do dia fica em `/revisar`. Onde a entrega se afastou do texto:
+fica em `/textos/[id]/estudar`; a revisão do dia fica em `/revisar`. Onde a
+entrega se afastou do texto:
 
 - **US-155:** gerar de novo não repete cartões: as frentes já salvas vão no
   pedido e repetições são descartadas. Os cartões de trechos não lidos chegam
@@ -514,6 +514,24 @@ leitor; a revisão do dia fica em `/revisar`. Onde a entrega se afastou do texto
   no banco.
 - **US-169:** a data de conclusão é a da primeira sessão concluída com nota de
   questionário. Quem só volta depois de 30 dias faz apenas a rodada de 30.
+
+**Auditoria de acesso (depois da entrega):** "Estudar" só era alcançável
+pelo fim da folha "Navegar no texto", e "Testar conhecimento prévio" ficava
+no fim da lista de cartões, desativado até existirem cartões. Correções:
+
+- "Estudar" ganhou botão próprio (capelo) na barra do leitor, item no menu
+  "Mais ações" e atalho visível no cartão de cada texto da biblioteca; o link
+  na folha "Navegar no texto" continua.
+- A tela "Estudar" abre com atalhos para as seções (Cartões, Conhecimento
+  prévio, Revisão e retenção, Glossário, Fichamento, Explicar).
+- "Testar conhecimento prévio" virou seção própria, logo abaixo dos cartões.
+  Sem cartão nenhum, explica que os cartões são criados do texto completo e
+  que o teste usa os das partes não lidas, com "Criar cartões para o teste";
+  com todos os cartões lidos, fica desativado com "Nenhum cartão de trecho
+  não lido." O resultado ("Conhecimento prévio: N%") aparece ao concluir o
+  teste, sem recarregar a página.
+- `/revisar` acende a aba "Você", onde fica a entrada "Revisão do dia"; o
+  painel inicial mostra o atalho quando há itens vencidos.
 
 Nenhuma função foi exercitada contra o modelo real neste ambiente, por falta de
 chave; os testes de ponta a ponta simulam as rotas de IA.
