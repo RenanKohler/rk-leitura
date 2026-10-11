@@ -136,8 +136,9 @@ test("sem IA, o cartao a mao continua e a exportacao leva so os lidos", async ({
   );
   await expect(page.getByRole("button", { name: "Exportar para o Anki" })).toBeDisabled();
   await expect(page.getByTestId("exportar-aviso")).toHaveText("Nenhum cartão para exportar.");
-  await expect(page.getByRole("button", { name: "Testar conhecimento prévio" })).toBeDisabled();
-  await expect(page.getByTestId("previo-aviso")).toHaveText("Nenhum cartão de trecho não lido.");
+  // Sem cartao nenhum, o teste previo explica de onde vem e oferece cria-los.
+  await expect(page.getByTestId("previo-vazio")).toContainText("criados a partir do texto completo");
+  await expect(page.getByRole("button", { name: "Criar cartões para o teste" })).toBeDisabled();
 
   // Cartao a mao: validacao e vencimento no dia seguinte.
   await page.getByRole("button", { name: "Novo cartão" }).click();
@@ -152,6 +153,9 @@ test("sem IA, o cartao a mao continua e a exportacao leva so os lidos", async ({
   await form.getByRole("button", { name: "Salvar cartão" }).click();
   await expect(page.getByText("Cartão salvo.")).toBeVisible();
   await expect(page.getByTestId("cartao-estudo")).toHaveCount(1);
+  // Todos os cartoes sao de trechos lidos: o teste fica desativado com o motivo.
+  await expect(page.getByRole("button", { name: "Testar conhecimento prévio" })).toBeDisabled();
+  await expect(page.getByTestId("previo-aviso")).toHaveText("Nenhum cartão de trecho não lido.");
 
   const list = await (await page.request.get(`/api/texts/${text.id}/cartoes-estudo`)).json();
   // Amanha no fuso da conta (o app grava o do navegador), nao no do servidor.
@@ -189,11 +193,12 @@ test("teste de conhecimento previo mostra so os nao lidos e resume no fim", asyn
   await insertCard(text.id, "O que vem depois?", "Uma virada.", 200, 210);
   await insertCard(text.id, "Como termina?", "Em paz.", 380, 395);
 
-  // Entrada pelo leitor: "Navegar no texto" > "Estudar este texto".
-  await openReader(page, text.id);
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
-  await page.getByRole("link", { name: "Estudar este texto" }).click();
+  // Entrada pela biblioteca: o cartao do texto tem "Estudar".
+  await page.goto("/textos");
+  await page.getByRole("link", { name: "Estudar: Previo" }).click();
   await expect(page).toHaveURL(`/textos/${text.id}/estudar`);
+  await expect(page.getByRole("heading", { name: "Testar conhecimento prévio" })).toBeVisible();
+  await expect(page.getByTestId("previo-disponivel")).toHaveText("2 cartões de trechos ainda não lidos.");
   await expect(page.getByTestId("cartoes-estudo-contagem")).toHaveText(
     "1 cartão de trecho já lido · 2 cartões de trechos ainda não lidos"
   );
@@ -217,4 +222,61 @@ test("teste de conhecimento previo mostra so os nao lidos e resume no fim", asyn
   ]);
   await page.getByRole("button", { name: "Concluir" }).click();
   await expect(page.getByTestId("cartao-estudo")).toHaveCount(1);
+  // O resultado aparece ao lado da retencao sem recarregar a pagina.
+  await expect(page.getByTestId("conhecimento-previo")).toContainText("Conhecimento prévio: 50%");
+});
+
+/** Entradas para "Estudar": barra do leitor, folha de navegacao e menu da biblioteca. */
+test("estudar e alcancavel pelo leitor e pela biblioteca", async ({ page }) => {
+  await registerByApi(page.request);
+  const text = await createText(page.request, "Entradas do estudo", 400);
+
+  await openReader(page, text.id);
+  await page.getByRole("link", { name: "Estudar", exact: true }).click();
+  await expect(page).toHaveURL(`/textos/${text.id}/estudar`);
+  await expect(page.getByRole("heading", { name: "Estudar" })).toBeVisible();
+
+  await openReader(page, text.id);
+  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await page.getByRole("link", { name: "Estudar este texto" }).click();
+  await expect(page).toHaveURL(`/textos/${text.id}/estudar`);
+
+  await page.goto("/textos");
+  await page.getByRole("button", { name: "Mais ações: Entradas do estudo" }).click();
+  await page.getByRole("dialog").getByRole("link", { name: "Estudar" }).click();
+  await expect(page).toHaveURL(`/textos/${text.id}/estudar`);
+
+  // Atalhos da pagina levam a cada secao.
+  await page
+    .getByRole("navigation", { name: "Seções de estudo" })
+    .getByRole("link", { name: "Conhecimento prévio" })
+    .click();
+  await expect(page).toHaveURL(`/textos/${text.id}/estudar#previo`);
+  await expect(page.getByRole("heading", { name: "Testar conhecimento prévio" })).toBeInViewport();
+
+  // Revisao do dia: entrada em "Voce", que fica acesa na navegacao.
+  await page.goto("/voce");
+  await page.getByRole("link", { name: /Revisão do dia/ }).click();
+  await expect(page).toHaveURL("/revisar");
+  await expect(page.getByRole("link", { name: "Você", exact: true })).toHaveAttribute("aria-current", "page");
+});
+
+/** US-170 sem cartoes: o teste previo cria os cartoes e passa a valer. */
+test("teste previo sem cartoes cria os cartoes do texto inteiro e libera o teste", async ({ page }) => {
+  await registerByApi(page.request);
+  await updateSettings(page.request, { aiEnabled: true });
+  const text = await createText(page.request, "Antes de ler", 400);
+  await mockGeneration(page, [draft("Do começo?", 0, 1), draft("Do meio?", 150, 160), draft("Do fim?", 380, 390)]);
+
+  await page.goto(`/textos/${text.id}/estudar`);
+  await expect(page.getByTestId("previo-vazio")).toBeVisible();
+  await page.getByRole("button", { name: "Criar cartões para o teste" }).click();
+  await expect(page.getByTestId("cartao-estudo-rascunho")).toHaveCount(1);
+  await expect(page.getByTestId("rascunhos-nao-lidos")).toContainText("2 cartões de trechos ainda não lidos");
+  await page.getByRole("button", { name: "Salvar cartões" }).click();
+
+  await expect(page.getByTestId("previo-disponivel")).toHaveText("2 cartões de trechos ainda não lidos.");
+  await page.getByRole("button", { name: "Testar conhecimento prévio" }).click();
+  await expect(page.getByTestId("previo-frente")).toHaveText("Do meio?");
+  await expect(page.getByText("Do começo?", { exact: true })).toHaveCount(1);
 });

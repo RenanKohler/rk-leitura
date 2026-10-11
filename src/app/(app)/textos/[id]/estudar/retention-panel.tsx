@@ -23,7 +23,7 @@ export async function RetentionPanel(props: StudyProps) {
   });
 
   return (
-    <Card as="section" className="space-y-4 p-5">
+    <Card as="section" id="retencao" className="scroll-mt-4 space-y-4 p-5">
       <div data-testid="retencao">
         <SectionTitle>Retenção</SectionTitle>
         {retention.measured ? (
