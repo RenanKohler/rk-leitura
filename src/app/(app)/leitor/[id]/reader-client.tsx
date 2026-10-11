@@ -35,6 +35,7 @@ import {
   SearchIcon,
   SettingsIcon,
   SparkIcon,
+  StudyIcon,
   SunIcon,
   VoiceIcon,
 } from "@/components/icons";
@@ -1511,7 +1512,7 @@ function Reader({
       }
     >
       <header className="pt-safe z-20 shrink-0 border-b border-border bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-2 py-2">
+        <div className="mx-auto flex w-full max-w-3xl items-center gap-1 px-2 py-2 sm:gap-2">
           <Link
             href="/textos"
             aria-label="Voltar"
@@ -1560,6 +1561,18 @@ function Reader({
           >
             <SparkIcon className="size-5" />
           </button>
+
+          {/* Estudar (US-155 a US-170) fica na barra, junto das outras acoes
+              sobre o texto: escondido no fim da folha de navegacao, ninguem
+              achava os cartoes nem o teste de conhecimento previo. */}
+          <Link
+            href={`/textos/${text.id}/estudar`}
+            aria-label="Estudar"
+            title="Estudar este texto"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+          >
+            <StudyIcon className="size-5" />
+          </Link>
 
           <button
             type="button"
