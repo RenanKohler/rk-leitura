@@ -28,12 +28,19 @@ export interface PiperVoice {
   path: string;
   bytes: number;
   license: string;
+  /** Qualidade do modelo no catalogo do Piper: a alta soa mais natural e pesa quase o dobro. */
+  quality: "alta" | "media";
 }
 
 /**
- * Catalogo curto de proposito: so vozes de qualidade media (a alta dobra o
- * tamanho e pesa demais no celular) e so com licenca livre - dados em dominio
- * publico ou CC0. Vozes com licenca nao comercial ficaram de fora.
+ * Catalogo curto de proposito, com licenca que permite qualquer uso: dados em
+ * dominio publico, CC0 ou CC BY. Ficaram de fora as vozes com dados de licenca
+ * nao comercial (lessac, ryan) e as treinadas a partir delas (daniela, que
+ * parte da lessac).
+ *
+ * Vozes de qualidade alta entram onde existem com essa licenca: soam mais
+ * naturais, mas pesam ~114 MB contra ~63 MB da media. Em cada idioma a alta
+ * vem primeiro. Portugues nao tem voz alta no repositorio do Piper.
  */
 export const PIPER_VOICES: readonly PiperVoice[] = [
   {
@@ -44,6 +51,7 @@ export const PIPER_VOICES: readonly PiperVoice[] = [
     path: "pt/pt_BR/faber/medium/pt_BR-faber-medium",
     bytes: 63_201_294,
     license: "CC0",
+    quality: "media",
   },
   {
     id: "pt_BR-cadu-medium",
@@ -53,6 +61,7 @@ export const PIPER_VOICES: readonly PiperVoice[] = [
     path: "pt/pt_BR/cadu/medium/pt_BR-cadu-medium",
     bytes: 62_950_044,
     license: "CC0",
+    quality: "media",
   },
   {
     id: "pt_BR-jeff-medium",
@@ -62,6 +71,27 @@ export const PIPER_VOICES: readonly PiperVoice[] = [
     path: "pt/pt_BR/jeff/medium/pt_BR-jeff-medium",
     bytes: 62_950_044,
     license: "CC0",
+    quality: "media",
+  },
+  {
+    id: "en_US-ljspeech-high",
+    language: "en",
+    name: "LJ (alta qualidade)",
+    description: "Inglês americano, voz feminina",
+    path: "en/en_US/ljspeech/high/en_US-ljspeech-high",
+    bytes: 114_199_011,
+    license: "Domínio público",
+    quality: "alta",
+  },
+  {
+    id: "en_GB-cori-high",
+    language: "en",
+    name: "Cori (alta qualidade)",
+    description: "Inglês britânico, voz feminina",
+    path: "en/en_GB/cori/high/en_GB-cori-high",
+    bytes: 114_219_352,
+    license: "Domínio público",
+    quality: "alta",
   },
   {
     id: "en_US-ljspeech-medium",
@@ -71,6 +101,7 @@ export const PIPER_VOICES: readonly PiperVoice[] = [
     path: "en/en_US/ljspeech/medium/en_US-ljspeech-medium",
     bytes: 63_531_379,
     license: "Domínio público",
+    quality: "media",
   },
   {
     id: "en_US-kristin-medium",
@@ -80,6 +111,7 @@ export const PIPER_VOICES: readonly PiperVoice[] = [
     path: "en/en_US/kristin/medium/en_US-kristin-medium",
     bytes: 63_531_379,
     license: "Domínio público",
+    quality: "media",
   },
   {
     id: "en_US-norman-medium",
@@ -89,6 +121,7 @@ export const PIPER_VOICES: readonly PiperVoice[] = [
     path: "en/en_US/norman/medium/en_US-norman-medium",
     bytes: 63_531_379,
     license: "Domínio público",
+    quality: "media",
   },
   {
     id: "en_US-john-medium",
@@ -98,8 +131,38 @@ export const PIPER_VOICES: readonly PiperVoice[] = [
     path: "en/en_US/john/medium/en_US-john-medium",
     bytes: 63_531_379,
     license: "Domínio público",
+    quality: "media",
+  },
+  {
+    id: "de_DE-thorsten-high",
+    language: "de",
+    name: "Thorsten (alta qualidade)",
+    description: "Alemão, voz masculina",
+    path: "de/de_DE/thorsten/high/de_DE-thorsten-high",
+    bytes: 113_895_201,
+    license: "CC0",
+    quality: "alta",
+  },
+  {
+    id: "it_IT-serena-high",
+    language: "it",
+    name: "Serena (alta qualidade)",
+    description: "Italiano, voz feminina",
+    path: "it/it_IT/serena/high/it_IT-serena-high",
+    bytes: 114_204_024,
+    license: "CC BY 4.0",
+    quality: "alta",
   },
 ];
+
+/** Licencas aceitas no catalogo: todas permitem qualquer uso. */
+export const FREE_LICENSES = ["CC0", "Domínio público", "CC BY 4.0"] as const;
+
+/** Faixa de tamanho das vozes, para o aviso de espaco. */
+export function voiceSizeRange(): { min: number; max: number } {
+  const sizes = PIPER_VOICES.map((voice) => voice.bytes);
+  return { min: Math.min(...sizes), max: Math.max(...sizes) };
+}
 
 /**
  * Arquivos do motor, servidos pelo proprio app (`scripts/copy-tts-assets.mjs`).
