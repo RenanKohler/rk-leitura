@@ -12,19 +12,19 @@ import {
 } from "@/lib/piper";
 
 describe("catalogo de vozes", () => {
-  it("oferece vozes para portugues, ingles, alemao e italiano", () => {
+  it("oferece vozes so para portugues e ingles", () => {
     expect(voicesFor("pt-BR").map((voice) => voice.id)).toEqual([
       "pt_BR-faber-medium",
       "pt_BR-cadu-medium",
       "pt_BR-jeff-medium",
     ]);
     expect(voicesFor("en").length).toBe(6);
-    expect(voicesFor("de").map((voice) => voice.id)).toEqual(["de_DE-thorsten-high"]);
-    expect(voicesFor("it").map((voice) => voice.id)).toEqual(["it_IT-serena-high"]);
+    expect(voicesFor("de")).toEqual([]);
+    expect(voicesFor("it")).toEqual([]);
   });
 
   it("em cada idioma as vozes de alta qualidade vem primeiro", () => {
-    for (const language of ["pt-BR", "en", "de", "it"]) {
+    for (const language of ["pt-BR", "en"]) {
       const qualities = voicesFor(language).map((voice) => voice.quality);
       const firstMedium = qualities.indexOf("media");
       if (firstMedium >= 0) expect(qualities.slice(firstMedium)).not.toContain("alta");

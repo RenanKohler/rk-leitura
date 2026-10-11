@@ -25,8 +25,6 @@ import { speechChunks } from "@/lib/speech";
 const GROUPS = [
   { language: "pt-BR", title: "Português", sample: "Esta é a voz que vai ler os seus textos." },
   { language: "en", title: "Inglês", sample: "This is the voice that will read your texts." },
-  { language: "de", title: "Alemão", sample: "Das ist die Stimme, die deine Texte vorliest." },
-  { language: "it", title: "Italiano", sample: "Questa è la voce che leggerà i tuoi testi." },
 ].filter((group) => voicesFor(group.language).length > 0);
 
 const sizes = voiceSizeRange();

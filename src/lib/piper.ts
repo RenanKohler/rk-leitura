@@ -33,10 +33,9 @@ export interface PiperVoice {
 }
 
 /**
- * Catalogo curto de proposito, com licenca que permite qualquer uso: dados em
- * dominio publico, CC0 ou CC BY. Ficaram de fora as vozes com dados de licenca
- * nao comercial (lessac, ryan) e as treinadas a partir delas (daniela, que
- * parte da lessac).
+ * Catalogo curto de proposito: so portugues e ingles, e so com licenca livre -
+ * dados em dominio publico ou CC0. Ficaram de fora as vozes com dados de
+ * licenca nao comercial (lessac, ryan).
  *
  * Vozes de qualidade alta entram onde existem com essa licenca: soam mais
  * naturais, mas pesam ~114 MB contra ~63 MB da media. Em cada idioma a alta
@@ -133,30 +132,10 @@ export const PIPER_VOICES: readonly PiperVoice[] = [
     license: "Domínio público",
     quality: "media",
   },
-  {
-    id: "de_DE-thorsten-high",
-    language: "de",
-    name: "Thorsten (alta qualidade)",
-    description: "Alemão, voz masculina",
-    path: "de/de_DE/thorsten/high/de_DE-thorsten-high",
-    bytes: 113_895_201,
-    license: "CC0",
-    quality: "alta",
-  },
-  {
-    id: "it_IT-serena-high",
-    language: "it",
-    name: "Serena (alta qualidade)",
-    description: "Italiano, voz feminina",
-    path: "it/it_IT/serena/high/it_IT-serena-high",
-    bytes: 114_204_024,
-    license: "CC BY 4.0",
-    quality: "alta",
-  },
 ];
 
 /** Licencas aceitas no catalogo: todas permitem qualquer uso. */
-export const FREE_LICENSES = ["CC0", "Domínio público", "CC BY 4.0"] as const;
+export const FREE_LICENSES = ["CC0", "Domínio público"] as const;
 
 /** Faixa de tamanho das vozes, para o aviso de espaco. */
 export function voiceSizeRange(): { min: number; max: number } {
