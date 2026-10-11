@@ -45,7 +45,7 @@ export function GlossaryPanel({ textId, progressIndex, wordCount }: StudyProps) 
   };
 
   return (
-    <Card as="section" className="space-y-4 p-5">
+    <Card as="section" id="glossario" className="scroll-mt-4 space-y-4 p-5">
       <SectionTitle>Termos e conceitos</SectionTitle>
       <div data-testid="glossario" className="space-y-4">
         {!ready ? (

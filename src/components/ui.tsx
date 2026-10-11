@@ -116,13 +116,19 @@ export function Card({
   className = "",
   children,
   as: Tag = "div",
+  id,
 }: {
   className?: string;
   children: ReactNode;
   as?: "div" | "section" | "article" | "li";
+  /** Ancora para atalhos dentro da pagina. */
+  id?: string;
 }) {
   return (
-    <Tag className={`rounded-card border border-border bg-surface shadow-card ${className}`}>
+    <Tag
+      id={id}
+      className={`rounded-card border border-border bg-surface shadow-card ${className}`}
+    >
       {children}
     </Tag>
   );

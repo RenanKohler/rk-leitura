@@ -334,3 +334,12 @@ export const MoreIcon = (props: IconProps) => (
     <circle cx="18.5" cy="12" r="1.2" fill="currentColor" stroke="none" />
   </Icon>
 );
+
+/** Capelo: estudar um texto (cartoes, revisao, glossario). */
+export const StudyIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m2.5 9.5 9.5-4.5 9.5 4.5-9.5 4.5z" />
+    <path d="M6.5 11.5v4.2c1.4 1.4 3.3 2.3 5.5 2.3s4.1-.9 5.5-2.3v-4.2" />
+    <path d="M21.5 9.5v5" />
+  </Icon>
+);

@@ -6,7 +6,7 @@ import { Alert, Button, Card, SectionTitle } from "@/components/ui";
 import { CheckIcon } from "@/components/icons";
 import {
   ENGINE_BYTES,
-  PIPER_VOICES,
+  voiceSizeRange,
   formatMegabytes,
   voicesFor,
   type PiperVoice,
@@ -25,7 +25,9 @@ import { speechChunks } from "@/lib/speech";
 const GROUPS = [
   { language: "pt-BR", title: "Português", sample: "Esta é a voz que vai ler os seus textos." },
   { language: "en", title: "Inglês", sample: "This is the voice that will read your texts." },
-] as const;
+].filter((group) => voicesFor(group.language).length > 0);
+
+const sizes = voiceSizeRange();
 
 interface Download {
   id: string;
@@ -149,8 +151,9 @@ export function VoiceCard() {
       <SectionTitle>Vozes para baixar</SectionTitle>
       <p className="text-sm text-muted">
         Vozes que funcionam neste aparelho mesmo sem internet, iguais em qualquer celular. Cada voz
-        ocupa cerca de {formatMegabytes(PIPER_VOICES[0]!.bytes)}; a primeira baixa também o motor
-        de voz ({formatMegabytes(ENGINE_BYTES)}). Use Wi-Fi.
+        ocupa de {formatMegabytes(sizes.min)} a {formatMegabytes(sizes.max)}: as de alta qualidade
+        soam mais naturais e são as maiores. A primeira baixa também o motor de voz
+        ({formatMegabytes(ENGINE_BYTES)}). Use Wi-Fi.
       </p>
 
       {!supported ? (

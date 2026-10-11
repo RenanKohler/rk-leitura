@@ -71,7 +71,7 @@ export function TeachBackPanel({ textId }: StudyProps) {
   const size = countWords(explanation);
 
   return (
-    <Card as="section" className="space-y-4 p-5">
+    <Card as="section" id="explicar" className="scroll-mt-4 space-y-4 p-5">
       <SectionTitle>Explicar com as próprias palavras</SectionTitle>
       <div data-testid="apontamentos" className="space-y-4">
         {parts === null ? null : parts.length === 0 ? (
