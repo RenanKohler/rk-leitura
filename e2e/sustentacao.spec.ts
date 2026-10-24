@@ -459,3 +459,22 @@ test("US-174: posicao de um texto editado em outra aba e recusada", async ({ pag
   const position = await request.get(`/api/texts/${text.id}?campos=posicao`);
   expect((await position.json()).position).toMatchObject({ progressIndex: 0, wordCount: text.wordCount });
 });
+
+test("US-179: texto acima do limite continua editavel no titulo", async ({ page }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const text = await createText(request, "Enorme", 50);
+  // Entrou por um caminho antigo, sem limite.
+  await runSql("update texts set content = repeat('palavra ', 60000), word_count = 60000 where id = $1", [text.id]);
+
+  const renamed = await request.put(`/api/texts/${text.id}`, { data: { title: "Enorme, renomeado", tags: ["livro"] } });
+  expect(renamed.ok()).toBeTruthy();
+  expect((await renamed.json()).text.title).toBe("Enorme, renomeado");
+  expect(await progressOf(request, text.id)).toBe(0);
+
+  const rewritten = await request.put(`/api/texts/${text.id}`, {
+    data: { title: "Enorme", content: "palavra ".repeat(60_000) },
+  });
+  expect(rewritten.status()).toBe(413);
+  expect((await rewritten.json()).error).toBe("O texto é grande demais.");
+});

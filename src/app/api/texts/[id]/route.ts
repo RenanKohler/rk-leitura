@@ -19,10 +19,9 @@ import { asTextFormat, clamp, countWords } from "@/lib/reading";
 import { acceptsPosition, TEXT_CHANGED } from "@/lib/offline";
 import { normalizeAuthor } from "@/lib/import-analysis";
 import { cardAfterRewrite } from "@/lib/study-cards";
+import { MAX_CONTENT_CHARS, TEXT_TOO_LARGE } from "@/lib/text-limits";
 
 export const dynamic = "force-dynamic";
-
-const MAX_CONTENT_CHARS = 400_000;
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -86,7 +85,9 @@ export async function PUT(request: Request, { params }: Params) {
       author?: unknown;
     }>(request);
     const title = asString(body?.title);
-    const content = asString(body?.content);
+    // Conteudo ausente mantem o salvo (US-179): editar so titulo ou etiquetas
+    // de um texto acima do limite nao pode esbarrar no limite.
+    const sentContent = body?.content === undefined ? null : asString(body.content);
     const sourceUrl = asString(body?.sourceUrl);
     // `tags` ausente nao mexe nas etiquetas; lista vazia tira todas.
     const tagNames = body?.tags === undefined ? null : normalizeTagList(body.tags);
@@ -96,11 +97,11 @@ export async function PUT(request: Request, { params }: Params) {
       return jsonError("Idioma não suportado.", 400);
     }
 
-    if (!title || !content) {
+    if (!title || (body?.content !== undefined && !sentContent)) {
       return jsonError("Título e conteúdo são obrigatórios.", 400);
     }
-    if (content.length > MAX_CONTENT_CHARS) {
-      return jsonError("O texto é grande demais.", 413);
+    if (sentContent && sentContent.length > MAX_CONTENT_CHARS) {
+      return jsonError(TEXT_TOO_LARGE, 413);
     }
 
     const [current] = await db
@@ -123,6 +124,7 @@ export async function PUT(request: Request, { params }: Params) {
     // existem, entao conta como reescrever o conteudo.
     const format =
       body?.format === undefined ? asTextFormat(current.format) : asTextFormat(body.format);
+    const content = sentContent ?? current.content;
     const rewritten = current.content !== content || current.format !== format;
     const wordCount = countWords(content, format);
     if (wordCount === 0) {

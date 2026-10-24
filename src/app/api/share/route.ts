@@ -9,6 +9,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { countWords } from "@/lib/reading";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
 import { detectSeries } from "@/lib/series";
+import { capContent, TRUNCATED_NOTICE } from "@/lib/text-limits";
 import type { ShareResult } from "@/lib/types";
 import { importContent } from "@/lib/citations";
 
@@ -57,7 +58,8 @@ export async function POST(request: Request) {
     if (afterRedirect) return result("existing", afterRedirect);
 
     // Sem pre-visualizacao aqui: artigo cientifico ja entra sem as referencias.
-    const content = importContent(imported.content, false);
+    // Acima do limite, corta como as outras importacoes (US-179).
+    const { content, truncated } = capContent(importContent(imported.content, false));
     const [created] = await db
       .insert(texts)
       .values({
@@ -73,7 +75,7 @@ export async function POST(request: Request) {
       })
       .returning({ id: texts.id, title: texts.title });
 
-    return result("created", created!, 201);
+    return result("created", { ...created!, ...(truncated ? { notice: TRUNCATED_NOTICE } : {}) }, 201);
   } catch (error) {
     if (error instanceof ImportError) return jsonError(error.message, error.status);
     return serverError("share", error);
@@ -92,7 +94,7 @@ function seriesFields(title: string, sourceUrl: string) {
 
 function result(
   status: ShareResult["status"],
-  text: { id: string; title: string },
+  text: { id: string; title: string; notice?: string },
   httpStatus = 200
 ) {
   return NextResponse.json<ShareResult>({ status, ...text }, { status: httpStatus });

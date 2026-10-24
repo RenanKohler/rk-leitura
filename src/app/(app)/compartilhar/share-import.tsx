@@ -6,6 +6,7 @@ import { apiSend } from "@/lib/client";
 import { Alert, Button, Card, LinkButton, Spinner } from "@/components/ui";
 import { LinkIcon } from "@/components/icons";
 import type { ShareResult } from "@/lib/types";
+import { useToast } from "@/components/providers";
 
 /**
  * Importa o endereco recebido do compartilhamento e abre o leitor.
@@ -28,6 +29,7 @@ export function ShareImport({
   const [attempt, setAttempt] = useState(autoStart ? 1 : 0);
   const [error, setError] = useState("");
   const router = useRouter();
+  const notify = useToast();
 
   // Guarda a requisicao, nao um sinalizador: assim o remonte em modo estrito
   // reaproveita a que ja esta em curso em vez de disparar uma segunda.
@@ -42,7 +44,10 @@ export function ShareImport({
     let active = true;
     void request
       .then((result) => {
-        if (active) router.replace(`/leitor/${result.id}`);
+        if (!active) return;
+        // Conteudo cortado no limite (US-179): o aviso acompanha a abertura.
+        if (result.notice) notify(result.notice, "info");
+        router.replace(`/leitor/${result.id}`);
       })
       .catch((cause: unknown) => {
         if (!active) return;
@@ -53,7 +58,7 @@ export function ShareImport({
     return () => {
       active = false;
     };
-  }, [url, attempt, router]);
+  }, [url, attempt, router, notify]);
 
   const retry = () => {
     setError("");

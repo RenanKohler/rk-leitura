@@ -14,10 +14,9 @@ import { applyTags } from "@/lib/text-tags";
 import { importContent } from "@/lib/citations";
 import { normalizeAuthor } from "@/lib/import-analysis";
 import { MAX_SOURCE_PAGE } from "@/lib/continuation";
+import { MAX_CONTENT_CHARS, TEXT_TOO_LARGE } from "@/lib/text-limits";
 
 export const dynamic = "force-dynamic";
-
-const MAX_CONTENT_CHARS = 400_000;
 
 interface Body {
   title?: unknown;
@@ -78,7 +77,7 @@ export async function POST(request: Request) {
       return jsonError("Título e conteúdo são obrigatórios.", 400);
     }
     if (content.length > MAX_CONTENT_CHARS) {
-      return jsonError("O texto é grande demais.", 413);
+      return jsonError(TEXT_TOO_LARGE, 413);
     }
 
     // Capitulo reconhecido vira vinculo de serie; nao reconhecido fica solto,

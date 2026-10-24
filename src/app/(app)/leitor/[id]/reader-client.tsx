@@ -772,11 +772,13 @@ function Reader({
 
     setLoadingNext(true);
     try {
-      const result = await apiSend<{ status: string; id?: string; message?: string }>(
+      const result = await apiSend<{ status: string; id?: string; message?: string; notice?: string }>(
         `/api/texts/${text.id}/proximo`,
         "POST"
       );
 
+      // Capitulo acima do limite entra cortado, com aviso (US-179).
+      if (result.notice) notify(result.notice, "info");
       if (result.id) router.push(`/leitor/${result.id}`);
       else notify(result.message ?? "Esta é a última parte da série.", "info");
     } catch (cause) {

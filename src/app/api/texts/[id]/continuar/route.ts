@@ -8,10 +8,10 @@ import { fetchNextPart } from "@/lib/next-part";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { asTextFormat, countWords } from "@/lib/reading";
 import { stripCitations } from "@/lib/citations";
+import { MAX_CONTENT_CHARS } from "@/lib/text-limits";
 
 export const dynamic = "force-dynamic";
 
-const MAX_CONTENT_CHARS = 400_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Params = { params: Promise<{ id: string }> };
