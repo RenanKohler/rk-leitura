@@ -52,6 +52,34 @@ export interface VoiceLike {
   default?: boolean;
 }
 
+/** Quanto a narracao espera as vozes do sistema carregarem (US-182). */
+export const VOICES_WAIT_MS = 2000;
+
+interface VoiceSource {
+  getVoices(): VoiceLike[];
+  addEventListener(type: "voiceschanged", listener: () => void): void;
+  removeEventListener(type: "voiceschanged", listener: () => void): void;
+}
+
+/**
+ * Vozes do sistema, esperando o `voiceschanged` quando a lista ainda vem
+ * vazia. O Chrome so carrega as vozes depois do primeiro `getVoices()`, e o
+ * primeiro toque em "Narrar" dizia que o aparelho nao tinha voz.
+ */
+export function waitForVoices(source: VoiceSource, timeoutMs = VOICES_WAIT_MS): Promise<VoiceLike[]> {
+  const now = source.getVoices();
+  if (now.length > 0) return Promise.resolve(now);
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      source.removeEventListener("voiceschanged", done);
+      resolve(source.getVoices());
+    };
+    const timer = setTimeout(done, timeoutMs);
+    source.addEventListener("voiceschanged", done);
+  });
+}
+
 /**
  * Melhor voz para um idioma.
  *
