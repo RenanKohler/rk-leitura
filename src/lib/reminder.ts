@@ -123,3 +123,21 @@ export function shouldRemindReview(
 export function reviewReminderBody(due: number): string {
   return `${due} itens para revisar hoje.`;
 }
+
+/* --- prazo do cron (US-203) ------------------------------------------------- */
+
+/** Tempo do laco de envio, abaixo dos 60 segundos da funcao. */
+export const REMINDER_BUDGET_MS = 50_000;
+
+/**
+ * Ordem dos candidatos: quem ainda pode receber algo hoje vem antes de quem
+ * ja recebeu os dois lembretes. Uma execucao que parou no prazo deixa os
+ * pendentes para a seguinte, e eles sao os primeiros dela.
+ */
+export function reminderOrder<
+  T extends { reminderSentOn: string | null; reviewReminderSentOn: string | null; today: string },
+>(candidates: T[]): T[] {
+  const done = (candidate: T) =>
+    candidate.reminderSentOn === candidate.today && candidate.reviewReminderSentOn === candidate.today;
+  return [...candidates.filter((candidate) => !done(candidate)), ...candidates.filter(done)];
+}

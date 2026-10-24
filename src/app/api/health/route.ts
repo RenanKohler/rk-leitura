@@ -20,6 +20,11 @@ export async function GET() {
     // Tempero dos codigos de recuperacao (US-191). Ausente, vale o JWT_SECRET:
     // troca-lo invalidaria os codigos.
     recoveryPepper: hasValue(process.env.RECOVERY_PEPPER),
+    // Lembretes (US-202): sem as chaves VAPID e o segredo do cron, nada sai.
+    vapidPublicKey: hasValue(process.env.NEXT_PUBLIC_VAPID_KEY),
+    vapidPrivateKey: hasValue(process.env.VAPID_PRIVATE_KEY),
+    cronSecret: hasValue(process.env.CRON_SECRET),
+    aiUsageSecret: hasValue(process.env.AI_USAGE_SECRET),
   };
 
   try {

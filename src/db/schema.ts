@@ -157,7 +157,11 @@ export const readingSessions = pgTable(
     brakes: jsonb("brakes").$type<number[]>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("reading_sessions_user_created_idx").on(table.userId, table.createdAt.desc())]
+  (table) => [
+    index("reading_sessions_user_created_idx").on(table.userId, table.createdAt.desc()),
+    // Sessoes de um texto: historico, exclusao e retencao (US-206).
+    index("reading_sessions_text_idx").on(table.textId),
+  ]
 );
 
 export const speedSettings = pgTable(
@@ -747,7 +751,11 @@ export const aiUsage = pgTable(
     firstTokenMs: integer("first_token_ms"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("ai_usage_created_idx").on(table.createdAt, table.feature)]
+  (table) => [
+    index("ai_usage_created_idx").on(table.createdAt, table.feature),
+    // Historico de envios da conta, do mais recente (US-206).
+    index("ai_usage_user_created_idx").on(table.userId, table.createdAt.desc()),
+  ]
 );
 
 /**

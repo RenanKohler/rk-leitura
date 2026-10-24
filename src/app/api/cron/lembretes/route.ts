@@ -10,6 +10,8 @@ import {
   hourIn,
   reminderBody,
   REVIEW_REMINDER_MIN_DUE,
+  REMINDER_BUDGET_MS,
+  reminderOrder,
   reviewReminderBody,
   shouldRemind,
   shouldRemindReview,
@@ -43,8 +45,10 @@ export async function GET(request: Request) {
     return new NextResponse(null, { status: 401 });
   }
 
+  // Sem as chaves VAPID nenhum lembrete sai: 503 faz o workflow falhar, em
+  // vez de um 200 que esconde o lembrete parado por semanas (US-202).
   if (!pushConfigured()) {
-    return NextResponse.json({ enviados: 0, motivo: "push não configurado" });
+    return NextResponse.json({ enviados: 0, motivo: "push não configurado" }, { status: 503 });
   }
 
   try {
@@ -61,13 +65,30 @@ export async function GET(request: Request) {
       .where(isNotNull(speedSettings.reminderHour));
 
     const now = new Date();
+    const deadline = Date.now() + REMINDER_BUDGET_MS;
     let enviados = 0;
     let expiradas = 0;
     let revisoes = 0;
+    let pendentes = 0;
 
-    for (const candidate of candidates) {
+    const ordered = reminderOrder(
+      candidates.map((candidate) => ({
+        ...candidate,
+        today: todayIn(asTimezone(candidate.timezone), now),
+      }))
+    );
+
+    for (const [position, candidate] of ordered.entries()) {
+      // Perto do teto da funcao: para aqui. O que ja saiu esta marcado, e os
+      // que faltam abrem a proxima execucao (US-203).
+      if (Date.now() >= deadline) {
+        pendentes = ordered.length - position;
+        break;
+      }
       const timezone = asTimezone(candidate.timezone);
-      const today = todayIn(timezone, now);
+      const today = candidate.today;
+      // Os dois lembretes de hoje ja sairam: nada a consultar.
+      if (candidate.reminderSentOn === today && candidate.reviewReminderSentOn === today) continue;
 
       // A meta traz junto a leitura do dia e a sequencia: uma consulta em vez
       // de tres, e ja no fuso certo.
@@ -168,7 +189,7 @@ export async function GET(request: Request) {
       if (deliveredReview) revisoes += 1;
     }
 
-    return NextResponse.json({ enviados, revisoes, expiradas, candidatos: candidates.length });
+    return NextResponse.json({ enviados, revisoes, expiradas, candidatos: candidates.length, pendentes });
   } catch (error) {
     return serverError("cron/lembretes", error);
   }
