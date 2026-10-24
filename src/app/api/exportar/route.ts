@@ -6,6 +6,7 @@ import { jsonError, requireSession, serverError } from "@/lib/api";
 import { excerptOf } from "@/lib/highlights";
 import { asTextFormat, parseParagraphs } from "@/lib/reading";
 import { BACKUP_KIND, BACKUP_VERSION } from "@/lib/backup";
+import { quotedCell } from "@/lib/csv";
 
 export const dynamic = "force-dynamic";
 
@@ -146,14 +147,8 @@ async function exportLibrary(userId: string) {
  * quebra de linha. Os dois so importam porque o destino declarado e planilha.
  */
 function csv(rows: string[][], name: string) {
-  const text = rows.map((row) => row.map(escapeCell).join(",")).join("\r\n");
+  const text = rows.map((row) => row.map(quotedCell).join(",")).join("\r\n");
   return download(`﻿${text}\r\n`, "text/csv; charset=utf-8", `${name}.csv`);
-}
-
-function escapeCell(value: string): string {
-  // Aspas duplicadas e o campo inteiro entre aspas: e o que permite virgula,
-  // aspas e quebra de linha dentro de uma celula.
-  return `"${value.replace(/"/g, '""')}"`;
 }
 
 function download(body: string, contentType: string, filename: string) {
