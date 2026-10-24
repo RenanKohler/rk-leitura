@@ -82,13 +82,19 @@ export async function loadWordRetention(userId: string): Promise<RetentionSummar
 /** Destaques por sessao de revisao: poucos, para caber num intervalo do dia. */
 export const HIGHLIGHT_REVIEW_SIZE = 10;
 
+/** Dia em que o destaque foi criado, no fuso do leitor (US-199). */
+export function highlightCreatedDay(timezone: string): SQL {
+  return sql`to_char(${highlights.createdAt} at time zone ${timezone}, 'YYYY-MM-DD')`;
+}
+
 /**
- * Destaque vencido hoje. Nunca revisado entra um dia depois de criado: rever
- * no mesmo minuto em que marcou seria so reler.
+ * Destaque vencido hoje. Nunca revisado entra no dia seguinte ao da criacao,
+ * no fuso do leitor, como palavras e cartoes (US-199): rever no mesmo dia em
+ * que marcou seria so reler.
  */
-export function highlightDue(today: string): SQL {
+export function highlightDue(today: string, timezone: string): SQL {
   return sql`((${highlights.reviewDueOn} is not null and ${highlights.reviewDueOn} <= ${today})
-    or (${highlights.reviewDueOn} is null and ${highlights.createdAt} < now() - interval '1 day'))`;
+    or (${highlights.reviewDueOn} is null and ${highlightCreatedDay(timezone)} < ${today}))`;
 }
 
 /** Quantos destaques estao vencidos: o cartao do painel so aparece com algum. */
@@ -96,7 +102,7 @@ export async function countDueHighlights(userId: string, timezone: string): Prom
   const [row] = await db
     .select({ value: count() })
     .from(highlights)
-    .where(and(eq(highlights.userId, userId), highlightDue(todayIn(timezone))));
+    .where(and(eq(highlights.userId, userId), highlightDue(todayIn(timezone), timezone)));
   return row?.value ?? 0;
 }
 
@@ -108,7 +114,7 @@ export async function countDueHighlights(userId: string, timezone: string): Prom
  */
 export async function loadHighlightReview(userId: string): Promise<HighlightReviewSession> {
   const timezone = (await loadSettings(userId))?.timezone ?? "UTC";
-  const due = and(eq(highlights.userId, userId), highlightDue(todayIn(timezone)));
+  const due = and(eq(highlights.userId, userId), highlightDue(todayIn(timezone), timezone));
 
   const [rows, [dueCount], [all]] = await Promise.all([
     db

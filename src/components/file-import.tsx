@@ -38,6 +38,7 @@ import { useAiConsent } from "@/components/ai-consent";
 import { SuggestedField, type SuggestedMeta } from "@/components/suggested-field";
 import { metaExcerpt } from "@/lib/import-analysis";
 import { decodeTextFile } from "@/lib/charset";
+import { PdfError } from "@/lib/pdf-errors";
 
 /** Markdown e texto puro: o limite e o mesmo do conteudo aceito pelo servidor. */
 const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
@@ -128,7 +129,7 @@ export function FileImport() {
       else await readPdf(file);
     } catch (cause) {
       setError(
-        cause instanceof EpubError || cause instanceof DocxError
+        cause instanceof EpubError || cause instanceof DocxError || cause instanceof PdfError
           ? cause.message
           : cause instanceof Error
             ? cause.message

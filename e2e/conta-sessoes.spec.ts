@@ -152,3 +152,41 @@ test("rotas de cron e de uso da IA recusam pedido sem segredo", async ({
     expect(wrong.status(), path).toBe(401);
   }
 });
+
+/** US-190: senha que o bcrypt cortaria e recusada, com o motivo. */
+test("senha acima de 72 bytes é recusada no cadastro", async ({ request }) => {
+  const response = await request.post("/api/auth/register", {
+    data: { name: "Longa", email: uniqueEmail(), password: "frase longa ".repeat(7) },
+  });
+  expect(response.status()).toBe(400);
+  expect((await response.json()).error).toBe(
+    "A senha pode ter até 72 caracteres (menos se tiver acentos)."
+  );
+});
+
+/** US-188: aparelho com token vencido sai da lista; o atual fica. */
+test("aparelhos conectados mostram só sessões válidas", async ({ page, browser }) => {
+  const { email, id } = await register(page.request);
+  const other = await secondDevice(browser, email);
+  const stale = await secondDevice(browser, email);
+  await stale.close();
+  // O terceiro login venceu: o token dele foi emitido ha 8 dias. O aparelho
+  // atual tambem e antigo, mas segue marcado como "Este aparelho".
+  await runSql(
+    `update auth_sessions set issued_at = now() - interval '8 days'
+      where user_id = $1 and id = (select id from auth_sessions where user_id = $1 order by created_at desc limit 1)`,
+    [id]
+  );
+  await runSql(
+    `update auth_sessions set issued_at = now() - interval '9 days'
+      where user_id = $1 and id = (select id from auth_sessions where user_id = $1 order by created_at asc limit 1)`,
+    [id]
+  );
+
+  const { devices } = (await (await page.request.get("/api/auth/aparelhos")).json()) as {
+    devices: { current: boolean }[];
+  };
+  expect(devices).toHaveLength(2);
+  expect(devices.filter((device) => device.current)).toHaveLength(1);
+  await other.close();
+});

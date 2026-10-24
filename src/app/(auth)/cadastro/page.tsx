@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers";
 import { Alert, Button, Field } from "@/components/ui";
+import { MIN_PASSWORD_LENGTH, passwordProblem } from "@/lib/password-rules";
 
-const MIN_PASSWORD_LENGTH = 8;
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -20,8 +20,9 @@ export default function RegisterPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`A senha precisa ter ao menos ${MIN_PASSWORD_LENGTH} caracteres.`);
+    const weak = passwordProblem(password);
+    if (weak) {
+      setError(weak);
       return;
     }
 

@@ -14,10 +14,10 @@ import {
 import { normalizeRecoveryCode } from "@/lib/account-security";
 import { recoveryHashCandidates } from "@/lib/recovery";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { passwordProblem } from "@/lib/password-rules";
 
 export const dynamic = "force-dynamic";
 
-const MIN_PASSWORD_LENGTH = 8;
 const INVALID = "Código inválido.";
 
 /**
@@ -43,9 +43,8 @@ export async function POST(request: Request) {
     const newPassword = typeof body?.newPassword === "string" ? body.newPassword : "";
 
     if (!email) return jsonError("Informe o e-mail.", 400);
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      return jsonError(`A senha precisa ter ao menos ${MIN_PASSWORD_LENGTH} caracteres.`, 400);
-    }
+    const weak = passwordProblem(newPassword);
+    if (weak) return jsonError(weak, 400);
 
     const byEmail = await rateLimit(`recuperar:${normalizeEmail(email)}`, 5, 15 * 60 * 1000);
     if (!byEmail.allowed) {

@@ -2,7 +2,7 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { compare, hash } from "bcryptjs";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { authSessions, pushSubscriptions, speedSettings, texts, users } from "@/db/schema";
 import { countWords } from "@/lib/reading";
@@ -10,6 +10,7 @@ import { DEFAULT_LANGUAGE } from "@/lib/language";
 import { NEW_ROW_DEFAULTS, upsertSettings } from "@/lib/settings-row";
 import { WELCOME_CONTENT, WELCOME_TITLE } from "@/lib/welcome";
 import { isProduction } from "@/lib/env";
+import { sessionPruneCutoffs } from "@/lib/account-security";
 import {
   createToken,
   SESSION_COOKIE,
@@ -122,7 +123,11 @@ export async function openSession(
   sid: string | null = null
 ): Promise<void> {
   let id = sid;
-  if (!id) {
+  if (id) {
+    // Token novo para o mesmo aparelho: mais 7 dias na lista (US-188).
+    const now = new Date();
+    await db.update(authSessions).set({ issuedAt: now, lastSeenAt: now }).where(eq(authSessions.id, id));
+  } else {
     const userAgent = request?.headers.get("user-agent")?.slice(0, 300) ?? null;
     const [row] = await db
       .insert(authSessions)
@@ -174,6 +179,18 @@ export async function forgetAllPushSubscriptions(userId: string): Promise<void> 
     await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
     await upsertSettings(tx, userId, { reminderHour: null });
   });
+}
+
+/**
+ * Apaga as linhas de aparelho revogadas ou com token vencido ha mais de 30
+ * dias (US-188), pelo cron de acompanhamento. Devolve quantas saiu.
+ */
+export async function pruneAuthSessions(now: Date): Promise<number> {
+  const { revokedBefore, issuedBefore } = sessionPruneCutoffs(now, SESSION_MAX_AGE_SECONDS);
+  const result = await db
+    .delete(authSessions)
+    .where(or(lt(authSessions.revokedAt, revokedBefore), lt(authSessions.issuedAt, issuedBefore)));
+  return result.rowCount ?? 0;
 }
 
 /** Os dados da sessao que podem ir para o cliente. */

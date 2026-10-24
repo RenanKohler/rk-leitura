@@ -202,7 +202,7 @@ passa a valer ou é removido.
 **Épico:** Progresso e leitura offline
 **Prioridade:** Could
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `reader-client.tsx:571-590` (`notify(cause.message)`), `src/lib/client.ts:39-47` (`apiSend` sem tratamento de rede), `src/lib/offline.ts:25` (`/destaques` fora de `QUEUEABLE`)
 
 Como leitor que lê offline, eu quero marcar trechos e escrever notas sem
@@ -291,7 +291,7 @@ livro chegue inteiro e sem capítulos repetidos.
 **Épico:** Importação e narração
 **Prioridade:** Could
 **Story points:** 1
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/lib/pdf-client.ts:34-36` (sem tratar `PasswordException` e `InvalidPDFException`), `src/components/file-import.tsx:123-130` (mostra `cause.message`)
 
 Como leitor, eu quero uma mensagem clara quando um PDF não pode ser importado,
@@ -440,7 +440,7 @@ banco.
 **Épico:** Segurança e privacidade da conta
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/auth/aparelhos/route.ts:19` (filtra só `revokedAt IS NULL`), `src/lib/auth.ts:128` (uma linha por login), `src/lib/session-token.ts:11` (token de 7 dias)
 
 Como leitor, eu quero ver em "Aparelhos conectados" só as sessões que ainda
@@ -484,7 +484,7 @@ eu possa sair do app ou restaurar numa conta nova sem perder nada.
 **Épico:** Segurança e privacidade da conta
 **Prioridade:** Could
 **Story points:** 1
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/auth/register/route.ts:35`, `src/app/api/auth/me/route.ts:83`, `src/app/api/auth/recuperar/route.ts:39` (só mínimo de 8) e `src/lib/auth.ts:29-31` (bcrypt corta em 72 bytes)
 
 Como leitor, eu quero saber quando minha senha passa do que o sistema
@@ -671,7 +671,7 @@ vez só, para que os intervalos de revisão e a retenção fiquem certos.
 **Épico:** Integridade do estudo e da IA
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/lib/learning-queries.ts:89-92` (`createdAt < now() - 1 day`), `src/lib/study-review-queries.ts:565,646`
 
 Como leitor que estuda, eu quero que um destaque vença no dia seguinte do meu
@@ -689,7 +689,7 @@ o que a tela promete.
 **Épico:** Integridade do estudo e da IA
 **Prioridade:** Could
 **Story points:** 1
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/lib/ai-history.ts:12-25` (`FEATURE_LABELS` termina em `semana`)
 
 Como leitor, eu quero ver o nome de cada função no histórico do que foi enviado
@@ -787,7 +787,7 @@ story cai para Could; isso não é visível pelo repositório.
 **Épico:** Operação e qualidade
 **Prioridade:** Could
 **Story points:** 1
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `.github/workflows/ci.yml` (sem passo de `drizzle-kit generate` ou `check`), `README.md:13` ("Node.js 20+") contra `package.json` (`engines` `>=22 <23`)
 
 Como mantenedor, eu quero que a CI falhe quando `src/db/schema.ts` mudar sem

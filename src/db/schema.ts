@@ -722,6 +722,12 @@ export const authSessions = pgTable(
     // uma escrita no banco por clique.
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).defaultNow().notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /**
+     * Quando o token atual deste aparelho foi emitido (US-188). Reemitir o
+     * token (troca de nome ou senha) renova os 7 dias; a lista de aparelhos so
+     * mostra as linhas cujo token ainda vale.
+     */
+    issuedAt: timestamp("issued_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("auth_sessions_user_idx").on(table.userId)]
 );

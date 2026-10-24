@@ -225,6 +225,13 @@
       "when": 1792861494603,
       "tag": "0031_perfil_ritmo",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792865148394,
+      "tag": "0032_sessao_emitida",
+      "breakpoints": true
     }
   ]
 }

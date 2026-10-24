@@ -10,7 +10,10 @@
  */
 
 import { countWords, tokenize } from "@/lib/reading";
+import { todayIn } from "@/lib/goals";
+import { addDays } from "@/lib/vocabulary";
 import { sentenceBounds } from "@/lib/sentences";
+import type { HighlightItem } from "@/lib/types";
 
 export const MAX_NOTE_CHARS = 2_000;
 
@@ -252,3 +255,47 @@ export function segmentsOf(
   return segments;
 }
 
+
+/**
+ * Primeira revisao de um destaque nunca revisado: o dia seguinte ao da
+ * criacao, no fuso do leitor, como `firstReview` das palavras (US-199). Um
+ * destaque das 22h vence na manha seguinte, e nao 24 horas depois.
+ */
+export function firstHighlightDue(createdAt: Date, timezone: string): string {
+  return addDays(todayIn(timezone, createdAt), 1);
+}
+
+/* --- destaque feito sem conexao (US-177) ---------------------------------- */
+
+/** Prefixo do id de um destaque que ainda esta na fila offline. */
+export const PENDING_MARK_PREFIX = "pendente:";
+
+export const PENDING_MARK_NOTICE =
+  "Este destaque ainda não foi enviado. Anote ou remova quando a conexão voltar.";
+
+export function isPendingMark(id: string): boolean {
+  return id.startsWith(PENDING_MARK_PREFIX);
+}
+
+/**
+ * O destaque que a fila offline ainda vai mandar, ja na tela: funde com os
+ * que encosta, como o servidor fara ao receber (`absorb`).
+ */
+export function addPendingMark(
+  marks: HighlightItem[],
+  incoming: Span,
+  words: string[],
+  now = new Date()
+): HighlightItem[] {
+  const { range, absorbed, note } = absorb(marks, incoming);
+  const removed = new Set(absorbed);
+  const pending: HighlightItem = {
+    id: `${PENDING_MARK_PREFIX}${now.getTime()}`,
+    start: range.start,
+    end: range.end,
+    note,
+    excerpt: excerptOf(words, range.start, range.end),
+    createdAt: now.toISOString(),
+  };
+  return [...marks.filter((mark) => !removed.has(mark.id)), pending].sort((a, b) => a.start - b.start);
+}

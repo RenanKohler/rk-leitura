@@ -19,6 +19,7 @@
     "eval:ia": "tsx --conditions=react-server tests/eval/run.ts",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
+    "db:check": "bash scripts/check-migrations.sh",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",

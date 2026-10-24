@@ -7,6 +7,7 @@ import {
   stripRunningLines,
   type PdfItem,
 } from "@/lib/pdf-layout";
+import { PdfError, pdfErrorMessage } from "@/lib/pdf-errors";
 
 /**
  * Leitura do PDF no navegador, com pdf.js.
@@ -19,6 +20,19 @@ import {
  * titulos do documento chegam ao leitor como titulos.
  */
 export async function extractPdf(
+  file: File,
+  onPage?: (page: number, total: number) => void
+): Promise<{ title: unknown; content: string; pages: number }> {
+  // Senha, arquivo danificado e qualquer outra falha do pdf.js chegam a tela
+  // em portugues, nunca com a mensagem original em ingles (US-181).
+  try {
+    return await readPdf(file, onPage);
+  } catch (error) {
+    throw new PdfError(pdfErrorMessage(error));
+  }
+}
+
+async function readPdf(
   file: File,
   onPage?: (page: number, total: number) => void
 ): Promise<{ title: unknown; content: string; pages: number }> {

@@ -31,8 +31,8 @@ const VOICES = "leitura-vozes";
 /** Paginas que o app precisa ter mesmo sem nunca ter sido visitado offline. */
 const PRECACHE = [OFFLINE_URL, "/manifest.webmanifest", "/icon.svg"];
 
-/** Rotas cujo envio pode esperar a conexao voltar. */
-const QUEUEABLE = [/^\/api\/texts\/[0-9a-f-]+$/i, /^\/api\/reading-sessions$/];
+/** Rotas cujo envio pode esperar a conexao voltar: posicao, sessoes e destaques (US-177). */
+const QUEUEABLE = [/^\/api\/texts\/[0-9a-f-]+$/i, /^\/api\/reading-sessions$/, /^\/api\/texts\/[0-9a-f-]{36}\/destaques(\/[0-9a-f-]{36})?$/i];
 
 /**
  * Respostas que mantem a entrada na fila (US-171): sessao expirada, tempo
@@ -96,6 +96,17 @@ async function enqueue(entry) {
   await self.registration.sync?.register("leitura-fila").catch(() => undefined);
 }
 
+// Uma descarga por vez (US-177): a pagina pede ao voltar a rede, o
+// Background Sync tambem, e duas descargas lendo a mesma fila mandavam a
+// mesma entrada duas vezes - um destaque duplicado. As seguintes esperam a
+// anterior e leem a fila de novo, sem o que ja saiu.
+let flushing = Promise.resolve(true);
+
+function flushQueue() {
+  flushing = flushing.catch(() => false).then(sendQueue);
+  return flushing;
+}
+
 /**
  * Manda o que ficou na fila, na ordem em que foi gerado.
  *
@@ -106,7 +117,7 @@ async function enqueue(entry) {
  * bateria. Devolve falso quando parou antes do fim, para o Background Sync
  * tentar de novo.
  */
-async function flushQueue() {
+async function sendQueue() {
   const owner = await currentOwner().catch(() => null);
   const entries = await pending().catch(() => []);
 

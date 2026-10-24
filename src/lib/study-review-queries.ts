@@ -13,7 +13,8 @@ import {
 } from "@/db/schema";
 import { todayIn } from "@/lib/goals";
 import { loadSettings } from "@/lib/queries";
-import { highlightDue } from "@/lib/learning-queries";
+import { highlightCreatedDay, highlightDue } from "@/lib/learning-queries";
+import { firstHighlightDue } from "@/lib/highlights";
 import { asTextFormat, parseParagraphs } from "@/lib/reading";
 import { heaviestWordIndex } from "@/lib/cloze";
 import { parseDistractors } from "@/lib/dictionary";
@@ -496,8 +497,8 @@ const wordDue = (userId: string, today: string) =>
     or(isNull(savedWords.nextReviewOn), lte(savedWords.nextReviewOn, today))
   );
 
-const highlightDueFor = (userId: string, today: string) =>
-  and(eq(highlights.userId, userId), highlightDue(today));
+const highlightDueFor = (userId: string, timezone: string, today: string) =>
+  and(eq(highlights.userId, userId), highlightDue(today, timezone));
 
 /** Contagem por tipo, sem montar os itens: painel inicial e lembrete. */
 export async function countDailyReview(
@@ -507,7 +508,7 @@ export async function countDailyReview(
 ): Promise<{ counts: DailyCounts; total: number }> {
   const [[words], [marks], cards, recalls] = await Promise.all([
     db.select({ value: count() }).from(savedWords).where(wordDue(userId, today)),
-    db.select({ value: count() }).from(highlights).where(highlightDueFor(userId, today)),
+    db.select({ value: count() }).from(highlights).where(highlightDueFor(userId, timezone, today)),
     dueCardRows(userId, today),
     scanRecalls(userId, timezone, today),
   ]);
@@ -545,7 +546,12 @@ export async function reviewedToday(userId: string, timezone: string, today: str
 }
 
 /** Itens que vencem amanha, por tipo somados. */
-async function countTomorrow(userId: string, today: string, recallsTomorrow: number): Promise<number> {
+async function countTomorrow(
+  userId: string,
+  timezone: string,
+  today: string,
+  recallsTomorrow: number
+): Promise<number> {
   const tomorrow = addDays(today, 1);
   const [[words], [marks], cards] = await Promise.all([
     db
@@ -566,8 +572,9 @@ async function countTomorrow(userId: string, today: string, recallsTomorrow: num
           eq(highlights.userId, userId),
           or(
             eq(highlights.reviewDueOn, tomorrow),
-            // Nunca revisado vence um dia depois de criado.
-            and(isNull(highlights.reviewDueOn), gte(highlights.createdAt, sql`now() - interval '1 day'`))
+            // Nunca revisado vence no dia seguinte ao da criacao, no fuso do
+            // leitor (US-199): o criado hoje vence amanha.
+            and(isNull(highlights.reviewDueOn), eq(highlightCreatedDay(timezone), today))
           )
         )
       ),
@@ -622,7 +629,7 @@ export async function loadDailyReview(userId: string): Promise<DailyReview> {
           createdAt: highlights.createdAt,
         })
         .from(highlights)
-        .where(highlightDueFor(userId, today))
+        .where(highlightDueFor(userId, timezone, today))
         .orderBy(
           sql`coalesce(${highlights.reviewDueOn}, (${highlights.createdAt} + interval '1 day')::date) asc`
         )
@@ -630,7 +637,7 @@ export async function loadDailyReview(userId: string): Promise<DailyReview> {
       dueCardRows(userId, today),
       scanRecalls(userId, timezone, today),
       db.select({ value: count() }).from(savedWords).where(wordDue(userId, today)),
-      db.select({ value: count() }).from(highlights).where(highlightDueFor(userId, today)),
+      db.select({ value: count() }).from(highlights).where(highlightDueFor(userId, timezone, today)),
     ]);
 
   const counts = emptyCounts();
@@ -648,7 +655,7 @@ export async function loadDailyReview(userId: string): Promise<DailyReview> {
     ...highlightRows.map((row) => ({
       kind: "destaque" as const,
       id: row.id,
-      dueOn: row.dueOn ?? addDays(new Date(row.createdAt).toISOString().slice(0, 10), 1),
+      dueOn: row.dueOn ?? firstHighlightDue(new Date(row.createdAt), timezone),
     })),
     // Cartao que acabou de ser lido vence hoje: e o menos atrasado.
     ...cardRows.map((row) => ({ kind: "cartao" as const, id: row.id, dueOn: row.nextReviewOn ?? today })),
@@ -707,7 +714,7 @@ export async function loadDailyReview(userId: string): Promise<DailyReview> {
     items,
     counts,
     total,
-    tomorrow: total > 0 ? 0 : await countTomorrow(userId, today, recalls.tomorrow),
+    tomorrow: total > 0 ? 0 : await countTomorrow(userId, timezone, today, recalls.tomorrow),
   };
 }
 

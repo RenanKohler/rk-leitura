@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { serverError } from "@/lib/api";
 import { pruneAiUsage } from "@/lib/ai-retention";
+import { pruneAuthSessions } from "@/lib/auth";
 import { runFollowUps } from "@/lib/follow-runner";
 import { pruneDefinitionBatches, settleDefinitionBatches } from "@/lib/word-batch";
 
@@ -37,7 +38,8 @@ export async function GET(request: Request) {
     const result = await runFollowUps(now, deadline);
     // Por ultimo: e higiene, e pode esperar a proxima hora se faltar tempo.
     const usageRemoved = await pruneAiUsage(now, deadline);
-    return NextResponse.json({ ...result, batches, usageRemoved });
+    const sessionsRemoved = await pruneAuthSessions(now);
+    return NextResponse.json({ ...result, batches, usageRemoved, sessionsRemoved });
   } catch (error) {
     return serverError("cron/acompanhamento", error);
   }
