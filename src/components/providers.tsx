@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { CheckIcon } from "@/components/icons";
+import { dropPushSubscription } from "@/lib/push-client";
 import type { FontFamily } from "@/lib/reading";
 import { THEME_STORAGE_KEY, type ResolvedTheme, type ThemePreference } from "@/lib/theme";
 
@@ -239,7 +240,13 @@ function AuthProvider({
       register: (name, email, password) => submit("/api/auth/register", { name, email, password }),
       logout: async () => {
         try {
-          await fetch("/api/auth/logout", { method: "POST" });
+          // A inscricao de notificacao deste navegador sai junto (US-183).
+          const endpoint = await dropPushSubscription();
+          await fetch("/api/auth/logout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ endpoint }),
+          });
         } finally {
           setUser(null);
           // O cache offline guarda o HTML do leitor, que traz o texto da

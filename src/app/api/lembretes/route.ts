@@ -77,11 +77,12 @@ export async function POST(request: Request) {
     await db.transaction(async (tx) => {
       await tx
         .insert(pushSubscriptions)
-        .values({ userId: session.id, endpoint, p256dh, auth })
+        .values({ userId: session.id, endpoint, p256dh, auth, sessionId: session.sid })
         // O mesmo navegador pode renovar a inscricao; o endpoint e a identidade.
+        // O aparelho vai junto: desconecta-lo apaga a inscricao (US-183).
         .onConflictDoUpdate({
           target: pushSubscriptions.endpoint,
-          set: { userId: session.id, p256dh, auth },
+          set: { userId: session.id, p256dh, auth, sessionId: session.sid },
         });
 
       await upsertSettings(tx, session.id, { reminderHour: hour });

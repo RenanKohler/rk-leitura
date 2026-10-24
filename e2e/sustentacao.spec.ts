@@ -37,7 +37,8 @@ async function answers(user: string, kind: string): Promise<number> {
   return Number(row!.n);
 }
 
-test("US-198: a mesma nota enviada duas vezes conta uma vez", async ({ request }) => {
+test("US-198: a mesma nota enviada duas vezes conta uma vez", async ({ page }) => {
+  const request = page.request;
   await registerByApi(request);
   const user = await userId(request);
   const text = await createText(request, "Revisao repetida", 120);
@@ -89,7 +90,8 @@ test("US-198: a mesma nota enviada duas vezes conta uma vez", async ({ request }
   }
 });
 
-test("US-198: duas notas simultaneas gravam uma so", async ({ request }) => {
+test("US-198: duas notas simultaneas gravam uma so", async ({ page }) => {
+  const request = page.request;
   await registerByApi(request);
   const user = await userId(request);
   const text = await createText(request, "Revisao simultanea", 60);
@@ -107,4 +109,72 @@ test("US-198: duas notas simultaneas gravam uma so", async ({ request }) => {
     )
   );
   expect(await answers(user, "palavra")).toBe(1);
+});
+
+async function subscriptions(user: string): Promise<{ endpoint: string; session_id: string | null }[]> {
+  return query("select endpoint, session_id from push_subscriptions where user_id = $1 order by endpoint", [user]);
+}
+
+async function subscribe(user: string, endpoint: string, session: string | null) {
+  await runSql(
+    "insert into push_subscriptions (user_id, endpoint, p256dh, auth, session_id) values ($1, $2, 'k', 'a', $3)",
+    [user, endpoint, session]
+  );
+}
+
+async function sessionsOf(user: string): Promise<string[]> {
+  const rows = await query<{ id: string }>(
+    "select id from auth_sessions where user_id = $1 and revoked_at is null order by created_at",
+    [user]
+  );
+  return rows.map((row) => row.id);
+}
+
+test("US-183: sair e desconectar um aparelho apagam as inscricoes dele", async ({ playwright, page }) => {
+  const request = page.request;
+  const email = await registerByApi(request);
+  const user = await userId(request);
+  const [first] = await sessionsOf(user);
+
+  const other = await playwright.request.newContext({
+    baseURL: test.info().project.use.baseURL,
+    extraHTTPHeaders: { "x-forwarded-for": randomIp() },
+  });
+  expect((await other.post("/api/auth/login", { data: { email, password: "senha-e2e-123" } })).ok()).toBeTruthy();
+  const second = (await sessionsOf(user)).find((id) => id !== first)!;
+
+  await subscribe(user, "https://push.test/a", first!);
+  await subscribe(user, "https://push.test/b", second);
+  await subscribe(user, "https://push.test/antiga", null);
+
+  // Desconectar o segundo aparelho apaga so a inscricao dele.
+  expect((await request.delete(`/api/auth/aparelhos/${second}`)).ok()).toBeTruthy();
+  expect((await subscriptions(user)).map((row) => row.endpoint)).toEqual([
+    "https://push.test/a",
+    "https://push.test/antiga",
+  ]);
+
+  // Sair apaga a deste aparelho e a antiga cujo endpoint a tela informa.
+  const out = await request.post("/api/auth/logout", { data: { endpoint: "https://push.test/antiga" } });
+  expect(out.ok()).toBeTruthy();
+  expect(await subscriptions(user)).toEqual([]);
+  await other.dispose();
+});
+
+test("US-183: sair de todos os aparelhos apaga todas as inscricoes", async ({ page }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const user = await userId(request);
+  const [current] = await sessionsOf(user);
+  await subscribe(user, "https://push.test/c", current!);
+  await subscribe(user, "https://push.test/sem-aparelho", null);
+  await runSql("update speed_settings set reminder_hour = 20 where user_id = $1", [user]);
+
+  expect((await request.post("/api/auth/logout/todos")).ok()).toBeTruthy();
+  expect(await subscriptions(user)).toEqual([]);
+  const [settings] = await query<{ reminder_hour: number | null }>(
+    "select reminder_hour from speed_settings where user_id = $1",
+    [user]
+  );
+  expect(settings!.reminder_hour).toBeNull();
 });

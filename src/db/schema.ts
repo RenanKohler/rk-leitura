@@ -526,11 +526,18 @@ export const pushSubscriptions = pgTable(
     /** Chaves do navegador, usadas para cifrar a mensagem. */
     p256dh: text("p256dh").notNull(),
     auth: text("auth").notNull(),
+    /**
+     * Sessao (aparelho) que inscreveu o navegador (US-183): desconectar o
+     * aparelho apaga a inscricao dele. Nulo nas inscricoes anteriores a
+     * coluna e quando a sessao foi apagada.
+     */
+    sessionId: uuid("session_id").references(() => authSessions.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("push_subscriptions_endpoint_unique").on(table.endpoint),
     index("push_subscriptions_user_idx").on(table.userId),
+    index("push_subscriptions_session_idx").on(table.sessionId),
   ]
 );
 

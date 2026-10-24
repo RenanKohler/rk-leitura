@@ -2,12 +2,12 @@ import "server-only";
 
 import { cookies } from "next/headers";
 import { compare, hash } from "bcryptjs";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { authSessions, speedSettings, texts, users } from "@/db/schema";
+import { authSessions, pushSubscriptions, speedSettings, texts, users } from "@/db/schema";
 import { countWords } from "@/lib/reading";
 import { DEFAULT_LANGUAGE } from "@/lib/language";
-import { NEW_ROW_DEFAULTS } from "@/lib/settings-row";
+import { NEW_ROW_DEFAULTS, upsertSettings } from "@/lib/settings-row";
 import { WELCOME_CONTENT, WELCOME_TITLE } from "@/lib/welcome";
 import { isProduction } from "@/lib/env";
 import {
@@ -133,16 +133,47 @@ export async function openSession(
   await setSessionCookie(await createToken({ ...user, sid: id }));
 }
 
-/** Desconecta aparelhos da conta; sem `sid`, todos. */
+/**
+ * Desconecta aparelhos da conta; sem `sid`, todos.
+ *
+ * As inscricoes de notificacao feitas por esses aparelhos saem junto
+ * (US-183): um navegador desconectado nao pode continuar recebendo titulos
+ * dos textos da conta.
+ */
 export async function revokeSessions(userId: string, sid?: string, except?: string | null) {
   const conditions = [eq(authSessions.userId, userId), isNull(authSessions.revokedAt)];
   if (sid) conditions.push(eq(authSessions.id, sid));
   if (except) conditions.push(sql`${authSessions.id} <> ${except}`);
-  return db
+  const revoked = await db
     .update(authSessions)
     .set({ revokedAt: new Date() })
     .where(and(...conditions))
     .returning({ id: authSessions.id });
+  if (revoked.length > 0) {
+    await db.delete(pushSubscriptions).where(
+      and(
+        eq(pushSubscriptions.userId, userId),
+        inArray(
+          pushSubscriptions.sessionId,
+          revoked.map((row) => row.id)
+        )
+      )
+    );
+  }
+  return revoked;
+}
+
+/**
+ * Apaga todas as inscricoes de notificacao da conta e desliga o horario
+ * (US-183). Usado por "Sair de todos os aparelhos" e pela troca de senha:
+ * inscricoes antigas, sem aparelho gravado, tambem saem. O aparelho atual
+ * volta a escolher o horario em Ajustes.
+ */
+export async function forgetAllPushSubscriptions(userId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+    await upsertSettings(tx, userId, { reminderHour: null });
+  });
 }
 
 /** Os dados da sessao que podem ir para o cliente. */

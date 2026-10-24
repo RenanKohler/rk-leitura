@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { jsonError, requireSession, serverError } from "@/lib/api";
-import { clearSession, revokeSessions } from "@/lib/auth";
+import { clearSession, forgetAllPushSubscriptions, revokeSessions } from "@/lib/auth";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       .set({ sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() })
       .where(eq(users.id, session.id));
     await revokeSessions(session.id);
+    await forgetAllPushSubscriptions(session.id);
     await clearSession();
 
     return NextResponse.json({ success: true });
