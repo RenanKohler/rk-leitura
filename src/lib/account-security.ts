@@ -66,3 +66,31 @@ export function normalizeRecoveryCode(input: unknown): string | null {
   const clean = input.toUpperCase().replace(/[\s-]/g, "");
   return /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{10}$/.test(clean) ? clean : null;
 }
+
+/** Revogadas ou vencidas ha mais que isso saem da tabela (US-188). */
+export const SESSION_RETENTION_DAYS = 30;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Tokens emitidos antes deste instante ja venceram: o aparelho nao aparece
+ * mais em "Aparelhos conectados" (US-188).
+ */
+export function sessionValidSince(now: Date, maxAgeSeconds: number): Date {
+  return new Date(now.getTime() - maxAgeSeconds * 1000);
+}
+
+/**
+ * Corte da limpeza: revogadas antes de `revokedBefore`, ou com token vencido
+ * ha mais de 30 dias (emitido antes de `issuedBefore`).
+ */
+export function sessionPruneCutoffs(
+  now: Date,
+  maxAgeSeconds: number
+): { revokedBefore: Date; issuedBefore: Date } {
+  const revokedBefore = new Date(now.getTime() - SESSION_RETENTION_DAYS * DAY_MS);
+  return {
+    revokedBefore,
+    issuedBefore: new Date(revokedBefore.getTime() - maxAgeSeconds * 1000),
+  };
+}
