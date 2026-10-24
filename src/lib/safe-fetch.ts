@@ -1,7 +1,12 @@
 import "server-only";
 
 import { lookup } from "node:dns/promises";
+import http from "node:http";
+import https from "node:https";
 import { isIP } from "node:net";
+import type { LookupFunction } from "node:net";
+import type { Readable } from "node:stream";
+import zlib from "node:zlib";
 
 /**
  * Busca HTTP com protecao contra SSRF.
@@ -11,6 +16,12 @@ import { isIP } from "node:net";
  * (metadados em 169.254.169.254, bancos em 127.0.0.1, servicos privados).
  * Cada salto de redirecionamento e revalidado, porque so validar a URL inicial
  * deixa a porta aberta para um destino que redireciona para um IP interno.
+ *
+ * A conexao vai para o endereco que foi validado, e nao para uma nova
+ * resolucao do nome (US-184): com `fetch(url)`, o DNS era consultado de novo
+ * na conexao, e um dominio que respondesse um IP publico na validacao e
+ * 169.254.169.254 logo depois passava. SNI e cabecalho `Host` seguem com o
+ * nome original.
  */
 
 const MAX_REDIRECTS = 3;
@@ -150,23 +161,57 @@ export function isPrivateAddress(ip: string): boolean {
   return true;
 }
 
-async function assertPublicUrl(url: URL): Promise<void> {
+export const BLOCKED_ADDRESS = "Endereço não permitido.";
+
+/** Endereco ja validado: e para ele, e so para ele, que a conexao vai. */
+export interface ResolvedTarget {
+  address: string;
+  family: 4 | 6;
+}
+
+/** Resposta crua: status, cabecalhos e o corpo ja descomprimido. */
+export interface RawResponse {
+  status: number;
+  headers: Headers;
+  body: AsyncIterable<Uint8Array>;
+  cancel: () => void;
+}
+
+/** O que a busca usa de fora: trocado nos testes por um resolvedor simulado. */
+export interface FetchDeps {
+  resolve: (host: string) => Promise<{ address: string; family: number }[]>;
+  request: (
+    url: URL,
+    target: ResolvedTarget,
+    headers: Record<string, string>,
+    signal: AbortSignal
+  ) => Promise<RawResponse>;
+}
+
+/**
+ * Valida a URL e devolve o endereco em que a conexao deve ser feita.
+ *
+ * O nome e resolvido uma vez so: todas as respostas precisam ser publicas, e
+ * a conexao usa a primeira delas.
+ */
+async function resolvePublicTarget(url: URL, deps: FetchDeps): Promise<ResolvedTarget> {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new SafeFetchError("Apenas endereços http e https são aceitos.");
   }
 
   const host = url.hostname.replace(/^\[|\]$/g, "");
 
-  if (isIP(host)) {
+  const literal = isIP(host);
+  if (literal) {
     if (isPrivateAddress(host)) {
       throw new SafeFetchError("Esse endereço aponta para a rede interna.");
     }
-    return;
+    return { address: host, family: literal as 4 | 6 };
   }
 
-  let addresses: { address: string }[];
+  let addresses: { address: string; family: number }[];
   try {
-    addresses = await lookup(host, { all: true });
+    addresses = await deps.resolve(host);
   } catch {
     throw new SafeFetchError("Não foi possível resolver o endereço.");
   }
@@ -174,36 +219,113 @@ async function assertPublicUrl(url: URL): Promise<void> {
   if (addresses.length === 0 || addresses.some((entry) => isPrivateAddress(entry.address))) {
     throw new SafeFetchError("Esse endereço aponta para a rede interna.");
   }
+  const first = addresses[0]!;
+  return { address: first.address, family: isIP(first.address) === 6 ? 6 : 4 };
 }
+
+/**
+ * Busca com o endereco fixo: o `lookup` da conexao devolve o IP validado em
+ * vez de consultar o DNS de novo. A URL continua com o nome, entao o `Host` e
+ * o SNI do TLS saem com ele e o certificado e conferido contra ele.
+ */
+export function pinnedRequest(
+  url: URL,
+  target: ResolvedTarget,
+  headers: Record<string, string>,
+  signal: AbortSignal
+): Promise<RawResponse> {
+  const pinned: LookupFunction = (_host, options, callback) => {
+    // Recusa de ultima linha: nunca conecta em endereco interno.
+    if (isPrivateAddress(target.address)) {
+      callback(new SafeFetchError(BLOCKED_ADDRESS), "", 4);
+      return;
+    }
+    if (options.all) {
+      (callback as unknown as (error: null, addresses: ResolvedTarget[]) => void)(null, [target]);
+    } else {
+      callback(null, target.address, target.family);
+    }
+  };
+
+  const client = url.protocol === "https:" ? https : http;
+  return new Promise((resolve, reject) => {
+    const request = client.request(
+      url,
+      {
+        method: "GET",
+        headers: { ...headers, "Accept-Encoding": "gzip, deflate, br" },
+        lookup: pinned,
+        signal,
+      },
+      (response) => {
+        const headerList = new Headers();
+        for (const [name, value] of Object.entries(response.headers)) {
+          if (value === undefined) continue;
+          headerList.set(name, Array.isArray(value) ? value.join(", ") : value);
+        }
+        const body = decompress(response, headerList.get("content-encoding"));
+        resolve({
+          status: response.statusCode ?? 0,
+          headers: headerList,
+          body,
+          cancel: () => response.destroy(),
+        });
+      }
+    );
+    request.on("error", (error) => reject(signal.aborted ? signal.reason : error));
+    request.end();
+  });
+}
+
+/** `fetch` descomprimia sozinho; aqui e preciso fazer a mao. */
+function decompress(stream: Readable, encoding: string | null): Readable {
+  switch (encoding?.trim().toLowerCase()) {
+    case "gzip":
+    case "x-gzip":
+      return stream.pipe(zlib.createGunzip());
+    case "deflate":
+      return stream.pipe(zlib.createInflate());
+    case "br":
+      return stream.pipe(zlib.createBrotliDecompress());
+    default:
+      return stream;
+  }
+}
+
+const NODE_DEPS: FetchDeps = {
+  resolve: (host) => lookup(host, { all: true }),
+  request: pinnedRequest,
+};
 
 /**
  * Le no maximo MAX_BYTES do corpo. Sem isso, uma URL apontando para um arquivo
  * gigante consome toda a memoria do processo.
  */
-async function readCapped(response: Response): Promise<string> {
+async function readCapped(response: RawResponse, signal: AbortSignal): Promise<Buffer> {
   const declared = Number(response.headers.get("content-length") ?? 0);
   if (declared > MAX_BYTES) {
+    response.cancel();
     throw new SafeFetchError("A página é grande demais para importar.");
   }
-
-  const reader = response.body?.getReader();
-  if (!reader) return "";
 
   const chunks: Uint8Array[] = [];
   let total = 0;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.length;
-    if (total > MAX_BYTES) {
-      await reader.cancel();
-      throw new SafeFetchError("A página é grande demais para importar.");
+  try {
+    for await (const value of response.body) {
+      total += value.length;
+      if (total > MAX_BYTES) {
+        response.cancel();
+        throw new SafeFetchError("A página é grande demais para importar.");
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+  } catch (error) {
+    if (signal.aborted && !(error instanceof SafeFetchError)) throw signal.reason;
+    throw error;
   }
 
-  return new TextDecoder("utf-8").decode(Buffer.concat(chunks));
+  return Buffer.concat(chunks);
 }
 
 export async function fetchPublicHtml(rawUrl: string): Promise<{ html: string; finalUrl: string }> {
@@ -224,9 +346,11 @@ export async function fetchPublicFeed(rawUrl: string): Promise<{ html: string; f
   });
 }
 
-async function fetchPublic(
+/** Exportada para os testes, com `deps` simulados. */
+export async function fetchPublic(
   rawUrl: string,
-  { accept, types }: { accept: string; types: RegExp }
+  { accept, types }: { accept: string; types: RegExp },
+  deps: FetchDeps = NODE_DEPS
 ): Promise<{ html: string; finalUrl: string }> {
   let url: URL;
   try {
@@ -235,36 +359,43 @@ async function fetchPublic(
     throw new SafeFetchError("URL inválida.");
   }
 
-  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
-    await assertPublicUrl(url);
+  // Um prazo so para a busca inteira, redirecionamentos incluidos.
+  const signal = AbortSignal.timeout(TIMEOUT_MS);
 
-    const response = await fetch(url, {
-      redirect: "manual",
-      headers: {
+  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+    const target = await resolvePublicTarget(url, deps);
+
+    const response = await deps.request(
+      url,
+      target,
+      {
         "User-Agent": "rk-leitura/1.0 (+leitor de artigos)",
         Accept: accept,
       },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+      signal
+    );
 
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
+      response.cancel();
       if (!location) throw new SafeFetchError("Redirecionamento sem destino.");
-      await response.body?.cancel();
       url = new URL(location, url);
       continue;
     }
 
-    if (!response.ok) {
+    if (response.status < 200 || response.status >= 300) {
+      response.cancel();
       throw new SafeFetchError(`A página respondeu com status ${response.status}.`, response.status);
     }
 
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType && !types.test(contentType)) {
+      response.cancel();
       throw new SafeFetchError("O endereço não devolveu uma página de texto.");
     }
 
-    return { html: await readCapped(response), finalUrl: url.toString() };
+    const bytes = await readCapped(response, signal);
+    return { html: new TextDecoder("utf-8").decode(bytes), finalUrl: url.toString() };
   }
 
   throw new SafeFetchError("Redirecionamentos demais.");
