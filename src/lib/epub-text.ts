@@ -9,6 +9,8 @@
  * cliente, como no PDF, para nao mandar o arquivo inteiro pela rede.
  */
 
+import { MAX_CONTENT_CHARS } from "@/lib/text-limits";
+
 /** Limite do arquivo enviado. */
 export const MAX_EPUB_BYTES = 30 * 1024 * 1024;
 
@@ -192,4 +194,52 @@ export function decodeEntities(value: string): string {
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
     .replace(/&([a-z]+);/gi, (whole, name) => ENTITIES[name.toLowerCase()] ?? whole);
+}
+
+/* --- capitulos grandes e retomada (US-180) --------------------------------- */
+
+/**
+ * Divide o texto de um capitulo em partes de ate `limit` caracteres, sempre
+ * entre paragrafos - ou, num paragrafo maior que o limite, entre palavras.
+ * Antes o capitulo era cortado no limite sem aviso.
+ */
+export function splitChapterText(body: string, limit = MAX_CONTENT_CHARS): string[] {
+  if (body.length <= limit) return [body];
+  const parts: string[] = [];
+  let current = "";
+  const push = () => {
+    if (current.trim()) parts.push(current.trim());
+    current = "";
+  };
+  for (const paragraph of body.split(/\n{2,}/)) {
+    const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
+    if (candidate.length <= limit) {
+      current = candidate;
+      continue;
+    }
+    push();
+    if (paragraph.length <= limit) {
+      current = paragraph;
+      continue;
+    }
+    for (const word of paragraph.split(/\s+/)) {
+      const next = current ? `${current} ${word}` : word;
+      if (next.length > limit) {
+        push();
+        current = word.slice(0, limit);
+      } else current = next;
+    }
+  }
+  push();
+  return parts;
+}
+
+/** Titulo de cada parte de um capitulo dividido. */
+export function partTitle(title: string, part: number, total: number): string {
+  return total === 1 ? title : `${title} (parte ${part} de ${total})`;
+}
+
+/** Aviso de um salvamento de livro interrompido no meio (US-180). */
+export function bookSaveFailure(saved: number, total: number): string {
+  return `${saved} de ${total} capítulos salvos. Tente de novo para continuar.`;
 }

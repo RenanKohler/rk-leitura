@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { Client } from "pg";
-import { createText, randomIp, registerByApi } from "./helpers";
+import { createText, openReader, progressOf, randomIp, registerByApi } from "./helpers";
 import { runSql } from "./db";
 
 /**
@@ -239,7 +239,7 @@ test("US-192: salvar cartoes relocaliza o trecho no conteudo atual", async ({ pa
     },
   });
   expect(response.ok()).toBeTruthy();
-  expect(await response.json()).toEqual({ saved: 1, dropped: 1 });
+  expect(await response.json()).toEqual({ saved: 1, dropped: 1, repeated: 0 });
   const [row] = await query<{ source_start: number; source_end: number }>(
     "select source_start, source_end from study_cards where text_id = $1",
     [text.id]
@@ -375,4 +375,106 @@ test("US-189: a conta completa sai inteira e volta numa conta nova", async ({ pa
     abandoned_words: 80,
   });
   await other.dispose();
+});
+
+test("US-197: a mesma frente nao e salva duas vezes no texto", async ({ page }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const text = await createText(request, "Sem repetir", 120);
+  const card = { front: "Qual é o ritmo?", back: "Constante", kind: "conceito", sourceStart: 0, sourceEnd: 3 };
+
+  const first = await request.put(`/api/texts/${text.id}/cartoes-estudo`, {
+    data: { cards: [card, { ...card, front: "qual e o RITMO" }] },
+  });
+  expect(await first.json()).toEqual({ saved: 1, dropped: 0, repeated: 1 });
+
+  // Outra aba manda de novo o mesmo cartao.
+  const again = await request.put(`/api/texts/${text.id}/cartoes-estudo`, { data: { cards: [card] } });
+  expect(await again.json()).toEqual({ saved: 0, dropped: 0, repeated: 1 });
+
+  const manual = await request.post(`/api/texts/${text.id}/cartoes-estudo`, {
+    data: { front: "Qual e o ritmo", back: "Outro verso" },
+  });
+  expect(manual.status()).toBe(409);
+  expect((await manual.json()).error).toBe("Já existe um cartão com essa frente.");
+
+  // Duas gravacoes ao mesmo tempo: o indice unico deixa passar uma.
+  const fresh = { ...card, front: "Pergunta nova?" };
+  const results = await Promise.all([
+    request.put(`/api/texts/${text.id}/cartoes-estudo`, { data: { cards: [fresh] } }),
+    request.put(`/api/texts/${text.id}/cartoes-estudo`, { data: { cards: [fresh] } }),
+  ]);
+  const saved = await Promise.all(results.map(async (result) => (await result.json()).saved as number));
+  expect(saved.reduce((sum, value) => sum + value, 0)).toBe(1);
+  const [row] = await query<{ n: string }>("select count(*) as n from study_cards where text_id = $1", [text.id]);
+  expect(Number(row!.n)).toBe(2);
+});
+
+/** Simula a aba ficar escondida e voltar, como ao trocar de aplicativo. */
+async function hideAndShow(page: import("@playwright/test").Page) {
+  await page.evaluate(() => {
+    const set = (state: string) => {
+      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    set("hidden");
+    set("visible");
+  });
+}
+
+test("US-174: outro aparelho avancou e a aba antiga pergunta antes de continuar", async ({ page }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const text = await createText(request, "Dois aparelhos", 300);
+  await openReader(page, text.id);
+
+  // O computador le ate a palavra 200.
+  const other = await request.patch(`/api/texts/${text.id}`, {
+    data: { progressIndex: 200, words: text.wordCount },
+  });
+  expect(other.ok()).toBeTruthy();
+
+  await hideAndShow(page);
+  const notice = page.getByTestId("outro-aparelho");
+  await expect(notice).toContainText("Você leu até a palavra 200 em outro aparelho. Continuar de lá?");
+  await notice.getByRole("button", { name: "Continuar" }).click();
+  await expect(notice).toHaveCount(0);
+
+  // Escondida de novo, a aba nao grava a posicao velha por cima.
+  await hideAndShow(page);
+  await page.waitForTimeout(500);
+  expect(await progressOf(request, text.id)).toBe(200);
+  await expect(notice).toHaveCount(0);
+});
+
+test("US-174: posicao de um texto editado em outra aba e recusada", async ({ page }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const text = await createText(request, "Editado", 120);
+  const stale = await request.patch(`/api/texts/${text.id}`, {
+    data: { progressIndex: 10, words: text.wordCount + 5 },
+  });
+  expect(stale.status()).toBe(409);
+  expect((await stale.json()).error).toBe("O texto foi editado em outra aba.");
+  const position = await request.get(`/api/texts/${text.id}?campos=posicao`);
+  expect((await position.json()).position).toMatchObject({ progressIndex: 0, wordCount: text.wordCount });
+});
+
+test("US-179: texto acima do limite continua editavel no titulo", async ({ page }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const text = await createText(request, "Enorme", 50);
+  // Entrou por um caminho antigo, sem limite.
+  await runSql("update texts set content = repeat('palavra ', 60000), word_count = 60000 where id = $1", [text.id]);
+
+  const renamed = await request.put(`/api/texts/${text.id}`, { data: { title: "Enorme, renomeado", tags: ["livro"] } });
+  expect(renamed.ok()).toBeTruthy();
+  expect((await renamed.json()).text.title).toBe("Enorme, renomeado");
+  expect(await progressOf(request, text.id)).toBe(0);
+
+  const rewritten = await request.put(`/api/texts/${text.id}`, {
+    data: { title: "Enorme", content: "palavra ".repeat(60_000) },
+  });
+  expect(rewritten.status()).toBe(413);
+  expect((await rewritten.json()).error).toBe("O texto é grande demais.");
 });

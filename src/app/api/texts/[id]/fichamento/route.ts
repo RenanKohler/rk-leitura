@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonError, requireSession, serverError } from "@/lib/api";
 import { aiErrorResponse, AiUnavailable } from "@/lib/ai";
+import { settleFailedCall, type ChargedCall } from "@/lib/ai-refund";
 import { loadAiResult, saveAiResult } from "@/lib/ai-results";
 import { excerptOf } from "@/lib/ai-text";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
@@ -33,6 +34,7 @@ export async function POST(request: Request, { params }: Params) {
   const limit = await rateLimit(`fichamento:${clientIp(request)}`, 20, 60 * 60 * 1000);
   if (!limit.allowed) return jsonError("Muitos pedidos seguidos. Aguarde um pouco.", 429);
 
+  let charged: ChargedCall | null = null;
   try {
     const { id } = await params;
     const text = await loadStudyText(session.id, id);
@@ -51,11 +53,12 @@ export async function POST(request: Request, { params }: Params) {
 
     const blocked = await studyGate(session.id, NOTES_MESSAGES);
     if (blocked) return blocked;
+    charged = { userId: session.id, task: "fichamento", quota: "estudo" };
 
     const excerpt = excerptOf(text.paragraphs, 0, total);
     const raw = await generateNotes(session.id, id, text.title, excerpt.text, text.language);
     const notes = validNotes(raw, text.words, keysOf(text), excerpt.startWord, excerpt.endWord);
-    if (notesCount(notes) === 0) return jsonError(NOTES_MESSAGES.failure, 503);
+    if (notesCount(notes) === 0) throw AiUnavailable.invalid(NOTES_MESSAGES.failure);
 
     await saveAiResult(session.id, id, "fichamento", key, notes);
     return NextResponse.json({
@@ -65,6 +68,7 @@ export async function POST(request: Request, { params }: Params) {
       recentOnly: excerpt.truncated,
     });
   } catch (error) {
+    if (charged) await settleFailedCall(error, charged);
     if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("texts/fichamento", error);
   }

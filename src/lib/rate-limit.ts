@@ -3,6 +3,7 @@ import "server-only";
 import { lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { rateLimits } from "@/db/schema";
+import { logError } from "@/lib/error-log";
 
 /**
  * Limitador de taxa compartilhado entre instancias.
@@ -75,7 +76,7 @@ export async function rateLimit(
     // Politica na indisponibilidade: liberar, com a falha registrada. Bloquear
     // deixaria ninguem entrar quando o banco oscilasse - e sem banco a
     // aplicacao ja nao responde de qualquer forma.
-    console.error("[rate-limit] armazenamento indisponível, liberando:", error);
+    logError("rate-limit/indisponivel-liberando", error);
     return { allowed: true, retryAfterSeconds: 0 };
   }
 }

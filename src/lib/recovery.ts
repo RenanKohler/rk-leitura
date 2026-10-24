@@ -12,18 +12,36 @@ import {
 } from "@/lib/account-security";
 
 /**
- * Hash do codigo com o segredo do app como tempero.
+ * Tempero dos codigos (US-191): `RECOVERY_PEPPER` quando definido, senao o
+ * `JWT_SECRET`, como antes. Separado do segredo das sessoes, trocar o
+ * `JWT_SECRET` derruba as sessoes sem invalidar os codigos de recuperacao.
+ */
+export function recoveryPepper(): string {
+  const pepper = process.env.RECOVERY_PEPPER?.trim();
+  return pepper || new TextDecoder().decode(jwtSecret());
+}
+
+/**
+ * Hash do codigo com o tempero.
  *
  * SHA-256 e nao bcrypt: o codigo tem ~49 bits de entropia, entao o custo
  * lento nao acrescenta protecao real, e o tempero impede que um vazamento so
  * do banco permita testar codigos fora do app.
  */
-export function hashRecoveryCode(normalized: string): string {
-  return createHash("sha256")
-    .update(normalized)
-    .update(":")
-    .update(new TextDecoder().decode(jwtSecret()))
-    .digest("hex");
+export function hashRecoveryCode(normalized: string, pepper = recoveryPepper()): string {
+  return createHash("sha256").update(normalized).update(":").update(pepper).digest("hex");
+}
+
+/**
+ * Hashes aceitos para um codigo: o do tempero atual e, na transicao para o
+ * `RECOVERY_PEPPER`, o do `JWT_SECRET` com que os codigos antigos foram
+ * gravados. Depois da proxima troca de codigos so o primeiro existe no banco.
+ */
+export function recoveryHashCandidates(normalized: string): string[] {
+  const current = hashRecoveryCode(normalized);
+  const secret = process.env.JWT_SECRET?.trim();
+  const legacy = secret ? hashRecoveryCode(normalized, secret) : current;
+  return legacy === current ? [current] : [current, legacy];
 }
 
 /** Gera um conjunto novo, apagando o anterior. Devolve os codigos em claro. */

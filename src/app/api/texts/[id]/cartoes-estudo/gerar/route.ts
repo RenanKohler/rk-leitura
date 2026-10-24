@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { AI_DISABLED, aiConfigured, aiConsent, aiErrorResponse, aiGate, AiUnavailable } from "@/lib/ai";
+import { settleFailedCall, type ChargedCall } from "@/lib/ai-refund";
 import { consumeDailyQuota, readDailyUsage } from "@/lib/daily-quota";
 import { DAILY_QUOTAS, QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
@@ -57,6 +58,7 @@ export async function POST(request: Request, { params }: Params) {
     });
   }
 
+  let charged: ChargedCall | null = null;
   try {
     const { id } = await params;
     const text = await loadStudyText(session.id, id);
@@ -75,6 +77,7 @@ export async function POST(request: Request, { params }: Params) {
       if (!quota.allowed) {
         return jsonError(QUOTA_MESSAGES.estudo, 429, { retryAfter: quota.retryAfterSeconds });
       }
+      charged = { userId: session.id, task: "estudo", quota: "estudo" };
     }
 
     const cards = await generateStudyCards({
@@ -89,6 +92,7 @@ export async function POST(request: Request, { params }: Params) {
     });
     return NextResponse.json({ cards });
   } catch (error) {
+    if (charged) await settleFailedCall(error, charged);
     if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("texts/cartoes-estudo/gerar", error);
   }

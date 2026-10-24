@@ -293,6 +293,8 @@ export interface ShareResult {
   status: "created" | "existing";
   id: string;
   title: string;
+  /** Aviso de conteudo cortado no limite (US-179). */
+  notice?: string;
 }
 
 /** Um destaque como a tela o consome: intervalo, trecho e nota. */

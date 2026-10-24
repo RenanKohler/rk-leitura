@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { studyCards, texts } from "@/db/schema";
 import type { AnkiCard } from "@/lib/anki";
 import { asTextFormat, type TextFormat } from "@/lib/reading";
+import { frontKey } from "@/lib/study-card-drafts";
 import { isCardRead, splitByReading } from "@/lib/study-cards";
 
 /**
@@ -103,6 +104,18 @@ export async function loadFronts(userId: string, textId: string): Promise<string
 }
 
 /**
+ * Frentes ja salvas do texto, normalizadas, para barrar repeticao (US-197).
+ * `exceptId` deixa de fora o cartao que esta sendo editado.
+ */
+export async function loadFrontKeys(userId: string, textId: string, exceptId?: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ id: studyCards.id, front: studyCards.front })
+    .from(studyCards)
+    .where(and(eq(studyCards.userId, userId), eq(studyCards.textId, textId)));
+  return new Set(rows.filter((row) => row.id !== exceptId).map((row) => frontKey(row.front)).filter(Boolean));
+}
+
+/**
  * Cartoes para o Anki (US-160): de um texto ou da conta inteira, so os de
  * trechos ja lidos, como na tela.
  */
@@ -135,6 +148,7 @@ export async function loadOwnedCard(userId: string, cardId: string) {
   const [row] = await db
     .select({
       id: studyCards.id,
+      textId: studyCards.textId,
       kind: studyCards.kind,
       sourceEnd: studyCards.sourceEnd,
       progressIndex: texts.progressIndex,

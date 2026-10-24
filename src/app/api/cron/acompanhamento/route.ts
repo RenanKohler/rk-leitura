@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { serverError } from "@/lib/api";
+import { pruneAiUsage } from "@/lib/ai-retention";
 import { runFollowUps } from "@/lib/follow-runner";
 import { pruneDefinitionBatches, settleDefinitionBatches } from "@/lib/word-batch";
 
@@ -18,7 +19,8 @@ const BUDGET_MS = 45_000;
  *
  * Antes delas, confere os lotes de definicoes em andamento (US-139): e uma
  * consulta curta por lote, e o resultado fica pronto mesmo sem o leitor abrir
- * Palavras.
+ * Palavras. Depois, apaga o registro de uso da IA com mais de 400 dias
+ * (US-206).
  */
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -32,7 +34,10 @@ export async function GET(request: Request) {
     const deadline = Date.now() + BUDGET_MS;
     const batches = await settleDefinitionBatches(deadline);
     await pruneDefinitionBatches(now);
-    return NextResponse.json({ ...(await runFollowUps(now, deadline)), batches });
+    const result = await runFollowUps(now, deadline);
+    // Por ultimo: e higiene, e pode esperar a proxima hora se faltar tempo.
+    const usageRemoved = await pruneAiUsage(now, deadline);
+    return NextResponse.json({ ...result, batches, usageRemoved });
   } catch (error) {
     return serverError("cron/acompanhamento", error);
   }

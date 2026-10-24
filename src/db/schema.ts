@@ -99,6 +99,12 @@ export const texts = pgTable(
     /** Autor, quando a importacao achou ou o leitor informou (US-152). */
     author: text("author"),
     /**
+     * Perfil de ritmo por paragrafo (US-209), para o tempo livre prever sem
+     * ler o conteudo. Um gatilho do banco o apaga quando conteudo, formato ou
+     * idioma mudam; a proxima consulta o refaz.
+     */
+    paceProfile: jsonb("pace_profile"),
+    /**
      * Secoes de navegacao aplicadas a um texto sem titulos (US-153). Ficam
      * fora do conteudo: a contagem de palavras e as posicoes nao mudam.
      */
@@ -157,7 +163,11 @@ export const readingSessions = pgTable(
     brakes: jsonb("brakes").$type<number[]>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("reading_sessions_user_created_idx").on(table.userId, table.createdAt.desc())]
+  (table) => [
+    index("reading_sessions_user_created_idx").on(table.userId, table.createdAt.desc()),
+    // Sessoes de um texto: historico, exclusao e retencao (US-206).
+    index("reading_sessions_text_idx").on(table.textId),
+  ]
 );
 
 export const speedSettings = pgTable(
@@ -737,7 +747,7 @@ export const aiUsage = pgTable(
     cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
     /** Chamada feita pela Batches API, cobrada pela metade. */
     batch: boolean("batch").notNull().default(false),
-    /** sucesso, recusa, tempo ou falha (US-141). */
+    /** sucesso, recusa, invalida (US-195), tempo ou falha (US-141). */
     outcome: text("outcome").notNull().default("sucesso"),
     /** Texto de onde saiu o conteudo enviado; nulo no dicionario (US-144). */
     textId: uuid("text_id").references(() => texts.id, { onDelete: "set null" }),
@@ -747,7 +757,11 @@ export const aiUsage = pgTable(
     firstTokenMs: integer("first_token_ms"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("ai_usage_created_idx").on(table.createdAt, table.feature)]
+  (table) => [
+    index("ai_usage_created_idx").on(table.createdAt, table.feature),
+    // Historico de envios da conta, do mais recente (US-206).
+    index("ai_usage_user_created_idx").on(table.userId, table.createdAt.desc()),
+  ]
 );
 
 /**
@@ -822,12 +836,18 @@ export const studyCards = pgTable(
      * existir (US-192). A tela mostra "Trecho de origem alterado".
      */
     sourceChanged: boolean("source_changed").notNull().default(false),
+    /**
+     * Frente normalizada (`frontKey`): o mesmo cartao nao entra duas vezes no
+     * texto (US-197). Nula nos cartoes gravados antes dela.
+     */
+    frontKey: text("front_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("study_cards_text_idx").on(table.userId, table.textId),
     index("study_cards_review_idx").on(table.userId, table.nextReviewOn),
+    uniqueIndex("study_cards_front_key_idx").on(table.textId, table.frontKey),
   ]
 );
 

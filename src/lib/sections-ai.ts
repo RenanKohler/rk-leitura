@@ -112,7 +112,7 @@ export async function generateSections(
   }
 
   const sections = validSections(raw, paragraphs);
-  if (sections.length < MIN_SECTIONS) throw new AiUnavailable(TOO_FEW, 422);
+  if (sections.length < MIN_SECTIONS) throw AiUnavailable.invalid(TOO_FEW, 422);
 
   const key = sectionsKey(textId, content);
   // A sugestao de uma versao anterior do conteudo nao volta a valer.

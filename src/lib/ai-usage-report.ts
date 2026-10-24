@@ -25,14 +25,14 @@ export interface UsageGroup {
 export interface FeatureReport {
   feature: string;
   calls: number;
-  /** Chamadas por resultado; os quatro sempre presentes. */
-  outcomes: { sucesso: number; recusa: number; tempo: number; falha: number };
+  /** Chamadas por resultado; todos sempre presentes. */
+  outcomes: { sucesso: number; recusa: number; invalida: number; tempo: number; falha: number };
   /** Porcentagem de sucesso, com uma casa decimal; 0 sem chamadas. */
   successRate: number;
   costUsd: number;
 }
 
-const OUTCOMES = ["sucesso", "recusa", "tempo", "falha"] as const;
+const OUTCOMES = ["sucesso", "recusa", "invalida", "tempo", "falha"] as const;
 
 /** Arredonda o custo a decimos de milesimo de dolar, como o resto do relatorio. */
 export function roundCost(value: number): number {
@@ -56,7 +56,7 @@ export function summarizeByFeature(rows: UsageGroup[]): FeatureReport[] {
     const entry = byFeature.get(row.feature) ?? {
       feature: row.feature,
       calls: 0,
-      outcomes: { sucesso: 0, recusa: 0, tempo: 0, falha: 0 },
+      outcomes: { sucesso: 0, recusa: 0, invalida: 0, tempo: 0, falha: 0 },
       successRate: 0,
       costUsd: 0,
       rawCost: 0,

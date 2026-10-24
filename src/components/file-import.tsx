@@ -22,10 +22,13 @@ import {
   MAX_EPUB_BYTES,
   MIN_CHAPTER_WORDS,
   baseDir,
+  bookSaveFailure,
   opfPath,
   parseOpf,
   parseToc,
+  partTitle,
   resolvePath,
+  splitChapterText,
 } from "@/lib/epub-text";
 import { DocxError, docxTitle, docxToMarkdown, MAX_DOCX_BYTES } from "@/lib/docx-text";
 import { CitationsOption } from "@/components/citations-option";
@@ -44,6 +47,8 @@ interface Chapter {
   content: string;
   words: number;
   chosen: boolean;
+  /** Ja salvo nesta importacao: tentar de novo continua do seguinte (US-180). */
+  savedId?: string;
 }
 
 /**
@@ -325,12 +330,18 @@ export function FileImport() {
       // Capa, creditos e sumario entram no spine e nao sao leitura.
       if (words < MIN_CHAPTER_WORDS) continue;
 
-      found.push({
-        title: titles.get(href) ?? chapterTitle(xhtml, `Parte ${found.length + 1}`),
-        content: body.slice(0, MAX_IMPORT_CHARS),
-        words,
-        chosen: true,
-      });
+      // Capitulo acima do limite vira partes, cada uma com a propria contagem,
+      // em vez de ser cortado sem aviso (US-180).
+      const name = titles.get(href) ?? chapterTitle(xhtml, `Parte ${found.length + 1}`);
+      const parts = splitChapterText(body);
+      for (const [part, content] of parts.entries()) {
+        found.push({
+          title: partTitle(name, part + 1, parts.length),
+          content,
+          words: parts.length === 1 ? words : countWords(content),
+          chosen: true,
+        });
+      }
     }
 
     if (found.length === 0) {
@@ -368,11 +379,14 @@ export function FileImport() {
     if (chosen.length === 0) return;
 
     setSaving(true);
+    // Um capitulo por vez, na ordem: o vinculo de serie depende dela, e uma
+    // falha no meio deixa os anteriores salvos. Os ja salvos ficam marcados:
+    // tentar de novo continua do que falhou, sem duplicar (US-180).
+    let saved = chosen.filter((chapter) => chapter.savedId).length;
+    let first = chosen[0]?.savedId ?? null;
     try {
-      // Um capitulo por vez, na ordem: o vinculo de serie depende dela, e uma
-      // falha no meio deixa os anteriores salvos em vez de perder tudo.
-      let first: string | null = null;
       for (const [position, chapter] of chosen.entries()) {
+        if (chapter.savedId) continue;
         setProgress(`Salvando ${position + 1} de ${chosen.length}`);
         const { text } = await apiSend<{ text: TextDetail }>("/api/texts", "POST", {
           // O capitulo mantem o proprio nome; a sequencia vai declarada, em
@@ -384,13 +398,17 @@ export function FileImport() {
           language: bookLanguage,
           author: bookAuthor,
         });
+        chapter.savedId = text.id;
+        saved += 1;
         first ??= text.id;
       }
 
       notify(`${chosen.length} capítulos salvos.`, "success");
       router.replace(first ? `/leitor/${first}` : "/textos");
-    } catch (cause) {
-      notify(cause instanceof Error ? cause.message : "Falha ao salvar.", "error");
+    } catch {
+      // Os objetos marcados sao os do estado: a copia so avisa a tela.
+      setChapters((current) => (current ? [...current] : current));
+      notify(bookSaveFailure(saved, chosen.length), "error");
       setSaving(false);
       setProgress("");
     }

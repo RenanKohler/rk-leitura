@@ -138,6 +138,33 @@ export function frontKey(front: string): string {
   return front.split(/\s+/).map(searchKey).filter(Boolean).join(" ");
 }
 
+/** Aviso de cartao repetido no mesmo texto (US-197). */
+export const DUPLICATE_FRONT = "Já existe um cartão com essa frente.";
+
+/** Chave gravada no banco: nula quando a frente nao tem nada comparavel. */
+export function storedFrontKey(front: string): string | null {
+  return frontKey(front) || null;
+}
+
+/**
+ * Separa os cartoes novos dos que repetem uma frente ja salva ou outra do
+ * mesmo lote (US-197). A ordem dos novos e a de chegada.
+ */
+export function dedupeByFront<T extends { front: string }>(
+  cards: T[],
+  savedKeys: Iterable<string>
+): { fresh: T[]; repeated: number } {
+  const seen = new Set(savedKeys);
+  const fresh: T[] = [];
+  for (const card of cards) {
+    const key = frontKey(card.front);
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    fresh.push(card);
+  }
+  return { fresh, repeated: cards.length - fresh.length };
+}
+
 function asRecordList(raw: unknown): Record<string, unknown>[] {
   const list =
     raw && typeof raw === "object" && Array.isArray((raw as { cards?: unknown }).cards)

@@ -4,6 +4,7 @@ import { MAX_TERM_WORDS } from "@/lib/glossary";
 import { findPhrase, phraseKeys } from "@/lib/passage-match";
 import { cardSide } from "@/lib/study-cards";
 import { insertStudyCard, keysOf, loadStudyText } from "@/lib/study-tools";
+import { DUPLICATE_FRONT } from "@/lib/study-card-drafts";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export async function POST(request: Request, { params }: Params) {
       sourceStart: start,
       sourceEnd: end,
     });
+    if (!card) return jsonError(DUPLICATE_FRONT, 409);
     return NextResponse.json({ card: { id: card.id } }, { status: 201 });
   } catch (error) {
     return serverError("texts/glossario/cartao", error);

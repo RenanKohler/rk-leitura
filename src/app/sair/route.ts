@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearSession } from "@/lib/auth";
+import { LOCAL_POSITION_PREFIX } from "@/lib/offline";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,13 @@ const PAGE = `<!doctype html>
         .then(function (s) { return s ? s.unsubscribe() : null; })
         .catch(function () {});
     }
+    // Posicoes de leitura guardadas no aparelho (US-173).
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i -= 1) {
+        var key = localStorage.key(i);
+        if (key && key.indexOf("${LOCAL_POSITION_PREFIX}") === 0) localStorage.removeItem(key);
+      }
+    } catch (e) {}
     if (window.caches) {
       caches.keys()
         .then(function (keys) {

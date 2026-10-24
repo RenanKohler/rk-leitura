@@ -11,7 +11,7 @@
  */
 
 /** Teto de conteudo aceito pela rota de criacao de texto. */
-export const MAX_IMPORT_CHARS = 400_000;
+export { MAX_CONTENT_CHARS as MAX_IMPORT_CHARS } from "@/lib/text-limits";
 
 /** Limite do arquivo enviado, antes de qualquer processamento. */
 export const MAX_PDF_BYTES = 10 * 1024 * 1024;

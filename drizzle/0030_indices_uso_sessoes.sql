@@ -1,0 +1,2 @@
+CREATE INDEX "ai_usage_user_created_idx" ON "ai_usage" USING btree ("user_id","created_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "reading_sessions_text_idx" ON "reading_sessions" USING btree ("text_id");

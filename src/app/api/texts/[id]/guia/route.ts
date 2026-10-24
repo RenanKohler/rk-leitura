@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { aiErrorResponse, AiUnavailable } from "@/lib/ai";
+import { settleFailedCall, type ChargedCall } from "@/lib/ai-refund";
 import { loadAiResult, saveAiResult } from "@/lib/ai-results";
 import { excerptOf } from "@/lib/ai-text";
 import {
@@ -34,6 +35,7 @@ export async function POST(request: Request, { params }: Params) {
   const limit = await rateLimit(`guia:${clientIp(request)}`, 60, 60 * 60 * 1000);
   if (!limit.allowed) return jsonError("Muitos pedidos seguidos. Aguarde um pouco.", 429);
 
+  let charged: ChargedCall | null = null;
   try {
     const { id } = await params;
     const text = await loadStudyText(session.id, id);
@@ -56,6 +58,7 @@ export async function POST(request: Request, { params }: Params) {
 
     const blocked = await studyGate(session.id, GUIDE_MESSAGES);
     if (blocked) return blocked;
+    charged = { userId: session.id, task: "guia", quota: "estudo" };
 
     const range = guideRange(section);
     const excerpt = excerptOf(text.paragraphs, range.from, range.to);
@@ -64,11 +67,12 @@ export async function POST(request: Request, { params }: Params) {
       from: excerpt.startWord,
       to: excerpt.endWord,
     });
-    if (questions.length === 0) return jsonError(GUIDE_MESSAGES.failure, 503);
+    if (questions.length === 0) throw AiUnavailable.invalid(GUIDE_MESSAGES.failure);
 
     await saveAiResult(session.id, id, "guia", key, { questions });
     return NextResponse.json({ questions, cached: false });
   } catch (error) {
+    if (charged) await settleFailedCall(error, charged);
     if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("texts/guia", error);
   }

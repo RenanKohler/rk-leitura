@@ -42,7 +42,7 @@ export async function POST(request: Request, { params }: Params) {
         return jsonError("Texto não encontrado.", 404);
       case "imported":
         return NextResponse.json(
-          { status: "imported", id: result.id, title: result.title },
+          { status: "imported", id: result.id, title: result.title, notice: result.notice },
           { status: 201 }
         );
       case "existing":

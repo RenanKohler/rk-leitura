@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { OfflineMessage } from "./offline-message";
 
 export const dynamic = "force-static";
 
@@ -16,10 +17,7 @@ export default function OfflinePage() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
       <h1 className="text-xl font-semibold tracking-tight">Sem conexão</h1>
-      <p className="max-w-xs text-muted">
-        Esta tela ainda não foi aberta com internet, então não há cópia dela aqui. Os textos que
-        você já abriu continuam disponíveis.
-      </p>
+      <OfflineMessage />
       <Link
         href="/textos"
         className="inline-flex min-h-12 items-center rounded-full bg-accent px-6 font-medium text-accent-ink"

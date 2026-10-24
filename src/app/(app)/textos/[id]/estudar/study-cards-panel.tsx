@@ -10,6 +10,7 @@ import { DownloadIcon, EditIcon, PlusIcon, SparkIcon, TrashIcon } from "@/compon
 import { NO_CARDS_TO_EXPORT } from "@/lib/anki";
 import {
   clozeSentence,
+  DUPLICATE_FRONT,
   manualCard,
   MIN_WORDS_FOR_STUDY_CARDS,
   STUDY_CARD_MODE_LABELS,
@@ -166,7 +167,7 @@ export function StudyCardsPanel({ textId, progressIndex, wordCount }: StudyProps
     setSaving(true);
     setError("");
     try {
-      const data = await apiSend<{ saved: number }>(`/api/texts/${textId}/cartoes-estudo`, "PUT", {
+      const data = await apiSend<{ saved: number; repeated?: number }>(`/api/texts/${textId}/cartoes-estudo`, "PUT", {
         cards: drafts.map(({ front, back, kind, sourceStart, sourceEnd, passage }) => ({
           front,
           back,
@@ -177,7 +178,14 @@ export function StudyCardsPanel({ textId, progressIndex, wordCount }: StudyProps
         })),
       });
       setDrafts(null);
-      notify(plural(data.saved, "cartão salvo.", "cartões salvos."), "success");
+      // Frente que ja existia no texto nao entra de novo (US-197).
+      const repeated = data.repeated ?? 0;
+      if (data.saved === 0 && repeated > 0) notify(DUPLICATE_FRONT, "info");
+      else {
+        const saved = plural(data.saved, "cartão salvo.", "cartões salvos.");
+        const skipped = plural(repeated, "repetido ficou de fora.", "repetidos ficaram de fora.");
+        notify(repeated > 0 ? `${saved} ${skipped}` : saved, "success");
+      }
       await reload();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não consegui salvar os cartões.");

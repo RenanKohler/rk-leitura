@@ -86,6 +86,15 @@ export function summarizeError(error: unknown, depth = 0): ErrorSummary {
   };
 }
 
+/**
+ * Registra uma falha no console ja resumida (US-187): sem os `params` do
+ * Drizzle, sem a linha do Postgres e sem e-mail. Para os pontos que nao
+ * respondem erro ao leitor - os que respondem usam `serverError`.
+ */
+export function logError(scope: string, error: unknown): void {
+  console.error(`[${scope}]`, JSON.stringify(summarizeError(error)));
+}
+
 export interface ErrorEntry {
   level: "error";
   ref: string;

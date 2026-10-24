@@ -43,6 +43,7 @@ export const UNRECORDED_TEXT = "Texto não registrado";
 const OUTCOME_LABELS: Record<string, string> = {
   sucesso: "Concluída",
   recusa: "Recusada",
+  invalida: "Resposta inválida",
   tempo: "Tempo esgotado",
   falha: "Falhou",
 };

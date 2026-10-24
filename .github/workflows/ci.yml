@@ -88,6 +88,10 @@ jobs:
       - name: Migrations
         run: npm run db:migrate
 
+      - name: Testes de integracao
+        # Cota diaria e retencao do uso de IA contra o banco (US-206, US-207).
+        run: npm run test:integration
+
       - name: Build
         run: npm run build
 

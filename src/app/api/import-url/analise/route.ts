@@ -8,12 +8,12 @@ import { consumeDailyQuota } from "@/lib/daily-quota";
 import { analyzePreview, suggestTags, type PreviewAnalysis } from "@/lib/import-ai";
 import type { Leftover } from "@/lib/import-analysis";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { MAX_CONTENT_CHARS } from "@/lib/text-limits";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /** Mesmo teto do texto salvo em `/api/texts`. */
-const MAX_CONTENT_CHARS = 400_000;
 
 interface Analysis {
   /** Paragrafos que parecem resto de pagina (US-136). */

@@ -250,7 +250,9 @@ export function TextsClient({
         {
           title: editing.title,
           sourceUrl: editing.sourceUrl,
-          content: editing.content,
+          // So quando mudou (US-179): um texto acima do limite continua
+          // editavel no titulo e nas etiquetas.
+          ...(editing.content !== original ? { content: editing.content } : {}),
           tags: editing.tags,
           language: editing.language,
         }

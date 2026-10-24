@@ -16,6 +16,7 @@ import {
 } from "@/lib/definition-batch";
 import { MAX_SAVED_WORDS } from "@/lib/dictionary";
 import { LOOKUP_MESSAGES, LOOKUP_SCHEMA, LOOKUP_SYSTEM, lookupPrompt } from "@/lib/word-lookup";
+import { logError } from "@/lib/error-log";
 
 /**
  * Lote de definicoes pendentes pela Message Batches (US-139).
@@ -122,7 +123,7 @@ export async function startDefinitionBatch(userId: string): Promise<StartResult>
     if (error instanceof Anthropic.AuthenticationError) {
       throw new AiUnavailable(LOOKUP_MESSAGES.notConfigured);
     }
-    console.error("[ia] lote de definicoes falhou:", error);
+    logError("ia/lote-definicoes", error);
     throw new AiUnavailable(LOOKUP_MESSAGES.failure);
   }
 

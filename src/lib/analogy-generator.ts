@@ -47,6 +47,6 @@ export async function generateAnalogy(
 
   const text = response.content.map((block) => (block.type === "text" ? block.text : "")).join("");
   const analogy = parseAnalogy(text);
-  if (!analogy) throw new AiUnavailable(ANALOGY_FAILURE);
+  if (!analogy) throw AiUnavailable.invalid(ANALOGY_FAILURE);
   return analogy;
 }

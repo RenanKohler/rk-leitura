@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth } from "@/components/providers";
-import { OFFLINE_TEXTS } from "@/lib/offline";
+import { OFFLINE_TEXTS, serviceWorkerUrl } from "@/lib/offline";
 
 interface OfflineValue {
   /** Falso quando o navegador diz que nao ha rede. */
@@ -85,7 +85,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
-    void navigator.serviceWorker.register("/sw.js").catch(() => {
+    void navigator.serviceWorker.register(serviceWorkerUrl(process.env.NEXT_PUBLIC_BUILD_ID)).catch(() => {
       // Sem service worker o app continua inteiro; so nao le offline.
     });
 

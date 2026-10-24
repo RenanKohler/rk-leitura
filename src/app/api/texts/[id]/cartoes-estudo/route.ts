@@ -4,10 +4,18 @@ import { studyCards } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { todayIn } from "@/lib/goals";
 import { loadSettings } from "@/lib/queries";
-import { manualCard, parseDraftEdits, relocateDrafts } from "@/lib/study-card-drafts";
+import {
+  dedupeByFront,
+  DUPLICATE_FRONT,
+  manualCard,
+  parseDraftEdits,
+  relocateDrafts,
+  storedFrontKey,
+} from "@/lib/study-card-drafts";
 import { parseParagraphs } from "@/lib/reading";
 import {
   loadExportCards,
+  loadFrontKeys,
   loadPretestCards,
   loadStudyText,
   loadVisibleCards,
@@ -65,6 +73,9 @@ export async function POST(request: Request, { params }: Params) {
     const card = manualCard(body?.front, body?.back);
     if ("error" in card) return jsonError(card.error, 400);
 
+    const key = storedFrontKey(card.front);
+    if (key && (await loadFrontKeys(session.id, text.id)).has(key)) return jsonError(DUPLICATE_FRONT, 409);
+
     const timezone = (await loadSettings(session.id))?.timezone ?? "UTC";
     const [saved] = await db
       .insert(studyCards)
@@ -77,8 +88,11 @@ export async function POST(request: Request, { params }: Params) {
         sourceStart: 0,
         sourceEnd: 0,
         nextReviewOn: addDays(todayIn(timezone), 1),
+        frontKey: key,
       })
+      .onConflictDoNothing()
       .returning({ id: studyCards.id, nextReviewOn: studyCards.nextReviewOn });
+    if (!saved) return jsonError(DUPLICATE_FRONT, 409);
 
     return NextResponse.json(
       {
@@ -120,23 +134,35 @@ export async function PUT(request: Request, { params }: Params) {
     if (!parsed) return jsonError("Envie os cartões com frente e verso.", 400);
     // A posicao enviada vale para o conteudo de quando os cartoes foram
     // gerados; o trecho e procurado no conteudo de agora (US-192).
-    const { kept: cards, dropped } = relocateDrafts(parsed, parseParagraphs(text.content, text.format).words);
-    if (cards.length === 0) return NextResponse.json({ saved: 0, dropped });
+    const { kept, dropped } = relocateDrafts(parsed, parseParagraphs(text.content, text.format).words);
+    // Frente ja salva (outra aba, painel reaberto) ou repetida no lote: sai
+    // aqui; a corrida entre duas gravacoes, no indice unico (US-197).
+    const { fresh: cards, repeated } = dedupeByFront(kept, await loadFrontKeys(session.id, text.id));
+    if (cards.length === 0) return NextResponse.json({ saved: 0, dropped, repeated });
 
-    await db.insert(studyCards).values(
-      cards.map((card) => ({
-        userId: session.id,
-        textId: text.id,
-        front: card.front,
-        back: card.back,
-        kind: card.kind,
-        sourceStart: card.sourceStart,
-        sourceEnd: card.sourceEnd,
-        nextReviewOn: null,
-      }))
-    );
+    const inserted = await db
+      .insert(studyCards)
+      .values(
+        cards.map((card) => ({
+          userId: session.id,
+          textId: text.id,
+          front: card.front,
+          back: card.back,
+          kind: card.kind,
+          sourceStart: card.sourceStart,
+          sourceEnd: card.sourceEnd,
+          nextReviewOn: null,
+          frontKey: storedFrontKey(card.front),
+        }))
+      )
+      .onConflictDoNothing()
+      .returning({ id: studyCards.id });
 
-    return NextResponse.json({ saved: cards.length, dropped });
+    return NextResponse.json({
+      saved: inserted.length,
+      dropped,
+      repeated: repeated + cards.length - inserted.length,
+    });
   } catch (error) {
     return serverError("texts/cartoes-estudo/salvar", error);
   }

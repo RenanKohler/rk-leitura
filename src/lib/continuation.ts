@@ -5,6 +5,8 @@
  * mesmo nova, e essa decisao precisa ser verificavel sem rede nem banco.
  */
 
+import { MAX_CONTENT_CHARS } from "@/lib/text-limits";
+
 /** A URL da proxima parte: a mesma origem com `?page=` trocado. */
 export function buildPageUrl(sourceUrl: string, page: number): string | null {
   try {
@@ -52,7 +54,7 @@ export const MAX_IMPORT_PAGES = 50;
 /** Teto de tempo da importacao de todas as paginas: o resto fica para "Continuar". */
 export const ALL_PAGES_BUDGET_MS = 45_000;
 /** Tamanho maximo do texto, o mesmo da criacao e da continuacao. */
-export const MAX_TEXT_CHARS = 400_000;
+export const MAX_TEXT_CHARS = MAX_CONTENT_CHARS;
 /** Ultima parte que um texto pode ter, a mesma da continuacao. */
 export const MAX_SOURCE_PAGE = 200;
 

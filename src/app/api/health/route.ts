@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db, resolveConnectionString } from "@/db";
+import { logError } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +17,21 @@ export async function GET() {
     jwtSecret: hasValue(process.env.JWT_SECRET),
     // Questionario, dicionario e as demais funcoes de IA (US-123).
     anthropicApiKey: hasValue(process.env.ANTHROPIC_API_KEY),
+    // Tempero dos codigos de recuperacao (US-191). Ausente, vale o JWT_SECRET:
+    // troca-lo invalidaria os codigos.
+    recoveryPepper: hasValue(process.env.RECOVERY_PEPPER),
+    // Lembretes (US-202): sem as chaves VAPID e o segredo do cron, nada sai.
+    vapidPublicKey: hasValue(process.env.NEXT_PUBLIC_VAPID_KEY),
+    vapidPrivateKey: hasValue(process.env.VAPID_PRIVATE_KEY),
+    cronSecret: hasValue(process.env.CRON_SECRET),
+    aiUsageSecret: hasValue(process.env.AI_USAGE_SECRET),
   };
 
   try {
     await db.execute(sql`select 1`);
     return Response.json({ ok: true, database: "up", config });
   } catch (error) {
-    console.error("[health]", error);
+    logError("health", error);
     return Response.json(
       {
         ok: false,

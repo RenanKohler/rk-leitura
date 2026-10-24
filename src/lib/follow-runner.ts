@@ -18,6 +18,7 @@ import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
 import { normalizeTagList } from "@/lib/tags";
 import { applyTags } from "@/lib/text-tags";
 import { importContent } from "@/lib/citations";
+import { capContent } from "@/lib/text-limits";
 
 /**
  * Verificacao periodica de series acompanhadas e feeds (US-70, US-71).
@@ -153,7 +154,8 @@ async function checkFeed(
       const series = detectSeries(document.title, finalUrl);
 
       // Importado sem ninguem ver: artigo cientifico ja entra sem as referencias.
-      const content = importContent(document.content, false);
+      // Acima do limite, corta como as outras importacoes (US-179).
+      const { content } = capContent(importContent(document.content, false));
       await db.transaction(async (tx) => {
         const [row] = await tx
           .insert(texts)

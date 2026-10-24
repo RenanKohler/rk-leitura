@@ -110,7 +110,7 @@ conexão voltou.
 **Épico:** Progresso e leitura offline
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/(app)/leitor/[id]/page.tsx` (posição embutida no HTML), `public/sw.js:199` (HTML da última visita com rede), `reader-client.tsx:344-346` (posição inicial vem só de `text.progressIndex`)
 
 Como leitor que lê offline, eu quero que o texto reabra onde parei mesmo sem
@@ -129,7 +129,7 @@ conexão, para que eu não precise procurar o ponto de leitura de novo.
 **Épico:** Progresso e leitura offline
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `reader-client.tsx:938-944` (ao voltar a ficar visível, não consulta o servidor), `src/lib/offline.ts:84-85` (save ao vivo sempre vence), `src/app/api/texts/[id]/route.ts:204-208` (`kept: "servidor"` ignorado pelo cliente), `route.ts:139` (PUT zera a posição)
 
 Como leitor, eu quero que uma aba antiga não apague o progresso que fiz em
@@ -177,7 +177,7 @@ perca ao trocar de conta ou fechar o app.
 **Épico:** Progresso e leitura offline
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `public/sw.js:18` (`VERSION = "v1"` sem mudança no histórico), `sw.js:165` (`MAX_PAGES = 22`) contra `src/lib/offline.ts:19` (`OFFLINE_TEXTS = 20`), `QUEUEABLE` duplicado em `sw.js:32` e `offline.ts:28`, `OFFLINE_BUDGET_BYTES` declarado e sem uso (`offline.ts:22`)
 
 Como leitor que lê offline, eu quero que o app offline seja o da versão atual,
@@ -248,7 +248,7 @@ destaques funcionem nesses textos.
 **Épico:** Importação e narração
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/share/route.ts:60-73`, `src/lib/follow-runner.ts:154-167` e `src/lib/chapter-import.ts:66-80` (inserem sem checar tamanho) contra `src/app/api/texts/route.ts:80` e `src/app/api/texts/[id]/route.ts:85` (recusam acima de 400 mil caracteres); `textos/texts-client.tsx:246-256` (o editor sempre manda `content`)
 
 Como leitor, eu quero que todo texto importado respeite o mesmo limite, para
@@ -269,7 +269,7 @@ que eu consiga editar título e etiquetas de qualquer texto da biblioteca.
 **Épico:** Importação e narração
 **Prioridade:** Should
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/components/file-import.tsx:322-328` (`body.slice(0, MAX_IMPORT_CHARS)` com `words` do corpo inteiro e sem `setTruncated`), `file-import.tsx:371-383` (`saveBook` sem deduplicar)
 
 Como leitor de textos longos, eu quero que capítulos grandes não sejam cortados
@@ -310,7 +310,7 @@ para que eu saiba se o problema é senha ou arquivo danificado.
 **Épico:** Importação e narração
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/hooks/use-speech.ts:215-221` (`getVoices()` só no toque, sem `voiceschanged` em `src/`)
 
 Como leitor, eu quero que a narração comece no primeiro toque, para que o app
@@ -420,7 +420,7 @@ que um título de página importada não rode uma fórmula na minha planilha.
 **Épico:** Segurança e privacidade da conta
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/lib/rate-limit.ts:78`, `src/app/api/texts/[id]/pergunta/route.ts:146`, `src/lib/ai.ts:244` (erro do Drizzle com `params` direto no `console.error`)
 
 Como leitor, eu quero que meu e-mail e o conteúdo dos meus textos não apareçam
@@ -502,7 +502,7 @@ considera, para que uma frase-senha longa não seja mais fraca do que parece.
 **Épico:** Segurança e privacidade da conta
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/lib/recovery.ts:22-26` (hash usa `jwtSecret()`), `.env.example:18` e `README.md:82` (só citam a queda das sessões)
 
 Como leitor, eu quero que meus códigos de recuperação continuem valendo depois
@@ -594,7 +594,7 @@ enviada para gerar perguntas-guia, para que elas nunca adiantem o desfecho.
 **Épico:** Integridade do estudo e da IA
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** cota consumida antes da chamada em `src/lib/study-tools.ts:124` e `cartoes-estudo/gerar/route.ts:74`; respostas vazias com 503 em `glossario/route.ts:55`, `fichamento/route.ts:58`, `guia/route.ts:56`, `cartao/route.ts:51` e 422 em `study-card-generator.ts:132`; `recordResponse` em `src/lib/ai.ts:257-268` só conhece "recusa" e "sucesso"
 
 Como leitor que estuda, eu quero que uma geração que falhou ou veio vazia não
@@ -613,7 +613,7 @@ gaste minha cota do dia, para que eu possa tentar de novo.
 **Épico:** Integridade do estudo e da IA
 **Prioridade:** Should
 **Story points:** 1
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/lib/quiz-generator.ts:87-101,136-150` (`aiParse` sem `timeoutMs`), `questionario/route.ts:23` e `compreensao/route.ts:23` (`maxDuration = 60`)
 
 Como leitor em treino, eu quero uma mensagem clara quando o questionário demora
@@ -631,7 +631,7 @@ demais, para que eu saiba que posso tentar de novo sem perder a cota.
 **Épico:** Integridade do estudo e da IA
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/texts/[id]/cartoes-estudo/route.ts:121-132` (PUT insere sem comparar), `glossario/cartao/route.ts:46-52` (insere sempre), `glossary-panel.tsx:78` (bloqueio só local)
 
 Como leitor que estuda, eu quero que o mesmo cartão não seja salvo duas vezes,
@@ -727,7 +727,7 @@ não apague o outro no meu aparelho.
 **Épico:** Operação e qualidade
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/cron/lembretes/route.ts:45-46` (200 com `motivo: "push não configurado"`), `.github/workflows/lembretes.yml:59`, `src/app/api/health/route.ts:14-19`
 
 Como mantenedor, eu quero que o workflow e o health acusem quando o push está
@@ -745,7 +745,7 @@ sem configuração, para que o lembrete não fique parado por semanas sem aviso.
 **Épico:** Operação e qualidade
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/cron/lembretes/route.ts:21,67-163` (`maxDuration = 60`, laço sem prazo), `src/lib/push.ts:58-62` (`sendNotification` sem `timeout`), `lembretes.yml:47`
 
 Como mantenedor, eu quero que um serviço de push lento não derrube o envio dos
@@ -805,7 +805,7 @@ migration, para que uma coluna ou índice não fique só no código.
 **Épico:** Operação e qualidade
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/db/schema.ts:743` (`ai_usage` só com índice `(created_at, feature)`), `src/app/api/ia/historico/route.ts:33-37`, `src/db/schema.ts:160` (`reading_sessions` sem índice em `text_id`), `src/lib/queries.ts:753,1467`, `src/lib/cloze-quiz.ts:40,87,113`
 
 Como mantenedor, eu quero índices nas colunas consultadas e uma retenção para o
@@ -824,7 +824,7 @@ Como mantenedor, eu quero índices nas colunas consultadas e uma retenção para
 **Épico:** Operação e qualidade
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** nenhum arquivo em `tests/` importa `src/lib/daily-quota.ts`, `word-batch.ts`, `follow-runner.ts`, `recovery.ts`, `push.ts`, `study-review-queries.ts` ou `learning-queries.ts`
 
 Como mantenedor, eu quero testes nas regras de cota, lotes e cron, para que uma
@@ -843,7 +843,7 @@ regressão no teto de custo ou na devolução de cota não passe pela CI.
 **Épico:** Operação e qualidade
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `e2e/conta-dados.spec.ts` (só recuperação, desconexão de um aparelho e restauração); sem teste para `DELETE /api/auth/me`, troca de senha (`me/route.ts:124`), `logout/todos`, rotas de cron sem segredo e 429 de login e cadastro
 
 Como mantenedor, eu quero testes das regras de conta e sessão, para que uma
@@ -864,7 +864,7 @@ refatoração não volte a deixar um token antigo válido.
 **Épico:** Operação e qualidade
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/lib/queries.ts:1341-1364` (`loadTimeWindow` lê e analisa o `content` de até 70 textos por chamada)
 
 Como leitor, eu quero que a sugestão do que ler no tempo livre abra rápido,

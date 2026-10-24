@@ -10,6 +10,7 @@ import { countWords } from "@/lib/reading";
 import { detectSeries } from "@/lib/series";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
 import { importContent } from "@/lib/citations";
+import { capContent, TRUNCATED_NOTICE } from "@/lib/text-limits";
 
 /**
  * Importa o capitulo seguinte ao texto informado.
@@ -24,7 +25,14 @@ import { importContent } from "@/lib/citations";
  */
 export type ChapterImport =
   | { status: "missing" }
-  | { status: "imported" | "existing"; id: string; title: string; chapter?: number }
+  | {
+      status: "imported" | "existing";
+      id: string;
+      title: string;
+      chapter?: number;
+      /** Conteudo cortado no limite (US-179). */
+      notice?: string;
+    }
   | { status: "end"; message: string }
   | { status: "unavailable"; message: string };
 
@@ -63,7 +71,7 @@ export async function importNextChapter(
     const series = detectSeries(imported.title, finalUrl);
 
     // Sem pre-visualizacao aqui: artigo cientifico ja entra sem as referencias.
-    const content = importContent(imported.content, false);
+    const { content, truncated } = capContent(importContent(imported.content, false));
     const [created] = await db
       .insert(texts)
       .values({
@@ -88,6 +96,7 @@ export async function importNextChapter(
       status: "imported",
       id: created!.id,
       title: created!.title,
+      ...(truncated ? { notice: TRUNCATED_NOTICE } : {}),
       chapter: created!.chapter ?? undefined,
     };
   } catch (error) {

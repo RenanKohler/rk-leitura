@@ -92,7 +92,7 @@ export async function lookupWord(
   });
 
   const entry = parseEntry(parsed, word);
-  if (!entry) throw new AiUnavailable("Não encontrei esta palavra.");
+  if (!entry) throw AiUnavailable.invalid("Não encontrei esta palavra.");
 
   // Palavra portuguesa nao tem traducao a mostrar.
   return language === DEFAULT_LANGUAGE ? { ...entry, translation: null } : entry;

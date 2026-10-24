@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonError, requireSession, serverError } from "@/lib/api";
 import { aiErrorResponse, aiGate, AiUnavailable } from "@/lib/ai";
+import { settleFailedCall, type ChargedCall } from "@/lib/ai-refund";
 import { consumeDailyQuota } from "@/lib/daily-quota";
 import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
     });
   }
 
+  let charged: ChargedCall | null = null;
   try {
     const stored = await cachedWeekIdeas(session.id);
     if (stored) return NextResponse.json({ ideas: stored });
@@ -59,9 +61,11 @@ export async function POST(request: Request) {
     if (!quota.allowed) {
       return jsonError(QUOTA_MESSAGES.resumo, 429, { retryAfter: quota.retryAfterSeconds });
     }
+    charged = { userId: session.id, task: "semana", quota: "resumo" };
 
     return NextResponse.json({ ideas: await generateWeekIdeas(session.id) });
   } catch (error) {
+    if (charged) await settleFailedCall(error, charged);
     if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("resumo-semanal/ideias", error);
   }

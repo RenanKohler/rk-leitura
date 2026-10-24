@@ -44,6 +44,9 @@ export interface PushPayload {
   tag?: string;
 }
 
+/** Prazo de cada envio ao servico de push (US-203). */
+export const PUSH_TIMEOUT_MS = 10_000;
+
 /**
  * Manda uma notificacao.
  *
@@ -61,13 +64,14 @@ export async function sendPush(
     await webpush.sendNotification(
       { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
       JSON.stringify(payload),
-      { TTL: 6 * 60 * 60 }
+      // Servico de push que nao responde nao segura o envio dos outros (US-203).
+      { TTL: 6 * 60 * 60, timeout: PUSH_TIMEOUT_MS }
     );
     return "enviada";
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode;
     if (status === 404 || status === 410) return "expirada";
-    console.error("[push] falha ao enviar:", status ?? error);
+    console.error("[push] falha ao enviar:", status ?? (error instanceof Error ? error.name : "erro"));
     return "falhou";
   }
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { recoveryCodes, users } from "@/db/schema";
 import { asString, jsonError, readJson, serverError } from "@/lib/api";
@@ -12,7 +12,7 @@ import {
   revokeSessions,
 } from "@/lib/auth";
 import { normalizeRecoveryCode } from "@/lib/account-security";
-import { hashRecoveryCode } from "@/lib/recovery";
+import { recoveryHashCandidates } from "@/lib/recovery";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
         .where(
           and(
             eq(recoveryCodes.userId, user.id),
-            eq(recoveryCodes.codeHash, hashRecoveryCode(code)),
+            inArray(recoveryCodes.codeHash, recoveryHashCandidates(code)),
             isNull(recoveryCodes.usedAt)
           )
         )

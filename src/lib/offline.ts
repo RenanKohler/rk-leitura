@@ -19,8 +19,20 @@
  */
 export const OFFLINE_TEXTS = 20;
 
-/** Teto do que o cache de leitura pode ocupar. */
-export const OFFLINE_BUDGET_BYTES = 12 * 1024 * 1024;
+/**
+ * Endereco do service worker com a versao do build (US-176). Um endereco
+ * novo instala um worker novo, que da a versao ao nome dos caches e apaga os
+ * da anterior ao ativar.
+ */
+export function serviceWorkerUrl(buildId: string | undefined): string {
+  return `/sw.js?v=${encodeURIComponent(buildId || "dev")}`;
+}
+
+/**
+ * Aviso de um texto que ainda nao foi aberto com rede depois de uma
+ * atualizacao: a copia antiga saiu com o cache da versao anterior (US-176).
+ */
+export const READER_OUTDATED = "Abra este texto com conexão para atualizá-lo.";
 
 /** Rotas cujo POST/PATCH pode esperar a conexao voltar. */
 export const QUEUEABLE = [/^\/api\/texts\/[0-9a-f-]+$/i, /^\/api\/reading-sessions$/];
@@ -51,6 +63,98 @@ export function newerPosition(
 
   return localAt >= remoteAt ? local.progressIndex : remote.progressIndex;
 }
+
+/* --- posicao guardada no aparelho (US-173) -------------------------------- */
+
+/** Prefixo das posicoes locais; sair da conta apaga todas. */
+export const LOCAL_POSITION_PREFIX = "leitura-posicao:";
+
+/**
+ * Chave da posicao local de um texto. Leva o id da conta: outra conta no
+ * mesmo aparelho nunca le a posicao da anterior (criterio 3).
+ */
+export function localPositionKey(userId: string, textId: string): string {
+  return `${LOCAL_POSITION_PREFIX}${userId}:${textId}`;
+}
+
+/** Posicao gravada no aparelho a cada salvamento, com ou sem rede. */
+export interface LocalPosition {
+  progressIndex: number;
+  at: string;
+  /** Palavras do texto quando a posicao foi gravada. */
+  words: number;
+}
+
+/** Apaga as posicoes locais de todas as contas: sair da conta leva junto. */
+export function clearLocalPositions(storage: Pick<Storage, "length" | "key" | "removeItem">): void {
+  const keys: string[] = [];
+  for (let i = 0; i < storage.length; i += 1) {
+    const key = storage.key(i);
+    if (key?.startsWith(LOCAL_POSITION_PREFIX)) keys.push(key);
+  }
+  for (const key of keys) storage.removeItem(key);
+}
+
+export function parseLocalPosition(raw: string | null): LocalPosition | null {
+  if (!raw) return null;
+  try {
+    const value = JSON.parse(raw) as Partial<LocalPosition>;
+    if (
+      !Number.isInteger(value.progressIndex) ||
+      !Number.isInteger(value.words) ||
+      typeof value.at !== "string" ||
+      Number.isNaN(Date.parse(value.at))
+    ) {
+      return null;
+    }
+    return { progressIndex: value.progressIndex!, at: value.at, words: value.words! };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Onde o leitor abre (US-173): a posicao do HTML, que pode ser a da ultima
+ * visita com rede, ou a do aparelho, se for mais recente (`newerPosition`).
+ * A local so vale para o mesmo conteudo - texto editado desde entao abre na
+ * posicao do servidor. Devolve null quando a do HTML vale.
+ */
+export function openingPosition(
+  server: { progressIndex: number; updatedAt: string; wordCount: number },
+  local: LocalPosition | null
+): number | null {
+  if (!local || local.words !== server.wordCount) return null;
+  const chosen = newerPosition(local, { progressIndex: server.progressIndex, at: server.updatedAt });
+  return chosen === server.progressIndex ? null : Math.min(chosen, server.wordCount);
+}
+
+/* --- posicao de outro aparelho (US-174) ------------------------------------ */
+
+/**
+ * O que fazer com a posicao que o servidor tem quando a aba volta a ficar
+ * visivel.
+ *
+ * - `"recarregar"`: o texto foi editado em outra aba (o numero de palavras
+ *   mudou); a posicao daqui nao vale mais.
+ * - um numero: outro aparelho gravou uma posicao diferente da ultima que
+ *   esta aba conhece, e diferente de onde ela esta; pergunta se continua.
+ * - null: nada mudou fora daqui.
+ */
+export function otherDevicePosition(
+  remote: { progressIndex: number; wordCount: number },
+  tab: { known: number; current: number; words: number }
+): "recarregar" | number | null {
+  if (remote.wordCount !== tab.words) return "recarregar";
+  if (remote.progressIndex === tab.known || remote.progressIndex === tab.current) return null;
+  return remote.progressIndex;
+}
+
+export function otherDeviceMessage(position: number): string {
+  return `Você leu até a palavra ${position.toLocaleString("pt-BR")} em outro aparelho. Continuar de lá?`;
+}
+
+/** Resposta do servidor ao salvar a posicao de um texto que mudou (US-174). */
+export const TEXT_CHANGED = "O texto foi editado em outra aba.";
 
 /**
  * Janela em que o `at` do cliente conta como "agora".

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { languageName, speechLanguage } from "@/lib/language";
-import { pickVoice, rateFor, speechChunks, wordAtCharIndex } from "@/lib/speech";
+import { pickVoice, rateFor, speechChunks, waitForVoices, wordAtCharIndex, type VoiceLike } from "@/lib/speech";
 import { wordOffsets, type PiperVoice } from "@/lib/piper";
 import {
   isDownloaded,
@@ -90,6 +90,12 @@ export function useSpeech(language = "pt-BR") {
       active = false;
     };
   }, [language]);
+
+  // Pede a lista de vozes ao abrir a tela: no Chrome e esse pedido que
+  // dispara o carregamento, e o primeiro toque ja as encontra (US-182).
+  useEffect(() => {
+    if (typeof window !== "undefined") window.speechSynthesis?.getVoices();
+  }, []);
 
   const stop = useCallback(() => {
     engine.current.stopped = true;
@@ -212,69 +218,92 @@ export function useSpeech(language = "pt-BR") {
         return false;
       }
 
-      const voice = pickVoice(window.speechSynthesis.getVoices(), lang);
-      if (!voice) {
+      const synth = window.speechSynthesis;
+      const noVoice = () => {
         setState("indisponivel");
         setError(
           `Este aparelho não tem voz instalada para ${languageName(language)}. Instale uma nas configurações do sistema.`
         );
-        return false;
-      }
-
-      window.speechSynthesis.cancel();
-
-      const session = { stopped: false };
-      engine.current = session;
-
-      const queue = speechChunks(words, from, undefined, language);
-      const rate = rateFor(wpm);
-      let position = 0;
-
-      const speak = () => {
-        if (session.stopped) return;
-
-        const chunk = queue[position];
-        if (!chunk) {
-          setState("parada");
-          onEnd();
-          return;
-        }
-
-        const utterance = new SpeechSynthesisUtterance(chunk.words.join(" "));
-        utterance.rate = rate;
-        utterance.lang = lang;
-        utterance.voice = voice as SpeechSynthesisVoice;
-
-        utterance.onboundary = (event) => {
-          if (session.stopped) return;
-          if (event.name && event.name !== "word") return;
-          onWord(chunk.start + wordAtCharIndex(chunk.words, event.charIndex));
-        };
-
-        utterance.onend = () => {
-          if (session.stopped) return;
-          position += 1;
-          const next = queue[position];
-          // Sem evento de palavra, a posicao anda no fim de cada frase.
-          if (next) onWord(next.start);
-          speak();
-        };
-
-        utterance.onerror = (event) => {
-          // Cancelar e interromper sao erros esperados: e assim que a parada
-          // acontece. Tratar como falha mostraria um aviso a cada pausa.
-          if (session.stopped) return;
-          if (event.error === "canceled" || event.error === "interrupted") return;
-          setError("A narração parou sozinha. Tente de novo.");
-          setState("parada");
-        };
-
-        window.speechSynthesis.speak(utterance);
       };
 
+      synth.cancel();
+      const session: Session = { stopped: false };
+      engine.current = session;
+
+      const speakWith = (voice: VoiceLike) => {
+        const queue = speechChunks(words, from, undefined, language);
+        const rate = rateFor(wpm);
+        let position = 0;
+
+        const speak = () => {
+          if (session.stopped) return;
+
+          const chunk = queue[position];
+          if (!chunk) {
+            setState("parada");
+            onEnd();
+            return;
+          }
+
+          const utterance = new SpeechSynthesisUtterance(chunk.words.join(" "));
+          utterance.rate = rate;
+          utterance.lang = lang;
+          utterance.voice = voice as SpeechSynthesisVoice;
+
+          utterance.onboundary = (event) => {
+            if (session.stopped) return;
+            if (event.name && event.name !== "word") return;
+            onWord(chunk.start + wordAtCharIndex(chunk.words, event.charIndex));
+          };
+
+          utterance.onend = () => {
+            if (session.stopped) return;
+            position += 1;
+            const next = queue[position];
+            // Sem evento de palavra, a posicao anda no fim de cada frase.
+            if (next) onWord(next.start);
+            speak();
+          };
+
+          utterance.onerror = (event) => {
+            // Cancelar e interromper sao erros esperados: e assim que a parada
+            // acontece. Tratar como falha mostraria um aviso a cada pausa.
+            if (session.stopped) return;
+            if (event.error === "canceled" || event.error === "interrupted") return;
+            setError("A narração parou sozinha. Tente de novo.");
+            setState("parada");
+          };
+
+          window.speechSynthesis.speak(utterance);
+        };
+
+        speak();
+      };
+
+      // Vozes ja carregadas: decide agora, dentro do toque.
+      const loaded = synth.getVoices();
+      if (loaded.length > 0) {
+        const voice = pickVoice(loaded, lang);
+        if (!voice) {
+          noVoice();
+          return false;
+        }
+        setError("");
+        setState("falando");
+        speakWith(voice);
+        return true;
+      }
+
+      // No Chrome a lista chega vazia ate o `voiceschanged` (US-182): espera
+      // ate 2 segundos antes de dizer que nao ha voz.
       setError("");
       setState("falando");
-      speak();
+      void waitForVoices(synth).then((voices) => {
+        if (session.stopped) return;
+        const voice = pickVoice(voices, lang);
+        if (voice) speakWith(voice);
+        else noVoice();
+      });
       return true;
     },
     [lang, language, startPiper]
