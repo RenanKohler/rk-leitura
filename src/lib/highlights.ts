@@ -10,6 +10,8 @@
  */
 
 import { countWords, tokenize } from "@/lib/reading";
+import { todayIn } from "@/lib/goals";
+import { addDays } from "@/lib/vocabulary";
 import { sentenceBounds } from "@/lib/sentences";
 
 export const MAX_NOTE_CHARS = 2_000;
@@ -252,3 +254,12 @@ export function segmentsOf(
   return segments;
 }
 
+
+/**
+ * Primeira revisao de um destaque nunca revisado: o dia seguinte ao da
+ * criacao, no fuso do leitor, como `firstReview` das palavras (US-199). Um
+ * destaque das 22h vence na manha seguinte, e nao 24 horas depois.
+ */
+export function firstHighlightDue(createdAt: Date, timezone: string): string {
+  return addDays(todayIn(timezone, createdAt), 1);
+}
