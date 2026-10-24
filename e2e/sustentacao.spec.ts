@@ -300,3 +300,79 @@ test("US-193: apagar o que a IA gerou leva tambem o que foi gerado no estudo", a
   expect(await query("select id from comprehension_quizzes where text_id = $1", [text.id])).toEqual([]);
   expect((await (await request.get("/api/ia/resultados")).json()).count).toBe(0);
 });
+
+test("US-189: a conta completa sai inteira e volta numa conta nova", async ({ page, playwright }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const user = await userId(request);
+  const text = await createText(request, "Capitulo 4 - Serie exportada", 120);
+  await runSql(
+    `update texts set author = 'Autora Exemplo', series_key = 'serie-e2e', series_title = 'Serie E2E', chapter = 4,
+       abandoned_at = now(), abandoned_words = 80, sections = '[{"index":0,"title":"Abertura"}]'::jsonb
+     where id = $1`,
+    [text.id]
+  );
+  await request.post("/api/palavras", { data: { word: "ritmo", context: "ao ritmo", textId: text.id } });
+
+  const response = await request.get("/api/exportar?tipo=conta");
+  expect(response.ok()).toBeTruthy();
+  const file = await response.json();
+  expect(file.versao).toBe(3);
+  expect(Object.keys(file.conta.tabelas).sort()).toEqual(
+    [
+      "ai_results",
+      "ask_turns",
+      "feeds",
+      "quiz_recalls",
+      "reading_goals",
+      "reading_sessions",
+      "review_answers",
+      "saved_words",
+      "series_follows",
+      "speed_settings",
+      "study_cards",
+      "training_days",
+      "training_programs",
+    ].sort()
+  );
+  expect(file.conta.tabelas.saved_words).toHaveLength(1);
+  expect(JSON.stringify(file)).not.toContain("passwordHash");
+  expect(JSON.stringify(file.conta.tabelas)).not.toContain(user);
+  const exported = file.textos.find((item: { titulo: string }) => item.titulo === "Capitulo 4 - Serie exportada");
+  expect(exported).toMatchObject({
+    autor: "Autora Exemplo",
+    serie: { chave: "serie-e2e", titulo: "Serie E2E", capitulo: 4 },
+    palavrasRestantes: 80,
+  });
+
+  // Conta nova, outra sessao: restaura so esse texto.
+  const other = await playwright.request.newContext({
+    baseURL: test.info().project.use.baseURL,
+    extraHTTPHeaders: { "x-forwarded-for": randomIp() },
+  });
+  await registerByApi(other);
+  const restored = await other.post("/api/importar", { data: { textos: [exported] } });
+  expect(restored.status()).toBe(201);
+  const [id] = (await restored.json()).created as string[];
+  const [row] = await query<{
+    author: string;
+    series_key: string;
+    series_title: string;
+    chapter: number;
+    abandoned: boolean;
+    abandoned_words: number;
+  }>(
+    `select author, series_key, series_title, chapter, abandoned_at is not null as abandoned, abandoned_words
+     from texts where id = $1`,
+    [id]
+  );
+  expect(row).toEqual({
+    author: "Autora Exemplo",
+    series_key: "serie-e2e",
+    series_title: "Serie E2E",
+    chapter: 4,
+    abandoned: true,
+    abandoned_words: 80,
+  });
+  await other.dispose();
+});

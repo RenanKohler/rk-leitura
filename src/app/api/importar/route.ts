@@ -10,6 +10,7 @@ import { asLanguage } from "@/lib/language";
 import { MAX_BOOKMARK_LABEL, MAX_BOOKMARKS } from "@/lib/navigation";
 import { asTextFormat, countWords } from "@/lib/reading";
 import { detectSeries } from "@/lib/series";
+import { normalizeAuthor } from "@/lib/import-analysis";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
 import { normalizeTagList } from "@/lib/tags";
 import { applyTags } from "@/lib/text-tags";
@@ -83,7 +84,12 @@ export async function POST(request: Request) {
           continue;
         }
 
-        const series = detectSeries(item.titulo, sourceUrl);
+        // Serie gravada no arquivo (versao 3) vale mais que a deduzida do
+        // titulo: o leitor pode ter vinculado ou corrigido a mao (US-189).
+        const series = item.serie
+          ? { key: item.serie.chave, title: item.serie.titulo ?? null, chapter: item.serie.capitulo ?? null }
+          : detectSeries(item.titulo, sourceUrl);
+        const progressIndex = Math.min(item.progresso ?? 0, wordCount);
         const [row] = await tx
           .insert(texts)
           .values({
@@ -94,12 +100,19 @@ export async function POST(request: Request) {
             format,
             language: asLanguage(item.idioma),
             wordCount,
-            progressIndex: Math.min(item.progresso ?? 0, wordCount),
+            progressIndex,
             sourcePage: item.parteDaOrigem ?? pageFromUrl(sourceUrl),
             seriesKey: series?.key ?? null,
             seriesTitle: series?.title ?? null,
             chapter: series?.chapter ?? null,
             archivedAt: item.arquivadoEm ? new Date(item.arquivadoEm) : null,
+            author: normalizeAuthor(item.autor),
+            // Texto largado continua largado (US-81, US-189).
+            abandonedAt: item.largadoEm ? new Date(item.largadoEm) : null,
+            abandonedWords: item.largadoEm
+              ? (item.palavrasRestantes ?? Math.max(0, wordCount - progressIndex))
+              : null,
+            sections: item.secoes && item.secoes.length > 0 ? item.secoes : null,
             ...(item.criadoEm ? { createdAt: new Date(item.criadoEm) } : {}),
           })
           .returning({ id: texts.id });

@@ -9,6 +9,30 @@ describe("parseBackup (US-98)", () => {
     expect(result.ok && result.texts).toHaveLength(1);
   });
 
+  it("aceita a versao 3 com autor, serie, largado, secoes e o bloco da conta (US-189)", () => {
+    const result = parseBackup({
+      formato: BACKUP_KIND,
+      versao: 3,
+      textos: [
+        {
+          ...text,
+          id: "5f0c0e1e-0000-4000-8000-000000000000",
+          autor: "Machado de Assis",
+          serie: { chave: "exemplo.com/serie", titulo: "Serie", capitulo: 4 },
+          largadoEm: "2026-10-01T12:00:00.000Z",
+          palavrasRestantes: 120,
+          secoes: [{ index: 0, title: "Abertura" }],
+        },
+      ],
+      conta: { perfil: { nome: "Ana" }, tabelas: { reading_sessions: [] } },
+    });
+    expect(result.ok).toBe(true);
+    const restored = result.ok ? result.texts[0]! : null;
+    expect(restored?.autor).toBe("Machado de Assis");
+    expect(restored?.serie?.capitulo).toBe(4);
+    expect(restored?.largadoEm).toBe("2026-10-01T12:00:00.000Z");
+  });
+
   it("aceita a lista solta da versao 1", () => {
     const result = parseBackup([{ ...text, destaques: [{ inicio: 0, fim: 2, nota: null }] }]);
     expect(result.ok).toBe(true);
