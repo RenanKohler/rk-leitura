@@ -18,3 +18,17 @@ export async function runSql(query: string, params: unknown[] = []): Promise<voi
     await client.end();
   }
 }
+
+/** Consulta direta, para conferir o que ficou no banco (US-208). */
+export async function querySql<T extends Record<string, unknown>>(
+  query: string,
+  params: unknown[] = []
+): Promise<T[]> {
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    return (await client.query<T>(query, params)).rows;
+  } finally {
+    await client.end();
+  }
+}
