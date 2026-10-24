@@ -16,6 +16,23 @@ export class ApiError extends Error {
   }
 }
 
+/** Falha de rede em qualquer chamada (US-177), no lugar de "Failed to fetch". */
+export const NO_CONNECTION = "Sem conexão. Tente de novo quando a rede voltar.";
+
+/**
+ * `fetch` que traduz a falha de rede. O navegador lanca `TypeError` com texto
+ * em ingles ("Failed to fetch", "Load failed"); cancelamento (`AbortError`)
+ * passa como veio, porque quem cancelou sabe o que fazer.
+ */
+async function request(path: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(path, init);
+  } catch (cause) {
+    if (cause instanceof TypeError) throw new ApiError(NO_CONNECTION, 0);
+    throw cause;
+  }
+}
+
 async function parse<T>(response: Response): Promise<T> {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -29,7 +46,7 @@ async function parse<T>(response: Response): Promise<T> {
 }
 
 export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
-  return parse<T>(await fetch(path, { signal }));
+  return parse<T>(await request(path, { signal }));
 }
 
 export async function apiSend<T>(
@@ -38,7 +55,7 @@ export async function apiSend<T>(
   body?: unknown
 ): Promise<T> {
   return parse<T>(
-    await fetch(path, {
+    await request(path, {
       method,
       headers: body === undefined ? undefined : { "Content-Type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -60,7 +77,7 @@ export async function apiStream(
   | { status: "json"; data: Record<string, unknown> }
   | { status: "done" | "error" | "interrupted" }
 > {
-  const response = await fetch(path, {
+  const response = await request(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

@@ -34,8 +34,15 @@ export function serviceWorkerUrl(buildId: string | undefined): string {
  */
 export const READER_OUTDATED = "Abra este texto com conexão para atualizá-lo.";
 
-/** Rotas cujo POST/PATCH pode esperar a conexao voltar. */
-export const QUEUEABLE = [/^\/api\/texts\/[0-9a-f-]+$/i, /^\/api\/reading-sessions$/];
+/**
+ * Rotas cujo POST/PATCH pode esperar a conexao voltar: posicao, sessoes e,
+ * desde a US-177, criar um destaque e mudar a nota de um.
+ */
+export const QUEUEABLE = [
+  /^\/api\/texts\/[0-9a-f-]+$/i,
+  /^\/api\/reading-sessions$/,
+  /^\/api\/texts\/[0-9a-f-]{36}\/destaques(\/[0-9a-f-]{36})?$/i,
+];
 
 /** Verdadeiro quando a requisicao pode ser adiada em vez de falhar. */
 export function queueable(pathname: string, method: string): boolean {

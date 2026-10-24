@@ -101,7 +101,15 @@ import { useWordTouch } from "@/hooks/use-word-touch";
 import { useSpeech } from "@/hooks/use-speech";
 import { rateNotice } from "@/lib/speech";
 import { normalizeWord, trimContext } from "@/lib/dictionary";
-import { segmentsOf, sentenceRange, type Span, type StoredHighlight } from "@/lib/highlights";
+import {
+  addPendingMark,
+  isPendingMark,
+  PENDING_MARK_NOTICE,
+  segmentsOf,
+  sentenceRange,
+  type Span,
+  type StoredHighlight,
+} from "@/lib/highlights";
 import type { ContinuationResult, HighlightItem, NextUp, TextDetail } from "@/lib/types";
 import {
   checkpointCrossed,
@@ -144,6 +152,8 @@ import { sessionCheckRange, type SessionRange } from "@/lib/session-check";
  */
 
 const PROGRESS_SAVE_INTERVAL_MS = 5_000;
+/** Espera depois de a rede voltar antes de trocar os destaques pendentes pelos do servidor. */
+const PENDING_REFRESH_MS = 3_000;
 
 /** Abaixo disso, retomar nao reinicia a rampa de aquecimento. */
 const SHORT_PAUSE_MS = 3000;
@@ -696,16 +706,20 @@ function Reader({
     async (range: Span) => {
       setMarking(true);
       try {
-        const data = await apiSend<{ highlights: HighlightItem[] }>(
+        const data = await apiSend<{ highlights?: HighlightItem[]; queued?: boolean }>(
           `/api/texts/${text.id}/destaques`,
           "POST",
           range
         );
-        setMarks(data.highlights);
+        // Sem conexao o service worker guarda o pedido e responde `queued`
+        // (US-177): o destaque aparece ja, e a fila o envia quando a rede voltar.
+        if (data.queued) setMarks((current) => addPendingMark(current, range, words));
+        else if (data.highlights) setMarks(data.highlights);
+        const done = data.queued ? "Trecho destacado. Vai ser enviado quando a conexão voltar." : "Trecho destacado.";
         // Durante o Word Runner o aviso e so para leitor de tela: um aviso
         // visual cobria o botao de pausa por 4 segundos.
-        if (stateRef.current.playing) setAnnouncement("Frase destacada.");
-        else notify("Trecho destacado.", "success");
+        if (stateRef.current.playing) setAnnouncement(data.queued ? done : "Frase destacada.");
+        else notify(done, "success");
       } catch (cause) {
         notify(cause instanceof Error ? cause.message : "Não consegui destacar.", "error");
       } finally {
@@ -713,11 +727,13 @@ function Reader({
         clearSelection();
       }
     },
-    [text.id, notify, clearSelection]
+    [text.id, words, notify, clearSelection]
   );
 
   const saveNote = useCallback(
     async (markId: string, note: string) => {
+      // O destaque ainda esta na fila: nao ha id no servidor para anotar.
+      if (isPendingMark(markId)) throw new Error(PENDING_MARK_NOTICE);
       await apiSend(`/api/texts/${text.id}/destaques/${markId}`, "PATCH", { note });
       const trimmed = note.trim();
       setMarks((current) =>
@@ -731,6 +747,7 @@ function Reader({
 
   const removeMark = useCallback(
     async (markId: string) => {
+      if (isPendingMark(markId)) throw new Error(PENDING_MARK_NOTICE);
       await apiSend(`/api/texts/${text.id}/destaques/${markId}`, "DELETE");
       setMarks((current) => current.filter((item) => item.id !== markId));
     },
@@ -1113,14 +1130,29 @@ function Reader({
   }, [text.id, text.wordCount]);
 
   // A rede voltou: reenvia a posicao e as sessoes que falharam (US-171).
+  // Destaques feitos offline (US-177) saem pela fila do service worker; a
+  // lista do servidor substitui os pendentes depois que ela tiver tempo de
+  // esvaziar.
+  const hasPendingMarks = marks.some((mark) => isPendingMark(mark.id));
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const onOnline = () => {
       void saveProgress(stateRef.current.index);
       void retry.retry();
+      if (!hasPendingMarks) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        apiGet<{ highlights: HighlightItem[] }>(`/api/texts/${text.id}/destaques`)
+          .then((data) => setMarks(data.highlights))
+          .catch(() => undefined);
+      }, PENDING_REFRESH_MS);
     };
     window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
-  }, [saveProgress, retry]);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [saveProgress, retry, text.id, hasPendingMarks]);
 
   // Sair do leitor pela navegacao do app (desmontar) tambem grava.
   useEffect(
