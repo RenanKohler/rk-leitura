@@ -152,7 +152,7 @@ test("fichamento: so de texto concluido, com citacoes e exportacao", async ({ pa
 
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("button", { name: "Exportar" }).click(),
+    page.getByRole("button", { name: "Exportar", exact: true }).click(),
   ]);
   expect(download.suggestedFilename()).toBe("texto-de-estudo-fichamento.md");
   const body = await (await download.createReadStream()).toArray();
