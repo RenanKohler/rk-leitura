@@ -74,6 +74,6 @@ export async function generateHighlightCards(
   });
 
   const cards = cleanCards(parsed, ids);
-  if (cards.length === 0) throw new AiUnavailable(CARDS_MESSAGES.failure);
+  if (cards.length === 0) throw AiUnavailable.invalid(CARDS_MESSAGES.failure);
   return cards;
 }

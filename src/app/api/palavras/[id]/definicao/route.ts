@@ -8,6 +8,7 @@ import { QUOTA_MESSAGES } from "@/lib/quota";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { lookupWord } from "@/lib/word-lookup";
 import { aiErrorResponse, aiGate, AiUnavailable } from "@/lib/ai";
+import { settleFailedCall, type ChargedCall } from "@/lib/ai-refund";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -34,6 +35,7 @@ export async function POST(request: Request, { params }: Params) {
     });
   }
 
+  let charged: ChargedCall | null = null;
   try {
     const { id } = await params;
     if (!UUID_PATTERN.test(id)) return jsonError("Palavra não encontrada.", 404);
@@ -58,6 +60,7 @@ export async function POST(request: Request, { params }: Params) {
     if (!quota.allowed) {
       return jsonError(QUOTA_MESSAGES.dicionario, 429, { retryAfter: quota.retryAfterSeconds });
     }
+    charged = { userId: session.id, task: "dicionario", quota: "dicionario" };
 
     const entry = await lookupWord(
       session.id,
@@ -81,6 +84,7 @@ export async function POST(request: Request, { params }: Params) {
 
     return NextResponse.json({ entry });
   } catch (error) {
+    if (charged) await settleFailedCall(error, charged);
     if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("palavras/definicao", error);
   }

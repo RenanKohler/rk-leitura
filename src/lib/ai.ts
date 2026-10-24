@@ -115,17 +115,30 @@ export interface AiMessages {
   refusal: string;
   /** Qualquer outra falha. */
   failure: string;
+  /** Prazo da chamada esgotado; sem ele vale `failure` (US-196). */
+  timeout?: string;
 }
 
 export class AiUnavailable extends Error {
   readonly status: number;
-  /** O modelo recusou: um texto parcial ja mostrado deve ser descartado (US-145). */
+  /**
+   * O modelo recusou: um texto parcial ja mostrado deve ser descartado
+   * (US-145), e a cota nao volta (US-195).
+   */
   readonly refusal: boolean;
-  constructor(message: string, status = 503, refusal = false) {
+  /** O modelo respondeu, mas a validacao nao deixou nada passar (US-195). */
+  readonly invalid: boolean;
+  constructor(message: string, status = 503, refusal = false, invalid = false) {
     super(message);
     this.name = "AiUnavailable";
     this.status = status;
     this.refusal = refusal;
+    this.invalid = invalid;
+  }
+
+  /** Resposta que chegou mas nao serve: registrada como "invalida" (US-195). */
+  static invalid(message: string, status = 503): AiUnavailable {
+    return new AiUnavailable(message, status, false, true);
   }
 }
 
@@ -190,7 +203,8 @@ interface UsageLike {
 }
 
 /** Como a chamada terminou (US-141). */
-export type AiOutcome = "sucesso" | "recusa" | "tempo" | "falha";
+/** "invalida": respondeu, mas nada passou na validacao (US-195). */
+export type AiOutcome = "sucesso" | "recusa" | "invalida" | "tempo" | "falha";
 
 const NO_USAGE: UsageLike = { input_tokens: 0, output_tokens: 0 };
 
@@ -296,6 +310,9 @@ export async function recordResponse(
 
 export function translate(error: unknown, messages: AiMessages, scope: string): AiUnavailable {
   if (error instanceof AiUnavailable) return error;
+  if (error instanceof Anthropic.APIConnectionTimeoutError && messages.timeout) {
+    return new AiUnavailable(messages.timeout);
+  }
   if (error instanceof Anthropic.RateLimitError) return new AiUnavailable(AI_BUSY);
   if (error instanceof Anthropic.AuthenticationError) {
     return new AiUnavailable(messages.notConfigured);
@@ -333,7 +350,7 @@ export async function aiParse<S extends z.ZodType>(
   await recordResponse(options, response);
 
   // O modelo pode recusar por seguranca, e o fallback nem sempre resolve.
-  if (response.stop_reason === "refusal") throw new AiUnavailable(options.messages.refusal);
+  if (response.stop_reason === "refusal") throw new AiUnavailable(options.messages.refusal, 503, true);
   return (response.parsed_output ?? null) as z.infer<S> | null;
 }
 
@@ -364,7 +381,7 @@ export async function aiCreate(
 
   await recordResponse(options, response);
 
-  if (response.stop_reason === "refusal") throw new AiUnavailable(options.messages.refusal);
+  if (response.stop_reason === "refusal") throw new AiUnavailable(options.messages.refusal, 503, true);
   return response;
 }
 

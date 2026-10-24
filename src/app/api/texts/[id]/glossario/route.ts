@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonError, requireSession, serverError } from "@/lib/api";
 import { aiErrorResponse, AiUnavailable } from "@/lib/ai";
+import { settleFailedCall, type ChargedCall } from "@/lib/ai-refund";
 import { loadAiResult, saveAiResult } from "@/lib/ai-results";
 import { excerptOf } from "@/lib/ai-text";
 import {
@@ -34,6 +35,7 @@ export async function POST(request: Request, { params }: Params) {
   const limit = await rateLimit(`glossario:${clientIp(request)}`, 30, 60 * 60 * 1000);
   if (!limit.allowed) return jsonError("Muitos pedidos seguidos. Aguarde um pouco.", 429);
 
+  let charged: ChargedCall | null = null;
   try {
     const { id } = await params;
     const text = await loadStudyText(session.id, id);
@@ -48,15 +50,17 @@ export async function POST(request: Request, { params }: Params) {
 
     const blocked = await studyGate(session.id, GLOSSARY_MESSAGES);
     if (blocked) return blocked;
+    charged = { userId: session.id, task: "glossario", quota: "estudo" };
 
     const excerpt = excerptOf(text.paragraphs, 0, cut);
     const raw = await generateGlossary(session.id, id, text.title, excerpt.text, text.language);
     const terms = validGlossary(raw, keysOf(text), { from: excerpt.startWord, to: excerpt.endWord }, cut);
-    if (terms.length === 0) return jsonError(GLOSSARY_MESSAGES.failure, 503);
+    if (terms.length === 0) throw AiUnavailable.invalid(GLOSSARY_MESSAGES.failure);
 
     await saveAiResult(session.id, id, "glossario", key, { terms });
     return NextResponse.json({ terms, cut, cached: false });
   } catch (error) {
+    if (charged) await settleFailedCall(error, charged);
     if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("texts/glossario", error);
   }

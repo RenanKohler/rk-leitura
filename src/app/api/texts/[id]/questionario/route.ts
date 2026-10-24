@@ -17,6 +17,7 @@ import {
 import { parseParagraphs, type TextFormat } from "@/lib/reading";
 import { generateQuiz } from "@/lib/quiz-generator";
 import { aiErrorResponse, aiGate, AiUnavailable } from "@/lib/ai";
+import { settleFailedCall, type ChargedCall } from "@/lib/ai-refund";
 
 export const dynamic = "force-dynamic";
 // A geracao chama um modelo: pode passar dos 10s padrao das funcoes.
@@ -50,6 +51,7 @@ export async function POST(_request: Request, { params }: Params) {
     });
   }
 
+  let charged: ChargedCall | null = null;
   try {
     const { id } = await params;
     if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
@@ -78,11 +80,13 @@ export async function POST(_request: Request, { params }: Params) {
           retryAfter: quota.retryAfterSeconds,
         });
       }
+      charged = { userId: session.id, task: "questionario", quota: "questionario" };
       quiz = await generateAndStore(session.id, id, key, text);
     }
 
     return NextResponse.json({ quiz: withoutAnswers(quiz), questions: quiz.questions.length });
   } catch (error) {
+    if (charged) await settleFailedCall(error, charged);
     if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("texts/questionario", error);
   }

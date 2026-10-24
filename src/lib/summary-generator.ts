@@ -136,7 +136,7 @@ export async function generateReadSummary(
     content: [{ role: "user", content: request.prompt }],
   });
   const points = normalizePoints(parsed?.points, SUMMARY_MAX_POINTS, SUMMARY_MAX_WORDS);
-  if (points.length < SUMMARY_MIN_POINTS) throw new AiUnavailable(MESSAGES.failure);
+  if (points.length < SUMMARY_MIN_POINTS) throw AiUnavailable.invalid(MESSAGES.failure);
   return points;
 }
 
@@ -159,7 +159,7 @@ export async function generateChapterSummary(
     content: [{ role: "user", content: request.prompt }],
   });
   const points = normalizePoints(parsed?.points, CHAPTER_MAX_POINTS, CHAPTER_MAX_WORDS);
-  if (points.length === 0) throw new AiUnavailable(MESSAGES.failure);
+  if (points.length === 0) throw AiUnavailable.invalid(MESSAGES.failure);
   return points;
 }
 
@@ -183,6 +183,6 @@ export async function generateNameDescriptions(
     timeoutMs: TIMEOUT_MS,
     content: [{ role: "user", content: request.prompt }],
   });
-  if (!parsed) throw new AiUnavailable(NAME_MESSAGES.failure);
+  if (!parsed) throw AiUnavailable.invalid(NAME_MESSAGES.failure);
   return normalizeDescriptions(listed, sent, parsed.names);
 }

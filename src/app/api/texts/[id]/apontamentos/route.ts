@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { aiErrorResponse, AiUnavailable } from "@/lib/ai";
+import { settleFailedCall, type ChargedCall } from "@/lib/ai-refund";
 import { excerptOf } from "@/lib/ai-text";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { generateTeachBack, TEACH_BACK_MESSAGES } from "@/lib/study-ai";
@@ -43,6 +44,7 @@ export async function POST(request: Request, { params }: Params) {
   const limit = await rateLimit(`apontamentos:${clientIp(request)}`, 30, 60 * 60 * 1000);
   if (!limit.allowed) return jsonError("Muitos pedidos seguidos. Aguarde um pouco.", 429);
 
+  let charged: ChargedCall | null = null;
   try {
     const { id } = await params;
     const body = await readJson<{ start?: unknown; explanation?: unknown }>(request);
@@ -58,6 +60,7 @@ export async function POST(request: Request, { params }: Params) {
 
     const blocked = await studyGate(session.id, TEACH_BACK_MESSAGES);
     if (blocked) return blocked;
+    charged = { userId: session.id, task: "apontamentos", quota: "estudo" };
 
     const excerpt = excerptOf(text.paragraphs, part.start, part.end);
     const raw = await generateTeachBack(
@@ -74,6 +77,7 @@ export async function POST(request: Request, { params }: Params) {
     });
     return NextResponse.json({ points });
   } catch (error) {
+    if (charged) await settleFailedCall(error, charged);
     if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("texts/apontamentos", error);
   }

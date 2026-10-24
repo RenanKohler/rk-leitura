@@ -129,5 +129,5 @@ export async function generateStudyCards({
   if (cards.length > 0) return cards;
   // Tudo o que veio repetia cartoes ja salvos: diz isso, em vez de "falhou".
   const repeated = existingFronts.length > 0 && cleanGeneratedCards(parsed, index, mode).length > 0;
-  throw new AiUnavailable(repeated ? NO_NEW_CARDS : STUDY_CARDS_MESSAGES.failure, repeated ? 422 : 503);
+  throw AiUnavailable.invalid(repeated ? NO_NEW_CARDS : STUDY_CARDS_MESSAGES.failure, repeated ? 422 : 503);
 }

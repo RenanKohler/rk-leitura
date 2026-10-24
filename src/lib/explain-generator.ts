@@ -98,7 +98,7 @@ export async function explainSentence(
   });
 
   const explanation = parseExplanation(parsed, language !== DEFAULT_LANGUAGE);
-  if (!explanation) throw new AiUnavailable(EXPLAIN_FAILURE);
+  if (!explanation) throw AiUnavailable.invalid(EXPLAIN_FAILURE);
   return explanation;
 }
 
@@ -153,7 +153,7 @@ export async function streamExplanation(
     raw = null;
   }
   const explanation = parseExplanation(raw, foreign);
-  if (!explanation) throw new AiUnavailable(EXPLAIN_FAILURE);
+  if (!explanation) throw AiUnavailable.invalid(EXPLAIN_FAILURE);
   return explanation;
 }
 
@@ -194,6 +194,6 @@ export async function streamFollowUp(
     .map((block) => (block.type === "text" ? block.text : ""))
     .join("");
   const result = parseFollowUp(text, kind);
-  if (!result) throw new AiUnavailable(EXPLAIN_FAILURE);
+  if (!result) throw AiUnavailable.invalid(EXPLAIN_FAILURE);
   return result;
 }

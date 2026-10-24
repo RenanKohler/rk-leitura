@@ -91,7 +91,7 @@ export async function generateSynopsis(
   });
 
   const synopsis = clampSynopsis(parsed?.synopsis ?? "");
-  if (!synopsis) throw new AiUnavailable(MESSAGES.failure);
+  if (!synopsis) throw AiUnavailable.invalid(MESSAGES.failure);
 
   const key = synopsisKey(textId, content);
   // A versao anterior do conteudo nao volta: a sinopse dela so ocuparia espaco.

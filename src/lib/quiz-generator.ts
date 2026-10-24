@@ -19,10 +19,19 @@ import { SESSION_CHECK_QUESTIONS } from "@/lib/session-check";
  * tratamento de erro ficam em `lib/ai.ts` (US-123).
  */
 
+/**
+ * Prazo da geracao (US-196): abaixo dos 60 segundos da funcao, para a rota
+ * ainda responder a mensagem certa e devolver a cota, em vez de um 504 da
+ * plataforma.
+ */
+export const QUIZ_TIMEOUT_MS = 50_000;
+export const QUIZ_TIMEOUT_MESSAGE = "O questionário demorou demais. Tente de novo.";
+
 const MESSAGES: AiMessages = {
   notConfigured: "O questionário não está configurado nesta instalação.",
   refusal: "Não consigo montar perguntas sobre este texto.",
   failure: "Não consegui montar o questionário agora.",
+  timeout: QUIZ_TIMEOUT_MESSAGE,
 };
 
 const QuestionSchema = z.object({
@@ -95,6 +104,7 @@ export async function generateQuiz(
     maxTokens: 8000,
     // `medium` e o padrao deste modelo; fica explicito para nao mudar sem aviso.
     effort: "medium",
+    timeoutMs: QUIZ_TIMEOUT_MS,
     content: [
       {
         role: "user",
@@ -107,7 +117,7 @@ export async function generateQuiz(
   // propria roda de qualquer jeito: e ela que garante que a tela nunca receba
   // uma pergunta impossivel de responder.
   const quiz = parseQuiz(parsed);
-  if (!quiz) throw new AiUnavailable(MESSAGES.failure);
+  if (!quiz) throw AiUnavailable.invalid(MESSAGES.failure);
 
   return quiz;
 }
@@ -143,6 +153,7 @@ export async function generateSessionQuiz(
     system: SYSTEM,
     maxTokens: 4000,
     effort: "medium",
+    timeoutMs: QUIZ_TIMEOUT_MS,
     content: [
       {
         role: "user",
@@ -152,6 +163,6 @@ export async function generateSessionQuiz(
   });
 
   const quiz = parseQuiz(parsed, SESSION_CHECK_QUESTIONS, SESSION_CHECK_QUESTIONS);
-  if (!quiz) throw new AiUnavailable(MESSAGES.failure);
+  if (!quiz) throw AiUnavailable.invalid(MESSAGES.failure);
   return quiz;
 }

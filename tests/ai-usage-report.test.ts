@@ -28,7 +28,7 @@ describe("summarizeByFeature (US-141)", () => {
     expect(report).toMatchObject({
       feature: "resumo",
       calls: 10,
-      outcomes: { sucesso: 7, recusa: 1, tempo: 1, falha: 1 },
+      outcomes: { sucesso: 7, recusa: 1, invalida: 0, tempo: 1, falha: 1 },
       successRate: 70,
     });
   });

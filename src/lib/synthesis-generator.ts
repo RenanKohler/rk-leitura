@@ -61,6 +61,6 @@ export async function synthesizeHighlights(
   });
 
   const clean = cleanSynthesis(parsed?.synthesis, included);
-  if (!clean) throw new AiUnavailable(SYNTHESIS_MESSAGES.failure);
+  if (!clean) throw AiUnavailable.invalid(SYNTHESIS_MESSAGES.failure);
   return clean;
 }

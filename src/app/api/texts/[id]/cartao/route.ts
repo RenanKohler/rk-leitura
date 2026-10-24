@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { aiErrorResponse, AiUnavailable } from "@/lib/ai";
+import { settleFailedCall, type ChargedCall } from "@/lib/ai-refund";
 import {
   cardProposal,
   MAX_PASSAGE_WORDS,
@@ -31,6 +32,7 @@ export async function POST(request: Request, { params }: Params) {
   const limit = await rateLimit(`cartao:${clientIp(request)}`, 60, 60 * 60 * 1000);
   if (!limit.allowed) return jsonError("Muitos pedidos seguidos. Aguarde um pouco.", 429);
 
+  let charged: ChargedCall | null = null;
   try {
     const { id } = await params;
     const text = await loadStudyText(session.id, id);
@@ -43,14 +45,16 @@ export async function POST(request: Request, { params }: Params) {
 
     const blocked = await studyGate(session.id, CARD_MESSAGES);
     if (blocked) return blocked;
+    charged = { userId: session.id, task: "cartao", quota: "estudo" };
 
     const excerpt = passageExcerpt(text.paragraphs, span);
     const proposal = cardProposal(
       await proposeCard(session.id, id, text.title, excerpt, text.language)
     );
-    if (!proposal) return jsonError(CARD_MESSAGES.failure, 503);
+    if (!proposal) throw AiUnavailable.invalid(CARD_MESSAGES.failure);
     return NextResponse.json({ proposal });
   } catch (error) {
+    if (charged) await settleFailedCall(error, charged);
     if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("texts/cartao", error);
   }

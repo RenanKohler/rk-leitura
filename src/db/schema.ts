@@ -737,7 +737,7 @@ export const aiUsage = pgTable(
     cacheWriteTokens: integer("cache_write_tokens").notNull().default(0),
     /** Chamada feita pela Batches API, cobrada pela metade. */
     batch: boolean("batch").notNull().default(false),
-    /** sucesso, recusa, tempo ou falha (US-141). */
+    /** sucesso, recusa, invalida (US-195), tempo ou falha (US-141). */
     outcome: text("outcome").notNull().default("sucesso"),
     /** Texto de onde saiu o conteudo enviado; nulo no dicionario (US-144). */
     textId: uuid("text_id").references(() => texts.id, { onDelete: "set null" }),

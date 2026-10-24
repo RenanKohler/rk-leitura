@@ -203,7 +203,7 @@ export async function generateWeekIdeas(userId: string): Promise<string> {
   });
 
   const paragraph = clampIdeas(parsed?.paragraph);
-  if (!paragraph) throw new AiUnavailable(MESSAGES.failure);
+  if (!paragraph) throw AiUnavailable.invalid(MESSAGES.failure);
 
   await saveAiResult(userId, null, "semana", weekIdeasKey(week.monday), {
     paragraph,

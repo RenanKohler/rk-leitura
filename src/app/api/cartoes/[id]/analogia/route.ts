@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { studyCards } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { aiClient, aiErrorResponse, aiGate, AiUnavailable } from "@/lib/ai";
+import { settleFailedCall, type ChargedCall } from "@/lib/ai-refund";
 import { analogyRequest, storedAnalogy } from "@/lib/analogy";
 import { ANALOGY_MESSAGES, generateAnalogy } from "@/lib/analogy-generator";
 import { consumeDailyQuota } from "@/lib/daily-quota";
@@ -36,6 +37,7 @@ export async function POST(request: Request, { params }: Params) {
     });
   }
 
+  let charged: ChargedCall | null = null;
   try {
     const { id } = await params;
     if (!UUID_PATTERN.test(id)) return jsonError("Cartão não encontrado.", 404);
@@ -54,6 +56,7 @@ export async function POST(request: Request, { params }: Params) {
     if (!quota.allowed) {
       return jsonError(QUOTA_MESSAGES.estudo, 429, { retryAfter: quota.retryAfterSeconds });
     }
+    charged = { userId: session.id, task: "analogia", quota: "estudo" };
 
     const words = parseParagraphs(card.content, asTextFormat(card.format)).words;
     const analogy = await generateAnalogy(
@@ -68,6 +71,7 @@ export async function POST(request: Request, { params }: Params) {
 
     return NextResponse.json({ analogy });
   } catch (error) {
+    if (charged) await settleFailedCall(error, charged);
     if (error instanceof AiUnavailable) return aiErrorResponse(error);
     return serverError("cartoes/analogia", error);
   }
