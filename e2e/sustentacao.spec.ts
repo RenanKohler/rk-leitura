@@ -246,3 +246,57 @@ test("US-192: salvar cartoes relocaliza o trecho no conteudo atual", async ({ pa
   );
   expect(row).toEqual({ source_start: 2, source_end: 8 });
 });
+
+test("US-193: apagar o que a IA gerou leva tambem o que foi gerado no estudo", async ({ page }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const user = await userId(request);
+  const text = await createText(request, "Estudo com IA", 120);
+
+  const card = (front: string, kind: string, edited: boolean, analogy: string | null) =>
+    runSql(
+      `insert into study_cards (user_id, text_id, front, back, kind, source_start, source_end, edited_at, analogy)
+       values ($1, $2, $3, 'Verso', $4, 0, 5, ${edited ? "now()" : "null"}, $5)`,
+      [user, text.id, front, kind, analogy]
+    );
+  await card("Gerado", "conceito", false, null);
+  await card("Gerado com analogia", "lacuna", false, "Como um rio");
+  await card("Editado", "ponto", true, "Como uma serra");
+  await card("Meu", "manual", false, null);
+
+  const highlight = await (
+    await request.post(`/api/texts/${text.id}/destaques`, { data: { start: 0, end: 5 } })
+  ).json();
+  await runSql("update highlights set card_prompt = 'P', card_answer = 'R' where id = $1", [highlight.id]);
+  await runSql(
+    "insert into comprehension_quizzes (text_id, content_key, questions) values ($1, 'k', '[]')",
+    [text.id]
+  );
+
+  const before = await (await request.get("/api/ia/resultados")).json();
+  expect(before.counts).toMatchObject({
+    cartoes: 2,
+    analogias: 2,
+    cartoesDestaque: 1,
+    questionarios: 1,
+    cartoesEditados: 1,
+  });
+
+  const deleted = await (await request.delete("/api/ia/resultados")).json();
+  expect(deleted.kept).toBe(1);
+
+  const cards = await query<{ front: string; analogy: string | null }>(
+    "select front, analogy from study_cards where user_id = $1 order by front",
+    [user]
+  );
+  expect(cards).toEqual([
+    { front: "Editado", analogy: null },
+    { front: "Meu", analogy: null },
+  ]);
+  const [mark] = await query<{ card_prompt: string | null }>("select card_prompt from highlights where id = $1", [
+    highlight.id,
+  ]);
+  expect(mark!.card_prompt).toBeNull();
+  expect(await query("select id from comprehension_quizzes where text_id = $1", [text.id])).toEqual([]);
+  expect((await (await request.get("/api/ia/resultados")).json()).count).toBe(0);
+});
