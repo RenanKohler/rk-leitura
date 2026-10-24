@@ -17,7 +17,7 @@ import { useWakeLock } from "@/hooks/use-wake-lock";
 import { pageOfWord, usePagedText } from "@/hooks/use-paged-text";
 import { useSettings, useTheme, useToast, type ThemePreference } from "@/components/providers";
 import { useOffline } from "@/components/offline-provider";
-import { NEEDS_NETWORK } from "@/lib/offline";
+import { createSaveRetry, NEEDS_NETWORK, queueDisposition, SAVE_FAILURE_NOTICE } from "@/lib/offline";
 import { Button, Card, Segmented, Sheet, Slider, Spinner } from "@/components/ui";
 import {
   BackIcon,
@@ -451,20 +451,55 @@ function Reader({
    */
   const plannedRef = useRef(plannedMs);
 
+  // Gravacoes que falharam (US-171): o aviso aparece depois de tres falhas
+  // seguidas e some na primeira que der certo.
+  const [saveFailing, setSaveFailing] = useState(false);
+  const [retry] = useState(() =>
+    createSaveRetry(
+      (body, keepalive) =>
+        fetch("/api/reading-sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+          keepalive,
+        }),
+      setSaveFailing
+    )
+  );
+
+  /**
+   * Grava a posicao. So conta como salva depois do `response.ok`: antes o
+   * `savedIndexRef` avancava antes do envio e uma falha passageira fazia a
+   * mesma posicao nunca mais ser reenviada (US-171).
+   */
   const saveProgress = useCallback(
-    (position: number, useKeepalive = false) => {
-      if (position === savedIndexRef.current) return;
+    (position: number, useKeepalive = false): Promise<void> => {
+      if (position === savedIndexRef.current) return Promise.resolve();
+      // Marca antes para duas chamadas seguidas nao enviarem em dobro; a
+      // falha desfaz a marca, e a proxima chamada reenvia.
       savedIndexRef.current = position;
-      void fetch(`/api/texts/${text.id}`, {
+      const undo = () => {
+        if (savedIndexRef.current === position) savedIndexRef.current = -1;
+        retry.failed();
+      };
+      return fetch(`/api/texts/${text.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         // A hora do aparelho acompanha a posicao: o que ficou na fila offline
         // pode chegar depois de outro aparelho ja ter gravado aqui.
         body: JSON.stringify({ progressIndex: position, at: new Date().toISOString() }),
         keepalive: useKeepalive,
-      }).catch(() => undefined);
+      }).then(
+        (response) => {
+          if (response.ok) {
+            retry.succeeded();
+            void retry.retry();
+          } else if (queueDisposition(response.status) === "manter") undo();
+        },
+        undo
+      );
     },
-    [text.id]
+    [text.id, retry]
   );
 
   /** Grava uma sessao fechada. Devolve o id dela, para a checagem (US-149). */
@@ -478,29 +513,30 @@ function Reader({
       visitMsRef.current += record.wallMs;
       const planned = plannedRef.current;
       plannedRef.current = undefined;
-      return fetch("/api/reading-sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          textId: text.id,
-          wordsRead: record.wordsRead,
-          durationMs: record.durationMs,
-          completed,
-          narrated: record.mode === "narracao",
-          mode: record.mode,
-          brakes: record.brakes,
-          plannedMs: planned,
-        }),
-        keepalive: useKeepalive,
-      })
+      const body = JSON.stringify({
+        textId: text.id,
+        wordsRead: record.wordsRead,
+        durationMs: record.durationMs,
+        completed,
+        narrated: record.mode === "narracao",
+        mode: record.mode,
+        brakes: record.brakes,
+        plannedMs: planned,
+        // Hora da leitura: a sessao que chega depois conta no dia em que foi
+        // lida (US-172).
+        readAt: new Date().toISOString(),
+      });
+      // Falha passageira fica pendente e e reenviada (US-171).
+      return retry
+        .post(body, useKeepalive)
         .then(async (response) =>
-          response.ok
-            ? (((await response.json()) as { session?: { id?: string } }).session?.id ?? null)
+          response
+            ? (((await response.json().catch(() => ({}))) as { session?: { id?: string } }).session
+                ?.id ?? null)
             : null
-        )
-        .catch(() => null);
+        );
     },
-    [text.id]
+    [text.id, retry]
   );
 
   /** Grava a sessao aberta (se houver o que gravar). O relogio segue como estava. */
@@ -959,6 +995,16 @@ function Reader({
       window.removeEventListener("pagehide", onPageHide);
     };
   }, [pause, saveProgress, flushSession]);
+
+  // A rede voltou: reenvia a posicao e as sessoes que falharam (US-171).
+  useEffect(() => {
+    const onOnline = () => {
+      void saveProgress(stateRef.current.index);
+      void retry.retry();
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [saveProgress, retry]);
 
   // Sair do leitor pela navegacao do app (desmontar) tambem grava.
   useEffect(
@@ -1610,6 +1656,16 @@ function Reader({
       <p className="sr-only" role="status" aria-live="polite">
         {announcement}
       </p>
+
+      {saveFailing ? (
+        <p
+          role="alert"
+          data-testid="aviso-gravacao"
+          className="mx-4 mt-2 rounded-2xl bg-danger-soft px-4 py-3 text-sm text-danger"
+        >
+          {SAVE_FAILURE_NOTICE}
+        </p>
+      ) : null}
 
       <main
         className={`relative flex min-h-0 flex-1 flex-col ${finished || recapPlaying || chapterRecapPlaying ? "overflow-y-auto" : ""}`}
