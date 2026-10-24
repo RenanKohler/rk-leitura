@@ -178,3 +178,71 @@ test("US-183: sair de todos os aparelhos apaga todas as inscricoes", async ({ pa
   );
   expect(settings!.reminder_hour).toBeNull();
 });
+
+test("US-192: reescrever o texto apaga os cartoes da IA e marca os do leitor", async ({ page }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const user = await userId(request);
+  const text = await createText(request, "Cartoes e conteudo", 120);
+  await request.patch(`/api/texts/${text.id}`, { data: { progressIndex: 119 } });
+
+  const insert = (front: string, kind: string, edited: boolean) =>
+    query<{ id: string }>(
+      `insert into study_cards (user_id, text_id, front, back, kind, source_start, source_end, edited_at)
+       values ($1, $2, $3, 'Verso', $4, ${kind === "manual" ? "0, 0" : "10, 15"}, ${edited ? "now()" : "null"}) returning id`,
+      [user, text.id, front, kind]
+    );
+  await insert("Gerado", "conceito", false);
+  await insert("Gerado e editado", "ponto", true);
+  await insert("Feito a mao", "manual", false);
+
+  const saved = await request.put(`/api/texts/${text.id}`, {
+    data: { title: "Cartoes e conteudo", content: "Um conteudo inteiramente novo para ler agora." },
+  });
+  expect(saved.ok()).toBeTruthy();
+
+  const rows = await query<{ front: string; source_changed: boolean; source_end: number }>(
+    "select front, source_changed, source_end from study_cards where text_id = $1 order by front",
+    [text.id]
+  );
+  expect(rows).toEqual([
+    { front: "Feito a mao", source_changed: true, source_end: 0 },
+    { front: "Gerado e editado", source_changed: true, source_end: 0 },
+  ]);
+});
+
+test("US-192: salvar cartoes relocaliza o trecho no conteudo atual", async ({ page }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const created = await request.post("/api/texts", {
+    data: {
+      title: "Relocalizar",
+      content: "O rio nasce na serra alta e desce devagar ate o mar aberto do sul.",
+    },
+  });
+  const text = (await created.json()).text as { id: string };
+
+  // O conteudo muda depois de gerar: uma frase entra no comeco.
+  await request.put(`/api/texts/${text.id}`, {
+    data: {
+      title: "Relocalizar",
+      content: "Abertura nova. O rio nasce na serra alta e desce devagar ate o mar aberto do sul.",
+    },
+  });
+
+  const response = await request.put(`/api/texts/${text.id}/cartoes-estudo`, {
+    data: {
+      cards: [
+        { front: "Onde nasce o rio?", back: "Na serra", kind: "conceito", sourceStart: 0, sourceEnd: 6, passage: "O rio nasce na serra alta" },
+        { front: "Sumiu", back: "x", kind: "conceito", sourceStart: 0, sourceEnd: 4, passage: "trecho que nao existe mais aqui" },
+      ],
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  expect(await response.json()).toEqual({ saved: 1, dropped: 1 });
+  const [row] = await query<{ source_start: number; source_end: number }>(
+    "select source_start, source_end from study_cards where text_id = $1",
+    [text.id]
+  );
+  expect(row).toEqual({ source_start: 2, source_end: 8 });
+});

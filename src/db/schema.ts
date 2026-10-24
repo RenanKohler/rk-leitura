@@ -811,6 +811,17 @@ export const studyCards = pgTable(
     /** Resposta no teste de conhecimento previo (US-170): "sabia" ou "nao_sabia". */
     pretest: text("pretest"),
     pretestedAt: timestamp("pretested_at", { withTimezone: true }),
+    /**
+     * Quando o leitor editou frente ou verso de um cartao ja salvo (US-193).
+     * Cartao gerado pela IA e editado deixa de ser "o que a IA gerou": fica
+     * quando os resultados da IA sao apagados.
+     */
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    /**
+     * O conteudo do texto foi reescrito e o trecho de origem deixou de
+     * existir (US-192). A tela mostra "Trecho de origem alterado".
+     */
+    sourceChanged: boolean("source_changed").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

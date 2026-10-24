@@ -4,7 +4,8 @@ import { studyCards } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { todayIn } from "@/lib/goals";
 import { loadSettings } from "@/lib/queries";
-import { manualCard, parseDraftEdits } from "@/lib/study-card-drafts";
+import { manualCard, parseDraftEdits, relocateDrafts } from "@/lib/study-card-drafts";
+import { parseParagraphs } from "@/lib/reading";
 import {
   loadExportCards,
   loadPretestCards,
@@ -115,8 +116,12 @@ export async function PUT(request: Request, { params }: Params) {
     if (!text) return jsonError("Texto não encontrado.", 404);
 
     const body = await readJson<{ cards?: unknown }>(request);
-    const cards = parseDraftEdits(body?.cards, text.wordCount);
-    if (!cards) return jsonError("Envie os cartões com frente e verso.", 400);
+    const parsed = parseDraftEdits(body?.cards, text.wordCount);
+    if (!parsed) return jsonError("Envie os cartões com frente e verso.", 400);
+    // A posicao enviada vale para o conteudo de quando os cartoes foram
+    // gerados; o trecho e procurado no conteudo de agora (US-192).
+    const { kept: cards, dropped } = relocateDrafts(parsed, parseParagraphs(text.content, text.format).words);
+    if (cards.length === 0) return NextResponse.json({ saved: 0, dropped });
 
     await db.insert(studyCards).values(
       cards.map((card) => ({
@@ -131,7 +136,7 @@ export async function PUT(request: Request, { params }: Params) {
       }))
     );
 
-    return NextResponse.json({ saved: cards.length });
+    return NextResponse.json({ saved: cards.length, dropped });
   } catch (error) {
     return serverError("texts/cartoes-estudo/salvar", error);
   }

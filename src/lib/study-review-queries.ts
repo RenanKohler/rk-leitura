@@ -67,6 +67,8 @@ export interface StudyReviewCard {
   sourceStart: number;
   /** Trecho de origem, para mostrar junto do verso. */
   source: string;
+  /** Conteudo reescrito depois do cartao (US-192). */
+  sourceChanged: boolean;
   interval: number;
 }
 
@@ -91,6 +93,7 @@ interface CardRow {
   sourceEnd: number;
   nextReviewOn: string | null;
   interval: number;
+  sourceChanged: boolean;
   progressIndex: number;
   wordCount: number;
 }
@@ -106,6 +109,7 @@ const cardColumns = {
   sourceEnd: studyCards.sourceEnd,
   nextReviewOn: studyCards.nextReviewOn,
   interval: studyCards.reviewInterval,
+  sourceChanged: studyCards.sourceChanged,
   progressIndex: texts.progressIndex,
   wordCount: texts.wordCount,
 };
@@ -170,6 +174,7 @@ async function withSources(userId: string, rows: CardRow[]): Promise<StudyReview
         analogy: row.analogy,
         sourceStart: row.sourceStart,
         source: source.words.slice(row.sourceStart, row.sourceEnd).join(" "),
+        sourceChanged: row.sourceChanged,
         interval: currentInterval(row.interval),
       },
     ];

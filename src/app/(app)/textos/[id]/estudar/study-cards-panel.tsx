@@ -21,6 +21,7 @@ import {
   isConcluded,
   isStudyCardKind,
   MAX_CARD_SIDE_CHARS,
+  SOURCE_CHANGED_LABEL,
   splitByReading,
   STUDY_CARD_KIND_LABELS,
 } from "@/lib/study-cards";
@@ -35,6 +36,7 @@ interface SavedCard {
   sourceStart: number;
   sourceEnd: number;
   nextReviewOn: string | null;
+  sourceChanged?: boolean;
 }
 
 interface CardList {
@@ -165,12 +167,13 @@ export function StudyCardsPanel({ textId, progressIndex, wordCount }: StudyProps
     setError("");
     try {
       const data = await apiSend<{ saved: number }>(`/api/texts/${textId}/cartoes-estudo`, "PUT", {
-        cards: drafts.map(({ front, back, kind, sourceStart, sourceEnd }) => ({
+        cards: drafts.map(({ front, back, kind, sourceStart, sourceEnd, passage }) => ({
           front,
           back,
           kind,
           sourceStart,
           sourceEnd,
+          passage,
         })),
       });
       setDrafts(null);
@@ -568,7 +571,10 @@ function SavedCardItem({ card, onChanged }: { card: SavedCard; onChanged: () => 
         </>
       ) : (
         <>
-          <p className="text-xs font-medium text-faint">{kindLabel(card.kind)}</p>
+          <p className="text-xs font-medium text-faint">
+            {kindLabel(card.kind)}
+            {card.sourceChanged ? ` · ${SOURCE_CHANGED_LABEL}` : ""}
+          </p>
           <p className="font-medium">{card.front}</p>
           <p className="text-sm text-muted">{card.back}</p>
           {error ? <Alert>{error}</Alert> : null}

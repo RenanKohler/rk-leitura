@@ -36,7 +36,8 @@ export async function PATCH(request: Request, { params }: Params) {
 
     await db
       .update(studyCards)
-      .set({ front, back: sides.back, updatedAt: new Date() })
+      // Editado: deixa de ser "o que a IA gerou" (US-193).
+      .set({ front, back: sides.back, editedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(studyCards.id, card.id), eq(studyCards.userId, session.id)));
     return NextResponse.json({ card: { id: card.id, front, back: sides.back } });
   } catch (error) {
