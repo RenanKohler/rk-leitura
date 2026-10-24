@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { reviewAnswers, studyCards } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
@@ -44,7 +44,10 @@ export async function POST(request: Request, { params }: Params) {
     const today = todayIn((await loadSettings(session.id))?.timezone ?? "UTC");
     const next = afterGrade(currentInterval(card.interval), grade, today);
 
-    await db
+    // So grava se o cartao ainda estiver vencido (US-198): a mesma nota
+    // enviada duas vezes (toque duplo, fila offline) conta uma vez. A
+    // condicao no UPDATE resolve tambem as duas chegando ao mesmo tempo.
+    const [updated] = await db
       .update(studyCards)
       .set({
         reviewInterval: next.interval,
@@ -52,7 +55,17 @@ export async function POST(request: Request, { params }: Params) {
         lastReviewedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(and(eq(studyCards.id, id), eq(studyCards.userId, session.id)));
+      .where(
+        and(
+          eq(studyCards.id, id),
+          eq(studyCards.userId, session.id),
+          or(isNull(studyCards.nextReviewOn), lte(studyCards.nextReviewOn, today))
+        )
+      )
+      .returning({ id: studyCards.id });
+    if (!updated) {
+      return NextResponse.json({ interval: card.interval, nextReviewOn: card.nextReviewOn, repeated: true });
+    }
 
     await db.insert(reviewAnswers).values({ userId: session.id, kind: "cartao", itemId: id, grade });
 

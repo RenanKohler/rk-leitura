@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { highlights, reviewAnswers } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
     const owned = and(eq(highlights.id, id), eq(highlights.userId, session.id));
     const [current] = await db
-      .select({ interval: highlights.reviewInterval })
+      .select({ interval: highlights.reviewInterval, dueOn: highlights.reviewDueOn })
       .from(highlights)
       .where(owned)
       .limit(1);
@@ -51,16 +51,22 @@ export async function POST(request: Request) {
     const today = todayIn((await loadSettings(session.id))?.timezone ?? "UTC");
     const next = afterGrade(currentInterval(current.interval), grade, today);
 
+    // So grava se o destaque ainda estiver vencido (US-198): a mesma nota
+    // enviada duas vezes conta uma vez, inclusive chegando juntas.
     // `updatedAt` fica como esta: ele diz quando o destaque ou a nota
     // mudaram, e revisar nao muda nenhum dos dois.
-    await db
+    const [updated] = await db
       .update(highlights)
       .set({
         reviewInterval: next.interval,
         reviewDueOn: next.nextReviewOn,
         lastReviewedAt: new Date(),
       })
-      .where(owned);
+      .where(and(owned, or(isNull(highlights.reviewDueOn), lte(highlights.reviewDueOn, today))))
+      .returning({ id: highlights.id });
+    if (!updated) {
+      return NextResponse.json({ interval: current.interval, nextReviewOn: current.dueOn, repeated: true });
+    }
 
     await db
       .insert(reviewAnswers)
