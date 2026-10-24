@@ -176,5 +176,26 @@ export function createSaveRetry(
   };
 }
 
+/** Ate quantos dias atras a hora de leitura enviada pelo aparelho vale. */
+export const MAX_READ_AT_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Hora em que a sessao conta (US-172).
+ *
+ * Uma sessao lida offline na segunda e sincronizada na terca precisa contar
+ * para a meta e a sequencia de segunda. O aparelho manda a hora da leitura;
+ * vale ela, salvo se estiver no futuro em relacao ao servidor ou a mais de
+ * 7 dias - ai o relogio do aparelho nao merece confianca e vale a do
+ * servidor.
+ */
+export function sessionReadAt(readAt: unknown, serverNow: Date = new Date()): Date {
+  if (typeof readAt !== "string") return serverNow;
+  const at = Date.parse(readAt);
+  if (Number.isNaN(at)) return serverNow;
+  const now = serverNow.getTime();
+  if (at > now || now - at > MAX_READ_AT_AGE_MS) return serverNow;
+  return new Date(at);
+}
+
 /** Acoes que exigem rede e precisam avisar em vez de falhar em silencio. */
 export const NEEDS_NETWORK = "Esta ação precisa de conexão.";

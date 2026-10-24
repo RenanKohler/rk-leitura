@@ -7,7 +7,9 @@ import {
   queueDisposition,
   RETRY_STATUS,
   SAVE_FAILURES_BEFORE_NOTICE,
+  sessionReadAt,
 } from "@/lib/offline";
+import { todayIn } from "@/lib/goals";
 
 const sw = readFileSync(join(process.cwd(), "public/sw.js"), "utf8");
 
@@ -108,5 +110,35 @@ describe("createSaveRetry (US-171)", () => {
     retry.failed();
     retry.succeeded();
     expect(changes).toEqual([true, false]);
+  });
+});
+
+describe("sessionReadAt (US-172)", () => {
+  const now = new Date("2026-10-20T15:00:00Z");
+
+  it("vale a hora da leitura enviada pelo aparelho", () => {
+    const monday = "2026-10-19T22:30:00Z";
+    expect(sessionReadAt(monday, now).toISOString()).toBe("2026-10-19T22:30:00.000Z");
+  });
+
+  it("hora no futuro vira a do servidor", () => {
+    expect(sessionReadAt("2026-10-20T15:05:00Z", now)).toBe(now);
+  });
+
+  it("mais de 7 dias no passado vira a do servidor", () => {
+    expect(sessionReadAt("2026-10-12T14:59:00Z", now)).toBe(now);
+    expect(sessionReadAt("2026-10-13T15:01:00Z", now).toISOString()).toBe("2026-10-13T15:01:00.000Z");
+  });
+
+  it("sem hora ou com valor invalido vale a do servidor", () => {
+    expect(sessionReadAt(undefined, now)).toBe(now);
+    expect(sessionReadAt("ontem", now)).toBe(now);
+    expect(sessionReadAt(123, now)).toBe(now);
+  });
+
+  it("conta no dia do fuso do leitor", () => {
+    // 01h30 UTC de terca ainda e segunda em Sao Paulo.
+    const at = sessionReadAt("2026-10-20T01:30:00Z", now);
+    expect(todayIn("America/Sao_Paulo", at)).toBe("2026-10-19");
   });
 });
