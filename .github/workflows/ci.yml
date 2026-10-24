@@ -35,6 +35,10 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Migrations em dia com o schema
+        # Gera numa copia e falha se surgir SQL novo (US-205). Nao usa banco.
+        run: npm run db:check
+
       - name: Testes
         run: npm test
 

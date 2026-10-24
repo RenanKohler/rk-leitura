@@ -44,3 +44,4 @@ yarn-error.log*
 
 # voz baixavel: copiado de node_modules no postinstall
 /public/tts/
+.migrations-check/

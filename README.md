@@ -10,7 +10,7 @@ Next.js 16 (App Router) + React 19 + PostgreSQL via Drizzle ORM.
 
 ## Comecando
 
-Requisitos: Node.js 20+ e um PostgreSQL (local ou gerenciado).
+Requisitos: Node.js 22 (o mesmo de `engines` no package.json) e um PostgreSQL (local ou gerenciado).
 
 ```bash
 npm install
