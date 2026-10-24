@@ -3,7 +3,15 @@ import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { aiErrorResponse, AiUnavailable } from "@/lib/ai";
 import { loadAiResult, saveAiResult } from "@/lib/ai-results";
 import { excerptOf } from "@/lib/ai-text";
-import { guideKey, guideRange, NO_SECTIONS, parseStoredGuide, validGuide } from "@/lib/guide-questions";
+import {
+  GUIDE_AHEAD,
+  guideAllowed,
+  guideKey,
+  guideRange,
+  NO_SECTIONS,
+  parseStoredGuide,
+  validGuide,
+} from "@/lib/guide-questions";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { generateGuide, GUIDE_MESSAGES } from "@/lib/study-ai";
 import { keysOf, loadStudyText, sectionsOf, studyGate } from "@/lib/study-tools";
@@ -36,6 +44,9 @@ export async function POST(request: Request, { params }: Params) {
     const body = await readJson<{ section?: unknown; cachedOnly?: unknown }>(request);
     const section = sectionStartingAt(sections, Number(body?.section));
     if (!section) return jsonError("Seção não encontrada.", 404);
+    // Antes de qualquer leitura de cache ou envio: secao adiante da leitura
+    // nao sai daqui (US-194).
+    if (!guideAllowed(sections, section.start, text.progressIndex)) return jsonError(GUIDE_AHEAD, 403);
 
     const key = guideKey(id, text.fingerprint, section.start);
     const known = parseStoredGuide(await loadAiResult<unknown>(session.id, "guia", key));

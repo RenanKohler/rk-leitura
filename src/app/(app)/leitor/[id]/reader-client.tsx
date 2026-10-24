@@ -454,6 +454,7 @@ function Reader({
   // Gravacoes que falharam (US-171): o aviso aparece depois de tres falhas
   // seguidas e some na primeira que der certo.
   const [saveFailing, setSaveFailing] = useState(false);
+  const lastSaveRef = useRef<Promise<void>>(Promise.resolve());
   const [retry] = useState(() =>
     createSaveRetry(
       (body, keepalive) =>
@@ -474,7 +475,9 @@ function Reader({
    */
   const saveProgress = useCallback(
     (position: number, useKeepalive = false): Promise<void> => {
-      if (position === savedIndexRef.current) return Promise.resolve();
+      // Mesma posicao: devolve o envio em andamento, para quem espera a
+      // gravacao (perguntas-guia) nao passar na frente dele.
+      if (position === savedIndexRef.current) return lastSaveRef.current;
       // Marca antes para duas chamadas seguidas nao enviarem em dobro; a
       // falha desfaz a marca, e a proxima chamada reenvia.
       savedIndexRef.current = position;
@@ -482,7 +485,7 @@ function Reader({
         if (savedIndexRef.current === position) savedIndexRef.current = -1;
         retry.failed();
       };
-      return fetch(`/api/texts/${text.id}`, {
+      const saving = fetch(`/api/texts/${text.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         // A hora do aparelho acompanha a posicao: o que ficou na fila offline
@@ -498,6 +501,8 @@ function Reader({
         },
         undo
       );
+      lastSaveRef.current = saving;
+      return saving;
     },
     [text.id, retry]
   );
@@ -1250,6 +1255,8 @@ function Reader({
   }, [words, seek, language]);
 
   /** Vai para uma posicao escolhida na navegacao, com a leitura pausada. */
+  const savePositionNow = useCallback(() => saveProgress(stateRef.current.index), [saveProgress]);
+
   const goTo = useCallback(
     (position: number) => {
       if (stateRef.current.playing) pause("folha");
@@ -2115,6 +2122,7 @@ function Reader({
         index={index}
         onOpenChange={setGuiding}
         onGo={goTo}
+        savePosition={savePositionNow}
       />
 
       <NavigateSheet
