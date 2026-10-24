@@ -15,8 +15,16 @@ const securityHeaders = [
   },
 ];
 
+/**
+ * Identificador do build (US-176): vai no endereco do service worker, que o
+ * usa no nome dos caches. Cada deploy troca o worker e descarta os caches do
+ * anterior. Na Vercel e o commit; fora dela, a hora do build.
+ */
+const buildId = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || String(Date.now());
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  env: { NEXT_PUBLIC_BUILD_ID: buildId },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

@@ -16,7 +16,7 @@ import { normalizeTagList } from "@/lib/tags";
 import { applyTags } from "@/lib/text-tags";
 import { detectSeries } from "@/lib/series";
 import { asTextFormat, clamp, countWords } from "@/lib/reading";
-import { acceptsPosition } from "@/lib/offline";
+import { acceptsPosition, TEXT_CHANGED } from "@/lib/offline";
 import { normalizeAuthor } from "@/lib/import-analysis";
 import { cardAfterRewrite } from "@/lib/study-cards";
 
@@ -33,13 +33,29 @@ function ownedText(id: string, userId: string) {
   return and(eq(texts.id, id), eq(texts.userId, userId));
 }
 
-export async function GET(_request: Request, { params }: Params) {
+export async function GET(request: Request, { params }: Params) {
   const session = await requireSession();
   if (session instanceof NextResponse) return session;
 
   try {
     const { id } = await params;
     if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
+
+    // So a posicao (US-174): a aba que volta a ficar visivel confere se outro
+    // aparelho avancou, sem baixar o conteudo de novo.
+    if (new URL(request.url).searchParams.get("campos") === "posicao") {
+      const [position] = await db
+        .select({
+          progressIndex: texts.progressIndex,
+          wordCount: texts.wordCount,
+          updatedAt: texts.updatedAt,
+        })
+        .from(texts)
+        .where(ownedText(id, session.id))
+        .limit(1);
+      if (!position) return jsonError("Texto não encontrado.", 404);
+      return NextResponse.json({ position }, { headers: { "Cache-Control": "no-store" } });
+    }
 
     // `loadText` em vez da linha crua: o editor precisa saber quantos
     // destaques existem para avisar que salvar o conteudo vai remove-los.
@@ -195,9 +211,12 @@ export async function PATCH(request: Request, { params }: Params) {
     const { id } = await params;
     if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
 
-    const body = await readJson<{ progressIndex?: unknown; at?: unknown }>(request);
+    const body = await readJson<{ progressIndex?: unknown; at?: unknown; words?: unknown }>(request);
     const progressIndex = asInteger(body?.progressIndex);
     if (progressIndex === null) return jsonError("Posição inválida.", 400);
+    // Palavras do texto que a aba tem aberto (US-174): ausente nos clientes
+    // antigos e na fila offline gravada antes dele.
+    const words = body?.words === undefined ? null : asInteger(body.words);
 
     const [current] = await db
       .select({
@@ -210,6 +229,10 @@ export async function PATCH(request: Request, { params }: Params) {
       .limit(1);
 
     if (!current) return jsonError("Texto não encontrado.", 404);
+    // O texto foi editado em outra aba: a posicao desta e de outro conteudo.
+    if (words !== null && words !== current.wordCount) {
+      return jsonError(TEXT_CHANGED, 409, { changed: true });
+    }
 
     // Um save que ficou na fila offline pode ser mais antigo do que o que
     // outro aparelho ja gravou aqui: vence o mais recente, nao o maior (US-40,

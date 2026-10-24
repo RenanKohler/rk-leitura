@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { CheckIcon } from "@/components/icons";
+import { clearLocalPositions } from "@/lib/offline";
 import { dropPushSubscription } from "@/lib/push-client";
 import type { FontFamily } from "@/lib/reading";
 import { THEME_STORAGE_KEY, type ResolvedTheme, type ThemePreference } from "@/lib/theme";
@@ -249,6 +250,12 @@ function AuthProvider({
           });
         } finally {
           setUser(null);
+          // Posicoes de leitura guardadas no aparelho (US-173).
+          try {
+            clearLocalPositions(localStorage);
+          } catch {
+            // Sem armazenamento: nada a apagar.
+          }
           // O cache offline guarda o HTML do leitor, que traz o texto da
           // pessoa dentro: sair da conta apaga.
           void navigator.serviceWorker?.ready

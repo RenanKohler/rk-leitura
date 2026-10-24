@@ -14,8 +14,11 @@
  */
 
 // A versao entra no nome do cache: publicar uma versao nova descarta a
-// anterior inteira, que e o criterio 5 da US-40.
-const VERSION = "v1";
+// anterior inteira, que e o criterio 5 da US-40. Ela vem do build, no
+// endereco do worker (`/sw.js?v=...`, US-176): cada deploy registra um
+// endereco novo, o navegador instala este arquivo de novo e o `activate`
+// apaga os caches com o nome antigo.
+const VERSION = new URL(self.location.href).searchParams.get("v") || "v1";
 const SHELL = `leitura-casca-${VERSION}`;
 const PAGES = `leitura-paginas-${VERSION}`;
 const OFFLINE_URL = "/offline";
@@ -212,10 +215,11 @@ const READABLE = /^\/(leitor\/|textos$)/;
  * Quantas paginas de leitura ficam guardadas.
  *
  * O HTML do leitor traz o texto inteiro dentro, entao cada entrada pesa o
- * tamanho do proprio texto. Vinte cobre a biblioteca recente sem tomar o
- * armazenamento do navegador.
+ * tamanho do proprio texto. Os textos sao os mesmos `OFFLINE_TEXTS` de
+ * `src/lib/offline.ts` (um teste compara), mais a biblioteca e uma folga.
  */
-const MAX_PAGES = 22;
+const OFFLINE_TEXTS = 20;
+const MAX_PAGES = OFFLINE_TEXTS + 2;
 
 /** Descarta as entradas mais antigas quando o cache passa do teto. */
 async function trimPages() {
@@ -249,7 +253,10 @@ async function handleNavigation(request) {
     }
     return response;
   } catch {
-    const cached = await caches.match(request, { ignoreSearch: true });
+    // So o cache desta versao: a copia de uma versao anterior ja foi apagada
+    // no `activate`, e o leitor sem copia cai na tela offline, que pede para
+    // abrir o texto com rede (US-176).
+    const cached = await caches.match(request, { ignoreSearch: true, cacheName: PAGES });
     if (cached) return cached;
 
     const offline = await caches.match(OFFLINE_URL);

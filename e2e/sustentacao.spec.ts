@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { Client } from "pg";
-import { createText, randomIp, registerByApi } from "./helpers";
+import { createText, openReader, progressOf, randomIp, registerByApi } from "./helpers";
 import { runSql } from "./db";
 
 /**
@@ -408,4 +408,54 @@ test("US-197: a mesma frente nao e salva duas vezes no texto", async ({ page }) 
   expect(saved.reduce((sum, value) => sum + value, 0)).toBe(1);
   const [row] = await query<{ n: string }>("select count(*) as n from study_cards where text_id = $1", [text.id]);
   expect(Number(row!.n)).toBe(2);
+});
+
+/** Simula a aba ficar escondida e voltar, como ao trocar de aplicativo. */
+async function hideAndShow(page: import("@playwright/test").Page) {
+  await page.evaluate(() => {
+    const set = (state: string) => {
+      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    set("hidden");
+    set("visible");
+  });
+}
+
+test("US-174: outro aparelho avancou e a aba antiga pergunta antes de continuar", async ({ page }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const text = await createText(request, "Dois aparelhos", 300);
+  await openReader(page, text.id);
+
+  // O computador le ate a palavra 200.
+  const other = await request.patch(`/api/texts/${text.id}`, {
+    data: { progressIndex: 200, words: text.wordCount },
+  });
+  expect(other.ok()).toBeTruthy();
+
+  await hideAndShow(page);
+  const notice = page.getByTestId("outro-aparelho");
+  await expect(notice).toContainText("Você leu até a palavra 200 em outro aparelho. Continuar de lá?");
+  await notice.getByRole("button", { name: "Continuar" }).click();
+  await expect(notice).toHaveCount(0);
+
+  // Escondida de novo, a aba nao grava a posicao velha por cima.
+  await hideAndShow(page);
+  await page.waitForTimeout(500);
+  expect(await progressOf(request, text.id)).toBe(200);
+  await expect(notice).toHaveCount(0);
+});
+
+test("US-174: posicao de um texto editado em outra aba e recusada", async ({ page }) => {
+  const request = page.request;
+  await registerByApi(request);
+  const text = await createText(request, "Editado", 120);
+  const stale = await request.patch(`/api/texts/${text.id}`, {
+    data: { progressIndex: 10, words: text.wordCount + 5 },
+  });
+  expect(stale.status()).toBe(409);
+  expect((await stale.json()).error).toBe("O texto foi editado em outra aba.");
+  const position = await request.get(`/api/texts/${text.id}?campos=posicao`);
+  expect((await position.json()).position).toMatchObject({ progressIndex: 0, wordCount: text.wordCount });
 });

@@ -15,9 +15,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import { pageOfWord, usePagedText } from "@/hooks/use-paged-text";
-import { useSettings, useTheme, useToast, type ThemePreference } from "@/components/providers";
+import { useAuth, useSettings, useTheme, useToast, type ThemePreference } from "@/components/providers";
 import { useOffline } from "@/components/offline-provider";
-import { createSaveRetry, NEEDS_NETWORK, queueDisposition, SAVE_FAILURE_NOTICE } from "@/lib/offline";
+import {
+  createSaveRetry,
+  localPositionKey,
+  NEEDS_NETWORK,
+  openingPosition,
+  otherDeviceMessage,
+  otherDevicePosition,
+  parseLocalPosition,
+  queueDisposition,
+  SAVE_FAILURE_NOTICE,
+} from "@/lib/offline";
 import { Button, Card, Segmented, Sheet, Slider, Spinner } from "@/components/ui";
 import {
   BackIcon,
@@ -230,6 +240,7 @@ function Reader({
   const { preference: themePreference, setPreference: setThemePreference } = useTheme();
   const notify = useToast();
   const { online } = useOffline();
+  const { user } = useAuth();
 
   // Em estado porque a busca da proxima parte faz o texto crescer durante a
   // leitura, sem recarregar a tela.
@@ -468,6 +479,30 @@ function Reader({
     )
   );
 
+  // Ultima posicao que esta aba sabe estar no servidor (US-174): a do HTML
+  // e, depois, a de cada gravacao aceita. Outra diferente la veio de fora.
+  const knownPositionRef = useRef(text.progressIndex);
+  // Posicao de outro aparelho esperando resposta: enquanto a pergunta esta na
+  // tela, nada e gravado - "Continuar" nao pode ser precedido da posicao velha.
+  const [remoteJump, setRemoteJump] = useState<number | null>(null);
+  const remoteJumpRef = useRef<number | null>(null);
+
+  /** Guarda a posicao no aparelho, para reabrir offline onde parou (US-173). */
+  const storeLocalPosition = useCallback(
+    (position: number) => {
+      if (!user) return;
+      try {
+        localStorage.setItem(
+          localPositionKey(user.id, text.id),
+          JSON.stringify({ progressIndex: position, at: new Date().toISOString(), words: text.wordCount })
+        );
+      } catch {
+        // Sem armazenamento: vale a posicao do servidor.
+      }
+    },
+    [user, text.id, text.wordCount]
+  );
+
   /**
    * Grava a posicao. So conta como salva depois do `response.ok`: antes o
    * `savedIndexRef` avancava antes do envio e uma falha passageira fazia a
@@ -475,9 +510,11 @@ function Reader({
    */
   const saveProgress = useCallback(
     (position: number, useKeepalive = false): Promise<void> => {
+      if (remoteJumpRef.current !== null) return lastSaveRef.current;
       // Mesma posicao: devolve o envio em andamento, para quem espera a
       // gravacao (perguntas-guia) nao passar na frente dele.
       if (position === savedIndexRef.current) return lastSaveRef.current;
+      storeLocalPosition(position);
       // Marca antes para duas chamadas seguidas nao enviarem em dobro; a
       // falha desfaz a marca, e a proxima chamada reenvia.
       savedIndexRef.current = position;
@@ -490,13 +527,23 @@ function Reader({
         headers: { "Content-Type": "application/json" },
         // A hora do aparelho acompanha a posicao: o que ficou na fila offline
         // pode chegar depois de outro aparelho ja ter gravado aqui.
-        body: JSON.stringify({ progressIndex: position, at: new Date().toISOString() }),
+        // As palavras dizem de qual conteudo e a posicao: texto editado em
+        // outra aba responde 409 (US-174).
+        body: JSON.stringify({
+          progressIndex: position,
+          at: new Date().toISOString(),
+          words: text.wordCount,
+        }),
         keepalive: useKeepalive,
       }).then(
         (response) => {
           if (response.ok) {
+            knownPositionRef.current = position;
             retry.succeeded();
             void retry.retry();
+          } else if (response.status === 409) {
+            // A posicao desta aba e de outro conteudo: recarrega o texto.
+            window.location.reload();
           } else if (queueDisposition(response.status) === "manter") undo();
         },
         undo
@@ -504,7 +551,43 @@ function Reader({
       lastSaveRef.current = saving;
       return saving;
     },
-    [text.id, retry]
+    [text.id, text.wordCount, retry, storeLocalPosition]
+  );
+
+  // Abertura (US-173): a posicao gravada no aparelho vale se for mais recente
+  // que a do HTML - que, offline, e a da ultima visita com rede. Roda uma vez,
+  // depois de montar, para o HTML do servidor e o primeiro render baterem.
+  const openedRef = useRef(false);
+  useEffect(() => {
+    if (openedRef.current || !user || startAt !== undefined) return;
+    openedRef.current = true;
+    let local = null;
+    try {
+      local = parseLocalPosition(localStorage.getItem(localPositionKey(user.id, text.id)));
+    } catch {
+      return;
+    }
+    const position = openingPosition(text, local);
+    if (position === null) return;
+    const target = clamp(position, 0, Math.max(0, stateRef.current.total - 1));
+    setIndex(target);
+  }, [user, text, startAt]);
+
+  /** Responde a pergunta da posicao de outro aparelho (US-174). */
+  const answerRemoteJump = useCallback(
+    (follow: boolean) => {
+      const position = remoteJumpRef.current;
+      remoteJumpRef.current = null;
+      setRemoteJump(null);
+      if (position === null) return;
+      knownPositionRef.current = position;
+      if (!follow) return;
+      // A posicao ja esta no servidor: so a tela e o aparelho mudam.
+      savedIndexRef.current = position;
+      storeLocalPosition(position);
+      setIndex(clamp(position, 0, Math.max(0, stateRef.current.total - 1)));
+    },
+    [storeLocalPosition]
   );
 
   /** Grava uma sessao fechada. Devolve o id dela, para a checagem (US-149). */
@@ -1000,6 +1083,32 @@ function Reader({
       window.removeEventListener("pagehide", onPageHide);
     };
   }, [pause, saveProgress, flushSession]);
+
+  // De volta a aba (US-174): outro aparelho pode ter avancado ou o texto ter
+  // sido editado. Sem rede, segue daqui sem aviso.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || remoteJumpRef.current !== null) return;
+      fetch(`/api/texts/${text.id}?campos=posicao`, { cache: "no-store" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((data: { position?: { progressIndex: number; wordCount: number } } | null) => {
+          if (!data?.position || remoteJumpRef.current !== null) return;
+          const outcome = otherDevicePosition(data.position, {
+            known: knownPositionRef.current,
+            current: stateRef.current.index,
+            words: text.wordCount,
+          });
+          if (outcome === "recarregar") window.location.reload();
+          else if (outcome !== null) {
+            remoteJumpRef.current = outcome;
+            setRemoteJump(outcome);
+          }
+        })
+        .catch(() => undefined);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [text.id, text.wordCount]);
 
   // A rede voltou: reenvia a posicao e as sessoes que falharam (US-171).
   useEffect(() => {
@@ -1663,6 +1772,24 @@ function Reader({
       <p className="sr-only" role="status" aria-live="polite">
         {announcement}
       </p>
+
+      {remoteJump !== null ? (
+        <div
+          role="alert"
+          data-testid="outro-aparelho"
+          className="mx-4 mt-2 flex flex-wrap items-center gap-3 rounded-2xl bg-accent-soft px-4 py-3 text-sm text-ink"
+        >
+          <p className="min-w-0 flex-1">{otherDeviceMessage(remoteJump)}</p>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => answerRemoteJump(true)}>
+              Continuar
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => answerRemoteJump(false)}>
+              Ficar aqui
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {saveFailing ? (
         <p
