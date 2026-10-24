@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { studyCards } from "@/db/schema";
-import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
-import { clozeSentence, manualCard, normalizeGap } from "@/lib/study-card-drafts";
-import { loadOwnedCard } from "@/lib/study-card-store";
+import { isUniqueViolation, jsonError, readJson, requireSession, serverError } from "@/lib/api";
+import { clozeSentence, DUPLICATE_FRONT, manualCard, normalizeGap, storedFrontKey } from "@/lib/study-card-drafts";
+import { loadFrontKeys, loadOwnedCard } from "@/lib/study-card-store";
 import { isCardRead } from "@/lib/study-cards";
 
 export const dynamic = "force-dynamic";
@@ -34,13 +34,20 @@ export async function PATCH(request: Request, { params }: Params) {
       return jsonError("Mantenha uma lacuna (____) na frente.", 400);
     }
 
+    // A frente nova nao pode repetir a de outro cartao do texto (US-197).
+    const key = storedFrontKey(front);
+    if (key && (await loadFrontKeys(session.id, card.textId, card.id)).has(key)) {
+      return jsonError(DUPLICATE_FRONT, 409);
+    }
+
     await db
       .update(studyCards)
       // Editado: deixa de ser "o que a IA gerou" (US-193).
-      .set({ front, back: sides.back, editedAt: new Date(), updatedAt: new Date() })
+      .set({ front, back: sides.back, frontKey: key, editedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(studyCards.id, card.id), eq(studyCards.userId, session.id)));
     return NextResponse.json({ card: { id: card.id, front, back: sides.back } });
   } catch (error) {
+    if (isUniqueViolation(error)) return jsonError(DUPLICATE_FRONT, 409);
     return serverError("cartoes/editar", error);
   }
 }

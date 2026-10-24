@@ -6,6 +6,7 @@ import { Alert, Button, Card, SectionTitle } from "@/components/ui";
 import { apiSend } from "@/lib/client";
 import { wordNumber } from "@/lib/ask";
 import { GLOSSARY_TOO_SOON, glossaryCut, type GlossaryEntry } from "@/lib/glossary";
+import { DUPLICATE_FRONT } from "@/lib/study-card-drafts";
 import type { StudyProps } from "./study-props";
 import { readerAt, useStudyRequest } from "./study-request";
 
@@ -38,7 +39,10 @@ export function GlossaryPanel({ textId, progressIndex, wordCount }: StudyProps) 
       await apiSend(`/api/texts/${textId}/glossario/cartao`, "POST", entry);
       setMade((current) => new Set(current).add(entry.term));
     } catch (cause) {
-      setCardError(cause instanceof Error ? cause.message : "Não consegui criar o cartão.");
+      const message = cause instanceof Error ? cause.message : "Não consegui criar o cartão.";
+      // Ja salvo antes (outra aba, painel reaberto): o termo conta como feito (US-197).
+      if (message === DUPLICATE_FRONT) setMade((current) => new Set(current).add(entry.term));
+      setCardError(message);
     } finally {
       setMaking(null);
     }

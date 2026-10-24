@@ -204,6 +204,13 @@
       "when": 1792854067736,
       "tag": "0028_cartoes_origem_edicao",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792859509273,
+      "tag": "0029_cartoes_frente_unica",
+      "breakpoints": true
     }
   ]
 }

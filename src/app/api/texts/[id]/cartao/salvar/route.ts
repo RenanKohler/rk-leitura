@@ -3,6 +3,7 @@ import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
 import { MAX_PASSAGE_WORDS, PASSAGE_TOO_LONG, passageSpan, passageWords } from "@/lib/passage-card";
 import { cardSide, MAX_CARD_SIDE_CHARS } from "@/lib/study-cards";
 import { insertStudyCard, loadStudyText } from "@/lib/study-tools";
+import { DUPLICATE_FRONT } from "@/lib/study-card-drafts";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export async function POST(request: Request, { params }: Params) {
       sourceStart: span.start,
       sourceEnd: span.end,
     });
+    if (!card) return jsonError(DUPLICATE_FRONT, 409);
     return NextResponse.json({ card: { id: card.id, front, back } }, { status: 201 });
   } catch (error) {
     return serverError("texts/cartao/salvar", error);

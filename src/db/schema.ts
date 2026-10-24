@@ -822,12 +822,18 @@ export const studyCards = pgTable(
      * existir (US-192). A tela mostra "Trecho de origem alterado".
      */
     sourceChanged: boolean("source_changed").notNull().default(false),
+    /**
+     * Frente normalizada (`frontKey`): o mesmo cartao nao entra duas vezes no
+     * texto (US-197). Nula nos cartoes gravados antes dela.
+     */
+    frontKey: text("front_key"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("study_cards_text_idx").on(table.userId, table.textId),
     index("study_cards_review_idx").on(table.userId, table.nextReviewOn),
+    uniqueIndex("study_cards_front_key_idx").on(table.textId, table.frontKey),
   ]
 );
 

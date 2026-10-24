@@ -12,6 +12,8 @@ import { contentKey } from "@/lib/quiz";
 import { QUOTA_MESSAGES } from "@/lib/quota";
 import { asTextFormat, parseParagraphs, type Paragraph } from "@/lib/reading";
 import { navigationHeadings } from "@/lib/sections";
+import { storedFrontKey } from "@/lib/study-card-drafts";
+import { loadFrontKeys } from "@/lib/study-card-store";
 import type { StudyCardKind } from "@/lib/study-cards";
 import { sectionRanges, type TextSection } from "@/lib/text-sections";
 
@@ -92,9 +94,17 @@ export interface NewStudyCard {
 /**
  * Grava um cartao de estudo. `nextReviewOn` fica nulo: o cartao vence assim
  * que o trecho de origem estiver lido (`isCardDue`), e os desta funcao ja sao
- * de trechos lidos.
+ * de trechos lidos. Devolve null quando o texto ja tem um cartao com a mesma
+ * frente (US-197): a conferencia pega os cartoes antigos, sem chave gravada,
+ * e o indice unico, duas gravacoes simultaneas.
  */
-export async function insertStudyCard(userId: string, textId: string, card: NewStudyCard) {
+export async function insertStudyCard(
+  userId: string,
+  textId: string,
+  card: NewStudyCard
+): Promise<{ id: string } | null> {
+  const key = storedFrontKey(card.front);
+  if (key && (await loadFrontKeys(userId, textId)).has(key)) return null;
   const [row] = await db
     .insert(studyCards)
     .values({
@@ -106,9 +116,11 @@ export async function insertStudyCard(userId: string, textId: string, card: NewS
       sourceStart: card.sourceStart,
       sourceEnd: card.sourceEnd,
       nextReviewOn: null,
+      frontKey: key,
     })
+    .onConflictDoNothing()
     .returning({ id: studyCards.id });
-  return row!;
+  return row ?? null;
 }
 
 /**

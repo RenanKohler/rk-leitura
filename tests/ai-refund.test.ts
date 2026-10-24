@@ -5,7 +5,7 @@ const executed: unknown[] = [];
 vi.mock("@/db", () => ({
   db: { execute: vi.fn(async (query: unknown) => executed.push(query)) },
 }));
-const release = vi.fn(async () => undefined);
+const release = vi.fn(async (..._args: unknown[]) => undefined);
 vi.mock("@/lib/daily-quota", () => ({ releaseDailyQuota: (...args: unknown[]) => release(...args) }));
 
 const { AiUnavailable, translate } = await import("@/lib/ai");
