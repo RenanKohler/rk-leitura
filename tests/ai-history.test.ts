@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   DELETED_TEXT,
+  FEATURE_LABELS,
   featureLabel,
   outcomeLabel,
   textLabel,
   UNRECORDED_TEXT,
 } from "@/lib/ai-history";
+import { AI_MODELS } from "@/lib/ai";
 
 describe("historico de envios (US-144)", () => {
   it("mostra o titulo quando o texto existe", () => {
@@ -44,5 +46,20 @@ describe("historico de envios (US-144)", () => {
     expect(outcomeLabel("sucesso")).toBe("Concluída");
     expect(outcomeLabel("tempo")).toBe("Tempo esgotado");
     expect(outcomeLabel("outro")).toBe("Falhou");
+  });
+});
+
+describe("nome de cada funcao (US-200)", () => {
+  it("toda funcao de AI_MODELS tem nome em portugues", () => {
+    for (const task of Object.keys(AI_MODELS)) {
+      expect(FEATURE_LABELS, task).toHaveProperty(task);
+      expect(featureLabel(task)).not.toBe(task);
+    }
+  });
+
+  it("as funcoes de estudo aparecem pelo nome", () => {
+    expect(featureLabel("estudo")).toBe("Cartões de estudo");
+    expect(featureLabel("glossario")).toBe("Glossário");
+    expect(featureLabel("apontamentos")).toBe("Explicar com as próprias palavras");
   });
 });

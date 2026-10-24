@@ -6,10 +6,16 @@
  * palavras foram.
  */
 
+import type { AiTask } from "@/lib/ai";
+
 /** Quantas chamadas o historico mostra. */
 export const HISTORY_LIMIT = 50;
 
-const FEATURE_LABELS: Record<string, string> = {
+/**
+ * Nome de cada funcao. O tipo exige uma entrada para cada chave de
+ * `AI_MODELS`: funcao nova sem nome nao compila (US-200).
+ */
+export const FEATURE_LABELS: Record<AiTask, string> = {
   questionario: "Questionário",
   dicionario: "Dicionário",
   explicacao: "Explicação de frase",
@@ -22,6 +28,14 @@ const FEATURE_LABELS: Record<string, string> = {
   cartoes: "Cartões de revisão",
   secoes: "Seções do documento",
   semana: "Ideias da semana",
+  // Aprendizado assistido (US-155 a US-170).
+  estudo: "Cartões de estudo",
+  cartao: "Cartão de um trecho",
+  glossario: "Glossário",
+  fichamento: "Fichamento",
+  guia: "Perguntas-guia",
+  apontamentos: "Explicar com as próprias palavras",
+  analogia: "Analogia de cartão",
 };
 
 /**
@@ -49,7 +63,7 @@ const OUTCOME_LABELS: Record<string, string> = {
 };
 
 export function featureLabel(feature: string): string {
-  return FEATURE_LABELS[feature] ?? feature;
+  return (FEATURE_LABELS as Record<string, string>)[feature] ?? feature;
 }
 
 export function outcomeLabel(outcome: string): string {
