@@ -221,6 +221,8 @@ export interface SavedDraft {
   kind: GeneratedKind;
   sourceStart: number;
   sourceEnd: number;
+  /** Trecho de origem como a tela o recebeu, para relocalizar no conteudo atual (US-192). */
+  passage?: string;
 }
 
 /**
@@ -241,11 +243,62 @@ export function parseDraftEdits(raw: unknown, wordCount: number): SavedDraft[] |
     const end = record.sourceEnd;
     if (!front || !back || !kind) return null;
     if (!Number.isInteger(start) || !Number.isInteger(end)) return null;
-    if ((start as number) < 0 || (end as number) <= (start as number) || (end as number) > wordCount) return null;
+    const passage = typeof record.passage === "string" && record.passage.trim() ? record.passage : undefined;
+    // Com o trecho informado, a posicao pode ser do conteudo anterior: o
+    // limite e conferido depois, na relocalizacao.
+    if ((start as number) < 0 || (end as number) <= (start as number)) return null;
+    if (!passage && (end as number) > wordCount) return null;
     if (kind === "lacuna" && !clozeSentence(front, back)) return null;
-    cards.push({ front: kind === "lacuna" ? normalizeGap(front) : front, back, kind, sourceStart: start as number, sourceEnd: end as number });
+    cards.push({
+      front: kind === "lacuna" ? normalizeGap(front) : front,
+      back,
+      kind,
+      sourceStart: start as number,
+      sourceEnd: end as number,
+      ...(passage ? { passage } : {}),
+    });
   }
   return cards;
+}
+
+/** O trecho bate com as palavras `[start, end)`, sem contar caixa, acento e pontuacao. */
+function passageAt(words: string[], passage: string, start: number, end: number): boolean {
+  if (start < 0 || end > words.length || start >= end) return false;
+  const terms = passage.split(/\s+/).map(searchKey).filter(Boolean);
+  const keys = words.slice(start, end).map(searchKey).filter(Boolean);
+  return terms.length > 0 && terms.length === keys.length && terms.every((term, i) => term === keys[i]);
+}
+
+/**
+ * Relocaliza no conteudo atual o trecho de cada cartao (US-192).
+ *
+ * O texto pode ter mudado entre gerar e salvar (outra aba, reprocessamento):
+ * a posicao que a tela manda vale para o conteudo de antes. O trecho e
+ * procurado de novo com `locatePassage`; o que nao aparece mais e
+ * descartado. Cartao sem trecho informado (tela antiga) segue com a posicao
+ * enviada.
+ */
+export function relocateDrafts(
+  cards: SavedDraft[],
+  words: string[]
+): { kept: SavedDraft[]; dropped: number } {
+  const index = passageIndex(words);
+  const kept: SavedDraft[] = [];
+  for (const card of cards) {
+    if (!card.passage) {
+      if (card.sourceEnd <= words.length) kept.push(card);
+      continue;
+    }
+    // O trecho ainda esta onde estava: fica la, mesmo que se repita antes.
+    if (passageAt(words, card.passage, card.sourceStart, card.sourceEnd)) {
+      kept.push(card);
+      continue;
+    }
+    const span = locatePassage(index, card.passage);
+    if (!span) continue;
+    kept.push({ ...card, sourceStart: span.start, sourceEnd: span.end });
+  }
+  return { kept, dropped: cards.length - kept.length };
 }
 
 /* --- cartao a mao (US-159) --------------------------------------------------- */

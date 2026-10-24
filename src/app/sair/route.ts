@@ -51,6 +51,14 @@ const PAGE = `<!doctype html>
     if (navigator.serviceWorker && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({ type: "limpar" });
     }
+    // A sessao foi encerrada: o navegador deixa de aceitar notificacoes da
+    // inscricao antiga (US-183). O servidor ja apagou a linha dela.
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+      navigator.serviceWorker.getRegistration()
+        .then(function (r) { return r && r.pushManager ? r.pushManager.getSubscription() : null; })
+        .then(function (s) { return s ? s.unsubscribe() : null; })
+        .catch(function () {});
+    }
     if (window.caches) {
       caches.keys()
         .then(function (keys) {

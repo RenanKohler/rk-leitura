@@ -5,6 +5,12 @@ import { apiGet, apiSend } from "@/lib/client";
 import { useSettings, useToast } from "@/components/providers";
 import { AiHistory } from "@/components/ai-history";
 import { Alert, Button, Card, SectionTitle, Segmented, Sheet } from "@/components/ui";
+import {
+  keepsEditedNotice,
+  keptEditedNotice,
+  storedBreakdown,
+  type StoredAiCounts,
+} from "@/lib/ai-stored";
 
 interface QuotaRow {
   kind: string;
@@ -23,9 +29,9 @@ interface Usage {
 
 /** O que a exclusao leva e o que fica (US-143). */
 const DELETE_SCOPE =
-  "Apaga as explicações, resumos, descrições de nomes, sinopses e sínteses guardados, e as perguntas feitas aos textos com as respostas.";
+  "Apaga as explicações, resumos, descrições de nomes, sinopses e sínteses guardados, as perguntas feitas aos textos com as respostas, e o que a IA gerou no estudo: cartões de estudo, analogias, cartões de destaque e questionários.";
 const DELETE_KEEPS =
-  "As definições salvas em Palavras e as notas criadas a partir de respostas são suas e continuam guardadas.";
+  "As definições salvas em Palavras, as notas criadas a partir de respostas, os cartões feitos por você e os cartões gerados que você editou continuam guardados.";
 const DELETED = "Resultados de IA apagados.";
 
 /**
@@ -41,6 +47,8 @@ export function AiCard() {
   const [usage, setUsage] = useState<Usage | null>(null);
   // Itens guardados (resultados e perguntas); null enquanto carrega.
   const [stored, setStored] = useState<number | null>(null);
+  // Contagem por tipo, para a confirmacao dizer o que sai (US-193).
+  const [counts, setCounts] = useState<StoredAiCounts | null>(null);
   const [confirming, setConfirming] = useState<"apagar" | "desligar" | null>(null);
   const [alsoDelete, setAlsoDelete] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -53,9 +61,11 @@ export function AiCard() {
         if (active) setUsage(data);
       })
       .catch(() => undefined);
-    void apiGet<{ count: number }>("/api/ia/resultados")
+    void apiGet<{ count: number; counts?: StoredAiCounts }>("/api/ia/resultados")
       .then((data) => {
-        if (active) setStored(data.count);
+        if (!active) return;
+        setStored(data.count);
+        setCounts(data.counts ?? null);
       })
       .catch(() => undefined);
     return () => {
@@ -85,25 +95,27 @@ export function AiCard() {
     setError("");
   };
 
-  const deleteStored = async (): Promise<boolean> => {
+  /** Apaga; devolve o aviso dos cartoes editados mantidos ("" sem eles), ou null na falha. */
+  const deleteStored = async (): Promise<string | null> => {
     try {
-      await apiSend("/api/ia/resultados", "DELETE");
+      const data = await apiSend<{ kept?: number }>("/api/ia/resultados", "DELETE");
       setStored(0);
-      return true;
+      setCounts(null);
+      return keptEditedNotice(data.kept ?? 0) ?? "";
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível apagar. Tente de novo.");
-      return false;
+      return null;
     }
   };
 
   const confirmDelete = async () => {
     setBusy(true);
     setError("");
-    const ok = await deleteStored();
+    const kept = await deleteStored();
     setBusy(false);
-    if (!ok) return;
+    if (kept === null) return;
     setConfirming(null);
-    notify(DELETED, "success");
+    notify(kept ? `${DELETED} ${kept}` : DELETED, "success");
   };
 
   const confirmTurnOff = async () => {
@@ -115,12 +127,16 @@ export function AiCard() {
       setError("Não foi possível salvar. Tente de novo.");
       return;
     }
-    const deleted = alsoDelete && (stored ?? 0) > 0 ? await deleteStored() : false;
+    const kept = alsoDelete && (stored ?? 0) > 0 ? await deleteStored() : null;
+    const deleted = kept !== null;
     setBusy(false);
     // Desligou, mas a exclusao falhou: a folha fica aberta com o erro.
     if (alsoDelete && (stored ?? 0) > 0 && !deleted) return;
     setConfirming(null);
-    notify(deleted ? `Recursos de IA desligados. ${DELETED}` : "Recursos de IA desligados.", "success");
+    notify(
+      deleted ? `Recursos de IA desligados. ${DELETED}${kept ? ` ${kept}` : ""}` : "Recursos de IA desligados.",
+      "success"
+    );
   };
 
   if (usage && !usage.configured) {
@@ -202,7 +218,15 @@ export function AiCard() {
       <Sheet open={confirming === "apagar"} title="Apagar o que a IA gerou" onClose={close}>
         <div className="space-y-4">
           <p className="text-sm text-muted">{DELETE_SCOPE}</p>
+          {counts && storedBreakdown(counts) ? (
+            <p className="text-sm font-medium" data-testid="ia-guardado-por-tipo">
+              {`Guardado agora: ${storedBreakdown(counts)}.`}
+            </p>
+          ) : null}
           <p className="text-sm text-muted">{DELETE_KEEPS}</p>
+          {counts && counts.cartoesEditados > 0 ? (
+            <p className="text-sm text-muted">{keepsEditedNotice(counts.cartoesEditados)}</p>
+          ) : null}
           <p className="text-sm text-faint">
             Abrir de novo um resumo apagado gera outro, que conta na cota do dia.
           </p>

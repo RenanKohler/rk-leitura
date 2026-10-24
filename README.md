@@ -62,9 +62,18 @@ O projeto `rk-leitura` esta ligado a este repositorio, com `DATABASE_URL` e
 `JWT_SECRET` definidos como variaveis sensiveis e as funcoes na regiao `gru1`
 (Sao Paulo) - perto de quem usa e do banco. Cada push na `main` gera um deploy.
 
-O script `vercel-build` aplica as migrations antes de compilar, entao o schema
-acompanha o deploy sem passo manual. Se as migrations falharem, o build para e
-o deploy anterior continua no ar.
+O script `vercel-build` aplica as migrations antes de compilar, so no deploy de
+Production (`VERCEL_ENV=production`), entao o schema acompanha o deploy sem
+passo manual. Se as migrations falharem, o build para e o deploy anterior
+continua no ar. Os deploys de Preview usam o mesmo banco de producao e por isso
+nao migram (`scripts/migrate-on-deploy.mjs`): uma migration de PR ainda nao
+aprovado nao altera o banco do app no ar.
+
+Regra das migrations: sempre aditivas. Expandir antes, remover depois - coluna
+ou tabela nova entra numa versao, o codigo passa a usa-la, e o que deixou de
+ser usado sai numa versao seguinte, depois que nenhum deploy no ar depende
+dele. Como o Preview roda contra o schema de producao, um PR que depende de
+coluna nova so funciona por inteiro no Preview depois do merge.
 
 Para criar o banco: projeto novo em <https://neon.tech> (gratuito, sem cartao),
 regiao `sa-east-1`, e copie a **Pooled connection**.

@@ -8,7 +8,7 @@
  */
 
 import { findQuote, spanText } from "@/lib/passage-match";
-import type { TextSection } from "@/lib/text-sections";
+import { sectionIndexAt, type TextSection } from "@/lib/text-sections";
 
 export const MAX_GUIDE_QUESTIONS = 3;
 export const MAX_GUIDE_QUESTION_CHARS = 200;
@@ -27,6 +27,19 @@ export interface GuideQuestion {
   quote: string;
   start: number;
   end: number;
+}
+
+export const GUIDE_AHEAD = "As perguntas-guia só saem para a seção que você está começando.";
+
+/**
+ * A secao pedida pode ir a IA (US-194)? So a secao em que a leitura esta ou
+ * a seguinte - a que o leitor esta comecando. Uma secao adiante revelaria o
+ * que vem depois. A posicao e a gravada no servidor, nao a que o cliente diz.
+ */
+export function guideAllowed(sections: TextSection[], sectionStart: number, progressIndex: number): boolean {
+  const requested = sections.findIndex((section) => section.start === sectionStart);
+  if (requested < 0) return false;
+  return requested <= sectionIndexAt(sections, progressIndex) + 1;
 }
 
 /** Intervalo enviado: a secao, cortada no teto pelo comeco. */

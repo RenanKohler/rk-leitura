@@ -11,7 +11,8 @@ estudo com IA e operação. A numeração continua a de
 
 ## Premissas
 
-- Todas as stories são **Proposta**. Cada uma cita no campo Evidência o trecho
+- As stories nasceram como **Proposta**; o campo Status de cada uma registra
+  o andamento. Cada uma cita no campo Evidência o trecho
   do código que mostra a lacuna; a auditoria foi feita por leitura estática, sem
   executar os testes nem o app.
 - Duas stories corrigem critérios de stories marcadas como implementadas: a
@@ -60,7 +61,7 @@ exclusão do que a IA gerou); o restante tem contorno até ser corrigido.
 **Épico:** Progresso e leitura offline
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx:454-466` (`savedIndexRef` avança antes do fetch e o erro é engolido), `reader-client.tsx:481-500` (`postRecord` sem nova tentativa), `public/sw.js:83` (a fila descarta a entrada em qualquer 4xx)
 
 Como leitor que lê offline, eu quero que minha posição e minhas sessões só
@@ -88,7 +89,7 @@ enviada com a sessão de outra conta.
 **Épico:** Progresso e leitura offline
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/db/schema.ts:158` (`createdAt` com `defaultNow()`), `src/app/api/reading-sessions/route.ts:86-105` (sem hora da leitura), `public/sw.js:226` (`at: Date.now()` guardado e não enviado)
 
 Como leitor que lê offline, eu quero que a sessão conte no dia em que li, para
@@ -150,7 +151,7 @@ outro aparelho, para que eu continue sempre do ponto mais avançado.
 **Épico:** Progresso e leitura offline
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `public/sw.js:121-129` (o "limpar" não apaga o IndexedDB `leitura-offline`), `src/app/sair/route.ts:52-60`, `public/sw.js:236-238` (trata `sync` sem nenhum `sync.register` em `src/`)
 
 Como leitor que lê offline, eu quero que minhas leituras pendentes fiquem
@@ -223,7 +224,7 @@ conexão, para que eu não perca o que achei importante no metrô.
 **Épico:** Importação e narração
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/lib/safe-fetch.ts:206` (sempre `new TextDecoder("utf-8")`), `src/components/file-import.tsx:202,225` (`file.text()`)
 
 Como leitor, eu quero que páginas e arquivos em ISO-8859-1 ou Windows-1252
@@ -331,7 +332,7 @@ não diga que meu aparelho não tem voz quando ele tem.
 **Épico:** Segurança e privacidade da conta
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/auth/logout/route.ts:4-9`, `src/app/api/auth/aparelhos/[deviceId]/route.ts:26`, `src/components/providers.tsx:240-255`, `src/app/api/cron/lembretes/route.ts:118-121`, `src/lib/follow-runner.ts:111-115,196-200`
 
 Como leitor, eu quero que um navegador do qual saí deixe de receber
@@ -356,7 +357,7 @@ para a desconexão de um aparelho apagar a dele.
 **Épico:** Segurança e privacidade da conta
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/lib/safe-fetch.ts:169` (validação com `lookup` próprio) e `safe-fetch.ts:241` (`fetch(url)` resolve o nome de novo)
 
 Como mantenedor, eu quero que a importação conecte só no endereço que foi
@@ -380,7 +381,7 @@ validado, mantendo SNI e cabeçalho `Host` do nome original.
 **Épico:** Segurança e privacidade da conta
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/auth/login/route.ts:12` (chave só por IP) contra `src/app/api/auth/recuperar/route.ts:43` (limite também por e-mail)
 
 Como leitor, eu quero que minha conta resista a tentativas de senha vindas de
@@ -400,7 +401,7 @@ muitos endereços, para que ninguém descubra minha senha por força bruta.
 **Épico:** Segurança e privacidade da conta
 **Prioridade:** Must
 **Story points:** 1
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/exportar/route.ts:153-157` (`escapeCell`) e `src/lib/vocabulary.ts:164-167` (`csvCell`)
 
 Como leitor, eu quero abrir os CSVs exportados no Excel sem executar nada, para
@@ -458,7 +459,7 @@ valem, para que eu reconheça de fato quem tem acesso à minha conta.
 **Épico:** Segurança e privacidade da conta
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/exportar/route.ts:64-139` e `src/lib/backup.ts:42-55` (faltam `author`, `seriesKey`, `seriesTitle`, `chapter`, `abandonedAt`, `sections` e as tabelas `ask_turns`, `ai_results`, `reading_goals`, `speed_settings`, `feeds`, `series_follows`, `training_programs`, `review_answers`, `quiz_recalls`)
 
 Como leitor, eu quero que a exportação leve tudo o que a conta guarda, para que
@@ -526,7 +527,7 @@ transição pode aceitar os dois temperos até a próxima troca de códigos.
 **Épico:** Integridade do estudo e da IA
 **Prioridade:** Must
 **Story points:** 5
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/lib/reprocess.ts:97-117` (remapeia só `highlights` e `bookmarks`), `src/app/api/texts/[id]/route.ts:138,150-155`, `src/lib/study-card-drafts.ts:231-250` e `src/app/api/texts/[id]/cartoes-estudo/route.ts:115-132` (posição de origem aceita do cliente)
 
 Como leitor que estuda, eu quero que os cartões continuem apontando para o
@@ -550,7 +551,7 @@ cartões de partes que não li nem cartões de um conteúdo que não existe mais
 **Épico:** Integridade do estudo e da IA
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/ia/resultados/route.ts:18-24,44-53` (apaga e conta só `ai_results` e `ask_turns`)
 
 Como leitor, eu quero que "Apagar o que a IA gerou" leve também cartões,
@@ -574,7 +575,7 @@ foi editado depois da geração.
 **Épico:** Integridade do estudo e da IA
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/texts/[id]/guia/route.ts:37-48` (aceita qualquer seção), `src/components/guide-questions.tsx:21-47` (opção só no `localStorage`)
 
 Como leitor que estuda, eu quero que só a seção que estou começando seja
@@ -650,7 +651,7 @@ para que a revisão e a retenção não contem em dobro.
 **Épico:** Integridade do estudo e da IA
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/api/cartoes/[id]/revisao/route.ts:38-52`, `src/app/api/palavras/revisao/route.ts:44-53`, `src/app/api/destaques/revisao/route.ts:52` (nenhuma confere vencimento)
 
 Como leitor que estuda, eu quero que uma resposta enviada duas vezes conte uma
@@ -709,7 +710,7 @@ Como leitor, eu quero ver o nome de cada função no histórico do que foi envia
 **Épico:** Operação e qualidade
 **Prioridade:** Must
 **Story points:** 1
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `public/sw.js:255` (`tag: "lembrete-diario"` fixa), `src/app/api/cron/lembretes/route.ts:131-145` (dois envios seguidos), `src/lib/push.ts` (`PushPayload` sem `tag`)
 
 Como leitor, eu quero receber o lembrete de leitura e o de revisão, para que um
@@ -764,7 +765,7 @@ lembretes, para que todos os inscritos recebam o lembrete a cada hora.
 **Épico:** Operação e qualidade
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `package.json:11` (`"vercel-build": "npm run db:migrate && next build"`), `README.md:65-67`
 
 Como mantenedor, eu quero que um preview de PR não altere o banco de produção,

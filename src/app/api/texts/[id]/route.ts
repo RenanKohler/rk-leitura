@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { highlights, texts } from "@/db/schema";
+import { highlights, studyCards, texts } from "@/db/schema";
 import {
   asInteger,
   asString,
@@ -18,6 +18,7 @@ import { detectSeries } from "@/lib/series";
 import { asTextFormat, clamp, countWords } from "@/lib/reading";
 import { acceptsPosition } from "@/lib/offline";
 import { normalizeAuthor } from "@/lib/import-analysis";
+import { cardAfterRewrite } from "@/lib/study-cards";
 
 export const dynamic = "force-dynamic";
 
@@ -154,6 +155,24 @@ export async function PUT(request: Request, { params }: Params) {
             .where(eq(highlights.textId, id))
             .returning({ id: highlights.id })
         : [];
+
+      // Cartoes de estudo do conteudo antigo (US-192): os gerados pela IA saem;
+      // os feitos ou editados pelo leitor ficam, marcados, sem trecho.
+      if (rewritten) {
+        const cards = await tx
+          .select({ id: studyCards.id, kind: studyCards.kind, editedAt: studyCards.editedAt })
+          .from(studyCards)
+          .where(and(eq(studyCards.textId, id), eq(studyCards.userId, session.id)));
+        const drop = cards.filter((card) => cardAfterRewrite(card) === "apagar").map((card) => card.id);
+        const mark = cards.filter((card) => cardAfterRewrite(card) === "marcar").map((card) => card.id);
+        if (drop.length > 0) await tx.delete(studyCards).where(inArray(studyCards.id, drop));
+        if (mark.length > 0) {
+          await tx
+            .update(studyCards)
+            .set({ sourceStart: 0, sourceEnd: 0, sourceChanged: true, updatedAt: new Date() })
+            .where(inArray(studyCards.id, mark));
+        }
+      }
 
       if (tagNames) await applyTags(tx, session.id, id, tagNames);
 

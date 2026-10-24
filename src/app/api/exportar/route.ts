@@ -1,11 +1,33 @@
 import { NextResponse } from "next/server";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { bookmarks, highlights, readingSessions, tags, texts, textTags } from "@/db/schema";
+import {
+  aiResults,
+  askTurns,
+  bookmarks,
+  feeds,
+  highlights,
+  quizRecalls,
+  readingGoals,
+  readingSessions,
+  reviewAnswers,
+  savedWords,
+  seriesFollows,
+  speedSettings,
+  studyCards,
+  tags,
+  texts,
+  textTags,
+  trainingDays,
+  trainingPrograms,
+  users,
+} from "@/db/schema";
 import { jsonError, requireSession, serverError } from "@/lib/api";
 import { excerptOf } from "@/lib/highlights";
 import { asTextFormat, parseParagraphs } from "@/lib/reading";
 import { BACKUP_KIND, BACKUP_VERSION } from "@/lib/backup";
+import { quotedCell } from "@/lib/csv";
+import { ACCOUNT_EXPORT_TABLES } from "@/lib/export-coverage";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +47,11 @@ export async function GET(request: Request) {
     const tipo = new URL(request.url).searchParams.get("tipo");
 
     if (tipo === "sessoes") return await exportSessions(session.id);
-    if (tipo === "biblioteca") return await exportLibrary(session.id);
+    if (tipo === "biblioteca") return await exportLibrary(session.id, false);
+    // Portabilidade (US-189): a biblioteca e tudo o mais que a conta guarda.
+    if (tipo === "conta") return await exportLibrary(session.id, true);
 
-    return jsonError("Informe tipo=sessões ou tipo=biblioteca.", 400);
+    return jsonError("Informe tipo=sessões, tipo=biblioteca ou tipo=conta.", 400);
   } catch (error) {
     return serverError("exportar", error);
   }
@@ -61,7 +85,7 @@ async function exportSessions(userId: string) {
   return csv([header, ...body], "leitura-sessoes");
 }
 
-async function exportLibrary(userId: string) {
+async function exportLibrary(userId: string, full: boolean) {
   const [rows, marks, points, labels] = await Promise.all([
     db.select().from(texts).where(and(eq(texts.userId, userId))).orderBy(asc(texts.createdAt)),
     db
@@ -102,6 +126,8 @@ async function exportLibrary(userId: string) {
     const { words } = parseParagraphs(row.content, asTextFormat(row.format));
 
     return {
+      // O id liga o texto as linhas do bloco `conta` (sessoes, cartoes...).
+      id: row.id,
       titulo: row.title,
       origem: row.sourceUrl,
       parteDaOrigem: row.sourcePage,
@@ -114,6 +140,15 @@ async function exportLibrary(userId: string) {
       formato: row.format,
       idioma: row.language,
       etiquetas: (labelsByText.get(row.id) ?? []).map((label) => label.name),
+      // Versao 3 (US-189): sem isto a restauracao perdia autor, serie e
+      // capitulo, e um texto largado voltava como em andamento.
+      autor: row.author,
+      serie: row.seriesKey
+        ? { chave: row.seriesKey, titulo: row.seriesTitle, capitulo: row.chapter }
+        : null,
+      largadoEm: row.abandonedAt?.toISOString() ?? null,
+      palavrasRestantes: row.abandonedWords,
+      secoes: row.sections,
       marcadores: (pointsByText.get(row.id) ?? []).map((point) => ({
         posicao: point.position,
         nome: point.label,
@@ -135,8 +170,59 @@ async function exportLibrary(userId: string) {
     versao: BACKUP_VERSION,
     exportadoEm: new Date().toISOString(),
     textos: payload,
+    ...(full ? { conta: await accountBlock(userId) } : {}),
   };
-  return download(JSON.stringify(file, null, 2), "application/json", "leitura-biblioteca.json");
+  return download(
+    JSON.stringify(file, null, 2),
+    "application/json",
+    full ? "leitura-conta.json" : "leitura-biblioteca.json"
+  );
+}
+
+/** Linha sem a coluna da conta: o arquivo e todo da mesma pessoa. */
+function withoutUser<T extends { userId?: string }>(rows: T[]): Omit<T, "userId">[] {
+  return rows.map((row) => {
+    const { userId: _userId, ...rest } = row;
+    void _userId;
+    return rest;
+  });
+}
+
+/**
+ * O restante da conta (US-189), uma lista por tabela, com o nome do banco.
+ * As linhas ligadas a texto trazem o `textId`, o mesmo `id` de `textos`.
+ */
+async function accountBlock(userId: string) {
+  const [profile] = await db
+    .select({ nome: users.name, email: users.email, criadoEm: users.createdAt })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const programs = await db.select().from(trainingPrograms).where(eq(trainingPrograms.userId, userId));
+  const programIds = programs.map((program) => program.id);
+
+  const rows: Record<(typeof ACCOUNT_EXPORT_TABLES)[number], unknown[]> = {
+    reading_sessions: withoutUser(
+      await db.select().from(readingSessions).where(eq(readingSessions.userId, userId))
+    ),
+    speed_settings: withoutUser(await db.select().from(speedSettings).where(eq(speedSettings.userId, userId))),
+    reading_goals: withoutUser(await db.select().from(readingGoals).where(eq(readingGoals.userId, userId))),
+    training_programs: withoutUser(programs),
+    training_days:
+      programIds.length > 0
+        ? await db.select().from(trainingDays).where(inArray(trainingDays.programId, programIds))
+        : [],
+    saved_words: withoutUser(await db.select().from(savedWords).where(eq(savedWords.userId, userId))),
+    review_answers: withoutUser(await db.select().from(reviewAnswers).where(eq(reviewAnswers.userId, userId))),
+    series_follows: withoutUser(await db.select().from(seriesFollows).where(eq(seriesFollows.userId, userId))),
+    feeds: withoutUser(await db.select().from(feeds).where(eq(feeds.userId, userId))),
+    ai_results: withoutUser(await db.select().from(aiResults).where(eq(aiResults.userId, userId))),
+    study_cards: withoutUser(await db.select().from(studyCards).where(eq(studyCards.userId, userId))),
+    quiz_recalls: withoutUser(await db.select().from(quizRecalls).where(eq(quizRecalls.userId, userId))),
+    ask_turns: withoutUser(await db.select().from(askTurns).where(eq(askTurns.userId, userId))),
+  };
+
+  return { perfil: profile ?? null, tabelas: rows };
 }
 
 /**
@@ -146,14 +232,8 @@ async function exportLibrary(userId: string) {
  * quebra de linha. Os dois so importam porque o destino declarado e planilha.
  */
 function csv(rows: string[][], name: string) {
-  const text = rows.map((row) => row.map(escapeCell).join(",")).join("\r\n");
+  const text = rows.map((row) => row.map(quotedCell).join(",")).join("\r\n");
   return download(`﻿${text}\r\n`, "text/csv; charset=utf-8", `${name}.csv`);
-}
-
-function escapeCell(value: string): string {
-  // Aspas duplicadas e o campo inteiro entre aspas: e o que permite virgula,
-  // aspas e quebra de linha dentro de uma celula.
-  return `"${value.replace(/"/g, '""')}"`;
 }
 
 function download(body: string, contentType: string, filename: string) {

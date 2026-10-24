@@ -1,0 +1,3 @@
+ALTER TABLE "push_subscriptions" ADD COLUMN "session_id" uuid;--> statement-breakpoint
+ALTER TABLE "push_subscriptions" ADD CONSTRAINT "push_subscriptions_session_id_auth_sessions_id_fk" FOREIGN KEY ("session_id") REFERENCES "public"."auth_sessions"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "push_subscriptions_session_idx" ON "push_subscriptions" USING btree ("session_id");

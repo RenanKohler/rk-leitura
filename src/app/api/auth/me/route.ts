@@ -6,6 +6,7 @@ import { asString, jsonError, readJson, requireSession, serverError } from "@/li
 import {
   clearSession,
   currentSessionVersion,
+  forgetAllPushSubscriptions,
   getSession,
   getUserById,
   hashPassword,
@@ -121,7 +122,12 @@ export async function PATCH(request: Request) {
     // versao - sem o token novo, este aparelho cairia junto com os outros.
     // A troca de senha tira os outros aparelhos da lista (US-97): a versao
     // nova ja os derrubou, e manter as linhas mostraria aparelhos mortos.
-    if (newPassword !== null) await revokeSessions(session.id, undefined, session.sid);
+    if (newPassword !== null) {
+      await revokeSessions(session.id, undefined, session.sid);
+      // Todas as inscricoes saem, inclusive a deste aparelho, que pode ativar
+      // de novo em Ajustes (US-183).
+      await forgetAllPushSubscriptions(session.id);
+    }
     await openSession(updated, request, session.sid);
 
     return NextResponse.json({ user: publicUser(updated) });

@@ -6,6 +6,8 @@
  * a mesma convencao de meta e sequencia.
  */
 
+import { neutralizeFormula } from "@/lib/csv";
+
 /** Dias ate a proxima revisao, por etapa. Acertar avanca uma etapa. */
 export const REVIEW_INTERVALS = [1, 3, 7, 14, 30] as const;
 
@@ -162,7 +164,7 @@ const CSV_HEADER = [
 ];
 
 function csvCell(value: string | null): string {
-  const text = value ?? "";
+  const text = neutralizeFormula(value ?? "");
   return /[",\r\n;]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

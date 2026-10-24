@@ -17,6 +17,7 @@ import { todayIn } from "@/lib/goals";
 import { qualifies, type ProgramStatus } from "@/lib/training";
 import { clamp, MAX_WPM } from "@/lib/reading";
 import { parseBrakes, resolveSessionMode, SESSION_MODES } from "@/lib/difficulty";
+import { sessionReadAt } from "@/lib/offline";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
       plannedMs?: unknown;
       mode?: unknown;
       brakes?: unknown;
+      readAt?: unknown;
     }>(request);
 
     const textId = asString(body?.textId);
@@ -97,6 +99,10 @@ export async function POST(request: Request) {
         narrated: mode === "narracao",
         mode,
         brakes,
+        // Hora da leitura, nao da chegada: a sessao que ficou na fila offline
+        // conta no dia em que foi lida (US-172). Meta, sequencia e resumo
+        // semanal sao calculados a partir desta coluna.
+        createdAt: sessionReadAt(body?.readAt),
         // Previsto pela sugestao de tempo livre (US-85); fora da faixa, ignorado.
         plannedMs: (() => {
           const planned = asInteger(body?.plannedMs);
@@ -124,11 +130,11 @@ export async function POST(request: Request) {
  */
 async function recordTrainingDay(
   userId: string,
-  created: { id: string; wpm: number; wordsRead: number; narrated: boolean }
+  created: { id: string; wpm: number; wordsRead: number; narrated: boolean; createdAt: Date }
 ): Promise<ProgramStatus | null> {
   try {
     const status = await loadTraining(userId);
-    if (!status || status.finished || status.doneToday) return status;
+    if (!status || status.finished) return status;
     // A narracao nao cumpre o dia: o ritmo ali e o da voz do aparelho, nao o
     // do olho de quem treina.
     if (created.narrated) return status;
@@ -138,7 +144,21 @@ async function recordTrainingDay(
     if (!program) return null;
 
     const settings = await loadSettings(userId);
-    const today = todayIn(settings?.timezone ?? "UTC");
+    // Dia da leitura no fuso do leitor: uma sessao offline de ontem cumpre o
+    // dia de ontem, se ele ainda estiver livre (US-172).
+    const timezone = settings?.timezone ?? "UTC";
+    const onDay = todayIn(timezone, created.createdAt);
+    const done =
+      onDay === todayIn(timezone)
+        ? status.doneToday
+        : (
+            await db
+              .select({ id: trainingDays.id })
+              .from(trainingDays)
+              .where(and(eq(trainingDays.programId, program.id), eq(trainingDays.onDay, onDay)))
+              .limit(1)
+          ).length > 0;
+    if (done) return status;
 
     await db
       .insert(trainingDays)
@@ -148,7 +168,7 @@ async function recordTrainingDay(
         targetWpm: status.targetWpm,
         sessionId: created.id,
         wpm: created.wpm,
-        onDay: today,
+        onDay,
       })
       // Duas sessoes gravadas ao mesmo tempo: a segunda nao duplica o dia.
       .onConflictDoNothing();

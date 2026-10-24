@@ -10,7 +10,12 @@
 import { z } from "zod";
 
 export const BACKUP_KIND = "leitura-biblioteca";
-export const BACKUP_VERSION = 2;
+/**
+ * Versao 3 (US-189): o texto leva autor, serie, capitulo, largado e secoes, e
+ * a exportacao "Conta completa" leva o bloco `conta` com as demais tabelas.
+ * Arquivos das versoes 1 e 2 continuam aceitos.
+ */
+export const BACKUP_VERSION = 3;
 
 /** Limites do arquivo aceito. */
 export const MAX_BACKUP_BYTES = 20 * 1024 * 1024;
@@ -34,6 +39,17 @@ const HighlightSchema = z.object({
   nota: z.string().max(2000).nullable().optional(),
 });
 
+const SeriesSchema = z.object({
+  chave: z.string().trim().min(1).max(500),
+  titulo: z.string().max(500).nullable().optional(),
+  capitulo: z.number().int().min(0).max(100_000).nullable().optional(),
+});
+
+const SectionSchema = z.object({
+  index: z.number().int().min(0),
+  title: z.string().max(300),
+});
+
 const BookmarkSchema = z.object({
   posicao: z.number().int().min(0),
   nome: z.string().min(1).max(200),
@@ -52,6 +68,12 @@ export const BackupTextSchema = z.object({
   etiquetas: z.array(z.string().max(100)).max(50).optional(),
   destaques: z.array(HighlightSchema).max(5000).optional(),
   marcadores: z.array(BookmarkSchema).max(500).optional(),
+  // Versao 3 (US-189).
+  autor: z.string().max(500).nullable().optional(),
+  serie: SeriesSchema.nullable().optional(),
+  largadoEm: isoDate.nullable().optional(),
+  palavrasRestantes: z.number().int().min(0).nullable().optional(),
+  secoes: z.array(SectionSchema).max(500).nullable().optional(),
 });
 
 export type BackupText = z.infer<typeof BackupTextSchema>;

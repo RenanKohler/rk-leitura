@@ -89,5 +89,113 @@ export function acceptsPosition(
   return at >= stored;
 }
 
+/**
+ * O que fazer com um envio adiado depois da resposta do servidor (US-171).
+ *
+ * - `"enviada"`: o servidor gravou; sai da fila.
+ * - `"manter"`: falha passageira ou sessao expirada (401, 408, 429, 5xx);
+ *   continua na fila e e reenviada depois - no 401, quando o mesmo dono
+ *   entrar de novo (US-175).
+ * - `"descartar"`: o servidor recusou o conteudo (400, 403, 404, 409 e os
+ *   demais 4xx); repetir nao muda a resposta.
+ *
+ * O `sw.js` tem a mesma regra em `RETRY_STATUS`; um teste compara os dois.
+ */
+export const RETRY_STATUS = [401, 408, 429];
+
+export type QueueDisposition = "enviada" | "manter" | "descartar";
+
+export function queueDisposition(status: number): QueueDisposition {
+  if (status >= 200 && status < 300) return "enviada";
+  if (status >= 500 || RETRY_STATUS.includes(status)) return "manter";
+  return "descartar";
+}
+
+/** Falhas seguidas de gravacao ate o leitor ser avisado. */
+export const SAVE_FAILURES_BEFORE_NOTICE = 3;
+
+export const SAVE_FAILURE_NOTICE =
+  "Não foi possível salvar o progresso. Vamos tentar de novo quando a conexão voltar.";
+
+/**
+ * Gravacoes do leitor que ainda nao chegaram ao servidor (US-171).
+ *
+ * Sem service worker (ou antes de ele assumir a pagina), uma sessao que
+ * falhava era perdida: o `fetch` engolia o erro. Aqui ela fica guardada em
+ * memoria e volta a ser enviada quando a rede volta ou na proxima gravacao
+ * que der certo. Conta as falhas seguidas para o aviso na tela.
+ */
+export function createSaveRetry(
+  send: (body: string, keepalive: boolean) => Promise<Response>,
+  onFailingChange: (failing: boolean) => void
+) {
+  let failures = 0;
+  const pending: string[] = [];
+
+  const succeeded = () => {
+    if (failures >= SAVE_FAILURES_BEFORE_NOTICE) onFailingChange(false);
+    failures = 0;
+  };
+  const failed = () => {
+    failures += 1;
+    if (failures === SAVE_FAILURES_BEFORE_NOTICE) onFailingChange(true);
+  };
+
+  /** Envia; devolve a resposta quando o servidor gravou, ou null. */
+  async function post(body: string, keepalive = false): Promise<Response | null> {
+    let response: Response;
+    try {
+      response = await send(body, keepalive);
+    } catch {
+      pending.push(body);
+      failed();
+      return null;
+    }
+    const disposition = queueDisposition(response.status);
+    if (disposition === "enviada") {
+      succeeded();
+      return response;
+    }
+    if (disposition === "manter") pending.push(body);
+    failed();
+    return null;
+  }
+
+  /** Reenvia o que ficou pendente, na ordem em que foi gerado. */
+  async function retry(): Promise<void> {
+    const items = pending.splice(0);
+    for (const body of items) await post(body);
+  }
+
+  return {
+    post,
+    retry,
+    succeeded,
+    failed,
+    pendingCount: () => pending.length,
+  };
+}
+
+/** Ate quantos dias atras a hora de leitura enviada pelo aparelho vale. */
+export const MAX_READ_AT_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Hora em que a sessao conta (US-172).
+ *
+ * Uma sessao lida offline na segunda e sincronizada na terca precisa contar
+ * para a meta e a sequencia de segunda. O aparelho manda a hora da leitura;
+ * vale ela, salvo se estiver no futuro em relacao ao servidor ou a mais de
+ * 7 dias - ai o relogio do aparelho nao merece confianca e vale a do
+ * servidor.
+ */
+export function sessionReadAt(readAt: unknown, serverNow: Date = new Date()): Date {
+  if (typeof readAt !== "string") return serverNow;
+  const at = Date.parse(readAt);
+  if (Number.isNaN(at)) return serverNow;
+  const now = serverNow.getTime();
+  if (at > now || now - at > MAX_READ_AT_AGE_MS) return serverNow;
+  return new Date(at);
+}
+
 /** Acoes que exigem rede e precisam avisar em vez de falhar em silencio. */
 export const NEEDS_NETWORK = "Esta ação precisa de conexão.";

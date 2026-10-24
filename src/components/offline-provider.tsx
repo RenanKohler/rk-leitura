@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { useAuth } from "@/components/providers";
 import { OFFLINE_TEXTS } from "@/lib/offline";
 
 interface OfflineValue {
@@ -72,6 +73,9 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
   // ambiente, e no servidor ela sai como "online" - o mesmo que o HTML diria.
   const online = useSyncExternalStore(subscribeToConnection, () => navigator.onLine, () => true);
 
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+
   const flush = useCallback(() => {
     void navigator.serviceWorker?.ready.then((registration) =>
       registration.active?.postMessage({ type: "flush" })
@@ -89,6 +93,15 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
     window.addEventListener("online", flush);
     return () => window.removeEventListener("online", flush);
   }, [flush]);
+
+  // Diz ao service worker de quem e a sessao (US-175): cada entrada da fila
+  // offline guarda o dono, e so as do dono atual sao enviadas. Com o dono de
+  // volta depois de um 401, a fila dele sai.
+  useEffect(() => {
+    void navigator.serviceWorker?.ready
+      .then((registration) => registration.active?.postMessage({ type: "conta", userId }))
+      .catch(() => undefined);
+  }, [userId]);
 
   // Aquece o cache com a biblioteca recente, para que ficar offline nao
   // dependa de ter aberto cada texto antes. Roda depois da tela estar

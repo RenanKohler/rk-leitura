@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { reviewAnswers, savedWords } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
@@ -43,7 +43,11 @@ export async function POST(request: Request) {
 
     const owned = and(eq(savedWords.id, id), eq(savedWords.userId, session.id));
     const [current] = await db
-      .select({ step: savedWords.reviewStep, interval: savedWords.reviewInterval })
+      .select({
+        step: savedWords.reviewStep,
+        interval: savedWords.reviewInterval,
+        nextReviewOn: savedWords.nextReviewOn,
+      })
       .from(savedWords)
       .where(owned)
       .limit(1);
@@ -54,7 +58,9 @@ export async function POST(request: Request) {
     // A etapa antiga segue contando acertos seguidos, para quem ainda a le.
     const step = grade === "errei" ? 0 : current.step + 1;
 
-    await db
+    // So grava se a palavra ainda estiver vencida (US-198): a mesma nota
+    // enviada duas vezes conta uma vez, inclusive chegando juntas.
+    const [updated] = await db
       .update(savedWords)
       .set({
         reviewStep: step,
@@ -64,7 +70,16 @@ export async function POST(request: Request) {
         ...(next.graduated ? { learnedAt: new Date() } : {}),
         updatedAt: new Date(),
       })
-      .where(owned);
+      .where(and(owned, or(isNull(savedWords.nextReviewOn), lte(savedWords.nextReviewOn, today))))
+      .returning({ id: savedWords.id });
+    if (!updated) {
+      return NextResponse.json({
+        interval: current.interval,
+        nextReviewOn: current.nextReviewOn,
+        step: current.step,
+        repeated: true,
+      });
+    }
 
     await db
       .insert(reviewAnswers)

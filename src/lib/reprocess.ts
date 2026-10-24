@@ -2,10 +2,11 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bookmarks, highlights, texts } from "@/db/schema";
+import { bookmarks, highlights, studyCards, texts } from "@/db/schema";
 import { stripCitations } from "@/lib/citations";
 import { asTextFormat, parseParagraphs } from "@/lib/reading";
 import { alignRemoval, forwardMap, inverseMap, mapSpan, unmapSpan } from "@/lib/reindex";
+import { remapCard } from "@/lib/study-cards";
 
 export type ReprocessResult =
   | { status: "done"; removedWords: number; wordCount: number }
@@ -103,6 +104,34 @@ export async function reprocessCitations(
           .update(highlights)
           .set({ startIndex: moved.start, endIndex: moved.end, updatedAt: new Date() })
           .where(eq(highlights.id, mark.id));
+      }
+    }
+
+    // Cartoes de estudo seguem a mesma conta (US-192): sem isso, um cartao
+    // apontava para um trecho que nao foi lido e aparecia antes da hora.
+    const cards = await tx
+      .select({
+        id: studyCards.id,
+        kind: studyCards.kind,
+        sourceStart: studyCards.sourceStart,
+        sourceEnd: studyCards.sourceEnd,
+        editedAt: studyCards.editedAt,
+      })
+      .from(studyCards)
+      .where(eq(studyCards.textId, text.id));
+    for (const card of cards) {
+      const next = remapCard(card, span);
+      if (next.action === "apagar") await tx.delete(studyCards).where(eq(studyCards.id, card.id));
+      else if (next.action === "mover") {
+        await tx
+          .update(studyCards)
+          .set({ sourceStart: next.start, sourceEnd: next.end, updatedAt: new Date() })
+          .where(eq(studyCards.id, card.id));
+      } else if (next.action === "marcar") {
+        await tx
+          .update(studyCards)
+          .set({ sourceStart: 0, sourceEnd: 0, sourceChanged: true, updatedAt: new Date() })
+          .where(eq(studyCards.id, card.id));
       }
     }
 

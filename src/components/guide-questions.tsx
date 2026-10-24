@@ -95,6 +95,7 @@ export function GuideQuestions({
   index,
   onOpenChange,
   onGo,
+  savePosition,
 }: {
   textId: string;
   paragraphs: Paragraph[];
@@ -102,6 +103,8 @@ export function GuideQuestions({
   index: number;
   onOpenChange: (open: boolean) => void;
   onGo: (position: number) => void;
+  /** Grava a posicao atual: o servidor so aceita a secao em que ela esta (US-194). */
+  savePosition?: () => Promise<void>;
 }) {
   const [enabled] = useGuideOption();
   const hasHeadings = useMemo(() => navigationHeadings(paragraphs, []).length > 0, [paragraphs]);
@@ -136,6 +139,8 @@ export function GuideQuestions({
     async (start: number, cachedOnly: boolean) => {
       if (!cachedOnly) setLoads((all) => ({ ...all, [start]: { state: "lendo" } }));
       try {
+        // Pular pelo sumario muda a secao antes da gravacao periodica.
+        if (!cachedOnly) await savePosition?.();
         const data = await apiSend<{ questions: GuideQuestion[] }>(`/api/texts/${textId}/guia`, "POST", {
           section: start,
           cachedOnly,
@@ -155,7 +160,7 @@ export function GuideQuestions({
         }));
       }
     },
-    [textId]
+    [textId, savePosition]
   );
 
   // Entrou numa secao nova, andando para frente: abre a folha da secao.

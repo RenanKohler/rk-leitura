@@ -526,11 +526,18 @@ export const pushSubscriptions = pgTable(
     /** Chaves do navegador, usadas para cifrar a mensagem. */
     p256dh: text("p256dh").notNull(),
     auth: text("auth").notNull(),
+    /**
+     * Sessao (aparelho) que inscreveu o navegador (US-183): desconectar o
+     * aparelho apaga a inscricao dele. Nulo nas inscricoes anteriores a
+     * coluna e quando a sessao foi apagada.
+     */
+    sessionId: uuid("session_id").references(() => authSessions.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     uniqueIndex("push_subscriptions_endpoint_unique").on(table.endpoint),
     index("push_subscriptions_user_idx").on(table.userId),
+    index("push_subscriptions_session_idx").on(table.sessionId),
   ]
 );
 
@@ -804,6 +811,17 @@ export const studyCards = pgTable(
     /** Resposta no teste de conhecimento previo (US-170): "sabia" ou "nao_sabia". */
     pretest: text("pretest"),
     pretestedAt: timestamp("pretested_at", { withTimezone: true }),
+    /**
+     * Quando o leitor editou frente ou verso de um cartao ja salvo (US-193).
+     * Cartao gerado pela IA e editado deixa de ser "o que a IA gerou": fica
+     * quando os resultados da IA sao apagados.
+     */
+    editedAt: timestamp("edited_at", { withTimezone: true }),
+    /**
+     * O conteudo do texto foi reescrito e o trecho de origem deixou de
+     * existir (US-192). A tela mostra "Trecho de origem alterado".
+     */
+    sourceChanged: boolean("source_changed").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

@@ -81,7 +81,9 @@ export function ExportCard() {
       <SectionTitle>Seus dados</SectionTitle>
       <p className="text-sm text-muted">
         Baixe o que é seu quando quiser. O histórico sai em CSV, pronto para planilha; a
-        biblioteca sai em JSON, porque o conteúdo dos textos tem quebras de linha.
+        biblioteca sai em JSON, porque o conteúdo dos textos tem quebras de linha. A conta
+        completa leva a biblioteca e tudo o mais que a conta guarda: sessões, metas, palavras,
+        cartões, feeds, séries e o que a IA gerou.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <LinkButton href="/api/exportar?tipo=sessoes" variant="secondary" full>
@@ -90,11 +92,14 @@ export function ExportCard() {
         <LinkButton href="/api/exportar?tipo=biblioteca" variant="secondary" full>
           Biblioteca (JSON)
         </LinkButton>
+        <LinkButton href="/api/exportar?tipo=conta" variant="secondary" full>
+          Conta completa (JSON)
+        </LinkButton>
       </div>
 
       <p className="pt-2 text-sm text-muted">
         Para trazer a biblioteca de volta, nesta ou em outra conta, escolha o arquivo JSON baixado
-        aqui. Textos que já estão na biblioteca são pulados.
+        aqui (biblioteca ou conta completa). Textos que já estão na biblioteca são pulados.
       </p>
       {error ? <Alert>{error}</Alert> : null}
       <input

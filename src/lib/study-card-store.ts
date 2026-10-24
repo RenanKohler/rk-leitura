@@ -25,6 +25,8 @@ export interface StudyCardView {
   sourceEnd: number;
   nextReviewOn: string | null;
   pretest: string | null;
+  /** Conteudo reescrito depois do cartao (US-192). */
+  sourceChanged: boolean;
 }
 
 export interface StudyText {
@@ -64,6 +66,7 @@ const VIEW = {
   sourceEnd: studyCards.sourceEnd,
   nextReviewOn: studyCards.nextReviewOn,
   pretest: studyCards.pretest,
+  sourceChanged: studyCards.sourceChanged,
 };
 
 /** Todos os cartoes do texto, na ordem do texto. Uso interno: nao filtra. */

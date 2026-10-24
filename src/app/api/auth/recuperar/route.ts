@@ -3,7 +3,14 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { recoveryCodes, users } from "@/db/schema";
 import { asString, jsonError, readJson, serverError } from "@/lib/api";
-import { findUserByEmail, hashPassword, normalizeEmail, openSession, revokeSessions } from "@/lib/auth";
+import {
+  findUserByEmail,
+  forgetAllPushSubscriptions,
+  hashPassword,
+  normalizeEmail,
+  openSession,
+  revokeSessions,
+} from "@/lib/auth";
 import { normalizeRecoveryCode } from "@/lib/account-security";
 import { hashRecoveryCode } from "@/lib/recovery";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
@@ -88,6 +95,7 @@ export async function POST(request: Request) {
 
     // Senha nova derruba todos os aparelhos (US-62) e este entra de novo.
     await revokeSessions(updated.id);
+    await forgetAllPushSubscriptions(updated.id);
     await openSession(updated, request);
 
     return NextResponse.json({

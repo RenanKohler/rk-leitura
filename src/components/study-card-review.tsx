@@ -5,7 +5,7 @@ import Link from "next/link";
 import { apiSend } from "@/lib/client";
 import { Alert, Button, Card } from "@/components/ui";
 import { GradeButtons } from "@/components/grade-buttons";
-import { STUDY_CARD_KIND_LABELS, isStudyCardKind } from "@/lib/study-cards";
+import { SOURCE_CHANGED_LABEL, STUDY_CARD_KIND_LABELS, isStudyCardKind } from "@/lib/study-cards";
 import type { ReviewGrade } from "@/lib/vocabulary";
 import type { StudyReviewCard } from "@/lib/study-review-queries";
 
@@ -99,6 +99,11 @@ export function StudyCardReview({
             <p className="text-sm text-muted" data-testid="cartao-analogia">
               <span className="font-medium">Analogia: </span>
               {saved}
+            </p>
+          ) : null}
+          {card.sourceChanged ? (
+            <p className="text-sm text-faint" data-testid="cartao-origem-alterada">
+              {SOURCE_CHANGED_LABEL}
             </p>
           ) : null}
           {card.source ? (

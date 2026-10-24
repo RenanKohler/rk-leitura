@@ -19,6 +19,53 @@ export const STUDY_CARD_KIND_LABELS: Record<StudyCardKind, string> = {
   glossario: "Glossário",
 };
 
+/** Cartao feito a mao: o unico tipo que a IA nao gerou. */
+export function isGeneratedKind(kind: string): boolean {
+  return kind !== "manual";
+}
+
+/**
+ * Cartao que conta como "o que a IA gerou" (US-193): de tipo gerado e nunca
+ * editado pelo leitor depois de salvo.
+ */
+export function isUneditedGenerated(card: { kind: string; editedAt: Date | string | null }): boolean {
+  return isGeneratedKind(card.kind) && card.editedAt === null;
+}
+
+export const SOURCE_CHANGED_LABEL = "Trecho de origem alterado";
+
+/** O que acontece com um cartao quando as posicoes do texto mudam (US-192). */
+export type CardRemap =
+  | { action: "manter" }
+  | { action: "mover"; start: number; end: number }
+  | { action: "apagar" }
+  | { action: "marcar" };
+
+/**
+ * Reprocessamento (omitir ou restaurar referencias): o trecho de origem segue
+ * a mesma conta dos destaques. Cartao sem trecho (feito a mao, 0 a 0) fica
+ * como esta. Trecho que sumiu: o gerado e nao editado sai, como o destaque;
+ * o editado fica, marcado.
+ */
+export function remapCard(
+  card: { kind: string; sourceStart: number; sourceEnd: number; editedAt: Date | string | null },
+  span: (value: { start: number; end: number }) => { start: number; end: number } | null
+): CardRemap {
+  if (card.sourceEnd <= card.sourceStart) return { action: "manter" };
+  const moved = span({ start: card.sourceStart, end: card.sourceEnd });
+  if (!moved) return isUneditedGenerated(card) ? { action: "apagar" } : { action: "marcar" };
+  if (moved.start === card.sourceStart && moved.end === card.sourceEnd) return { action: "manter" };
+  return { action: "mover", start: moved.start, end: moved.end };
+}
+
+/**
+ * Conteudo reescrito a mao (US-192): nenhuma posicao antiga vale. Os gerados
+ * e nao editados saem; os demais ficam marcados, sem trecho de origem.
+ */
+export function cardAfterRewrite(card: { kind: string; editedAt: Date | string | null }): "apagar" | "marcar" {
+  return isUneditedGenerated(card) ? "apagar" : "marcar";
+}
+
 /** Limite de cada lado do cartao, em caracteres (US-159). */
 export const MAX_CARD_SIDE_CHARS = 500;
 

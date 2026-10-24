@@ -9,6 +9,7 @@ import { afterCheck, MAX_FEED_ITEMS_PER_CHECK, shouldCheck, type CheckOutcome } 
 import { ImportError, importFromUrl } from "@/lib/import-text";
 import { asLanguage } from "@/lib/language";
 import { notifyUser } from "@/lib/notify";
+import { PUSH_TAGS } from "@/lib/push-tags";
 import { findTextBySourceUrl } from "@/lib/queries";
 import { countWords } from "@/lib/reading";
 import { fetchPublicFeed } from "@/lib/safe-fetch";
@@ -112,6 +113,7 @@ async function checkSeries(
       title: "Capítulo novo",
       body: result.title,
       url: `/leitor/${result.id}`,
+      tag: `${PUSH_TAGS.capitulo}-${result.id}`,
     });
     return "novo";
   } catch (error) {
@@ -197,6 +199,7 @@ async function checkFeed(
       title: feed.title,
       body: imported === 1 ? "1 artigo novo na biblioteca." : `${imported} artigos novos na biblioteca.`,
       url: "/textos",
+      tag: `${PUSH_TAGS.feed}-${feed.id}`,
     });
   }
 

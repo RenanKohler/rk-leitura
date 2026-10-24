@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiSend } from "@/lib/client";
+import { dropPushSubscription } from "@/lib/push-client";
 import { useAuth, useToast } from "@/components/providers";
 import { Alert, Button, Card, Field, SectionTitle, Sheet } from "@/components/ui";
 import { LogoutIcon, TrashIcon } from "@/components/icons";
@@ -95,6 +96,8 @@ export function AccountCard() {
     setSigningOutAll(true);
     try {
       await apiSend("/api/auth/logout/todos", "POST");
+      // O servidor ja apagou as inscricoes; o navegador esquece a dele (US-183).
+      await dropPushSubscription();
       void navigator.serviceWorker?.ready
         .then((registration) => registration.active?.postMessage({ type: "limpar" }))
         .catch(() => undefined);
@@ -114,6 +117,7 @@ export function AccountCard() {
     setDeleting(true);
     try {
       await apiSend("/api/auth/me", "DELETE", { password: deletePassword });
+      await dropPushSubscription();
       void navigator.serviceWorker?.ready
         .then((registration) => registration.active?.postMessage({ type: "limpar" }))
         .catch(() => undefined);

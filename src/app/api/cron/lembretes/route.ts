@@ -16,6 +16,7 @@ import {
 } from "@/lib/reminder";
 import { countDailyReview, reviewedToday } from "@/lib/study-review-queries";
 import { pushConfigured, sendPush } from "@/lib/push";
+import { PUSH_TAGS } from "@/lib/push-tags";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -132,6 +133,7 @@ export async function GET(request: Request) {
             title: "Leitura",
             body: reminderBody(goal.defined ? goal.streak : 0),
             url: "/dashboard",
+            tag: PUSH_TAGS.leitura,
           });
           if (result === "enviada") delivered = true;
           if (result === "expirada") dead.add(target.endpoint);
@@ -141,6 +143,7 @@ export async function GET(request: Request) {
             title: "Revisão",
             body: reviewReminderBody(reviewDue),
             url: "/revisar",
+            tag: PUSH_TAGS.revisao,
           });
           if (result === "enviada") deliveredReview = true;
           if (result === "expirada") dead.add(target.endpoint);

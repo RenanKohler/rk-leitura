@@ -34,6 +34,7 @@ import type { TextDetail } from "@/lib/types";
 import { useAiConsent } from "@/components/ai-consent";
 import { SuggestedField, type SuggestedMeta } from "@/components/suggested-field";
 import { metaExcerpt } from "@/lib/import-analysis";
+import { decodeTextFile } from "@/lib/charset";
 
 /** Markdown e texto puro: o limite e o mesmo do conteudo aceito pelo servidor. */
 const MAX_MARKDOWN_BYTES = 2 * 1024 * 1024;
@@ -199,7 +200,8 @@ export function FileImport() {
       throw new Error(`O arquivo passa de ${Math.round(MAX_MARKDOWN_BYTES / 1024 / 1024)} MB.`);
     }
 
-    const source = (await file.text()).replace(/^\uFEFF/, "");
+    // UTF-8 se for valido, senao Windows-1252 (US-178).
+    const source = decodeTextFile(new Uint8Array(await file.arrayBuffer())).replace(/^\uFEFF/, "");
     if (countWords(source, "markdown") === 0) {
       throw new Error("Este arquivo não tem texto para ler.");
     }
@@ -222,7 +224,9 @@ export function FileImport() {
       throw new Error(`O arquivo passa de ${Math.round(MAX_MARKDOWN_BYTES / 1024 / 1024)} MB.`);
     }
 
-    const source = (await file.text()).replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+    const source = decodeTextFile(new Uint8Array(await file.arrayBuffer()))
+      .replace(/^﻿/, "")
+      .replace(/\r\n?/g, "\n");
     if (countWords(source, "plain") === 0) {
       throw new Error("Este arquivo não tem texto para ler.");
     }
