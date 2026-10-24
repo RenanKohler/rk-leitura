@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { rateLimits } from "@/db/schema";
 import { todayIn } from "@/lib/goals";
 import { loadSettings } from "@/lib/queries";
-import { DAILY_QUOTAS, quotaKey, secondsUntilNextDay, type QuotaKind } from "@/lib/quota";
+import { DAILY_QUOTAS, quotaKey, reserveUnits, secondsUntilNextDay, type QuotaKind } from "@/lib/quota";
 import { rateLimit } from "@/lib/rate-limit";
 
 /**
@@ -33,7 +33,7 @@ export async function consumeDailyQuota(
 
 /**
  * Reserva ate `wanted` unidades da cota de uma vez e devolve quantas cabem
- * (US-139). O excedente e devolvido na mesma consulta, para a contagem nunca
+ * (US-139). So o que cabe ate o teto e somado, para a contagem nunca
  * passar do teto por causa de um lote.
  */
 export async function reserveDailyQuota(
@@ -53,15 +53,21 @@ export async function reserveDailyQuota(
     .values({ key, count: 0, resetAt: new Date(now.getTime() + (remaining + 3600) * 1000) })
     .onConflictDoNothing();
 
-  // Soma o que cabe ate o teto e devolve a diferenca entre antes e depois.
-  const result = await db.execute<{ before: number; after: number }>(sql`
-    with prev as (select count from rate_limits where key = ${key} for update)
-    update rate_limits
-       set count = least(rate_limits.count + ${wanted}, greatest(rate_limits.count, ${limit}))
-     where key = ${key}
-    returning (select count from prev) as before, rate_limits.count as after`);
-  const row = result.rows[0];
-  return row ? Math.max(0, Number(row.after) - Number(row.before)) : 0;
+  // Le o contador com a linha travada, faz a conta de `reserveUnits` e grava:
+  // reservas simultaneas esperam a vez e nunca passam do teto juntas. (A
+  // versao anterior, numa consulta so, lia o "antes" como nulo e devolvia o
+  // total do contador em vez do que foi somado - US-207.)
+  return db.transaction(async (tx) => {
+    const locked = await tx.execute<{ count: number }>(
+      sql`select count from rate_limits where key = ${key} for update`
+    );
+    const current = Number(locked.rows[0]?.count ?? 0);
+    const { count, granted } = reserveUnits(current, wanted, limit);
+    if (granted > 0) {
+      await tx.execute(sql`update rate_limits set count = ${count} where key = ${key}`);
+    }
+    return granted;
+  });
 }
 
 /** Quanto de cada cota a conta ja usou hoje (US-126). */
@@ -94,6 +100,7 @@ export async function releaseDailyQuota(
   if (units <= 0) return;
   const timezone = (await loadSettings(userId))?.timezone ?? "UTC";
   const key = quotaKey(kind, userId, todayIn(timezone, new Date()));
+  // Mesma conta de `releaseUnits`.
   await db.execute(
     sql`update rate_limits set count = greatest(0, count - ${units}) where key = ${key}`
   );

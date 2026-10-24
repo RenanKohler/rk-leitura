@@ -20,5 +20,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Os de integracao precisam de banco: rodam em `npm run test:integration`.
+    exclude: ["tests/integration/**"],
   },
 });

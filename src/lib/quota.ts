@@ -69,3 +69,24 @@ export function secondsUntilNextDay(timezone: string, now = new Date()): number 
   const elapsed = read("hour") * 3600 + read("minute") * 60 + read("second");
   return Math.max(1, 24 * 3600 - elapsed);
 }
+
+/**
+ * Reserva de varias unidades de uma vez (US-139, US-207): soma o que cabe ate
+ * o teto e devolve quantas couberam. Um contador ja acima do teto (o teto
+ * baixou) fica onde esta. E a mesma conta que `reserveDailyQuota` faz no banco.
+ */
+export function reserveUnits(
+  count: number,
+  wanted: number,
+  limit: number
+): { count: number; granted: number } {
+  if (wanted <= 0) return { count, granted: 0 };
+  const after = Math.min(count + wanted, Math.max(count, limit));
+  return { count: after, granted: Math.max(0, after - count) };
+}
+
+/** Devolucao de unidades nao usadas: o contador nunca fica abaixo de zero. */
+export function releaseUnits(count: number, units: number): number {
+  if (units <= 0) return count;
+  return Math.max(0, count - units);
+}
