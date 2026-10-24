@@ -82,7 +82,7 @@ test("restaurar a biblioteca a partir do arquivo exportado", async ({ page }) =>
   await page.request.post(`/api/texts/${first.id}/destaques`, { data: { start: 0, end: 3 } });
   await page.request.post(`/api/texts/${first.id}/marcadores`, { data: { position: 5, label: "Aqui" } });
   const exported = await (await page.request.get("/api/exportar?tipo=biblioteca")).text();
-  expect(JSON.parse(exported).versao).toBe(2);
+  expect(JSON.parse(exported).versao).toBe(3);
 
   await page.request.post("/api/auth/logout");
   await registerByApi(page.request);

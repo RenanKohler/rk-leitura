@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { runSql } from "./db";
-import { createText, openReader, randomIp, registerByApi, updateSettings } from "./helpers";
+import { createText, openReader, randomIp, registerByApi, sampleText, updateSettings } from "./helpers";
 
 // O service worker do modo offline atenderia o fetch antes de `page.route`.
 test.use({ serviceWorkers: "block" });
@@ -39,7 +39,8 @@ const draft = (front: string, start: number, end: number, kind = "ponto") => ({
   kind,
   sourceStart: start,
   sourceEnd: end,
-  passage: `Trecho de ${front}`,
+  // O trecho e o do texto de exemplo nessas posicoes, como o modelo devolve.
+  passage: sampleText(end).split(/\s+/).slice(start, end).join(" "),
 });
 
 /** US-155 e US-157: gerar, revisar so os de trechos lidos e salvar todos. */

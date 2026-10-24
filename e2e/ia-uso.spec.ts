@@ -97,7 +97,7 @@ test("apagar o que a IA gerou leva resultados e perguntas, com confirmacao", asy
   const dialog = page.getByRole("dialog", { name: "Apagar o que a IA gerou" });
   await expect(dialog).toContainText("perguntas feitas aos textos");
   await expect(dialog).toContainText(
-    "As definições salvas em Palavras e as notas criadas a partir de respostas são suas e continuam guardadas."
+    "As definições salvas em Palavras, as notas criadas a partir de respostas, os cartões feitos por você e os cartões gerados que você editou continuam guardados."
   );
   await dialog.getByRole("button", { name: "Apagar", exact: true }).click();
 

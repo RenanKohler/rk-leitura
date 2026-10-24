@@ -80,6 +80,12 @@ describe("relocalizar ao salvar (US-192)", () => {
     expect(dropped).toBe(1);
   });
 
+  it("trecho repetido fica na posicao enviada, se ainda bate com ela", () => {
+    const now = words("o rio corre o rio corre o rio corre");
+    const { kept } = relocateDrafts([draft("o rio corre", 6, 9)], now);
+    expect(kept[0]).toMatchObject({ sourceStart: 6, sourceEnd: 9 });
+  });
+
   it("sem trecho informado mantem a posicao, se couber no texto", () => {
     const now = words("um dois tres quatro");
     expect(relocateDrafts([draft(undefined, 0, 3)], now).kept).toHaveLength(1);

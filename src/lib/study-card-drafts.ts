@@ -261,6 +261,14 @@ export function parseDraftEdits(raw: unknown, wordCount: number): SavedDraft[] |
   return cards;
 }
 
+/** O trecho bate com as palavras `[start, end)`, sem contar caixa, acento e pontuacao. */
+function passageAt(words: string[], passage: string, start: number, end: number): boolean {
+  if (start < 0 || end > words.length || start >= end) return false;
+  const terms = passage.split(/\s+/).map(searchKey).filter(Boolean);
+  const keys = words.slice(start, end).map(searchKey).filter(Boolean);
+  return terms.length > 0 && terms.length === keys.length && terms.every((term, i) => term === keys[i]);
+}
+
 /**
  * Relocaliza no conteudo atual o trecho de cada cartao (US-192).
  *
@@ -279,6 +287,11 @@ export function relocateDrafts(
   for (const card of cards) {
     if (!card.passage) {
       if (card.sourceEnd <= words.length) kept.push(card);
+      continue;
+    }
+    // O trecho ainda esta onde estava: fica la, mesmo que se repita antes.
+    if (passageAt(words, card.passage, card.sourceStart, card.sourceEnd)) {
+      kept.push(card);
       continue;
     }
     const span = locatePassage(index, card.passage);
