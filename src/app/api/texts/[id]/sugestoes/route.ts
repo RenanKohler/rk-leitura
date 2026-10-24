@@ -8,6 +8,7 @@ import { contentKey } from "@/lib/quiz";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { parseParagraphs } from "@/lib/reading";
 import { suggestQuestions } from "@/lib/suggestions-generator";
+import { logError } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -79,7 +80,7 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ suggestions, cached: false });
   } catch (error) {
     // Sugestao e conveniencia: falha nao vira erro na folha.
-    console.error("[ia] sugestoes falhou:", error);
+    logError("ia/sugestoes", error);
     return NextResponse.json(EMPTY);
   }
 }

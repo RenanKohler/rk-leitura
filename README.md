@@ -88,7 +88,11 @@ Dois detalhes que valem em qualquer host:
   responder `pointsToLocalhost: true`, foi isso. O deploy ligado ao git nao tem
   esse problema, porque parte do que esta versionado.
 
-Trocar o `JWT_SECRET` invalida todas as sessoes ativas.
+Trocar o `JWT_SECRET` invalida todas as sessoes ativas. Os codigos de
+recuperacao usam o `RECOVERY_PEPPER` como tempero; sem ele, usam o
+`JWT_SECRET`, e troca-lo tambem invalida os codigos ja emitidos. O
+`/api/health` informa se o `RECOVERY_PEPPER` esta definido. Para adota-lo sem
+invalidar codigos antigos, defina-o com o valor atual do `JWT_SECRET`.
 
 ---
 
@@ -98,6 +102,7 @@ Trocar o `JWT_SECRET` invalida todas as sessoes ativas.
 | --- | --- | --- |
 | `DATABASE_URL` | sim | Connection string do Postgres (no Neon, a *pooled connection*). |
 | `JWT_SECRET` | sim | Chave de assinatura das sessoes, minimo 32 caracteres. |
+| `RECOVERY_PEPPER` | recomendada | Tempero dos codigos de recuperacao. Sem ela vale o `JWT_SECRET`, e troca-lo invalida os codigos. |
 | `DATABASE_POOL_MAX` | nao | Tamanho maximo do pool (padrao 5). |
 | `NEXT_PUBLIC_DEMO_HINT` | nao | `true` mostra as credenciais de demo no login. |
 | `ANTHROPIC_API_KEY` | nao | Funcoes de IA: questionario, dicionario, explicacao, perguntas ao texto, resumos, limpeza da importacao, etiquetas, sinopse e sintese. Sem ela, cada tela diz que a funcionalidade nao esta configurada e o resto do app segue igual. |

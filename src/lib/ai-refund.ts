@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { AiUnavailable, type AiTask } from "@/lib/ai";
 import { releaseDailyQuota } from "@/lib/daily-quota";
 import type { QuotaKind } from "@/lib/quota";
+import { logError } from "@/lib/error-log";
 
 /**
  * A falha devolve a cota (US-195)? Tempo esgotado, erro da API e resposta que
@@ -31,7 +32,7 @@ export async function markLastInvalid(userId: string, task: AiTask): Promise<voi
                     order by created_at desc limit 1)
          and outcome = 'sucesso'`);
   } catch (error) {
-    console.error("[ia] falha ao marcar resposta invalida:", error);
+    logError("ia/marcar-invalida", error);
   }
 }
 
@@ -53,7 +54,7 @@ export async function settleFailedCall(error: unknown, call: ChargedCall): Promi
   try {
     await releaseDailyQuota(call.quota, call.userId, call.units ?? 1);
   } catch (failure) {
-    console.error("[ia] falha ao devolver a cota:", failure);
+    logError("ia/devolver-cota", failure);
   }
   if (error.invalid) await markLastInvalid(call.userId, call.task);
 }

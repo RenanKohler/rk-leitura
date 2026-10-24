@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import type { z } from "zod";
 import { db } from "@/db";
 import { aiUsage, speedSettings } from "@/db/schema";
+import { logError } from "@/lib/error-log";
 
 /**
  * Ponto unico de acesso ao modelo de linguagem (US-123).
@@ -255,7 +256,7 @@ export async function recordUsage(
       firstTokenMs: extra.firstTokenMs ?? null,
     });
   } catch (error) {
-    console.error("[ia] falha ao registrar uso:", error);
+    logError("ia/registrar-uso", error);
   }
 }
 
@@ -317,7 +318,7 @@ export function translate(error: unknown, messages: AiMessages, scope: string): 
   if (error instanceof Anthropic.AuthenticationError) {
     return new AiUnavailable(messages.notConfigured);
   }
-  console.error(`[ia] ${scope} falhou:`, error);
+  logError(`ia/${scope}`, error);
   return new AiUnavailable(messages.failure);
 }
 

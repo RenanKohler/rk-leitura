@@ -29,6 +29,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { contentKey } from "@/lib/quiz";
 import { parseParagraphs } from "@/lib/reading";
 import { streamResponse } from "@/lib/stream-response";
+import { logError } from "@/lib/error-log";
 
 export const dynamic = "force-dynamic";
 // Pergunta sobre um trecho longo, no modelo maior: pode passar de 30s.
@@ -143,7 +144,7 @@ export async function POST(request: Request, { params }: Params) {
         turn = await saveTurn(session.id, id, { question, answer, position, fingerprint });
       } catch (error) {
         // A resposta vale mesmo sem ficar guardada.
-        console.error("[ia] falha ao guardar a pergunta:", error);
+        logError("ia/pergunta/guardar", error);
       }
       emit({ type: "done", answer, recentOnly: excerpt.truncated, turn });
     });
