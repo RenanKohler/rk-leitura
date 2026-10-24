@@ -7,6 +7,7 @@ import { isIP } from "node:net";
 import type { LookupFunction } from "node:net";
 import type { Readable } from "node:stream";
 import zlib from "node:zlib";
+import { decodeBody } from "@/lib/charset";
 
 /**
  * Busca HTTP com protecao contra SSRF.
@@ -395,7 +396,8 @@ export async function fetchPublic(
     }
 
     const bytes = await readCapped(response, signal);
-    return { html: new TextDecoder("utf-8").decode(bytes), finalUrl: url.toString() };
+    // Codificacao do cabecalho ou do documento, nao sempre UTF-8 (US-178).
+    return { html: decodeBody(bytes, contentType), finalUrl: url.toString() };
   }
 
   throw new SafeFetchError("Redirecionamentos demais.");
