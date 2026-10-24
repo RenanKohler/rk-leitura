@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateUser, openSession } from "@/lib/auth";
+import { authenticateUser, normalizeEmail, openSession } from "@/lib/auth";
 import { asString, jsonError, readJson, serverError } from "@/lib/api";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -8,8 +8,12 @@ interface Body {
   password?: unknown;
 }
 
+/** Tentativas por conta na janela (US-185), qualquer que seja o IP. */
+const LOGIN_ATTEMPTS_PER_ACCOUNT = 10;
+const WINDOW_MS = 15 * 60 * 1000;
+
 export async function POST(request: Request) {
-  const limit = await rateLimit(`login:${clientIp(request)}`, 10, 15 * 60 * 1000);
+  const limit = await rateLimit(`login:${clientIp(request)}`, 10, WINDOW_MS);
   if (!limit.allowed) {
     return jsonError("Muitas tentativas de login. Aguarde alguns minutos.", 429, {
       retryAfter: limit.retryAfterSeconds,
@@ -23,6 +27,20 @@ export async function POST(request: Request) {
 
     if (!email || !password) {
       return jsonError("Informe e-mail e senha.", 400);
+    }
+
+    // Limite por conta, antes de conferir a senha: tentativas vindas de
+    // muitos IPs somam na mesma chave, e durante o bloqueio nem a senha certa
+    // passa - responder diferente revelaria que ela estava certa.
+    const byAccount = await rateLimit(
+      `login-conta:${normalizeEmail(email)}`,
+      LOGIN_ATTEMPTS_PER_ACCOUNT,
+      WINDOW_MS
+    );
+    if (!byAccount.allowed) {
+      return jsonError("Muitas tentativas. Tente de novo em alguns minutos.", 429, {
+        retryAfter: byAccount.retryAfterSeconds,
+      });
     }
 
     const user = await authenticateUser(email, password);
