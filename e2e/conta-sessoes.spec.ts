@@ -152,3 +152,14 @@ test("rotas de cron e de uso da IA recusam pedido sem segredo", async ({
     expect(wrong.status(), path).toBe(401);
   }
 });
+
+/** US-190: senha que o bcrypt cortaria e recusada, com o motivo. */
+test("senha acima de 72 bytes é recusada no cadastro", async ({ request }) => {
+  const response = await request.post("/api/auth/register", {
+    data: { name: "Longa", email: uniqueEmail(), password: "frase longa ".repeat(7) },
+  });
+  expect(response.status()).toBe(400);
+  expect((await response.json()).error).toBe(
+    "A senha pode ter até 72 caracteres (menos se tiver acentos)."
+  );
+});

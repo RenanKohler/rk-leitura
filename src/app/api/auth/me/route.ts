@@ -17,10 +17,10 @@ import {
   verifyPassword,
 } from "@/lib/auth";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { passwordProblem } from "@/lib/password-rules";
 
 export const dynamic = "force-dynamic";
 
-const MIN_PASSWORD_LENGTH = 8;
 const MAX_NAME_LENGTH = 80;
 
 export async function GET() {
@@ -81,9 +81,8 @@ export async function PATCH(request: Request) {
     if (name !== null && name.length > MAX_NAME_LENGTH) {
       return jsonError("Nome muito longo.", 400);
     }
-    if (newPassword !== null && newPassword.length < MIN_PASSWORD_LENGTH) {
-      return jsonError(`A senha precisa ter ao menos ${MIN_PASSWORD_LENGTH} caracteres.`, 400);
-    }
+    const weak = newPassword !== null ? passwordProblem(newPassword) : null;
+    if (weak) return jsonError(weak, 400);
 
     const user = await getUserById(session.id);
     if (!user) return jsonError("Sessão expirada. Entre novamente.", 401);

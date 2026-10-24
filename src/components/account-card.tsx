@@ -6,8 +6,8 @@ import { dropPushSubscription } from "@/lib/push-client";
 import { useAuth, useToast } from "@/components/providers";
 import { Alert, Button, Card, Field, SectionTitle, Sheet } from "@/components/ui";
 import { LogoutIcon, TrashIcon } from "@/components/icons";
+import { MIN_PASSWORD_LENGTH, passwordProblem } from "@/lib/password-rules";
 
-const MIN_PASSWORD_LENGTH = 8;
 const MAX_NAME_LENGTH = 80;
 
 interface AccountUser {
@@ -70,8 +70,9 @@ export function AccountCard() {
     event.preventDefault();
     if (savingPassword) return;
 
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      setPasswordError(`A senha precisa ter ao menos ${MIN_PASSWORD_LENGTH} caracteres.`);
+    const weak = passwordProblem(newPassword);
+    if (weak) {
+      setPasswordError(weak);
       return;
     }
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createUser, findUserByEmail, openSession } from "@/lib/auth";
 import { asString, jsonError, readJson, serverError } from "@/lib/api";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { passwordProblem } from "@/lib/password-rules";
 
 interface Body {
   email?: unknown;
@@ -10,7 +11,6 @@ interface Body {
 }
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD_LENGTH = 8;
 
 export async function POST(request: Request) {
   const limit = await rateLimit(`register:${clientIp(request)}`, 5, 60 * 60 * 1000);
@@ -32,9 +32,8 @@ export async function POST(request: Request) {
     if (!EMAIL_PATTERN.test(email)) {
       return jsonError("E-mail inválido.", 400);
     }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-      return jsonError(`A senha precisa ter ao menos ${MIN_PASSWORD_LENGTH} caracteres.`, 400);
-    }
+    const weak = passwordProblem(password);
+    if (weak) return jsonError(weak, 400);
     if (name.length > 80) {
       return jsonError("Nome muito longo.", 400);
     }
