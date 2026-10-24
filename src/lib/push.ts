@@ -40,6 +40,8 @@ export interface PushPayload {
   title: string;
   body: string;
   url?: string;
+  /** Notificacao com a mesma tag substitui a anterior no aparelho. */
+  tag?: string;
 }
 
 /**

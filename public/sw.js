@@ -252,7 +252,9 @@ self.addEventListener("push", (event) => {
       body: payload.body ?? "Voce ainda nao leu hoje.",
       icon: "/icon.svg",
       badge: "/icon.svg",
-      tag: "lembrete-diario",
+      // Cada tipo de aviso tem a propria tag (US-201); payload antigo sem tag
+      // mantem a de antes.
+      tag: payload.tag ?? "lembrete-diario",
       data: { url: payload.url ?? "/dashboard" },
     })
   );
