@@ -51,3 +51,25 @@ test("PDF de artigo em duas colunas chega na ordem de leitura", async ({ page })
   expect(content).not.toContain("ISSN");
   expect(content).not.toContain("Downloaded from");
 });
+
+/** US-181: PDF com senha e PDF danificado explicam o motivo, em portugues. */
+test("PDF que não abre explica o motivo", async ({ page }) => {
+  await registerByApi(page.request);
+  await page.goto("/textos/novo");
+  await page.getByRole("radio", { name: "Arquivo" }).click();
+  const input = page.locator('input[type="file"]');
+
+  await input.setInputFiles(path.join(__dirname, "fixtures", "protegido.pdf"));
+  await expect(
+    page.getByText("Este PDF é protegido por senha. Remova a senha e tente de novo.")
+  ).toBeVisible({ timeout: 20_000 });
+
+  await input.setInputFiles({
+    name: "danificado.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\nisto nao e um pdf de verdade\n%%EOF"),
+  });
+  await expect(
+    page.getByText("Não foi possível ler este PDF. O arquivo pode estar corrompido.")
+  ).toBeVisible({ timeout: 20_000 });
+});
