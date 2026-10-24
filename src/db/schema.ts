@@ -99,6 +99,12 @@ export const texts = pgTable(
     /** Autor, quando a importacao achou ou o leitor informou (US-152). */
     author: text("author"),
     /**
+     * Perfil de ritmo por paragrafo (US-209), para o tempo livre prever sem
+     * ler o conteudo. Um gatilho do banco o apaga quando conteudo, formato ou
+     * idioma mudam; a proxima consulta o refaz.
+     */
+    paceProfile: jsonb("pace_profile"),
+    /**
      * Secoes de navegacao aplicadas a um texto sem titulos (US-153). Ficam
      * fora do conteudo: a contagem de palavras e as posicoes nao mudam.
      */

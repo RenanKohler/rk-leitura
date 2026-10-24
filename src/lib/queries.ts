@@ -41,12 +41,12 @@ import { synopsesFor } from "@/lib/synopsis-ai";
 import { currentInterval, REVIEW_SESSION_SIZE } from "@/lib/vocabulary";
 import {
   effectiveWpm,
-  fitParagraphEnd,
   PACE_WINDOW_DAYS,
   savedMinutes,
   STALE_QUEUE_DAYS,
   type Pace,
 } from "@/lib/pacing";
+import { asPaceProfile, buildPaceProfile, fitProfileEnd, type PaceProfile } from "@/lib/pace-profile";
 import { asProgramLength, programStatus, type ProgramStatus } from "@/lib/training";
 import {
   asGoalKind,
@@ -1319,6 +1319,41 @@ const WINDOW_RECENT = 20;
 const WINDOW_SUGGESTIONS = 3;
 
 /**
+ * Perfil de ritmo de cada texto (US-209). O que falta ou ficou velho - texto
+ * novo, editado ou anterior a coluna - e refeito do conteudo uma vez e gravado;
+ * dali em diante o tempo livre nao le mais o conteudo desse texto.
+ */
+async function paceProfiles(
+  userId: string,
+  rows: { id: string; paceProfile: unknown }[]
+): Promise<Map<string, PaceProfile>> {
+  const profiles = new Map<string, PaceProfile>();
+  const missing: string[] = [];
+  for (const row of rows) {
+    const profile = asPaceProfile(row.paceProfile);
+    if (profile) profiles.set(row.id, profile);
+    else missing.push(row.id);
+  }
+  if (missing.length === 0) return profiles;
+
+  const sources = await db
+    .select({ id: texts.id, content: texts.content, format: texts.format, language: texts.language })
+    .from(texts)
+    .where(and(eq(texts.userId, userId), inArray(texts.id, missing)));
+  for (const source of sources) {
+    const profile = buildPaceProfile(source.content, source.format, source.language);
+    profiles.set(source.id, profile);
+    // So grava se o conteudo ainda e o mesmo: uma edicao no meio nao recebe o
+    // perfil do texto antigo.
+    await db
+      .update(texts)
+      .set({ paceProfile: profile })
+      .where(and(eq(texts.id, source.id), eq(texts.content, source.content)));
+  }
+  return profiles;
+}
+
+/**
  * Leituras que cabem no tempo informado (US-84).
  *
  * A fila vem antes da biblioteca e, em cada uma, primeiro o que termina
@@ -1338,15 +1373,14 @@ export async function loadTimeWindow(userId: string, minutes: number): Promise<T
     gt(texts.wordCount, 0),
     lt(texts.progressIndex, texts.wordCount)
   );
+  // Sem `content`: o perfil de ritmo gravado basta (US-209).
   const columns = {
     id: texts.id,
     title: texts.title,
-    content: texts.content,
-    format: texts.format,
-    language: texts.language,
     progressIndex: texts.progressIndex,
     wordCount: texts.wordCount,
     queuePosition: texts.queuePosition,
+    paceProfile: texts.paceProfile,
   };
 
   const [queued, recent] = await Promise.all([
@@ -1362,17 +1396,15 @@ export async function loadTimeWindow(userId: string, minutes: number): Promise<T
       .orderBy(desc(texts.updatedAt))
       .limit(WINDOW_RECENT),
   ]);
+  const profiles = await paceProfiles(userId, [...queued, ...recent]);
 
   const fit = (rows: typeof queued, source: TimeSuggestion["source"]): TimeSuggestion[] =>
     rows.flatMap((row) => {
-      const { words, paragraphs } = parseParagraphs(row.content, asTextFormat(row.format));
+      const profile = profiles.get(row.id);
+      if (!profile) return [];
       // O ritmo medido nao tem as pausas de pontuacao (o leitor as desconta),
       // entao a previsao soma as pausas e a rampa como a tela vai executar.
-      const slice = fitParagraphEnd(paragraphs, row.progressIndex, budget, pace.wpm, warmup, {
-        words,
-        adaptive,
-        language: row.language,
-      });
+      const slice = fitProfileEnd(profile, row.progressIndex, budget, pace.wpm, warmup, adaptive);
       if (!slice) return [];
       return [
         {
