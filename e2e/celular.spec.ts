@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createText, openReader, randomIp, registerByApi, updateSettings } from "./helpers";
+import { runSql } from "./db";
 
 /*
  * Leitura no celular (docs/backlog-celular.md, US-210 a US-217).
@@ -349,4 +350,49 @@ test("US-217: o app instalado acompanha a orientação do aparelho", async ({ pa
   const response = await page.request.get("/manifest.webmanifest");
   expect(response.ok()).toBeTruthy();
   expect((await response.json()).orientation).toBe("any");
+});
+
+test.describe("cartão de recapitular com resumo longo", () => {
+  // O service worker repassa as requisicoes por fora do `page.route`.
+  test.use({ serviceWorkers: "block" });
+
+  test("fica entre o cabeçalho e o rodapé e rola por dentro", async ({ page }) => {
+    const text = await setup(page, 900, { aiEnabled: true });
+    await page.request.patch(`/api/texts/${text.id}`, {
+      data: { progressIndex: 400, at: new Date().toISOString() },
+    });
+    await page.request.post("/api/reading-sessions", {
+      data: { textId: text.id, wordsRead: 400, durationMs: 60_000, completed: false },
+    });
+    await runSql(
+      "update reading_sessions set created_at = now() - interval '3 days' where text_id = $1",
+      [text.id]
+    );
+    const points = Array.from(
+      { length: 8 },
+      (_, i) => `Ponto ${i + 1} do resumo, longo o bastante para ocupar mais de uma linha na tela do celular.`
+    );
+    await page.route(`**/api/texts/${text.id}/resumo**`, (route) =>
+      route.request().method() === "GET"
+        ? route.fulfill({ json: { available: true, summary: null } })
+        : route.fulfill({ json: { summary: { points, to: 400 } } })
+    );
+
+    await page.goto(`/leitor/${text.id}`);
+    await page.getByRole("button", { name: "Resumo do que li" }).click();
+    await expect(page.getByTestId("resumo-lido").getByRole("listitem")).toHaveCount(8);
+
+    const card = page.getByTestId("cartao-recapitular");
+    const cardBox = (await card.boundingBox())!;
+    const headerBox = (await page.locator("header").boundingBox())!;
+    const footerBox = (await page.getByTestId("controles-rodape").boundingBox())!;
+    expect(cardBox.y).toBeGreaterThanOrEqual(headerBox.y + headerBox.height);
+    expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(footerBox.y);
+    // O excesso rola dentro do cartao; o titulo continua inteiro na tela.
+    expect(await card.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+    await expect(card.getByText("Recapitular o contexto")).toBeInViewport({ ratio: 1 });
+    await card.getByRole("button", { name: "Continuar a leitura" }).scrollIntoViewIfNeeded();
+    await card.getByRole("button", { name: "Continuar a leitura" }).click();
+    await expect(page.getByText("Recapitular o contexto")).toHaveCount(0);
+  });
 });

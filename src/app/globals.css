@@ -302,6 +302,14 @@ body[data-sheet="aberta"] .toast-region {
   padding-bottom: calc(var(--reader-bottom, 0px) + 1rem);
 }
 
+/* Cartao flutuante acima do rodape (recapitular, resumo): nunca passa do
+   espaco entre o cabecalho e o rodape; o excesso rola dentro dele. */
+.reader-float-card {
+  max-height: calc(100dvh - var(--reader-top, 0px) - var(--reader-bottom, 0px) - 1.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 /* Deslize para fora do texto na primeira ou na ultima pagina (US-211). */
 @keyframes page-bounce-start {
   50% {
