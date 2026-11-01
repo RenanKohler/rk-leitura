@@ -41,6 +41,9 @@ export function usePagedText(
   // mudanca de caixa - inclusive as que nao mudam o tamanho -, e paginar o
   // texto inteiro de novo custa segundos em textos longos.
   const measuredRef = useRef<{ key: string } | null>(null);
+  // Paginas ja calculadas por tamanho de quadro. A tela cheia do leitor
+  // alterna entre duas alturas: voltar a uma delas nao refaz a paginacao.
+  const cacheRef = useRef(new Map<string, number[]>());
 
   const measure = useCallback(() => {
     const ruler = rulerRef.current;
@@ -59,7 +62,12 @@ export function usePagedText(
       return;
     }
 
-    setPages(computePageStarts(ruler, paragraphs, totalWords, height, emphasis));
+    let computed = cacheRef.current.get(key);
+    if (!computed) {
+      computed = computePageStarts(ruler, paragraphs, totalWords, height, emphasis);
+      cacheRef.current.set(key, computed);
+    }
+    setPages(computed);
     setReady(true);
   }, [frame, paragraphs, totalWords, emphasis, layoutKey]);
 
@@ -67,6 +75,7 @@ export function usePagedText(
   // o quadro do mesmo tamanho.
   useEffect(() => {
     measuredRef.current = null;
+    cacheRef.current.clear();
   }, [paragraphs, totalWords, emphasis, layoutKey]);
 
   useEffect(() => {

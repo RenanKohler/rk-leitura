@@ -288,8 +288,12 @@ Total: 8 stories, 22 pontos, 1 sprint.
   "Vibrar ao mudar de seção" (desligada) são do aparelho, em `localStorage`,
   como o modo do play; não há migração. Com "Esconder controles" ligada,
   cabeçalho e rodapé ficam por cima do texto, e o quadro da página reserva a
-  altura dos dois como margem: nenhuma linha fica embaixo deles. Ao sair da
-  tela eles só se deslocam, então a página não é refeita.
+  altura dos dois como margem: nenhuma linha fica embaixo deles. Com os
+  controles fora da tela (depois de 4 s ou pelo botão "Tela cheia" do
+  rodapé), o texto ocupa a altura toda e a página é refeita para a altura nova.
+  Isso substitui o critério 5 da US-213 a pedido do leitor. As páginas de cada
+  altura ficam guardadas, então alternar entre as duas não recalcula o texto;
+  durante o Word Runner a página não muda de tamanho.
 - US-217: na horizontal com até 500 px de altura, a barra vira uma linha só.
 
 ## Próximo passo de validação

@@ -28,6 +28,8 @@ export function useControlsVisibility({
 }): {
   hidden: boolean;
   reveal: () => void;
+  /** Esconde agora, sem esperar a contagem (botao de tela cheia). */
+  hideNow: () => void;
   focusHandlers: {
     onFocus: (event: React.FocusEvent) => void;
     onBlur: (event: React.FocusEvent) => void;
@@ -74,6 +76,14 @@ export function useControlsVisibility({
     setFocused(false);
   }, []);
 
+  const hideNow = useCallback(() => {
+    // O botao que pediu a tela cheia ficaria com o foco e seguraria os
+    // controles na tela.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    setFocused(false);
+    setIdle(true);
+  }, []);
+
   const hidden = enabled && !hold && !focused && (playing || idle);
-  return { hidden, reveal, focusHandlers: { onFocus, onBlur, onPointerDown: reveal } };
+  return { hidden, reveal, hideNow, focusHandlers: { onFocus, onBlur, onPointerDown: reveal } };
 }

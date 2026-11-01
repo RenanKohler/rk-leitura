@@ -1850,6 +1850,10 @@ function Reader({
     revealControlsRef.current = revealControls;
   }, [revealControls]);
   const controlsHidden = controls.hidden;
+  // Tela cheia de verdade: com os controles fora, a pagina usa a tela toda.
+  // Nao durante o Word Runner, que cobre a pagina: repaginar ali travaria a
+  // leitura sem ganho nenhum.
+  const pageFullscreen = controlsOverlay && controlsHidden && !runnerVisible;
 
   if (total === 0) {
     return (
@@ -2090,6 +2094,7 @@ function Reader({
               gestures={pageGestures.handlers}
               bounce={bounce?.direction ?? 0}
               overlay={controlsOverlay}
+              fullscreen={pageFullscreen}
               onTap={onPageTap}
               onOpenMark={(id) => (id === REREAD_MARK ? undefined : setOpenMark(id))}
             />
@@ -2323,6 +2328,7 @@ function Reader({
             playMode={playMode}
             onTogglePlayMode={() => setPlayMode(playMode === "runner" ? "guia" : "runner")}
             onOpenMore={() => setMoreOpen(true)}
+            onFullscreen={controlsOverlay ? controls.hideNow : undefined}
             status={
               playing
                 ? adaptive
@@ -3380,6 +3386,7 @@ const PageStage = memo(function PageStage({
   gestures,
   bounce,
   overlay,
+  fullscreen,
   onTap,
   onOpenMark,
 }: {
@@ -3402,6 +3409,8 @@ const PageStage = memo(function PageStage({
   bounce: -1 | 0 | 1;
   /** Controles por cima do texto (US-213): o quadro reserva a area segura. */
   overlay: boolean;
+  /** Controles fora da tela: o texto ocupa a altura toda. */
+  fullscreen: boolean;
   /** Toque na pagina: a palavra tocada (ou null) e a borda (-1, 0, 1). */
   onTap: (position: number | null, edge: -1 | 0 | 1) => void;
   onOpenMark: (id: string) => void;
@@ -3426,7 +3435,7 @@ const PageStage = memo(function PageStage({
 
   return (
     <div
-      className={`relative flex min-h-0 flex-1 flex-col px-5 py-6${overlay ? " reader-stage-overlay" : ""}${hidden ? " invisible" : ""}`}
+      className={`relative flex min-h-0 flex-1 flex-col px-5 py-6${overlay ? " reader-stage-overlay" : ""}${fullscreen ? " reader-stage-full" : ""}${hidden ? " invisible" : ""}`}
       aria-hidden={hidden || undefined}
       onClick={onClick}
       {...gestures}

@@ -301,6 +301,12 @@ body[data-sheet="aberta"] .toast-region {
   padding-top: calc(var(--reader-top, 0px) + 1rem);
   padding-bottom: calc(var(--reader-bottom, 0px) + 1rem);
 }
+/* Tela cheia: sem controles na tela, o texto ocupa a altura toda. A pagina
+   e refeita para a altura nova (as duas alturas ficam guardadas). */
+.reader-stage-overlay.reader-stage-full {
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
 
 /* Cartao flutuante acima do rodape (recapitular, resumo): nunca passa do
    espaco entre o cabecalho e o rodape; o excesso rola dentro dele. */

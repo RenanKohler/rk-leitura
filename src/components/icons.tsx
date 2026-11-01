@@ -343,3 +343,13 @@ export const StudyIcon = (props: IconProps) => (
     <path d="M21.5 9.5v5" />
   </Icon>
 );
+
+/** Quatro cantos para fora: tela cheia (so o texto). */
+export const FullscreenIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 9V5a1 1 0 0 1 1-1h4" />
+    <path d="M15 4h4a1 1 0 0 1 1 1v4" />
+    <path d="M20 15v4a1 1 0 0 1-1 1h-4" />
+    <path d="M9 20H5a1 1 0 0 1-1-1v-4" />
+  </Icon>
+);
