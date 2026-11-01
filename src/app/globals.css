@@ -294,10 +294,12 @@ body[data-sheet="aberta"] .toast-region {
   opacity: 0;
   pointer-events: none;
 }
-/* Sem a barra do sistema, o quadro reserva a area segura do aparelho. */
+/* Com os controles por cima, o quadro reserva a altura do cabecalho e do
+   rodape (medidas pelo leitor) mais um respiro: nenhuma linha fica embaixo
+   deles nem cortada na borda. */
 .reader-stage-overlay {
-  padding-top: max(1.5rem, env(safe-area-inset-top));
-  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  padding-top: calc(var(--reader-top, 0px) + 1rem);
+  padding-bottom: calc(var(--reader-bottom, 0px) + 1rem);
 }
 
 /* Deslize para fora do texto na primeira ou na ultima pagina (US-211). */

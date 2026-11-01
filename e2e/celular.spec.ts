@@ -153,6 +153,12 @@ test.describe("US-213: controles escondidos", () => {
     const bottom = page.getByTestId("controles-rodape");
     await expect(counter(page)).toHaveText(/^Página 1 de \d+$/);
     const frameBefore = (await page.getByTestId("quadro-pagina").boundingBox())!;
+
+    // Com os controles visiveis, nenhuma linha fica embaixo deles.
+    const headerBox = (await top.locator("header").boundingBox())!;
+    const footerBox = (await bottom.boundingBox())!;
+    expect(frameBefore.y).toBeGreaterThanOrEqual(headerBox.y + headerBox.height);
+    expect(frameBefore.y + frameBefore.height).toBeLessThanOrEqual(footerBox.y);
     const firstWord = await page.getByTestId("quadro-pagina").locator("p").first().innerText();
 
     // Parado, sem tocar nos controles: saem depois de 4 segundos.
