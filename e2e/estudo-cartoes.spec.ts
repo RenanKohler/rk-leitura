@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { runSql } from "./db";
-import { createText, openReader, randomIp, registerByApi, sampleText, updateSettings } from "./helpers";
+import { createText, openReader, randomIp, registerByApi, sampleText, updateSettings, readerAction } from "./helpers";
 
 // O service worker do modo offline atenderia o fetch antes de `page.route`.
 test.use({ serviceWorkers: "block" });
@@ -233,12 +233,12 @@ test("estudar e alcancavel pelo leitor e pela biblioteca", async ({ page }) => {
   const text = await createText(page.request, "Entradas do estudo", 400);
 
   await openReader(page, text.id);
-  await page.getByRole("link", { name: "Estudar", exact: true }).click();
+  await readerAction(page, "Estudar");
   await expect(page).toHaveURL(`/textos/${text.id}/estudar`);
   await expect(page.getByRole("heading", { name: "Estudar" })).toBeVisible();
 
   await openReader(page, text.id);
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   await page.getByRole("link", { name: "Estudar este texto" }).click();
   await expect(page).toHaveURL(`/textos/${text.id}/estudar`);
 

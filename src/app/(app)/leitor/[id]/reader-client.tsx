@@ -98,6 +98,21 @@ import { GuideQuestions } from "@/components/guide-questions";
 import { MIN_WORDS_FOR_QUIZ } from "@/lib/quiz";
 import { useWordSelection, wordIndexFromPoint } from "@/hooks/use-word-selection";
 import { useWordTouch } from "@/hooks/use-word-touch";
+import { useReaderGestures, type ReaderGestureHandlers } from "@/hooks/use-reader-gestures";
+import { useControlsVisibility } from "@/hooks/use-controls-visibility";
+import {
+  HIDE_CONTROLS_KEY,
+  SECTION_VIBRATION_KEY,
+  useDeviceOption,
+} from "@/hooks/use-device-option";
+import { speedFromDrag } from "@/lib/gestures";
+import { canVibrate, hapticPattern, startsHeading, vibrate } from "@/lib/haptics";
+import {
+  ControlButton,
+  MoreActionsSheet,
+  ReaderControlBar,
+  type PlayMode,
+} from "./reader-controls";
 import { useSpeech } from "@/hooks/use-speech";
 import { rateNotice } from "@/lib/speech";
 import { normalizeWord, trimContext } from "@/lib/dictionary";
@@ -177,7 +192,6 @@ const EDGE_FRACTION = 0.12;
 const SAVE_WPM_DELAY_MS = 400;
 
 const PLAY_MODE_KEY = "rk-leitura:play-mode";
-type PlayMode = "runner" | "guia";
 
 type PauseReason =
   | "freio"
@@ -227,6 +241,11 @@ function subscribePlayMode(onChange: () => void): () => void {
     window.removeEventListener(PLAY_MODE_EVENT, onChange);
     window.removeEventListener("storage", onChange);
   };
+}
+
+/** Capacidade do navegador, que nao muda: nada a assinar. */
+function subscribeNothing(): () => void {
+  return () => undefined;
 }
 
 function readPlayMode(): PlayMode {
@@ -379,6 +398,12 @@ function Reader({
     window.dispatchEvent(new Event(PLAY_MODE_EVENT));
   }, []);
   const runnerVisible = playing && playMode === "runner";
+  // Preferencias do aparelho para o celular (US-213, US-216).
+  const [hideControlsOption, setHideControlsOption] = useDeviceOption(HIDE_CONTROLS_KEY, true);
+  const [vibrateOption, setVibrateOption] = useDeviceOption(SECTION_VIBRATION_KEY, false);
+  const vibrationAvailable = useSyncExternalStore(subscribeNothing, canVibrate, () => false);
+  // Fim de capitulo de uma serie: o Word Runner avisa com duas vibracoes.
+  const isSeries = Boolean(text.seriesKey) || nextUp?.source === "capitulo";
 
   // Posicao em que a leitura corrente comecou: a rampa de aquecimento conta a
   // partir dela, nao do inicio do texto.
@@ -1016,13 +1041,19 @@ function Reader({
       addWords(meterRef.current, 1, credit);
       const next = index + 1;
 
+      // Vibracao ao mudar de secao (US-216): so no Word Runner, onde o
+      // leitor nao ve a pagina, e nunca durante a narracao.
+      const haptics = { enabled: vibrateOption && playMode === "runner", narrating: stateRef.current.narrating };
+
       if (next >= total) {
+        vibrate(hapticPattern(isSeries ? "capitulo" : null, haptics));
         finish(wpm);
         return;
       }
 
       stateRef.current.index = next;
       setIndex(next);
+      vibrate(hapticPattern(startsHeading(paragraphs, next) ? "secao" : null, haptics));
 
       if (stopAt !== undefined && !stopReachedRef.current && next >= stopAt) {
         stopReachedRef.current = true;
@@ -1055,6 +1086,10 @@ function Reader({
     finish,
     pause,
     flushSession,
+    vibrateOption,
+    playMode,
+    isSeries,
+    paragraphs,
   ]);
 
   /* --- cronometro visivel ------------------------------------------------ */
@@ -1368,22 +1403,61 @@ function Reader({
     [pages, anchor, seek, touchPage, postRecord, notify, text.sourceUrl, continueFromSource, finish, wpm]
   );
 
+  /*
+   * Deslize na pagina (US-211): para a esquerda avanca, para a direita volta,
+   * pelo mesmo caminho dos botoes. Nao disputa com a selecao para destacar
+   * nem com o toque longo do dicionario. Na primeira e na ultima pagina, o
+   * deslize so da um retorno visual curto.
+   */
+  const [bounce, setBounce] = useState<{ direction: 1 | -1; at: number } | null>(null);
+  useEffect(() => {
+    if (!bounce) return;
+    const timer = setTimeout(() => setBounce(null), 200);
+    return () => clearTimeout(timer);
+  }, [bounce]);
+  const pageGestures = useReaderGestures({
+    enabled: !runnerVisible && !finished,
+    blocked: () =>
+      !(window.getSelection()?.isCollapsed ?? true) ||
+      word.recentLongPress(1_500) ||
+      word.touched !== null,
+    onSwipe: (swipe) => {
+      const direction: 1 | -1 = swipe === -1 ? 1 : -1;
+      const page = pageOfWord(pages, stateRef.current.index);
+      const outside = direction === -1 ? page <= 0 : page >= pages.length - 1;
+      if (outside) {
+        setBounce({ direction, at: Date.now() });
+        return;
+      }
+      turnPage(direction);
+    },
+  });
+  const recentPageGesture = pageGestures.recentGesture;
+
+  // Os controles escondidos (US-213) voltam ao tocar fora de palavra; o
+  // estado deles e decidido mais abaixo, junto das folhas e avisos.
+  const revealControlsRef = useRef<() => void>(() => undefined);
+
   /** Toque na pagina: borda vira, palavra passa a ser o inicio da leitura. */
   const onPageTap = useCallback(
     (position: number | null, edge: -1 | 0 | 1) => {
       if (Date.now() - brakeAtRef.current < BRAKE_GUARD_MS) return;
       if (word.recentLongPress()) return;
+      if (recentPageGesture()) return;
       if (edge !== 0) {
         turnPage(edge);
         return;
       }
-      if (position === null) return;
+      if (position === null) {
+        revealControlsRef.current();
+        return;
+      }
       touchPage();
       seek(position);
       setTapped(position);
       setAnchor(position);
     },
-    [turnPage, seek, touchPage, word]
+    [turnPage, seek, touchPage, word, recentPageGesture]
   );
 
   /** Volta ao inicio da frase, ou da anterior quando ja esta no inicio (US-91). */
@@ -1417,6 +1491,8 @@ function Reader({
   const [guiding, setGuiding] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // Folha "Mais acoes" do rodape (US-215).
+  const [moreOpen, setMoreOpen] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
 
@@ -1505,6 +1581,7 @@ function Reader({
     explaining !== null ||
     asking ||
     shortcutsOpen ||
+    moreOpen ||
     openMark !== null ||
     wordOpen ||
     confirmAbandon ||
@@ -1642,6 +1719,38 @@ function Reader({
     requestAnimationFrame(() => playButtonRef.current?.focus({ preventScroll: true }));
   }, [pause]);
 
+  /*
+   * Velocidade por deslize no Word Runner (US-212): 25 ppm a cada 40 px, sem
+   * parar a leitura, pelo mesmo `changeWpm` do controle. Com o ritmo dinamico
+   * o valor e a velocidade base, como no controle deslizante. Toque sem
+   * deslize continua sendo o freio.
+   */
+  const dragBaseRef = useRef(wpm);
+  const [speedFlash, setSpeedFlash] = useState<{ wpm: number; at: number } | null>(null);
+  useEffect(() => {
+    if (!speedFlash) return;
+    const timer = setTimeout(() => setSpeedFlash(null), 1_000);
+    return () => clearTimeout(timer);
+  }, [speedFlash]);
+  const runnerGestures = useReaderGestures({
+    enabled: runnerVisible,
+    onDragStart: () => {
+      dragBaseRef.current = wpm;
+    },
+    onDrag: (dx) => {
+      const next = speedFromDrag(dragBaseRef.current, dx);
+      if (next !== wpm) changeWpm(next);
+      setSpeedFlash((current) =>
+        current && current.wpm === next ? current : { wpm: next, at: Date.now() }
+      );
+    },
+  });
+  const recentRunnerGesture = runnerGestures.recentGesture;
+  const onRunnerTap = useCallback(() => {
+    if (recentRunnerGesture()) return;
+    brakeFromRunner();
+  }, [recentRunnerGesture, brakeFromRunner]);
+
   // Os avisos flutuantes ficam acima do rodape do leitor, sem cobrir o play.
   const footerRef = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
@@ -1678,6 +1787,44 @@ function Reader({
 
   const onSpeedChange = useCallback((value: number) => changeWpm(value), [changeWpm]);
 
+  /*
+   * Controles fora da tela durante a leitura (US-213). Ficam enquanto houver
+   * folha aberta ou aviso na tela; com a opcao desligada, tudo como antes.
+   */
+  const tipsVisible =
+    !settings.readerTipsSeen && !tipsDismissed && pagesReady && !playing && !narrating && !sheetOpen;
+  const noticeOnScreen =
+    (text.abandoned && !resumed) ||
+    (recap !== null && !playing) ||
+    (chapterRecap !== null && !playing && !narrating) ||
+    (sessionCheck !== null && !playing && !narrating) ||
+    (slowdown !== null && !playing && !narrating) ||
+    Boolean(speech.error) ||
+    selection !== null ||
+    (reread !== null && !playing && !narrating) ||
+    showReturn ||
+    remoteJump !== null ||
+    saveFailing ||
+    tipsVisible;
+  const controlsOverlay =
+    hideControlsOption && !finished && !recapPlaying && !chapterRecapPlaying;
+  const controls = useControlsVisibility({
+    enabled: controlsOverlay,
+    playing,
+    hold:
+      sheetOpen ||
+      speedOpen ||
+      checkpoint !== null ||
+      stopInfo !== null ||
+      resting ||
+      noticeOnScreen,
+  });
+  const revealControls = controls.reveal;
+  useEffect(() => {
+    revealControlsRef.current = revealControls;
+  }, [revealControls]);
+  const controlsHidden = controls.hidden;
+
   if (total === 0) {
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-4 px-6 text-center">
@@ -1696,7 +1843,7 @@ function Reader({
     <div
       // Altura fixa: nada que entra ou sai (avisos, barra de selecao, linha
       // da pagina) muda o tamanho do quadro e dispara a paginacao de novo.
-      className="flex h-dvh flex-col overflow-hidden bg-bg"
+      className="relative flex h-dvh flex-col overflow-hidden bg-bg"
       // A intensidade do destaque desce por variavel CSS: quem pinta o trecho
       // atual e uma regra de estilo, nao o React, entao mudar o ajuste nao
       // rerrenderiza palavra nenhuma.
@@ -1707,8 +1854,21 @@ function Reader({
         } as React.CSSProperties
       }
     >
-      <header className="pt-safe z-20 shrink-0 border-b border-border bg-bg/90 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-3xl items-center gap-1 px-2 py-2 sm:gap-2">
+      {/* Com "Esconder controles" (US-213) o cabecalho e os avisos de cima
+          ficam por cima do texto: sair e voltar nao muda a altura do quadro
+          nem refaz as paginas. Desligado, ficam no fluxo, como antes. */}
+      <div
+        data-testid="controles-topo"
+        data-hidden={controlsHidden || undefined}
+        className={
+          controlsOverlay
+            ? `reader-chrome absolute inset-x-0 top-0 z-30 ${controlsHidden ? "reader-chrome-hidden-top" : ""}`
+            : "contents"
+        }
+        {...controls.focusHandlers}
+      >
+      <header className="reader-header pt-safe z-20 shrink-0 border-b border-border bg-bg/90 backdrop-blur">
+        <div className="reader-header-row mx-auto flex w-full max-w-3xl items-center gap-1 px-2 py-2 sm:gap-2">
           <Link
             href="/textos"
             aria-label="Voltar"
@@ -1734,6 +1894,9 @@ function Reader({
                 : `${formatClock(displayMs)} lidos`}
             </button>
           </div>
+          {/* No celular as acoes ficam no "Mais" do rodape, perto do polegar
+              (US-215); a partir de `sm` continuam aqui. */}
+          <div className="hidden shrink-0 items-center gap-1 sm:flex sm:gap-2">
           {/* So aparece quando ha o que revisar: um atalho para uma lista
               vazia seria ruido em uma barra ja estreita. */}
           {marks.length > 0 ? (
@@ -1787,6 +1950,7 @@ function Reader({
           >
             <SettingsIcon className="size-5" />
           </button>
+          </div>
         </div>
         <div className="relative h-0.5 bg-surface-2">
           <div
@@ -1834,6 +1998,7 @@ function Reader({
           {SAVE_FAILURE_NOTICE}
         </p>
       ) : null}
+      </div>
 
       <main
         className={`relative flex min-h-0 flex-1 flex-col ${finished || recapPlaying || chapterRecapPlaying ? "overflow-y-auto" : ""}`}
@@ -1894,16 +2059,13 @@ function Reader({
               current={currentOnPage}
               hidden={runnerVisible}
               touch={word.handlers}
-              onTurn={turnPage}
+              gestures={pageGestures.handlers}
+              bounce={bounce?.direction ?? 0}
+              overlay={controlsOverlay}
               onTap={onPageTap}
               onOpenMark={(id) => (id === REREAD_MARK ? undefined : setOpenMark(id))}
             />
-            {!settings.readerTipsSeen &&
-            !tipsDismissed &&
-            pagesReady &&
-            !playing &&
-            !narrating &&
-            !sheetOpen ? (
+            {tipsVisible ? (
               <ReaderTips onDone={dismissTips} />
             ) : null}
             {runnerVisible ? (
@@ -1915,7 +2077,9 @@ function Reader({
                 paragraphStart={paragraphStart}
                 block={currentParagraph}
                 language={language}
-                onBrake={brakeFromRunner}
+                onBrake={onRunnerTap}
+                gestures={runnerGestures.handlers}
+                speedFlash={speedFlash?.wpm ?? null}
               />
             ) : null}
           </>
@@ -1925,7 +2089,14 @@ function Reader({
       {!finished && !recapPlaying && !chapterRecapPlaying ? (
         <footer
           ref={footerRef}
-          className="pb-safe relative z-20 shrink-0 border-t border-border bg-bg/95 backdrop-blur"
+          data-testid="controles-rodape"
+          data-hidden={controlsHidden || undefined}
+          {...controls.focusHandlers}
+          className={`reader-footer pb-safe z-20 border-t border-border bg-bg/95 backdrop-blur ${
+            controlsOverlay
+              ? `reader-chrome absolute inset-x-0 bottom-0 ${controlsHidden ? "reader-chrome-hidden-bottom" : ""}`
+              : "relative shrink-0"
+          }`}
         >
           {/* Tudo o que aparece por cima (avisos, barra de selecao, voltar ao
               lugar) flutua acima do rodape, fora do fluxo: entrar ou sair nao
@@ -2103,84 +2274,36 @@ function Reader({
             ) : null}
           </div>
 
-          <div className="mx-auto w-full max-w-3xl px-4 py-2">
-            {/* Grade fixa: parado e correndo tem os mesmos lugares, e o play
-                nao sai do centro, onde o polegar o procura. */}
-            <div className="grid grid-cols-5 items-center justify-items-center">
-              {!playing ? (
-                <ControlButton
-                  label={narrating ? "Parar a narração" : "Ler em voz alta"}
-                  onClick={toggleSpeech}
-                  active={narrating}
-                >
-                  <VoiceIcon className="size-5" />
-                </ControlButton>
-              ) : (
-                <span aria-hidden="true" className="size-12" />
-              )}
-
-              {playing ? (
-                <ControlButton label="Voltar a frase" onClick={backSentence}>
-                  <RewindIcon className="size-5" />
-                </ControlButton>
-              ) : (
-                <ControlButton label="Página anterior" onClick={() => turnPage(-1)}>
-                  <BackIcon className="size-5" />
-                </ControlButton>
-              )}
-
-              <button
-                ref={playButtonRef}
-                type="button"
-                onClick={togglePlay}
-                aria-label={playing ? "Pausar" : "Iniciar leitura"}
-                className="flex size-16 items-center justify-center rounded-full bg-accent text-accent-ink shadow-float transition-transform active:scale-95"
-              >
-                {playing ? <PauseIcon className="size-7" /> : <PlayIcon className="size-7" />}
-              </button>
-
-              {playing ? (
-                <ControlButton label="Avançar a frase" onClick={forwardSentence}>
-                  <FastForwardIcon className="size-5" />
-                </ControlButton>
-              ) : (
-                <ControlButton label="Próxima página" onClick={() => turnPage(1)}>
-                  <ForwardIcon className="size-5" />
-                </ControlButton>
-              )}
-
-              <ControlButton label="Destacar frase" onClick={() => markSentenceAt(index)}>
-                <MarkIcon className="size-5" />
-              </ControlButton>
-            </div>
-
-            <div className="mt-1 flex min-h-11 items-center justify-between gap-2 text-sm">
-              <button
-                type="button"
-                onClick={() => setSpeedOpen((open) => !open)}
-                aria-expanded={speedOpen}
-                aria-label={`Velocidade: ${wpm} ppm`}
-                className={`tabular min-h-11 shrink-0 rounded-full border px-3 font-medium ${
-                  speedOpen ? "border-accent text-accent" : "border-border text-muted"
-                }`}
-              >
-                {`${wpm} ppm`}
-              </button>
-              <p className="tabular min-w-0 flex-1 truncate text-right text-muted">
-                {playing
-                  ? adaptive
-                    ? `~${realWpm} ppm reais`
-                    : `${wpm} ppm`
-                  : pagesReady
-                    ? stopPage !== null && !stopReached
-                      ? `Página ${currentPage + 1} de ${pages.length} · trecho até a p. ${stopPage}${
-                          plannedMs ? ` (~${formatClock(plannedMs)})` : ""
-                        }`
-                      : `Página ${currentPage + 1} de ${pages.length}`
-                    : ""}
-              </p>
-            </div>
-          </div>
+          <ReaderControlBar
+            playing={playing}
+            narrating={narrating}
+            playButtonRef={playButtonRef}
+            onTogglePlay={togglePlay}
+            onToggleSpeech={toggleSpeech}
+            onBackSentence={backSentence}
+            onForwardSentence={forwardSentence}
+            onTurnPage={turnPage}
+            onMarkSentence={() => markSentenceAt(index)}
+            wpm={wpm}
+            speedOpen={speedOpen}
+            onToggleSpeed={() => setSpeedOpen((open) => !open)}
+            playMode={playMode}
+            onTogglePlayMode={() => setPlayMode(playMode === "runner" ? "guia" : "runner")}
+            onOpenMore={() => setMoreOpen(true)}
+            status={
+              playing
+                ? adaptive
+                  ? `~${realWpm} ppm reais`
+                  : `${wpm} ppm`
+                : pagesReady
+                  ? stopPage !== null && !stopReached
+                    ? `Página ${currentPage + 1} de ${pages.length} · trecho até a p. ${stopPage}${
+                        plannedMs ? ` (~${formatClock(plannedMs)})` : ""
+                      }`
+                    : `Página ${currentPage + 1} de ${pages.length}`
+                  : ""
+            }
+          />
         </footer>
       ) : null}
 
@@ -2355,6 +2478,16 @@ function Reader({
         session={checkTarget}
       />
 
+      <MoreActionsSheet
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        textId={text.id}
+        marksCount={marks.length}
+        onAsk={() => setAsking(true)}
+        onNavigate={() => setNavigating(true)}
+        onSettings={() => setShowSettings(true)}
+      />
+
       <Sheet open={showSettings} onClose={() => setShowSettings(false)} title="Ajustes de leitura">
         <div className="space-y-6">
           <Slider
@@ -2397,6 +2530,43 @@ function Reader({
                 : "A palavra atual anda marcada na própria página, no mesmo ritmo, e a página vira sozinha."}
             </p>
           </div>
+
+          <section className="space-y-3" aria-labelledby="ajustes-celular">
+            <h3 id="ajustes-celular" className="text-sm font-semibold">
+              Tela
+            </h3>
+            <label className="flex min-h-11 items-start gap-3 text-sm" data-testid="opcao-esconder-controles">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-5 accent-[var(--color-accent)]"
+                checked={hideControlsOption}
+                onChange={(event) => setHideControlsOption(event.target.checked)}
+              />
+              <span>
+                Esconder controles
+                <span className="block text-faint">
+                  Cabeçalho e rodapé saem da tela durante a leitura e depois de 4 segundos parado.
+                  Toque fora das palavras para trazê-los de volta.
+                </span>
+              </span>
+            </label>
+            {vibrationAvailable ? (
+              <label className="flex min-h-11 items-start gap-3 text-sm" data-testid="opcao-vibrar">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-5 accent-[var(--color-accent)]"
+                  checked={vibrateOption}
+                  onChange={(event) => setVibrateOption(event.target.checked)}
+                />
+                <span>
+                  Vibrar ao mudar de seção
+                  <span className="block text-faint">
+                    No Word Runner, uma vibração curta em cada título e duas no fim de um capítulo.
+                  </span>
+                </span>
+              </label>
+            ) : null}
+          </section>
 
           <section className="space-y-4" aria-labelledby="ajustes-aa">
             <h3 id="ajustes-aa" className="text-sm font-semibold">
@@ -2652,6 +2822,8 @@ const GESTURES: [string, string][] = [
   ["Tocar no Word Runner", "Freia: volta a página com a palavra atual marcada"],
   ["Tocar numa palavra", "A leitura seguinte começa dela"],
   ["Tocar na borda ou deslizar", "Vira a página"],
+  ["Deslizar no Word Runner", "Para a direita acelera, para a esquerda desacelera (25 ppm a cada 40 px)"],
+  ["Tocar fora das palavras", "Mostra os controles escondidos"],
   ["Tocar e segurar", "Mostra o significado da palavra e explica a frase"],
   ["Arrastar sobre o texto", "Seleciona para destacar"],
 ];
@@ -2719,34 +2891,6 @@ function EyeRestSheet({
   );
 }
 
-function ControlButton({
-  label,
-  onClick,
-  active,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  active?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={active}
-      className={`flex size-12 items-center justify-center rounded-full border transition-colors active:scale-95 ${
-        active
-          ? "border-accent bg-accent-soft text-accent"
-          : "border-border text-muted hover:text-ink"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 /** Rotulo do tipo de bloco no Word Runner: o Markdown nao perde a estrutura. */
 function blockLabel(block: Paragraph | undefined): string | null {
   switch (block?.kind) {
@@ -2798,6 +2942,8 @@ function RunnerStage({
   block,
   language,
   onBrake,
+  gestures,
+  speedFlash,
 }: {
   words: string[];
   paragraphs: Paragraph[];
@@ -2810,6 +2956,10 @@ function RunnerStage({
   block: Paragraph | undefined;
   language: string;
   onBrake: () => void;
+  /** Deslize horizontal muda a velocidade (US-212). */
+  gestures: ReaderGestureHandlers;
+  /** Velocidade nova, mostrada por 1 s depois de um deslize. */
+  speedFlash: number | null;
 }) {
   const current = displayToken(words[index] ?? "");
   const context = runnerContext(words, paragraphs, index, undefined, language);
@@ -2823,8 +2973,18 @@ function RunnerStage({
       aria-roledescription="leitor palavra a palavra"
       data-testid="word-runner"
       onClick={onBrake}
+      {...gestures}
       className="absolute inset-0 z-10 grid cursor-pointer grid-rows-[1fr_auto_1fr] overflow-hidden bg-bg px-4 text-center"
     >
+      {speedFlash !== null ? (
+        <p
+          role="status"
+          data-testid="velocidade-deslize"
+          className="tabular pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full bg-surface px-4 py-1.5 text-sm font-medium text-ink shadow-float"
+        >
+          {`${speedFlash} ppm`}
+        </p>
+      ) : null}
       <div className="flex items-end justify-center pb-2">
         {label ? (
           <span className="text-xs font-medium uppercase tracking-wide text-faint">{label}</span>
@@ -3184,7 +3344,9 @@ const PageStage = memo(function PageStage({
   current,
   hidden,
   touch,
-  onTurn,
+  gestures,
+  bounce,
+  overlay,
   onTap,
   onOpenMark,
 }: {
@@ -3201,43 +3363,40 @@ const PageStage = memo(function PageStage({
   /** Coberta pelo Word Runner: continua montada para a paginacao seguir medida. */
   hidden: boolean;
   touch: WordTouchHandlers;
-  onTurn: (direction: 1 | -1) => void;
+  /** Deslize para virar a pagina (US-211). */
+  gestures: ReaderGestureHandlers;
+  /** Retorno visual de deslize para fora do texto: -1 no inicio, 1 no fim. */
+  bounce: -1 | 0 | 1;
+  /** Controles por cima do texto (US-213): o quadro reserva a area segura. */
+  overlay: boolean;
   /** Toque na pagina: a palavra tocada (ou null) e a borda (-1, 0, 1). */
   onTap: (position: number | null, edge: -1 | 0 | 1) => void;
   onOpenMark: (id: string) => void;
 }) {
-  const touchStartX = useRef<number | null>(null);
-
-  const onTouchStart = (event: React.TouchEvent) => {
-    touchStartX.current = event.touches[0]?.clientX ?? null;
-  };
-
-  const onTouchEnd = (event: React.TouchEvent) => {
-    const start = touchStartX.current;
-    touchStartX.current = null;
-    if (start === null) return;
-
-    const delta = (event.changedTouches[0]?.clientX ?? start) - start;
-    if (Math.abs(delta) < SWIPE_THRESHOLD_PX) return;
-    onTurn(delta < 0 ? 1 : -1);
-  };
-
   const onClick = (event: React.MouseEvent<HTMLDivElement>) => {
     // Arrastar para selecionar nao e toque.
     if (!window.getSelection()?.isCollapsed) return;
     const box = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - box.left) / Math.max(1, box.width);
     const edge = x < EDGE_FRACTION ? -1 : x > 1 - EDGE_FRACTION ? 1 : 0;
-    onTap(edge === 0 ? wordIndexFromPoint(event.clientX, event.clientY) : null, edge);
+    if (edge !== 0) {
+      onTap(null, edge);
+      return;
+    }
+    // So conta como palavra o toque em cima do texto: o caret do navegador
+    // gruda no texto mais proximo, e a margem ou o espaco entre paragrafos
+    // virariam um salto. Fora do texto, o toque traz os controles (US-213).
+    const hit = document.elementFromPoint(event.clientX, event.clientY);
+    const onText = Boolean(hit?.closest("[data-start]"));
+    onTap(onText ? wordIndexFromPoint(event.clientX, event.clientY) : null, 0);
   };
 
   return (
     <div
-      className={`relative flex min-h-0 flex-1 flex-col px-5 py-6${hidden ? " invisible" : ""}`}
+      className={`relative flex min-h-0 flex-1 flex-col px-5 py-6${overlay ? " reader-stage-overlay" : ""}${hidden ? " invisible" : ""}`}
       aria-hidden={hidden || undefined}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
       onClick={onClick}
+      {...gestures}
       {...touch}
     >
       {/* A altura vem do flex, nao de height:100%: a altura do pai e definida
@@ -3245,7 +3404,10 @@ const PageStage = memo(function PageStage({
           media zero e nenhuma pagina era calculada. */}
       <div
         ref={frameRef}
-        className="relative mx-auto min-h-0 w-full max-w-2xl flex-1 overflow-hidden"
+        data-testid="quadro-pagina"
+        className={`reader-column relative mx-auto min-h-0 w-full flex-1 overflow-hidden${
+          bounce === 1 ? " page-bounce-end" : bounce === -1 ? " page-bounce-start" : ""
+        }`}
       >
         <div className="reader-prose">
           {ready
@@ -3281,8 +3443,6 @@ const PageStage = memo(function PageStage({
     </div>
   );
 });
-
-const SWIPE_THRESHOLD_PX = 45;
 
 function Finished({
   total,

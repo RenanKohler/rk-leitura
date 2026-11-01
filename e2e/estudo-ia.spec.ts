@@ -2,7 +2,7 @@ import { config } from "dotenv";
 import { Client } from "pg";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { runSql } from "./db";
-import { createText, openReader, randomIp, registerByApi, sampleText, updateSettings } from "./helpers";
+import { createText, openReader, randomIp, registerByApi, sampleText, updateSettings, readerAction } from "./helpers";
 
 /**
  * Ferramentas de estudo com IA: cartao de um trecho (US-158), glossario
@@ -301,7 +301,7 @@ test("perguntas-guia: opcao por aparelho, perguntas no inicio da secao e de volt
 
   // Sem secoes, a opcao aparece desativada.
   await openReader(page, plain.id);
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   const option = page.getByTestId("perguntas-guia-opcao");
   await expect(option).toContainText("Este texto não tem seções.");
   await expect(option.getByRole("checkbox")).toBeDisabled();
@@ -315,7 +315,7 @@ test("perguntas-guia: opcao por aparelho, perguntas no inicio da secao e de volt
   await expect(sheet).toHaveCount(0);
 
   // Indo para a segunda secao, as perguntas anteriores voltam com "Ver no texto".
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   await page.getByRole("dialog", { name: "Navegar no texto" }).getByRole("button", { name: "Parte dois" }).click();
   await expect(sheet.getByText("E o sentido?")).toBeVisible();
   const previous = sheet.getByTestId("perguntas-anteriores");

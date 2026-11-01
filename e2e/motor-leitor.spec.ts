@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createText, openReader, progressOf, randomIp, registerByApi, updateSettings } from "./helpers";
+import { createText, openReader, progressOf, randomIp, registerByApi, updateSettings, readerAction } from "./helpers";
 
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": randomIp() });
@@ -14,7 +14,7 @@ test("abrir os ajustes pausa o Word Runner", async ({ page }) => {
   await openReader(page, text.id);
   await page.getByRole("button", { name: "Iniciar leitura" }).click();
   await expect(page.getByTestId("word-runner")).toBeVisible();
-  await page.getByRole("button", { name: "Ajustes de leitura" }).click();
+  await readerAction(page, "Ajustes de leitura");
 
   await expect(page.getByTestId("word-runner")).toHaveCount(0);
   const before = await page.locator("header .tabular").innerText();

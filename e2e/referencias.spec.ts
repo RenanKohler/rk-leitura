@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { randomIp, registerByApi } from "./helpers";
+import { randomIp, registerByApi, readerAction } from "./helpers";
 
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": randomIp() });
@@ -85,7 +85,7 @@ test("reprocessar texto salvo remapeia destaques, marcadores e posicao", async (
   expect(await bookmark()).toBe(9); // "Miller"
 
   await page.goto(`/leitor/${id}`);
-  await page.getByRole("button", { name: "Ajustes de leitura" }).click();
+  await readerAction(page, "Ajustes de leitura");
   await page.getByRole("button", { name: "Restaurar referências" }).click();
   await expect(page.locator(".reader-prose").first()).toContainText("[1]");
 

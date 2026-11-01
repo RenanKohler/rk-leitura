@@ -6,6 +6,7 @@ import {
   randomIp,
   registerByApi,
   updateSettings,
+  readerAction,
 } from "./helpers";
 
 test.beforeEach(async ({ context }) => {
@@ -57,7 +58,7 @@ test("largar tira o texto da lista e retomar o devolve", async ({ page }) => {
   const text = await createText(page.request, "Texto que vai ser largado", 300);
 
   await openReader(page, text.id);
-  await page.getByRole("button", { name: "Ajustes de leitura" }).click();
+  await readerAction(page, "Ajustes de leitura");
   await page.getByRole("button", { name: "Largar texto" }).click();
   await page
     .getByRole("dialog", { name: "Largar este texto?" })
