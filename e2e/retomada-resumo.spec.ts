@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { randomIp, registerByApi, updateSettings } from "./helpers";
+import { randomIp, registerByApi, updateSettings, readerAction } from "./helpers";
 import { runSql } from "./db";
 
 /**
@@ -148,7 +148,7 @@ test("US-132: descrever os nomes ate onde li", async ({ page }) => {
 
   // Sem IA: nomes e contagens como hoje, sem o botao.
   await page.goto(`/leitor/${text.id}`);
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   await page.getByRole("button", { name: "Nomes no texto" }).click();
   await expect(page.getByTestId("xray-lista")).toContainText("Maria");
   await expect(page.getByRole("button", { name: "Descrever com IA" })).toHaveCount(0);
@@ -161,7 +161,7 @@ test("US-132: descrever os nomes ate onde li", async ({ page }) => {
         })
   );
   await page.goto(`/leitor/${text.id}`);
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   await page.getByRole("button", { name: "Nomes no texto" }).click();
   await page.getByRole("button", { name: "Descrever com IA" }).click();
   const list = page.getByTestId("xray-lista");

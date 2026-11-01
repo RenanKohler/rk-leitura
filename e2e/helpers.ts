@@ -68,3 +68,14 @@ export function randomIp(): string {
   const part = () => Math.floor(Math.random() * 250) + 1;
   return `10.${part()}.${part()}.${part()}`;
 }
+
+/**
+ * Acao do texto pelo leitor. No celular (o projeto roda como Pixel 7) as
+ * acoes ficam no "Mais acoes" do rodape, nao no cabecalho (US-215).
+ */
+export async function readerAction(page: Page, name: string) {
+  await page.getByRole("button", { name: "Mais ações", exact: true }).click();
+  const sheet = page.getByTestId("mais-acoes");
+  const role = name === "Estudar" || name.startsWith("Destaques") ? "link" : "button";
+  await sheet.getByRole(role, { name, exact: true }).click();
+}

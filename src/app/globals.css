@@ -266,7 +266,86 @@ body[data-sheet="aberta"] .toast-region {
 
 /* Palavra do Word Runner: acompanha o tamanho de letra escolhido. */
 .runner-word {
-  font-size: calc(clamp(2rem, 11vw, 4rem) * var(--reader-scale, 1));
+  /* Na horizontal (US-217) a altura manda: a palavra nao pode passar de
+     cerca de um quinto da tela, ou a frase de baixo sai cortada. */
+  font-size: min(calc(clamp(2rem, 11vw, 4rem) * var(--reader-scale, 1)), 18vh);
+}
+
+/* Coluna da pagina: cerca de 70 caracteres por linha, centralizada (US-217).
+   A largura acompanha o tamanho da letra escolhido. */
+.reader-column {
+  max-width: calc(var(--reader-size, 1.125rem) * 38);
+}
+
+/* Controles por cima do texto (US-213): saem pela borda sem mudar a altura
+   do quadro de leitura, entao a pagina nao e refeita. */
+.reader-chrome {
+  transition:
+    transform 200ms ease,
+    opacity 200ms ease;
+}
+.reader-chrome-hidden-top {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.reader-chrome-hidden-bottom {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+/* Sem a barra do sistema, o quadro reserva a area segura do aparelho. */
+.reader-stage-overlay {
+  padding-top: max(1.5rem, env(safe-area-inset-top));
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+}
+
+/* Deslize para fora do texto na primeira ou na ultima pagina (US-211). */
+@keyframes page-bounce-start {
+  50% {
+    transform: translateX(12px);
+  }
+}
+@keyframes page-bounce-end {
+  50% {
+    transform: translateX(-12px);
+  }
+}
+.page-bounce-start {
+  animation: page-bounce-start 180ms ease-out;
+}
+.page-bounce-end {
+  animation: page-bounce-end 180ms ease-out;
+}
+
+/* Celular deitado (US-217): a barra vira uma linha so e os controles nao
+   passam de um quarto da altura. Os botoes mantem 48 px de toque. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .reader-header-row {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  .reader-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem;
+  }
+  .reader-bar-main {
+    flex: 1 1 auto;
+  }
+  .reader-bar-row {
+    margin-top: 0;
+    flex: 0 0 auto;
+  }
+  .reader-bar-status {
+    display: none;
+  }
+  .reader-play {
+    width: 3rem;
+    height: 3rem;
+  }
 }
 
 /* Destaque focavel pelo teclado. */

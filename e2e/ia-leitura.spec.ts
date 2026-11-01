@@ -1,7 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { contentKey } from "../src/lib/quiz";
 import { runSql } from "./db";
-import { createText, openReader, randomIp, registerByApi, updateSettings } from "./helpers";
+import { createText, openReader, randomIp, registerByApi, updateSettings, readerAction } from "./helpers";
 
 /**
  * Explicar a frase (US-127), perguntar ao texto (US-128) e guardar a resposta
@@ -139,7 +139,7 @@ test("perguntar ao texto, guardar como nota e ir ate a citacao", async ({ page }
   });
 
   await openReader(page, text.id);
-  await page.getByRole("button", { name: "Perguntar ao texto" }).click();
+  await readerAction(page, "Perguntar ao texto");
   const sheet = page.getByRole("dialog", { name: "Perguntar ao texto" });
   await sheet.getByLabel("Sua pergunta").fill("Do que depende a leitura?");
   await sheet.getByRole("button", { name: "Perguntar", exact: true }).click();
@@ -169,7 +169,7 @@ test("perguntar ao texto, guardar como nota e ir ate a citacao", async ({ page }
   expect(await position(page)).toBe(1);
 
   // A conversa continua na folha ao reabrir; a segunda pergunta leva o historico.
-  await page.getByRole("button", { name: "Perguntar ao texto" }).click();
+  await readerAction(page, "Perguntar ao texto");
   await expect(sheet.getByText(answer)).toBeVisible();
   await sheet.getByLabel("Sua pergunta").fill("E depois?");
   await sheet.getByRole("button", { name: "Perguntar", exact: true }).click();
@@ -402,7 +402,7 @@ test("conversa guardada volta com a posicao, o aviso de texto mudado e a limpeza
   });
 
   await openReader(page, text.id);
-  await page.getByRole("button", { name: "Perguntar ao texto" }).click();
+  await readerAction(page, "Perguntar ao texto");
   const sheet = page.getByRole("dialog", { name: "Perguntar ao texto" });
   const turns = sheet.getByTestId("pergunta-resposta");
   await expect(turns).toHaveCount(2);
@@ -453,7 +453,7 @@ test("sugestoes de perguntas aparecem e contam como pergunta digitada", async ({
   });
 
   await openReader(page, text.id);
-  await page.getByRole("button", { name: "Perguntar ao texto" }).click();
+  await readerAction(page, "Perguntar ao texto");
   const sheet = page.getByRole("dialog", { name: "Perguntar ao texto" });
   const list = sheet.getByTestId("pergunta-sugestoes");
   await expect(list.getByRole("button")).toHaveCount(2);

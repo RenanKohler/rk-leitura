@@ -27,6 +27,18 @@ export default defineConfig({
     timezoneId: "America/Sao_Paulo",
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
+    // "Esconder controles" (US-213) vem ligado por padrao. Os testes que nao
+    // sao sobre ele leem a tela como antes, com os controles fixos; o
+    // `e2e/celular.spec.ts` liga a opcao onde precisa.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: baseURL,
+          localStorage: [{ name: "rk-leitura:esconder-controles", value: "0" }],
+        },
+      ],
+    },
   },
   projects: [
     {

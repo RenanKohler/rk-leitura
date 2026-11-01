@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { runSql } from "./db";
-import { createText, openReader, randomIp, registerByApi, sampleText, updateSettings } from "./helpers";
+import { createText, openReader, randomIp, registerByApi, sampleText, updateSettings, readerAction } from "./helpers";
 
 /**
  * Titulo e autor na importacao (US-152), secoes de documento longo (US-153)
@@ -166,7 +166,7 @@ test("secoes: sugerir, revisar, aplicar e navegar sem mudar o conteudo", async (
   });
 
   await openReader(page, text.id);
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   await page.getByRole("button", { name: "Sugerir seções" }).click();
 
   const revisao = page.getByTestId("revisao-secoes");
@@ -196,7 +196,7 @@ test("secoes: sugerir, revisar, aplicar e navegar sem mudar o conteudo", async (
 
   // Ir pela secao leva a posicao dela.
   await sumario.getByRole("button", { name: "Fechamento", exact: true }).click();
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   await expect(
     page.getByRole("region", { name: "Sumário" }).getByRole("button", { name: "Fechamento", exact: true })
   ).toHaveAttribute("aria-current", "location");
@@ -223,14 +223,14 @@ test("secoes: texto com titulos ou curto nao oferece a opcao", async ({ page }) 
   const { text } = (await comTitulos.json()) as { text: { id: string } };
 
   await openReader(page, text.id);
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   const sumario = page.getByRole("region", { name: "Sumário" });
   await expect(sumario.getByRole("button", { name: "Segunda parte", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Sugerir seções" })).toHaveCount(0);
 
   const curto = await createText(page.request, "Curto", 600);
   await openReader(page, curto.id);
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   await expect(page.getByRole("button", { name: "Sugerir seções" })).toHaveCount(0);
   const recusa = await page.request.post(`/api/texts/${text.id}/secoes`);
   expect(recusa.status()).toBe(409);

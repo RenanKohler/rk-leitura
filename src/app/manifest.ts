@@ -8,7 +8,9 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",
-    orientation: "portrait",
+    // Qualquer orientacao (US-217): deitado, a linha longa, a tabela e o
+    // codigo cabem na tela.
+    orientation: "any",
     background_color: "#0e0f11",
     theme_color: "#0e0f11",
     lang: "pt-BR",

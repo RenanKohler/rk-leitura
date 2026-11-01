@@ -237,7 +237,7 @@ export function sliceParagraphs(
 }
 
 /** Indice do paragrafo que contem a palavra `index` (busca binaria). */
-function paragraphAt(paragraphs: Paragraph[], index: number): number {
+export function paragraphAt(paragraphs: Paragraph[], index: number): number {
   let low = 0;
   let high = paragraphs.length - 1;
   while (low < high) {

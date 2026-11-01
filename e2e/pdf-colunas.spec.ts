@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import path from "node:path";
-import { randomIp, registerByApi } from "./helpers";
+import { randomIp, registerByApi, readerAction } from "./helpers";
 
 test.beforeEach(async ({ context }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": randomIp() });
@@ -31,7 +31,7 @@ test("PDF de artigo em duas colunas chega na ordem de leitura", async ({ page })
   const prose = page.locator(".reader-prose").first();
   await expect(prose.locator('p[data-kind="h1"]')).toHaveText(/sustained attention research/);
   // A pagina mostra so o comeco; os demais titulos aparecem no sumario.
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   await expect(
     page.getByRole("region", { name: "Sumário" }).getByRole("button", { name: /Introduction/ })
   ).toBeVisible();

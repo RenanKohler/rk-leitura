@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openReader, randomIp, registerByApi, updateSettings } from "./helpers";
+import { openReader, randomIp, registerByApi, updateSettings, readerAction } from "./helpers";
 
 test.beforeEach(async ({ context, page }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": randomIp() });
@@ -26,7 +26,7 @@ test("busca no texto posiciona a leitura no resultado", async ({ page }) => {
   );
 
   await openReader(page, text.id);
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   const field = page.getByRole("searchbox", { name: "Buscar no texto" });
   await field.fill("memoria de trabalho");
   await expect(page.getByTestId("busca-contagem")).toHaveText("1 de 3");
@@ -118,13 +118,13 @@ test("sumario leva ao titulo e marcador guarda a posicao", async ({ page }) => {
   );
 
   await openReader(page, text.id);
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   const sumario = page.getByRole("region", { name: "Sumário" });
   await expect(sumario.getByRole("button")).toHaveCount(3);
   await sumario.getByRole("button", { name: "Segunda parte" }).click();
   expect(await position(page)).toBe(6);
 
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   await page.getByLabel("Nome do marcador").fill("Ponto chave");
   await page.getByRole("button", { name: "Marcar" }).click();
   await expect(page.getByRole("button", { name: /^Ponto chave/ })).toBeVisible();
@@ -134,7 +134,7 @@ test("sumario leva ao titulo e marcador guarda a posicao", async ({ page }) => {
   await page.keyboard.press("Shift+ArrowLeft");
   expect(await position(page)).toBeLessThan(6);
 
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   await page.getByRole("button", { name: /^Ponto chave/ }).click();
   expect(await position(page)).toBe(6);
 });

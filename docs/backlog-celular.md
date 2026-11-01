@@ -53,7 +53,7 @@ mas vem primeiro, porque reduz o custo das outras.
 **Épico:** Controles e gestos
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx` tem 3.546 linhas; o rodapé de controles (`reader-client.tsx:1926-2184`) e os atalhos de teclado (`reader-client.tsx:1580-1610`) estão no mesmo componente do motor de leitura
 
 Como mantenedor, eu quero a barra de controles e o tratamento de gestos em
@@ -78,7 +78,7 @@ US-211, US-212 e US-213.
 **Épico:** Controles e gestos
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `reader-client.tsx:2127` e `reader-client.tsx:2147` (virar página só pelos botões do rodapé); não há tratamento de deslize no leitor
 
 Como leitor, eu quero virar a página deslizando o dedo, para ler sem procurar
@@ -106,7 +106,7 @@ os botões da barra.
 **Épico:** Controles e gestos
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `reader-client.tsx:809` (no Word Runner o toque é o freio), `reader-client.tsx:1590-1593` (setas mudam a velocidade em 25 ppm só pelo teclado), `reader-client.tsx:2160` (no celular a velocidade só muda abrindo o controle)
 
 Como leitor, eu quero acelerar ou desacelerar o Word Runner deslizando o dedo,
@@ -132,7 +132,7 @@ sem parar a leitura, para ajustar o ritmo ao trecho que estou lendo.
 **Épico:** Controles e gestos
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `reader-client.tsx:1710` (cabeçalho) e `reader-client.tsx:1926` (rodapé) ficam sempre visíveis enquanto o leitor está aberto
 
 Como leitor, eu quero que o cabeçalho e o rodapé saiam da tela enquanto leio,
@@ -167,7 +167,7 @@ repaginar.
 **Épico:** Controles e gestos
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `reader-client.tsx:2384-2392` (a escolha entre Word Runner e Guia na página fica dentro dos ajustes); `reader-client.tsx:373` (`setPlayMode` grava em `localStorage`)
 
 Como leitor, eu quero trocar entre Word Runner e Guia na página com um botão
@@ -195,7 +195,7 @@ modos do play.
 **Épico:** Layout e retorno
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `reader-client.tsx:1710-1790` (Destaques, Perguntar ao texto, Estudar, Navegar e Ajustes ficam no cabeçalho, no topo da tela)
 
 Como leitor que segura o celular com uma mão, eu quero as ações do leitor
@@ -217,7 +217,7 @@ perto do polegar, para não precisar mudar a pegada do aparelho.
 **Épico:** Layout e retorno
 **Prioridade:** Could
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `reader-client.tsx:276` (o Word Runner já conhece o tipo de bloco de cada palavra, inclusive títulos)
 
 Como leitor, eu quero uma vibração curta quando o Word Runner entra numa seção
@@ -239,7 +239,7 @@ ou capítulo novo, para perceber a estrutura do texto sem olhar o progresso.
 **Épico:** Layout e retorno
 **Prioridade:** Should
 **Story points:** 4
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/manifest.ts:11` (`orientation: "portrait"` trava o app instalado na vertical)
 
 Como leitor, eu quero ler com o celular na horizontal, para aproveitar a tela
@@ -276,6 +276,20 @@ Total: 8 stories, 22 pontos, 1 sprint.
 - US-217 Ler com o celular deitado (4)
 - US-214 Alternar Word Runner e Guia (2)
 - US-216 Vibrar ao mudar de seção (2)
+
+## Notas de implementação
+
+- US-210: a barra (`ReaderControlBar`) e a folha "Mais ações" ficam em
+  `src/app/(app)/leitor/[id]/reader-controls.tsx`; os gestos, em
+  `src/hooks/use-reader-gestures.ts`, com a classificação pura em
+  `src/lib/gestures.ts` (testada em `tests/gestures.test.ts`). O deslize antigo
+  da página (45 px, sem checar vertical, borda nem seleção) foi substituído.
+- US-213 e US-216: as opções "Esconder controles" (ligada por padrão) e
+  "Vibrar ao mudar de seção" (desligada) são do aparelho, em `localStorage`,
+  como o modo do play; não há migração. Com "Esconder controles" ligada,
+  cabeçalho e rodapé ficam por cima do texto: enquanto estão visíveis, cobrem
+  o topo e a base da página; ao sair, a página não é refeita.
+- US-217: na horizontal com até 500 px de altura, a barra vira uma linha só.
 
 ## Próximo passo de validação
 

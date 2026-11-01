@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { createText, randomIp, registerByApi, updateSettings } from "./helpers";
+import { createText, randomIp, registerByApi, updateSettings, readerAction } from "./helpers";
 
 
 test.beforeEach(async ({ context }) => {
@@ -54,8 +54,12 @@ test("folha prende o foco e o devolve ao fechar", async ({ page }) => {
   const text = await createText(page.request, "Texto para foco", 200);
   await page.goto(`/leitor/${text.id}`);
 
-  const opener = page.getByRole("button", { name: "Ajustes de leitura" });
+  // No celular os Ajustes ficam na folha "Mais acoes" do rodape (US-215).
+  const opener = page.getByRole("button", { name: "Mais ações", exact: true });
   await opener.focus();
+  await page.keyboard.press("Enter");
+  const more = page.getByTestId("mais-acoes").getByRole("button", { name: "Ajustes de leitura" });
+  await more.focus();
   await page.keyboard.press("Enter");
 
   const dialog = page.getByRole("dialog", { name: "Ajustes de leitura" });
@@ -174,7 +178,7 @@ test("folha de navegacao foca o campo de busca", async ({ page }) => {
   await registerByApi(page.request);
   const text = await createText(page.request, "Texto para buscar", 200);
   await page.goto(`/leitor/${text.id}`);
-  await page.getByRole("button", { name: "Navegar no texto" }).click();
+  await readerAction(page, "Navegar no texto");
   await expect(page.getByRole("searchbox", { name: "Buscar no texto" })).toBeFocused();
 });
 
