@@ -2140,7 +2140,12 @@ function Reader({
             ) : null}
 
             {recap && !playing ? (
-              <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
+              // Com o resumo da IA o cartao passa da altura da tela: fica
+              // limitado ao espaco entre cabecalho e rodape e rola por dentro.
+              <div
+                data-testid="cartao-recapitular"
+                className="reader-float-card pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float"
+              >
                 <div>
                   <p className="font-medium">Recapitular o contexto</p>
                   <p className="text-sm text-muted">
@@ -2163,7 +2168,7 @@ function Reader({
             ) : null}
 
             {chapterRecap && !recap && !playing && !narrating ? (
-              <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
+              <div className="reader-float-card pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
                 <div>
                   <p className="font-medium">Recapitular o capítulo anterior</p>
                   <p className="text-sm text-muted">
