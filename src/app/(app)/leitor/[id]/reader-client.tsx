@@ -1768,6 +1768,32 @@ function Reader({
     };
   }, [finished, recapPlaying]);
 
+  /*
+   * Margens do texto com os controles por cima (US-213): o quadro reserva a
+   * altura do cabecalho e do rodape, e o texto nunca fica embaixo deles. A
+   * altura dos dois nao muda quando saem da tela (sair e so um deslocamento),
+   * entao esconder nao refaz a pagina; so girar o aparelho ou mudar a barra.
+   */
+  const headerRef = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    const header = headerRef.current;
+    const footer = footerRef.current;
+    const root = document.documentElement;
+    const apply = () => {
+      root.style.setProperty("--reader-top", `${Math.round(header?.offsetHeight ?? 0)}px`);
+      root.style.setProperty("--reader-bottom", `${Math.round(footer?.offsetHeight ?? 0)}px`);
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    if (header) observer.observe(header);
+    if (footer) observer.observe(footer);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--reader-top");
+      root.style.removeProperty("--reader-bottom");
+    };
+  }, [finished, recapPlaying, chapterRecapPlaying]);
+
   const progress = total > 0 ? Math.min(100, (index / total) * 100) : 0;
   // A primeira palavra do texto nao precisa de aviso: nao ha paragrafo antes.
   const paragraphStart = index > 0 && startsParagraph(paragraphs, index);
@@ -1867,7 +1893,9 @@ function Reader({
         }
         {...controls.focusHandlers}
       >
-      <header className="reader-header pt-safe z-20 shrink-0 border-b border-border bg-bg/90 backdrop-blur">
+      <header
+        ref={headerRef}
+        className="reader-header pt-safe z-20 shrink-0 border-b border-border bg-bg/90 backdrop-blur">
         <div className="reader-header-row mx-auto flex w-full max-w-3xl items-center gap-1 px-2 py-2 sm:gap-2">
           <Link
             href="/textos"

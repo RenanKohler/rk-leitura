@@ -287,8 +287,9 @@ Total: 8 stories, 22 pontos, 1 sprint.
 - US-213 e US-216: as opções "Esconder controles" (ligada por padrão) e
   "Vibrar ao mudar de seção" (desligada) são do aparelho, em `localStorage`,
   como o modo do play; não há migração. Com "Esconder controles" ligada,
-  cabeçalho e rodapé ficam por cima do texto: enquanto estão visíveis, cobrem
-  o topo e a base da página; ao sair, a página não é refeita.
+  cabeçalho e rodapé ficam por cima do texto, e o quadro da página reserva a
+  altura dos dois como margem: nenhuma linha fica embaixo deles. Ao sair da
+  tela eles só se deslocam, então a página não é refeita.
 - US-217: na horizontal com até 500 px de altura, a barra vira uma linha só.
 
 ## Próximo passo de validação
