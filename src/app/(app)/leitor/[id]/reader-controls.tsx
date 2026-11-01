@@ -8,6 +8,7 @@ import {
   ForwardIcon,
   MarkIcon,
   MoreIcon,
+  FullscreenIcon,
   PauseIcon,
   PlayIcon,
   RewindIcon,
@@ -79,6 +80,8 @@ export interface ReaderControlBarProps {
   playMode: PlayMode;
   onTogglePlayMode: () => void;
   onOpenMore: () => void;
+  /** Tela cheia agora, sem esperar os 4 s; ausente quando a opcao esta desligada. */
+  onFullscreen?: () => void;
   /** Texto da linha de estado: pagina, trecho ou ritmo real. */
   status: string;
 }
@@ -105,6 +108,7 @@ export function ReaderControlBar({
   playMode,
   onTogglePlayMode,
   onOpenMore,
+  onFullscreen,
   status,
 }: ReaderControlBarProps) {
   return (
@@ -187,8 +191,14 @@ export function ReaderControlBar({
           ) : (
             <PagesIcon className="size-5" />
           )}
-          <span>{playMode === "runner" ? "Runner" : "Guia"}</span>
+          {/* Em tela estreita fica so o icone: o rotulo acessivel diz o modo. */}
+          <span className="hidden min-[400px]:inline">{playMode === "runner" ? "Runner" : "Guia"}</span>
         </button>
+        {onFullscreen ? (
+          <ControlButton label="Tela cheia" onClick={onFullscreen}>
+            <FullscreenIcon className="size-5" />
+          </ControlButton>
+        ) : null}
         <ControlButton label="Mais ações" onClick={onOpenMore}>
           <MoreIcon className="size-5" />
         </ControlButton>

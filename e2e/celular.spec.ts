@@ -147,7 +147,7 @@ test.describe("US-213: controles escondidos", () => {
     await page.addInitScript(() => localStorage.setItem("rk-leitura:esconder-controles", "1"));
   });
 
-  test("somem na leitura e depois de 4 s parado, sem refazer a página", async ({ page }) => {
+  test("somem na leitura e depois de 4 s parado; parado, o texto ocupa a tela", async ({ page }) => {
     const text = await setup(page, 900, { baseWpm: 200 });
     await openReader(page, text.id);
     const top = page.getByTestId("controles-topo");
@@ -167,9 +167,15 @@ test.describe("US-213: controles escondidos", () => {
     await expect(bottom).toHaveAttribute("data-hidden", "true", { timeout: 6_000 });
     await expect(top).toHaveAttribute("data-hidden", "true");
 
-    // A pagina nao foi refeita: o quadro tem a mesma altura e o mesmo texto.
+    // Tela cheia: o quadro cresce ate perto das bordas e a pagina continua no
+    // mesmo ponto do texto.
+    const viewport = page.viewportSize()!;
+    await expect
+      .poll(async () => (await page.getByTestId("quadro-pagina").boundingBox())!.height)
+      .toBeGreaterThan(frameBefore.height + 100);
     const frameAfter = (await page.getByTestId("quadro-pagina").boundingBox())!;
-    expect(frameAfter.height).toBe(frameBefore.height);
+    expect(frameAfter.y).toBeLessThan(40);
+    expect(frameAfter.y + frameAfter.height).toBeGreaterThan(viewport.height - 40);
     expect(await page.getByTestId("quadro-pagina").locator("p").first().innerText()).toBe(firstWord);
 
     // Tocar fora das palavras traz de volta.
@@ -177,6 +183,10 @@ test.describe("US-213: controles escondidos", () => {
     await page.touchscreen.tap(stage.x + stage.width / 2, stage.y - 8);
     await expect(bottom).not.toHaveAttribute("data-hidden");
     await expect(top).not.toHaveAttribute("data-hidden");
+    // Com os controles de volta, o texto volta a ficar entre eles.
+    await expect
+      .poll(async () => (await page.getByTestId("quadro-pagina").boundingBox())!.height)
+      .toBe(frameBefore.height);
 
     // No Word Runner saem; ao pausar voltam.
     await page.getByRole("button", { name: "Iniciar leitura" }).click();
@@ -187,6 +197,33 @@ test.describe("US-213: controles escondidos", () => {
     await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
     await expect(runner).toHaveCount(0);
     await expect(bottom).not.toHaveAttribute("data-hidden");
+  });
+
+  test("o botão Tela cheia esconde na hora, na mesma página do texto", async ({ page }) => {
+    const text = await setup(page, 1500);
+    await openReader(page, text.id);
+    const bottom = page.getByTestId("controles-rodape");
+    const frame = page.getByTestId("quadro-pagina");
+
+    await page.getByRole("button", { name: "Próxima página" }).click();
+    await page.getByRole("button", { name: "Próxima página" }).click();
+    await expect(counter(page)).toHaveText(/^Página 3 de \d+$/);
+    const position = Number(
+      (await page.locator("header .tabular").innerText()).split(" /")[0]!.replace(/\D/g, "")
+    ) - 1;
+
+    await page.getByRole("button", { name: "Tela cheia" }).click();
+    await expect(bottom).toHaveAttribute("data-hidden", "true", { timeout: 1_000 });
+    await expect
+      .poll(async () => (await frame.boundingBox())!.y)
+      .toBeLessThan(40);
+
+    // A palavra em que a leitura esta continua na pagina mostrada.
+    const starts = (await frame.locator("[data-start]").evaluateAll((spans) =>
+      spans.map((span) => Number((span as HTMLElement).dataset.start))
+    )) as number[];
+    expect(Math.min(...starts)).toBeLessThanOrEqual(position);
+    expect(Math.max(...starts)).toBeGreaterThanOrEqual(position - 200);
   });
 
   test("ficam com folha aberta, com o foco nos controles e quando a opção é desligada", async ({
