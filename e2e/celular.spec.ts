@@ -433,3 +433,39 @@ test.describe("cartão de recapitular com resumo longo", () => {
     await expect(page.getByText("Recapitular o contexto")).toHaveCount(0);
   });
 });
+
+test("dicas da primeira leitura ficam acima do rodapé sobreposto", async ({ page }) => {
+  // Conta nova, sem marcar as dicas como vistas: e o que o leitor encontra
+  // na primeira vez, com "Esconder controles" no padrao (ligado).
+  await registerByApi(page.request);
+  await updateSettings(page.request, { warmup: false });
+  const text = await createText(page.request, "Primeira leitura", 900);
+  await page.addInitScript(() => localStorage.setItem("rk-leitura:esconder-controles", "1"));
+  await openReader(page, text.id);
+
+  const card = page.getByTestId("guia-leitor");
+  const footer = page.getByTestId("controles-rodape");
+  await expect(card).toBeVisible();
+  const above = async () => {
+    const cardBox = (await card.boundingBox())!;
+    const footerBox = (await footer.boundingBox())!;
+    expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(footerBox.y);
+  };
+  await above();
+
+  // Deitado o espaco e menor: o cartao continua inteiro acima da barra.
+  await page.setViewportSize({ width: 915, height: 412 });
+  await expect(card.getByRole("button", { name: "Próximo" })).toBeInViewport({ ratio: 1 });
+  await above();
+  await page.setViewportSize({ width: 412, height: 839 });
+  await above();
+
+  // "Pular" fecha as dicas em vez de cair no botao de modo do play.
+  const mode = await page.getByTestId("modo-play").getAttribute("data-mode");
+  await card.getByRole("button", { name: "Pular" }).click();
+  await expect(card).toHaveCount(0);
+  await expect(page.getByTestId("modo-play")).toHaveAttribute("data-mode", mode!);
+  await expect
+    .poll(async () => (await (await page.request.get("/api/settings")).json()).settings.readerTipsSeen)
+    .toBe(true);
+});

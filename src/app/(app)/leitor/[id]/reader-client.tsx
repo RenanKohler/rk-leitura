@@ -2099,7 +2099,7 @@ function Reader({
               onOpenMark={(id) => (id === REREAD_MARK ? undefined : setOpenMark(id))}
             />
             {tipsVisible ? (
-              <ReaderTips onDone={dismissTips} />
+              <ReaderTips overlay={controlsOverlay} onDone={dismissTips} />
             ) : null}
             {runnerVisible ? (
               <RunnerStage
@@ -3713,19 +3713,23 @@ const TIPS: { title: string; body: string }[] = [
   },
 ];
 
-function ReaderTips({ onDone }: { onDone: () => void }) {
+function ReaderTips({ overlay, onDone }: { overlay: boolean; onDone: () => void }) {
   const [step, setStep] = useState(0);
   const tip = TIPS[step]!;
   const last = step === TIPS.length - 1;
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-10 flex justify-center p-4">
+    // Com os controles sobrepostos (US-213) o cartao sobe a altura do rodape:
+    // ancorado na base, "Pular" e "Proximo" ficavam atras da barra.
+    <div
+      className={`absolute inset-x-0 z-10 flex justify-center p-4 ${overlay ? "reader-tips-overlay" : "bottom-0"}`}
+    >
       <section
         role="dialog"
         aria-modal="false"
         aria-labelledby="dica-titulo"
         data-testid="guia-leitor"
-        className="w-full max-w-md space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float"
+        className="reader-float-card w-full max-w-md space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float"
       >
         <p className="text-xs font-medium text-faint">{`${step + 1} de ${TIPS.length}`}</p>
         <h2 id="dica-titulo" className="font-semibold">

@@ -316,6 +316,12 @@ body[data-sheet="aberta"] .toast-region {
   overscroll-behavior: contain;
 }
 
+/* Dicas da primeira leitura: acima do rodape quando ele cobre o texto. Sem
+   os controles por cima o rodape ja esta fora da area e a base e a propria. */
+.reader-tips-overlay {
+  bottom: var(--reader-bottom, 0px);
+}
+
 /* Deslize para fora do texto na primeira ou na ultima pagina (US-211). */
 @keyframes page-bounce-start {
   50% {
