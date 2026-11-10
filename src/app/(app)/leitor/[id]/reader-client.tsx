@@ -2099,7 +2099,7 @@ function Reader({
               onOpenMark={(id) => (id === REREAD_MARK ? undefined : setOpenMark(id))}
             />
             {tipsVisible ? (
-              <ReaderTips onDone={dismissTips} />
+              <ReaderTips overlay={controlsOverlay} onDone={dismissTips} />
             ) : null}
             {runnerVisible ? (
               <RunnerStage
@@ -3713,7 +3713,7 @@ const TIPS: { title: string; body: string }[] = [
   },
 ];
 
-function ReaderTips({ onDone }: { onDone: () => void }) {
+function ReaderTips({ overlay, onDone }: { overlay: boolean; onDone: () => void }) {
   const [step, setStep] = useState(0);
   const tip = TIPS[step]!;
   const last = step === TIPS.length - 1;
@@ -3721,7 +3721,9 @@ function ReaderTips({ onDone }: { onDone: () => void }) {
   return (
     // Com os controles sobrepostos (US-213) o cartao sobe a altura do rodape:
     // ancorado na base, "Pular" e "Proximo" ficavam atras da barra.
-    <div className="reader-tips absolute inset-x-0 z-10 flex justify-center p-4">
+    <div
+      className={`absolute inset-x-0 z-10 flex justify-center p-4 ${overlay ? "reader-tips-overlay" : "bottom-0"}`}
+    >
       <section
         role="dialog"
         aria-modal="false"
