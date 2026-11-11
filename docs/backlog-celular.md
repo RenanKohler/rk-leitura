@@ -53,7 +53,7 @@ mas vem primeiro, porque reduz o custo das outras.
 **Épico:** Controles e gestos
 **Prioridade:** Should
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `src/app/(app)/leitor/[id]/reader-client.tsx` tem 3.546 linhas; o rodapé de controles (`reader-client.tsx:1926-2184`) e os atalhos de teclado (`reader-client.tsx:1580-1610`) estão no mesmo componente do motor de leitura
 
 Como mantenedor, eu quero a barra de controles e o tratamento de gestos em
@@ -72,6 +72,20 @@ reabrir o motor do Word Runner e da paginação.
 
 **Notas técnicas:** extração sem mudança de comportamento; entregar antes das
 US-211, US-212 e US-213.
+
+**Notas da implementação:** a barra virou `ReaderControls`, em
+`src/app/(app)/leitor/[id]/reader-controls.tsx` (rodapé, controle de
+velocidade e o espaço dos avisos, que continuam decididos no `reader-client`).
+As referências de linha das outras stories a `reader-client.tsx:1926-2184`
+valem para o commit `5c55e45`; depois desta story o trecho está no arquivo
+novo. A regra dos gestos é pura, em `src/lib/gestures.ts` (`classifyGesture`),
+coberta por `tests/gestures.test.ts`; `src/hooks/use-reader-gestures.ts` só
+acompanha o ponteiro. O hook ainda não está ligado à página: ligar muda o
+comportamento do deslize e é a US-211. Limiares: toque até 10 px e menos de
+450 ms (os mesmos do toque longo, agora importados pelo `useWordTouch`);
+deslize a partir de 60 px, mais horizontal que vertical, em até 1 s; deslize
+que começa a menos de 24 px da borda lateral é ignorado. O toque na borda
+continua valendo, porque é ele que vira a página hoje.
 
 ### US-211: Virar a página deslizando
 
@@ -100,6 +114,12 @@ os botões da barra.
 6. Dado os botões de página anterior e próxima, quando os gestos existem,
    então os botões continuam funcionando, inclusive por teclado e leitor de
    tela.
+
+**Correção da evidência (vista na US-210):** a página já vira por deslize.
+`PageStage` trata `touchstart`/`touchend` com limiar de 45 px, sem checar o
+deslocamento vertical, a borda lateral nem seleção em andamento. Esta story
+passa a ser trocar esse tratamento pelo `useReaderGestures` (critérios 1, 3 e
+4) e acrescentar o retorno visual nas pontas (critério 5), não criar o gesto.
 
 ### US-212: Ajustar a velocidade deslizando no Word Runner
 

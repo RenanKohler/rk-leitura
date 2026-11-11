@@ -3,12 +3,9 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { sentenceAround, wordAround } from "@/lib/dictionary";
 import { wordIndexFromPoint } from "@/hooks/use-word-selection";
-
-/** Tempo de toque que separa "consultar" de "tocar para seguir". */
-const LONG_PRESS_MS = 450;
-
-/** Movimento acima disso e rolagem ou selecao, nao toque longo. */
-const MOVE_TOLERANCE_PX = 10;
+// Os limiares sao os mesmos dos gestos do leitor (US-210): um toque que vira
+// toque longo aqui nao pode contar como toque simples la.
+import { LONG_PRESS_MS, movedPastTolerance } from "@/lib/gestures";
 
 export interface TouchedWord {
   word: string;
@@ -69,10 +66,10 @@ export function useWordTouch(enabled: boolean): {
 
   const onPointerMove = useCallback(
     (event: React.PointerEvent) => {
-      const moved =
-        Math.abs(event.clientX - origin.current.x) > MOVE_TOLERANCE_PX ||
-        Math.abs(event.clientY - origin.current.y) > MOVE_TOLERANCE_PX;
-      if (moved) cancel();
+      // Passou da tolerancia: e rolagem ou selecao, nao toque longo.
+      if (movedPastTolerance(origin.current.x, origin.current.y, event.clientX, event.clientY)) {
+        cancel();
+      }
     },
     [cancel]
   );

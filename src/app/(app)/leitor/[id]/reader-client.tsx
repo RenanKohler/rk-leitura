@@ -34,20 +34,15 @@ import {
   CheckIcon,
   CloseIcon,
   ContrastIcon,
-  FastForwardIcon,
   MarkIcon,
   MoonIcon,
-  PauseIcon,
-  PlayIcon,
   ForwardIcon,
   RestartIcon,
-  RewindIcon,
   SearchIcon,
   SettingsIcon,
   SparkIcon,
   StudyIcon,
   SunIcon,
-  VoiceIcon,
 } from "@/components/icons";
 import {
   clamp,
@@ -75,7 +70,7 @@ import {
 } from "@/lib/reading";
 import { STYLE, styleClass } from "@/lib/markdown";
 import { apiGet, apiSend } from "@/lib/client";
-import { SPEED_BAND_LABELS, speedBand, speedBandWarning } from "@/lib/speed-bands";
+import { speedHint } from "@/lib/speed-bands";
 import { QuizSheet } from "@/components/quiz-sheet";
 import { NavigateSheet } from "@/components/navigate-sheet";
 import { ChapterSummaryGate, ReadSummary } from "@/components/recap-summary";
@@ -99,6 +94,7 @@ import { MIN_WORDS_FOR_QUIZ } from "@/lib/quiz";
 import { useWordSelection, wordIndexFromPoint } from "@/hooks/use-word-selection";
 import { useWordTouch } from "@/hooks/use-word-touch";
 import { useSpeech } from "@/hooks/use-speech";
+import { ControlButton, ReaderControls } from "./reader-controls";
 import { rateNotice } from "@/lib/speech";
 import { normalizeWord, trimContext } from "@/lib/dictionary";
 import {
@@ -1642,23 +1638,6 @@ function Reader({
     requestAnimationFrame(() => playButtonRef.current?.focus({ preventScroll: true }));
   }, [pause]);
 
-  // Os avisos flutuantes ficam acima do rodape do leitor, sem cobrir o play.
-  const footerRef = useRef<HTMLElement>(null);
-  useLayoutEffect(() => {
-    const footer = footerRef.current;
-    const root = document.documentElement;
-    if (!footer) return;
-    const apply = () =>
-      root.style.setProperty("--toast-offset", `${Math.round(footer.offsetHeight + 8)}px`);
-    apply();
-    const observer = new ResizeObserver(apply);
-    observer.observe(footer);
-    return () => {
-      observer.disconnect();
-      root.style.removeProperty("--toast-offset");
-    };
-  }, [finished, recapPlaying]);
-
   const progress = total > 0 ? Math.min(100, (index / total) * 100) : 0;
   // A primeira palavra do texto nao precisa de aviso: nao ha paragrafo antes.
   const paragraphStart = index > 0 && startsParagraph(paragraphs, index);
@@ -1677,6 +1656,14 @@ function Reader({
   const [clockMode, setClockMode] = useState<"restante" | "lido">("restante");
 
   const onSpeedChange = useCallback((value: number) => changeWpm(value), [changeWpm]);
+  // Linha da pagina no rodape, com a leitura parada.
+  const pageStatus = !pagesReady
+    ? ""
+    : stopPage !== null && !stopReached
+      ? `Página ${currentPage + 1} de ${pages.length} · trecho até a p. ${stopPage}${
+          plannedMs ? ` (~${formatClock(plannedMs)})` : ""
+        }`
+      : `Página ${currentPage + 1} de ${pages.length}`;
 
   if (total === 0) {
     return (
@@ -1923,265 +1910,179 @@ function Reader({
       </main>
 
       {!finished && !recapPlaying && !chapterRecapPlaying ? (
-        <footer
-          ref={footerRef}
-          className="pb-safe relative z-20 shrink-0 border-t border-border bg-bg/95 backdrop-blur"
+        <ReaderControls
+          playing={playing}
+          narrating={narrating}
+          wpm={wpm}
+          realWpm={adaptive ? realWpm : null}
+          pageStatus={pageStatus}
+          speedOpen={speedOpen}
+          playButtonRef={playButtonRef}
+          onToggleSpeed={() => setSpeedOpen((open) => !open)}
+          onSpeedChange={onSpeedChange}
+          onTogglePlay={togglePlay}
+          onToggleSpeech={toggleSpeech}
+          onBackSentence={backSentence}
+          onForwardSentence={forwardSentence}
+          onTurnPage={turnPage}
+          onMarkSentence={() => markSentenceAt(index)}
         >
-          {/* Tudo o que aparece por cima (avisos, barra de selecao, voltar ao
-              lugar) flutua acima do rodape, fora do fluxo: entrar ou sair nao
-              muda a altura do quadro nem refaz as paginas. */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-full flex flex-col items-center gap-2 px-4 pb-2">
-            {text.abandoned && !resumed ? (
-              <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-float">
-                <p className="flex-1 text-sm">Você largou este texto. Ele está fora da biblioteca.</p>
-                <Button size="sm" onClick={() => void resume()}>
-                  Retomar
-                </Button>
-              </div>
-            ) : null}
+          {text.abandoned && !resumed ? (
+            <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-float">
+              <p className="flex-1 text-sm">Você largou este texto. Ele está fora da biblioteca.</p>
+              <Button size="sm" onClick={() => void resume()}>
+                Retomar
+              </Button>
+            </div>
+          ) : null}
 
-            {recap && !playing ? (
-              <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
-                <div>
-                  <p className="font-medium">Recapitular o contexto</p>
-                  <p className="text-sm text-muted">
-                    Faz tempo desde a última leitura. Reveja o trecho anterior antes de continuar.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="secondary" onClick={() => endRecap(false)}>
-                    Pular
-                  </Button>
-                  <Button onClick={() => setRecapPlaying(true)}>Recapitular</Button>
-                </div>
-                {/* Resumo do que li (US-130): some quando a IA nao serve. */}
-                <ReadSummary
-                  textId={text.id}
-                  position={recap.to}
-                  onContinue={() => endRecap(true)}
-                />
-              </div>
-            ) : null}
-
-            {chapterRecap && !recap && !playing && !narrating ? (
-              <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
-                <div>
-                  <p className="font-medium">Recapitular o capítulo anterior</p>
-                  <p className="text-sm text-muted">
-                    {`Faz tempo desde "${chapterRecap.title}". Reveja os destaques e o final antes de seguir.`}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="secondary" onClick={() => setChapterRecap(null)}>
-                    Pular
-                  </Button>
-                  <Button onClick={() => setChapterRecapPlaying(true)}>Recapitular</Button>
-                </div>
-              </div>
-            ) : null}
-
-            {sessionCheck && !playing && !narrating && !finished && !recap && !chapterRecap ? (
-              <div
-                className="pointer-events-auto flex w-full max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface p-3 text-sm shadow-float"
-                data-testid="checar-sessao"
-              >
-                <p className="flex-1">
-                  {`Você leu ${formatNumber(sessionCheck.to - sessionCheck.from)} palavras nesta sessão.`}
+          {recap && !playing ? (
+            <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
+              <div>
+                <p className="font-medium">Recapitular o contexto</p>
+                <p className="text-sm text-muted">
+                  Faz tempo desde a última leitura. Reveja o trecho anterior antes de continuar.
                 </p>
-                <Button size="sm" loading={checkSaving} onClick={() => void openSessionCheck()}>
-                  Checar compreensão
-                </Button>
               </div>
-            ) : null}
-
-            {slowdown && !playing && !narrating && !recap && !chapterRecap ? (
-              <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface p-3 text-sm shadow-float">
-                <p className="flex-1">{slowdown.message}</p>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    changeWpm(slowdown.wpm);
-                    setSlowdown(null);
-                  }}
-                >
-                  {`Usar ${slowdown.wpm} ppm`}
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" onClick={() => endRecap(false)}>
+                  Pular
                 </Button>
-                <button
-                  type="button"
-                  aria-label="Dispensar sugestão"
-                  onClick={() => setSlowdown(null)}
-                  className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
-                >
-                  <CloseIcon className="size-5" />
-                </button>
+                <Button onClick={() => setRecapPlaying(true)}>Recapitular</Button>
               </div>
-            ) : null}
+              {/* Resumo do que li (US-130): some quando a IA nao serve. */}
+              <ReadSummary
+                textId={text.id}
+                position={recap.to}
+                onContinue={() => endRecap(true)}
+              />
+            </div>
+          ) : null}
 
-            {speech.error ? (
-              <div
-                role="alert"
-                className="pointer-events-auto flex w-full max-w-3xl items-start gap-2 rounded-2xl border border-danger/40 bg-surface p-3 text-sm shadow-float"
-              >
-                <p className="flex-1">
-                  {speech.error}{" "}
-                  <Link href="/ajustes#vozes" className="font-medium text-accent underline">
-                    Vozes em Ajustes
-                  </Link>
+          {chapterRecap && !recap && !playing && !narrating ? (
+            <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
+              <div>
+                <p className="font-medium">Recapitular o capítulo anterior</p>
+                <p className="text-sm text-muted">
+                  {`Faz tempo desde "${chapterRecap.title}". Reveja os destaques e o final antes de seguir.`}
                 </p>
-                <button
-                  type="button"
-                  aria-label="Fechar aviso"
-                  onClick={speech.clearError}
-                  className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
-                >
-                  <CloseIcon className="size-5" />
-                </button>
               </div>
-            ) : null}
-
-            {selection && !finished ? (
-              <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border bg-surface p-1 shadow-float">
-                <Button size="md" loading={marking} onClick={() => void createMark(selection)}>
-                  <MarkIcon className="size-5" />
-                  Destacar
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" onClick={() => setChapterRecap(null)}>
+                  Pular
                 </Button>
-                <Button
-                  size="md"
-                  variant="secondary"
-                  onClick={() => {
-                    setCarding(selection);
-                    clearSelection();
-                  }}
-                >
-                  Criar cartão
-                </Button>
-                <ControlButton label="Cancelar seleção" onClick={clearSelection}>
-                  <CloseIcon className="size-5" />
-                </ControlButton>
+                <Button onClick={() => setChapterRecapPlaying(true)}>Recapitular</Button>
               </div>
-            ) : null}
+            </div>
+          ) : null}
 
-            {reread && !playing && !narrating && !finished && !selection ? (
-              <button
-                type="button"
+          {sessionCheck && !playing && !narrating && !finished && !recap && !chapterRecap ? (
+            <div
+              className="pointer-events-auto flex w-full max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface p-3 text-sm shadow-float"
+              data-testid="checar-sessao"
+            >
+              <p className="flex-1">
+                {`Você leu ${formatNumber(sessionCheck.to - sessionCheck.from)} palavras nesta sessão.`}
+              </p>
+              <Button size="sm" loading={checkSaving} onClick={() => void openSessionCheck()}>
+                Checar compreensão
+              </Button>
+            </div>
+          ) : null}
+
+          {slowdown && !playing && !narrating && !recap && !chapterRecap ? (
+            <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface p-3 text-sm shadow-float">
+              <p className="flex-1">{slowdown.message}</p>
+              <Button
+                size="sm"
                 onClick={() => {
-                  // Volta ao fim, onde a leitura tinha parado, com o resultado.
-                  setReread(null);
-                  stateRef.current.index = stateRef.current.total;
-                  setIndex(stateRef.current.total);
-                  saveProgress(stateRef.current.total);
-                  setFinished(true);
-                  setQuizOpen(true);
+                  changeWpm(slowdown.wpm);
+                  setSlowdown(null);
                 }}
-                className="pointer-events-auto min-h-11 rounded-full border border-border bg-surface px-4 text-sm font-medium shadow-float"
               >
-                Voltar para onde parou
-              </button>
-            ) : showReturn && !selection ? (
+                {`Usar ${slowdown.wpm} ppm`}
+              </Button>
               <button
                 type="button"
-                onClick={() => seek(anchor)}
-                className="pointer-events-auto min-h-11 rounded-full border border-border bg-surface px-4 text-sm font-medium shadow-float"
+                aria-label="Dispensar sugestão"
+                onClick={() => setSlowdown(null)}
+                className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
               >
-                {`Voltar para onde parou (p. ${anchorPage + 1})`}
+                <CloseIcon className="size-5" />
               </button>
-            ) : null}
+            </div>
+          ) : null}
 
-            {speedOpen ? (
-              <div className="pointer-events-auto w-full max-w-3xl rounded-2xl border border-border bg-surface p-4 shadow-float">
-                <Slider
-                  label="Velocidade"
-                  display={`${wpm} ppm`}
-                  min={MIN_WPM}
-                  max={MAX_WPM}
-                  step={10}
-                  hint={speedHint(wpm, adaptive ? realWpm : null)}
-                  value={wpm}
-                  onChange={onSpeedChange}
-                />
-              </div>
-            ) : null}
-          </div>
-
-          <div className="mx-auto w-full max-w-3xl px-4 py-2">
-            {/* Grade fixa: parado e correndo tem os mesmos lugares, e o play
-                nao sai do centro, onde o polegar o procura. */}
-            <div className="grid grid-cols-5 items-center justify-items-center">
-              {!playing ? (
-                <ControlButton
-                  label={narrating ? "Parar a narração" : "Ler em voz alta"}
-                  onClick={toggleSpeech}
-                  active={narrating}
-                >
-                  <VoiceIcon className="size-5" />
-                </ControlButton>
-              ) : (
-                <span aria-hidden="true" className="size-12" />
-              )}
-
-              {playing ? (
-                <ControlButton label="Voltar a frase" onClick={backSentence}>
-                  <RewindIcon className="size-5" />
-                </ControlButton>
-              ) : (
-                <ControlButton label="Página anterior" onClick={() => turnPage(-1)}>
-                  <BackIcon className="size-5" />
-                </ControlButton>
-              )}
-
+          {speech.error ? (
+            <div
+              role="alert"
+              className="pointer-events-auto flex w-full max-w-3xl items-start gap-2 rounded-2xl border border-danger/40 bg-surface p-3 text-sm shadow-float"
+            >
+              <p className="flex-1">
+                {speech.error}{" "}
+                <Link href="/ajustes#vozes" className="font-medium text-accent underline">
+                  Vozes em Ajustes
+                </Link>
+              </p>
               <button
-                ref={playButtonRef}
                 type="button"
-                onClick={togglePlay}
-                aria-label={playing ? "Pausar" : "Iniciar leitura"}
-                className="flex size-16 items-center justify-center rounded-full bg-accent text-accent-ink shadow-float transition-transform active:scale-95"
+                aria-label="Fechar aviso"
+                onClick={speech.clearError}
+                className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
               >
-                {playing ? <PauseIcon className="size-7" /> : <PlayIcon className="size-7" />}
+                <CloseIcon className="size-5" />
               </button>
+            </div>
+          ) : null}
 
-              {playing ? (
-                <ControlButton label="Avançar a frase" onClick={forwardSentence}>
-                  <FastForwardIcon className="size-5" />
-                </ControlButton>
-              ) : (
-                <ControlButton label="Próxima página" onClick={() => turnPage(1)}>
-                  <ForwardIcon className="size-5" />
-                </ControlButton>
-              )}
-
-              <ControlButton label="Destacar frase" onClick={() => markSentenceAt(index)}>
+          {selection && !finished ? (
+            <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border bg-surface p-1 shadow-float">
+              <Button size="md" loading={marking} onClick={() => void createMark(selection)}>
                 <MarkIcon className="size-5" />
+                Destacar
+              </Button>
+              <Button
+                size="md"
+                variant="secondary"
+                onClick={() => {
+                  setCarding(selection);
+                  clearSelection();
+                }}
+              >
+                Criar cartão
+              </Button>
+              <ControlButton label="Cancelar seleção" onClick={clearSelection}>
+                <CloseIcon className="size-5" />
               </ControlButton>
             </div>
+          ) : null}
 
-            <div className="mt-1 flex min-h-11 items-center justify-between gap-2 text-sm">
-              <button
-                type="button"
-                onClick={() => setSpeedOpen((open) => !open)}
-                aria-expanded={speedOpen}
-                aria-label={`Velocidade: ${wpm} ppm`}
-                className={`tabular min-h-11 shrink-0 rounded-full border px-3 font-medium ${
-                  speedOpen ? "border-accent text-accent" : "border-border text-muted"
-                }`}
-              >
-                {`${wpm} ppm`}
-              </button>
-              <p className="tabular min-w-0 flex-1 truncate text-right text-muted">
-                {playing
-                  ? adaptive
-                    ? `~${realWpm} ppm reais`
-                    : `${wpm} ppm`
-                  : pagesReady
-                    ? stopPage !== null && !stopReached
-                      ? `Página ${currentPage + 1} de ${pages.length} · trecho até a p. ${stopPage}${
-                          plannedMs ? ` (~${formatClock(plannedMs)})` : ""
-                        }`
-                      : `Página ${currentPage + 1} de ${pages.length}`
-                    : ""}
-              </p>
-            </div>
-          </div>
-        </footer>
+          {reread && !playing && !narrating && !finished && !selection ? (
+            <button
+              type="button"
+              onClick={() => {
+                // Volta ao fim, onde a leitura tinha parado, com o resultado.
+                setReread(null);
+                stateRef.current.index = stateRef.current.total;
+                setIndex(stateRef.current.total);
+                saveProgress(stateRef.current.total);
+                setFinished(true);
+                setQuizOpen(true);
+              }}
+              className="pointer-events-auto min-h-11 rounded-full border border-border bg-surface px-4 text-sm font-medium shadow-float"
+            >
+              Voltar para onde parou
+            </button>
+          ) : showReturn && !selection ? (
+            <button
+              type="button"
+              onClick={() => seek(anchor)}
+              className="pointer-events-auto min-h-11 rounded-full border border-border bg-surface px-4 text-sm font-medium shadow-float"
+            >
+              {`Voltar para onde parou (p. ${anchorPage + 1})`}
+            </button>
+          ) : null}
+        </ReaderControls>
       ) : null}
 
       {word.touched ? (
@@ -2636,17 +2537,6 @@ function formatRemaining(ms: number): string {
   return `~${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
 
-/**
- * Dica da velocidade: a faixa (leitura, rapida, varredura) e o ritmo real com
- * as pausas de pontuacao, que fica abaixo do configurado no ritmo Dinamico.
- */
-function speedHint(wpm: number, real: number | null): string {
-  const band = `Faixa: ${SPEED_BAND_LABELS[speedBand(wpm)]}.`;
-  const warning = speedBandWarning(wpm);
-  const parts = [band, warning, real !== null ? `Com as pausas de pontuação, ~${real} ppm neste texto.` : null];
-  return parts.filter(Boolean).join(" ");
-}
-
 const GESTURES: [string, string][] = [
   ["Play", "Inicia o Word Runner (ou o guia na página) da palavra atual"],
   ["Tocar no Word Runner", "Freia: volta a página com a palavra atual marcada"],
@@ -2716,34 +2606,6 @@ function EyeRestSheet({
         )}
       </div>
     </Sheet>
-  );
-}
-
-function ControlButton({
-  label,
-  onClick,
-  active,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  active?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={active}
-      className={`flex size-12 items-center justify-center rounded-full border transition-colors active:scale-95 ${
-        active
-          ? "border-accent bg-accent-soft text-accent"
-          : "border-border text-muted hover:text-ink"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 

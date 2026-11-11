@@ -34,3 +34,14 @@ export function speedBandWarning(wpm: number): string | null {
     ? "Acima de ~600 ppm a compreensão costuma cair; faça o teste de compreensão."
     : null;
 }
+
+/**
+ * Dica da velocidade: a faixa (leitura, rapida, varredura) e o ritmo real com
+ * as pausas de pontuacao, que fica abaixo do configurado no ritmo Dinamico.
+ */
+export function speedHint(wpm: number, real: number | null): string {
+  const band = `Faixa: ${SPEED_BAND_LABELS[speedBand(wpm)]}.`;
+  const warning = speedBandWarning(wpm);
+  const parts = [band, warning, real !== null ? `Com as pausas de pontuação, ~${real} ppm neste texto.` : null];
+  return parts.filter(Boolean).join(" ");
+}
