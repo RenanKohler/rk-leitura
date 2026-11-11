@@ -169,6 +169,8 @@ export interface TextDetail extends TextSummary {
   lastReadAt: string | null;
   /** Maior marco de "isso ainda vale?" ja respondido: 0, 25, 50 ou 75 (US-80). */
   checkpointAnswered: number;
+  /** Ultima oferta da checagem de compreensao da sessao; nulo se nunca (US-218). */
+  sessionCheckOfferedAt: string | null;
   /** Idioma do texto (US-67), um dos codigos de `lib/language.ts`. */
   language: string;
   /** Como o conteudo e lido: texto simples ou Markdown. */

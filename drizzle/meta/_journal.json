@@ -232,6 +232,13 @@
       "when": 1792865148394,
       "tag": "0032_sessao_emitida",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794438038561,
+      "tag": "0033_avisos_dispensados",
+      "breakpoints": true
     }
   ]
 }

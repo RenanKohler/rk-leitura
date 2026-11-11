@@ -133,7 +133,8 @@ import {
   MIN_WORDS_TO_RECORD,
   type SessionRecord,
 } from "@/lib/reader-session";
-import { sessionCheckRange, type SessionRange } from "@/lib/session-check";
+import { offeredToday, sessionCheckRange, type SessionRange } from "@/lib/session-check";
+import { visibleSuggestion } from "@/lib/reader-notices";
 
 /*
  * Uma tela so. Parado, o texto aparece em paginas, como num e-reader; ao
@@ -317,9 +318,19 @@ function Reader({
   );
   const warmup = settings.warmup;
 
+  // O leitor ja respondeu ou dispensou uma sugestao nesta pausa (US-219): as
+  // outras esperam a proxima.
+  const [suggestionSettled, setSuggestionSettled] = useState(false);
+
   // Sugestao de desacelerar quando as ultimas sessoes tiveram muitos freios e
   // recuos (PROD-10). So sugere: mudar a velocidade e sempre do leitor.
   const [slowdown, setSlowdown] = useState<{ message: string; wpm: number } | null>(null);
+  /** Aceitar ou dispensar a sugestao: nao volta nos proximos dias (US-218). */
+  const answerSlowdown = useCallback(() => {
+    setSlowdown(null);
+    setSuggestionSettled(true);
+    void apiSend("/api/reading-sessions/sugestao", "POST").catch(() => undefined);
+  }, []);
   useEffect(() => {
     let active = true;
     void apiGet<{ suggestion: { message: string } | null; suggestedWpm: number | null }>(
@@ -454,6 +465,8 @@ function Reader({
   // comecou, o trecho oferecido ao pausar e o trecho ja gravado em checagem.
   const sessionFromRef = useRef<number | null>(null);
   const [sessionCheck, setSessionCheck] = useState<SessionRange | null>(null);
+  // Uma oferta da checagem por texto por dia (US-218); a marca vem da conta.
+  const checkOfferedRef = useRef(text.sessionCheckOfferedAt);
   const [checkTarget, setCheckTarget] = useState<
     (SessionRange & { sessionId: string | null }) | null
   >(null);
@@ -665,6 +678,7 @@ function Reader({
     const sessionId = await postRecord(takeRecord(meter, now), false);
     sessionFromRef.current = null;
     setSessionCheck(null);
+    setSuggestionSettled(true);
     setCheckTarget({ ...sessionCheck, sessionId });
     setCheckOpen(true);
     setCheckSaving(false);
@@ -890,13 +904,15 @@ function Reader({
       setAnchor(position);
       // Sessao longa no Word Runner: oferece checar o trecho lido (US-149).
       setSessionCheck(
-        sessionCheckRange({
-          mode: meterRef.current.mode,
-          words: meterRef.current.words,
-          from: sessionFromRef.current,
-          position,
-          total: stateRef.current.total,
-        })
+        offeredToday(checkOfferedRef.current, new Date(now))
+          ? null
+          : sessionCheckRange({
+              mode: meterRef.current.mode,
+              words: meterRef.current.words,
+              from: sessionFromRef.current,
+              position,
+              total: stateRef.current.total,
+            })
       );
       touchPage();
       setAnnouncement(
@@ -972,6 +988,7 @@ function Reader({
       sessionFromRef.current = from;
     }
     setSessionCheck(null);
+    setSuggestionSettled(false);
     void postRecord(startClock(meterRef.current, "runner", now), false);
     wordStartRef.current = performance.now();
     stateRef.current.playing = true;
@@ -1493,6 +1510,7 @@ function Reader({
     (continueReading: boolean) => {
       setRecap(null);
       setRecapPlaying(false);
+      setSuggestionSettled(true);
       if (!continueReading) return;
       pausedAtRef.current = Date.now();
       pausedIndexRef.current = stateRef.current.index;
@@ -1669,6 +1687,37 @@ function Reader({
   const [clockMode, setClockMode] = useState<"restante" | "lido">("restante");
 
   const onSpeedChange = useCallback((value: number) => changeWpm(value), [changeWpm]);
+
+  // Uma sugestao por vez acima da barra (US-219). Aviso de estado, barra de
+  // selecao e controle de velocidade tem a vez antes dela.
+  const returnVisible =
+    !selection && (showReturn || (Boolean(reread) && !playing && !narrating && !finished));
+  const suggestion = visibleSuggestion({
+    pending: {
+      recapitular: Boolean(recap) && !playing,
+      capitulo: Boolean(chapterRecap) && !playing && !narrating,
+      checagem: Boolean(sessionCheck) && !playing && !narrating && !finished,
+      velocidade: Boolean(slowdown) && !playing && !narrating,
+    },
+    blocked:
+      (text.abandoned && !resumed) ||
+      saveFailing ||
+      remoteJump !== null ||
+      Boolean(speech.error) ||
+      returnVisible ||
+      Boolean(selection) ||
+      speedOpen,
+    settled: suggestionSettled,
+  });
+
+  // A checagem conta como oferecida quando aparece de fato, nao quando a
+  // pausa a calcula: escondida atras de outro aviso, ela ainda nao foi vista.
+  useEffect(() => {
+    if (suggestion !== "checagem") return;
+    if (offeredToday(checkOfferedRef.current, new Date())) return;
+    checkOfferedRef.current = new Date().toISOString();
+    void apiSend(`/api/texts/${text.id}/checagem`, "POST").catch(() => undefined);
+  }, [suggestion, text.id]);
   // Linha da pagina no rodape, com a leitura parada.
   const pageStatus = !pagesReady
     ? ""
@@ -1949,7 +1998,7 @@ function Reader({
             </div>
           ) : null}
 
-          {recap && !playing ? (
+          {suggestion === "recapitular" && recap ? (
             <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
               <div>
                 <p className="font-medium">Recapitular o contexto</p>
@@ -1972,7 +2021,7 @@ function Reader({
             </div>
           ) : null}
 
-          {chapterRecap && !recap && !playing && !narrating ? (
+          {suggestion === "capitulo" && chapterRecap ? (
             <div className="pointer-events-auto w-full max-w-3xl space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float">
               <div>
                 <p className="font-medium">Recapitular o capítulo anterior</p>
@@ -1981,7 +2030,13 @@ function Reader({
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={() => setChapterRecap(null)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setChapterRecap(null);
+                    setSuggestionSettled(true);
+                  }}
+                >
                   Pular
                 </Button>
                 <Button onClick={() => setChapterRecapPlaying(true)}>Recapitular</Button>
@@ -1989,7 +2044,7 @@ function Reader({
             </div>
           ) : null}
 
-          {sessionCheck && !playing && !narrating && !finished && !recap && !chapterRecap ? (
+          {suggestion === "checagem" && sessionCheck ? (
             <div
               className="pointer-events-auto flex w-full max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface p-3 text-sm shadow-float"
               data-testid="checar-sessao"
@@ -2000,17 +2055,28 @@ function Reader({
               <Button size="sm" loading={checkSaving} onClick={() => void openSessionCheck()}>
                 Checar compreensão
               </Button>
+              <button
+                type="button"
+                aria-label="Dispensar a checagem"
+                onClick={() => {
+                  setSessionCheck(null);
+                  setSuggestionSettled(true);
+                }}
+                className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+              >
+                <CloseIcon className="size-5" />
+              </button>
             </div>
           ) : null}
 
-          {slowdown && !playing && !narrating && !recap && !chapterRecap ? (
+          {suggestion === "velocidade" && slowdown ? (
             <div className="pointer-events-auto flex w-full max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface p-3 text-sm shadow-float">
               <p className="flex-1">{slowdown.message}</p>
               <Button
                 size="sm"
                 onClick={() => {
                   changeWpm(slowdown.wpm);
-                  setSlowdown(null);
+                  answerSlowdown();
                 }}
               >
                 {`Usar ${slowdown.wpm} ppm`}
@@ -2018,7 +2084,7 @@ function Reader({
               <button
                 type="button"
                 aria-label="Dispensar sugestão"
-                onClick={() => setSlowdown(null)}
+                onClick={answerSlowdown}
                 className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
               >
                 <CloseIcon className="size-5" />

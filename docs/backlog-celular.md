@@ -300,7 +300,7 @@ Saiu da segunda sessão, depois da US-210: o leitor apontou os avisos que
 aparecem acima da barra como o que mais atrapalha e pediu para diminuir, não
 para acabar com eles. Ficam fora deste épico as pausas automáticas (descanso
 dos olhos, marcos de 25%, 50% e 75%, ponto de parada), que não foram
-apontadas, e os avisos de estado que pedem uma ação (texto largado, outro
+apontadas (os marcos, além disso, já vêm desligados nos ajustes), e os avisos de estado que pedem uma ação (texto largado, outro
 aparelho, falha de gravação, erro de narração, "voltar para onde parou").
 As referências de linha deste épico valem para o código depois da US-211.
 
@@ -309,7 +309,7 @@ As referências de linha deste épico valem para o código depois da US-211.
 **Épico:** Avisos na leitura
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `reader-client.tsx:320-332` (a sugestão de reduzir a velocidade é buscada a cada abertura do leitor e dispensar só zera o estado da tela, `reader-client.tsx:2013-2021`); `reader-client.tsx:892` (a checagem de compreensão é oferecida de novo a cada pausa depois de 800 palavras no Word Runner)
 
 Como leitor, eu quero que um aviso dispensado não volte logo em seguida, para
@@ -328,12 +328,24 @@ não ter de fechar a mesma sugestão toda vez que pauso ou abro um texto.
 **Notas técnicas:** a dispensa precisa ser gravada na conta; hoje não há onde.
 A checagem de compreensão ainda não tem botão de fechar: ganha um nesta story.
 
+**Notas da implementação:** a resposta à sugestão de velocidade fica em
+`users.slowdown_answered_at` (`POST /api/reading-sessions/sugestao`) e a oferta
+da checagem em `texts.session_check_offered_at` (`POST
+/api/texts/[id]/checagem`), migration `0033_avisos_dispensados`. A regra da
+velocidade ficou uma só para aceitar e dispensar (`slowdownSamples`, em
+`src/lib/difficulty.ts`): 7 dias sem sugestão e, depois, só contam as sessões
+gravadas depois da resposta. É mais restrita que o critério 2, que não pedia os
+7 dias para quem aceitou. A checagem conta como oferecida quando aparece na
+tela, não quando a pausa a calcula, e "hoje" é o dia do aparelho
+(`offeredToday`, em `src/lib/session-check.ts`). Sem conexão a marca não é
+gravada: vale até fechar o leitor e pode repetir na abertura seguinte.
+
 ### US-219: Mostrar um aviso por vez acima da barra
 
 **Épico:** Avisos na leitura
 **Prioridade:** Must
 **Story points:** 2
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `reader-client.tsx:1952-2030` (cada aviso tem a sua condição; checagem de compreensão, sugestão de velocidade e "voltar para onde parou" podem aparecer empilhados ao pausar)
 
 Como leitor, eu quero ver no máximo um aviso de sugestão por vez, para que a
@@ -351,13 +363,21 @@ pausa não cubra a página com cartões.
 4. Dado a barra de seleção ou o controle de velocidade aberto, quando há uma
    sugestão pendente, então ela não aparece junto.
 
+**Notas da implementação:** a escolha é `visibleSuggestion`, em
+`src/lib/reader-notices.ts`; o leitor informa o que está pendente e desenha só
+a sugestão escolhida. "Voltar para onde parou" conta como aviso de estado:
+enquanto ele aparece, a sugestão espera. Abrir a checagem, pular uma
+recapitulação e responder a sugestão de velocidade encerram as sugestões da
+pausa; a próxima vez é no play seguinte. Coberto por
+`tests/reader-notices.test.ts` e `e2e/avisos.spec.ts`.
+
 ### US-220: Desligar as sugestões durante a leitura
 
 **Épico:** Avisos na leitura
 **Prioridade:** Should
 **Story points:** 2
 **Status:** Proposta
-**Evidência:** `src/app/(app)/ajustes/page.tsx:265` (só o descanso dos olhos tem ajuste); recapitular, checar compreensão e reduzir a velocidade não podem ser desligados
+**Evidência:** `src/app/(app)/ajustes/page.tsx:234` e `:265` (os marcos de "isso ainda vale?" e o descanso dos olhos têm ajuste; os marcos já vêm desligados); recapitular, checar compreensão e reduzir a velocidade não podem ser desligados
 
 Como leitor, eu quero um ajuste para desligar as sugestões do leitor, para ler
 sem nenhum cartão quando eu não quiser ser interrompido.
@@ -394,8 +414,8 @@ de fechar, para que ela não cubra o fim da página.
 
 ## Sugestão de entrega
 
-Total: 12 stories, 31 pontos, 2 sprints. US-210 e US-211 já estão
-implementadas.
+Total: 12 stories, 31 pontos, 2 sprints. US-210, US-211, US-218 e US-219 já
+estão implementadas.
 
 **Sprint 1 (22 pontos)**
 - US-210 Separar barra e gestos do leitor (3), implementada
@@ -408,13 +428,13 @@ implementadas.
 - US-216 Vibrar ao mudar de seção (2)
 
 **Sprint 2 (9 pontos)**
-- US-218 Não repetir um aviso dispensado (3)
-- US-219 Um aviso por vez (2)
+- US-218 Não repetir um aviso dispensado (3), implementada
+- US-219 Um aviso por vez (2), implementada
 - US-220 Desligar as sugestões (2)
 - US-221 Avisos em uma linha (2)
 
-A US-218 e a US-219 são as que mais reduzem avisos com menos código; podem
-entrar antes da US-212 se os avisos incomodarem mais que a falta dos gestos.
+A US-218 e a US-219 entraram antes da US-212, por decisão delegada pelo
+leitor: eram as que mais reduziam avisos com menos código.
 
 ## Próximo passo de validação
 

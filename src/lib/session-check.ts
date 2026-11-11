@@ -59,6 +59,23 @@ export function sessionCheckRange(session: {
   return { from, to };
 }
 
+/**
+ * A checagem ja foi oferecida hoje neste texto (US-218)?
+ *
+ * "Hoje" e o dia do aparelho: quem decide e o leitor, na tela, e a oferta que
+ * reaparecia a cada pausa passa a valer uma vez por texto por dia.
+ */
+export function offeredToday(offeredAt: string | Date | null, now: Date): boolean {
+  if (!offeredAt) return false;
+  const offered = new Date(offeredAt);
+  if (Number.isNaN(offered.getTime())) return false;
+  return (
+    offered.getFullYear() === now.getFullYear() &&
+    offered.getMonth() === now.getMonth() &&
+    offered.getDate() === now.getDate()
+  );
+}
+
 /** O intervalo pedido a rota e um trecho valido deste texto? */
 export function validSessionRange(range: unknown, total: number): range is SessionRange {
   if (!range || typeof range !== "object") return false;

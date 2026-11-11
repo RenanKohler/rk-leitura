@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   parseBrakes,
   resolveSessionMode,
+  SLOWDOWN_QUIET_DAYS,
+  slowdownSamples,
   suggestSlowdown,
   type BrakeSample,
 } from "@/lib/difficulty";
@@ -72,5 +74,41 @@ describe("sugestao de desacelerar", () => {
       runner(300, 50),
     ];
     expect(suggestSlowdown(sessions)).toBeNull();
+  });
+});
+
+describe("slowdownSamples (US-218)", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const answeredAt = new Date("2026-03-10T12:00:00Z");
+  const at = (offsetMs: number) => ({
+    ...runner(300, 9),
+    createdAt: new Date(answeredAt.getTime() + offsetMs),
+  });
+  const before = [at(-3 * DAY), at(-2 * DAY), at(-DAY)];
+  const after = [at(DAY), at(2 * DAY), at(3 * DAY)];
+
+  it("sem resposta anterior, todas as sessoes contam", () => {
+    const now = new Date(answeredAt.getTime() + DAY);
+    expect(slowdownSamples(before, null, now)).toEqual(before);
+    expect(suggestSlowdown(slowdownSamples(before, null, now))).not.toBeNull();
+  });
+
+  it("durante os dias de silencio nada conta, nem sessao nova", () => {
+    const lastQuiet = new Date(answeredAt.getTime() + SLOWDOWN_QUIET_DAYS * DAY - 1);
+    expect(slowdownSamples([...after, ...before], answeredAt, lastQuiet)).toEqual([]);
+    expect(suggestSlowdown(slowdownSamples(after, answeredAt, lastQuiet))).toBeNull();
+  });
+
+  it("passado o silencio, so as sessoes depois da resposta contam", () => {
+    const later = new Date(answeredAt.getTime() + SLOWDOWN_QUIET_DAYS * DAY);
+    expect(slowdownSamples([...after, ...before], answeredAt, later)).toEqual(after);
+    // As sessoes que geraram a sugestao respondida nao a trazem de volta.
+    expect(suggestSlowdown(slowdownSamples(before, answeredAt, later))).toBeNull();
+    expect(suggestSlowdown(slowdownSamples([...after, ...before], answeredAt, later))).not.toBeNull();
+  });
+
+  it("sessao gravada no instante da resposta fica de fora", () => {
+    const later = new Date(answeredAt.getTime() + SLOWDOWN_QUIET_DAYS * DAY);
+    expect(slowdownSamples([at(0)], answeredAt, later)).toEqual([]);
   });
 });
