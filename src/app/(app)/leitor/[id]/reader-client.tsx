@@ -93,6 +93,8 @@ import { GuideQuestions } from "@/components/guide-questions";
 import { MIN_WORDS_FOR_QUIZ } from "@/lib/quiz";
 import { useWordSelection, wordIndexFromPoint } from "@/hooks/use-word-selection";
 import { useWordTouch } from "@/hooks/use-word-touch";
+import { useReaderGestures } from "@/hooks/use-reader-gestures";
+import type { Gesture } from "@/lib/gestures";
 import { useSpeech } from "@/hooks/use-speech";
 import { ControlButton, ReaderControls } from "./reader-controls";
 import { rateNotice } from "@/lib/speech";
@@ -1365,6 +1367,17 @@ function Reader({
   );
 
   /** Toque na pagina: borda vira, palavra passa a ser o inicio da leitura. */
+  /** Deslize na pagina (US-211): nas pontas do texto nao faz nada. */
+  const swipePage = useCallback(
+    (direction: 1 | -1) => {
+      const page = pageOfWord(pages, stateRef.current.index);
+      if (pages[page + direction] === undefined) return false;
+      turnPage(direction);
+      return true;
+    },
+    [pages, turnPage]
+  );
+
   const onPageTap = useCallback(
     (position: number | null, edge: -1 | 0 | 1) => {
       if (Date.now() - brakeAtRef.current < BRAKE_GUARD_MS) return;
@@ -1881,7 +1894,7 @@ function Reader({
               current={currentOnPage}
               hidden={runnerVisible}
               touch={word.handlers}
-              onTurn={turnPage}
+              onSwipe={swipePage}
               onTap={onPageTap}
               onOpenMark={(id) => (id === REREAD_MARK ? undefined : setOpenMark(id))}
             />
@@ -3046,7 +3059,7 @@ const PageStage = memo(function PageStage({
   current,
   hidden,
   touch,
-  onTurn,
+  onSwipe,
   onTap,
   onOpenMark,
 }: {
@@ -3063,26 +3076,25 @@ const PageStage = memo(function PageStage({
   /** Coberta pelo Word Runner: continua montada para a paginacao seguir medida. */
   hidden: boolean;
   touch: WordTouchHandlers;
-  onTurn: (direction: 1 | -1) => void;
+  /** Deslize na pagina; devolve false quando nao ha pagina para onde ir. */
+  onSwipe: (direction: 1 | -1) => boolean;
   /** Toque na pagina: a palavra tocada (ou null) e a borda (-1, 0, 1). */
   onTap: (position: number | null, edge: -1 | 0 | 1) => void;
   onOpenMark: (id: string) => void;
 }) {
-  const touchStartX = useRef<number | null>(null);
+  const proseRef = useRef<HTMLDivElement>(null);
 
-  const onTouchStart = (event: React.TouchEvent) => {
-    touchStartX.current = event.touches[0]?.clientX ?? null;
-  };
-
-  const onTouchEnd = (event: React.TouchEvent) => {
-    const start = touchStartX.current;
-    touchStartX.current = null;
-    if (start === null) return;
-
-    const delta = (event.changedTouches[0]?.clientX ?? start) - start;
-    if (Math.abs(delta) < SWIPE_THRESHOLD_PX) return;
-    onTurn(delta < 0 ? 1 : -1);
-  };
+  // Deslizar vira a pagina (US-211). O toque simples continua no `onClick`,
+  // que ja sabe da borda e da palavra tocada.
+  const onGesture = useCallback(
+    (gesture: Gesture) => {
+      if (gesture === "toque") return;
+      const direction = gesture === "deslize-esquerda" ? 1 : -1;
+      if (!onSwipe(direction)) bouncePage(proseRef.current, direction);
+    },
+    [onSwipe]
+  );
+  const { handlers: gestures } = useReaderGestures(onGesture, !hidden);
 
   const onClick = (event: React.MouseEvent<HTMLDivElement>) => {
     // Arrastar para selecionar nao e toque.
@@ -3095,12 +3107,28 @@ const PageStage = memo(function PageStage({
 
   return (
     <div
-      className={`relative flex min-h-0 flex-1 flex-col px-5 py-6${hidden ? " invisible" : ""}`}
+      // `pan-y`: o arraste horizontal chega como evento de ponteiro em vez de
+      // ser tomado pelo navegador. A pinca de zoom continua valendo.
+      className={`relative flex min-h-0 flex-1 touch-pan-y touch-pinch-zoom flex-col px-5 py-6${hidden ? " invisible" : ""}`}
       aria-hidden={hidden || undefined}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
       onClick={onClick}
-      {...touch}
+      // Toque longo (dicionario) e gestos leem os mesmos eventos.
+      onPointerDown={(event) => {
+        touch.onPointerDown(event);
+        gestures.onPointerDown(event);
+      }}
+      onPointerMove={(event) => {
+        touch.onPointerMove(event);
+        gestures.onPointerMove(event);
+      }}
+      onPointerUp={(event) => {
+        touch.onPointerUp();
+        gestures.onPointerUp(event);
+      }}
+      onPointerCancel={(event) => {
+        touch.onPointerCancel();
+        gestures.onPointerCancel(event);
+      }}
     >
       {/* A altura vem do flex, nao de height:100%: a altura do pai e definida
           por flex-grow e, para porcentagem, conta como indefinida - o frame
@@ -3109,7 +3137,7 @@ const PageStage = memo(function PageStage({
         ref={frameRef}
         className="relative mx-auto min-h-0 w-full max-w-2xl flex-1 overflow-hidden"
       >
-        <div className="reader-prose">
+        <div ref={proseRef} className="reader-prose">
           {ready
             ? sliceParagraphs(paragraphs, pageStart, pageEnd).map((paragraph) => (
                 <p key={paragraph.start} {...blockProps(paragraph)}>
@@ -3144,7 +3172,25 @@ const PageStage = memo(function PageStage({
   );
 });
 
-const SWIPE_THRESHOLD_PX = 45;
+/**
+ * Retorno visual de um deslize para fora do texto (US-211): a pagina cede um
+ * pouco no sentido do dedo e volta. Com movimento reduzido, so esmaece. E
+ * `transform`/`opacity`: nao mexe na medida da pagina nem na paginacao.
+ */
+function bouncePage(page: HTMLElement | null, direction: 1 | -1) {
+  if (!page || typeof page.animate !== "function") return;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  page.animate(
+    reduced
+      ? [{ opacity: 1 }, { opacity: 0.6 }, { opacity: 1 }]
+      : [
+          { transform: "translateX(0)" },
+          { transform: `translateX(${-direction * 18}px)` },
+          { transform: "translateX(0)" },
+        ],
+    { duration: 220, easing: "ease-out" }
+  );
+}
 
 function Finished({
   total,

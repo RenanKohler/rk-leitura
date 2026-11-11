@@ -40,7 +40,8 @@ com o leitor, que usa o app sozinho, num aparelho Android. A análise partiu do
 | --- | --- | --- | --- | --- | --- |
 | Controles e gestos | 5 | 14 | 3 | 1 | 1 |
 | Layout e retorno | 3 | 8 | 0 | 2 | 1 |
-| **Total** | **8** | **22** | **3 (38%)** | **3 (38%)** | **2 (25%)** |
+| Avisos na leitura | 4 | 9 | 2 | 1 | 1 |
+| **Total** | **12** | **31** | **5 (42%)** | **4 (33%)** | **3 (25%)** |
 
 Must ficou com os três pedidos centrais da sessão: virar página deslizando,
 ajustar a velocidade deslizando e esconder os controles. A US-210 é Should,
@@ -92,7 +93,7 @@ continua valendo, porque é ele que vira a página hoje.
 **Épico:** Controles e gestos
 **Prioridade:** Must
 **Story points:** 3
-**Status:** Proposta
+**Status:** Implementada
 **Evidência:** `reader-client.tsx:2127` e `reader-client.tsx:2147` (virar página só pelos botões do rodapé); não há tratamento de deslize no leitor
 
 Como leitor, eu quero virar a página deslizando o dedo, para ler sem procurar
@@ -120,6 +121,16 @@ os botões da barra.
 deslocamento vertical, a borda lateral nem seleção em andamento. Esta story
 passa a ser trocar esse tratamento pelo `useReaderGestures` (critérios 1, 3 e
 4) e acrescentar o retorno visual nas pontas (critério 5), não criar o gesto.
+
+**Notas da implementação:** `PageStage` usa o `useReaderGestures` junto com o
+toque longo do dicionário, nos mesmos eventos de ponteiro. A área da página
+recebeu `touch-action: pan-y pinch-zoom`, para o arraste horizontal chegar como
+evento de ponteiro sem perder a pinça de zoom. Nas pontas do texto o deslize
+não chama `turnPage`: a página cede 18 px e volta (com movimento reduzido, só
+esmaece), então deslizar na última página não conclui a leitura; o botão e o
+toque na borda continuam concluindo. O deslize com o guia na página em
+andamento continua virando a página, como antes. Coberto por
+`e2e/gestos.spec.ts`, com toque real pelo protocolo do navegador.
 
 ### US-212: Ajustar a velocidade deslizando no Word Runner
 
@@ -283,19 +294,127 @@ inteira em textos com linhas longas, tabelas ou código.
 **Notas técnicas:** depois da US-213 os controles somem durante a leitura, o
 que resolve boa parte da falta de altura na horizontal.
 
+## Épico: Avisos na leitura
+
+Saiu da segunda sessão, depois da US-210: o leitor apontou os avisos que
+aparecem acima da barra como o que mais atrapalha e pediu para diminuir, não
+para acabar com eles. Ficam fora deste épico as pausas automáticas (descanso
+dos olhos, marcos de 25%, 50% e 75%, ponto de parada), que não foram
+apontadas, e os avisos de estado que pedem uma ação (texto largado, outro
+aparelho, falha de gravação, erro de narração, "voltar para onde parou").
+As referências de linha deste épico valem para o código depois da US-211.
+
+### US-218: Não repetir um aviso que já dispensei
+
+**Épico:** Avisos na leitura
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Proposta
+**Evidência:** `reader-client.tsx:320-332` (a sugestão de reduzir a velocidade é buscada a cada abertura do leitor e dispensar só zera o estado da tela, `reader-client.tsx:2013-2021`); `reader-client.tsx:892` (a checagem de compreensão é oferecida de novo a cada pausa depois de 800 palavras no Word Runner)
+
+Como leitor, eu quero que um aviso dispensado não volte logo em seguida, para
+não ter de fechar a mesma sugestão toda vez que pauso ou abro um texto.
+
+**Critérios de aceitação**
+1. Dado que dispensei a sugestão de reduzir a velocidade, quando abro qualquer
+   texto nos 7 dias seguintes, então ela não aparece.
+2. Dado que aceitei a sugestão de reduzir a velocidade, quando abro outro
+   texto, então ela não aparece até haver sessões novas que a justifiquem.
+3. Dado que a checagem de compreensão foi oferecida numa sessão, quando pauso
+   de novo no mesmo texto no mesmo dia, então ela não é oferecida outra vez.
+4. Dado que dispensei um aviso num aparelho, quando abro o leitor em outro,
+   então a dispensa vale lá também.
+
+**Notas técnicas:** a dispensa precisa ser gravada na conta; hoje não há onde.
+A checagem de compreensão ainda não tem botão de fechar: ganha um nesta story.
+
+### US-219: Mostrar um aviso por vez acima da barra
+
+**Épico:** Avisos na leitura
+**Prioridade:** Must
+**Story points:** 2
+**Status:** Proposta
+**Evidência:** `reader-client.tsx:1952-2030` (cada aviso tem a sua condição; checagem de compreensão, sugestão de velocidade e "voltar para onde parou" podem aparecer empilhados ao pausar)
+
+Como leitor, eu quero ver no máximo um aviso de sugestão por vez, para que a
+pausa não cubra a página com cartões.
+
+**Critérios de aceitação**
+1. Dado mais de uma sugestão pendente ao pausar, quando a página volta, então
+   aparece só a de maior prioridade: recapitular, depois checar compreensão,
+   depois reduzir a velocidade.
+2. Dado que respondi ou dispensei a sugestão visível, quando continuo parado,
+   então a próxima não aparece nessa pausa.
+3. Dado um aviso de estado (texto largado, falha de gravação, erro de
+   narração, outro aparelho), quando ele existe, então aparece sempre, e a
+   sugestão espera.
+4. Dado a barra de seleção ou o controle de velocidade aberto, quando há uma
+   sugestão pendente, então ela não aparece junto.
+
+### US-220: Desligar as sugestões durante a leitura
+
+**Épico:** Avisos na leitura
+**Prioridade:** Should
+**Story points:** 2
+**Status:** Proposta
+**Evidência:** `src/app/(app)/ajustes/page.tsx:265` (só o descanso dos olhos tem ajuste); recapitular, checar compreensão e reduzir a velocidade não podem ser desligados
+
+Como leitor, eu quero um ajuste para desligar as sugestões do leitor, para ler
+sem nenhum cartão quando eu não quiser ser interrompido.
+
+**Critérios de aceitação**
+1. Dado os ajustes de leitura, quando abro, então há "Sugestões durante a
+   leitura", ligado por padrão.
+2. Dado o ajuste desligado, quando leio, então não aparecem recapitular,
+   checar compreensão nem reduzir a velocidade, e o leitor não consulta a
+   sugestão de velocidade ao abrir.
+3. Dado o ajuste desligado, quando quero recapitular ou checar a compreensão,
+   então consigo pela folha de navegação do texto.
+4. Dado o ajuste desligado, quando há um aviso de estado, então ele continua
+   aparecendo.
+
+### US-221: Avisos em uma linha
+
+**Épico:** Avisos na leitura
+**Prioridade:** Could
+**Story points:** 2
+**Status:** Proposta
+**Evidência:** `reader-client.tsx:1952-1973` (o aviso de recapitular ocupa um cartão com título, texto, dois botões e o resumo de IA embaixo)
+
+Como leitor, eu quero que cada sugestão ocupe uma linha, com a ação e um botão
+de fechar, para que ela não cubra o fim da página.
+
+**Critérios de aceitação**
+1. Dado uma sugestão visível, quando aparece, então tem uma frase curta, um
+   botão de ação e um de fechar, na altura de um controle (44 px de toque).
+2. Dado o aviso de recapitular, quando toco na ação, então o resumo do que li
+   e os destaques abrem numa folha, não no cartão.
+3. Dado a largura de 320 px, quando a sugestão aparece, então não há rolagem
+   horizontal nem texto cortado sem reticências.
+
 ## Sugestão de entrega
 
-Total: 8 stories, 22 pontos, 1 sprint.
+Total: 12 stories, 31 pontos, 2 sprints. US-210 e US-211 já estão
+implementadas.
 
 **Sprint 1 (22 pontos)**
-- US-210 Separar barra e gestos do leitor (3)
-- US-211 Virar a página deslizando (3)
+- US-210 Separar barra e gestos do leitor (3), implementada
+- US-211 Virar a página deslizando (3), implementada
 - US-212 Ajustar a velocidade deslizando (3)
 - US-213 Esconder os controles durante a leitura (3)
 - US-215 Ações ao alcance do polegar (2)
 - US-217 Ler com o celular deitado (4)
 - US-214 Alternar Word Runner e Guia (2)
 - US-216 Vibrar ao mudar de seção (2)
+
+**Sprint 2 (9 pontos)**
+- US-218 Não repetir um aviso dispensado (3)
+- US-219 Um aviso por vez (2)
+- US-220 Desligar as sugestões (2)
+- US-221 Avisos em uma linha (2)
+
+A US-218 e a US-219 são as que mais reduzem avisos com menos código; podem
+entrar antes da US-212 se os avisos incomodarem mais que a falta dos gestos.
 
 ## Próximo passo de validação
 
