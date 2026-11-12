@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   MIN_SESSION_CHECK_WORDS,
   MIN_SESSION_RANGE_WORDS,
+  offeredToday,
   SESSION_CHECK_QUESTIONS,
   sessionCheckRange,
   sessionExcerpt,
@@ -150,5 +151,31 @@ describe("generateSessionQuiz", () => {
     expect(Math.min(...numbers)).toBe(400);
     expect(sent[0]!.textId).toBe("texto-1");
     expect(sent[0]!.wordsSent).toBeGreaterThanOrEqual(900);
+  });
+});
+
+describe("offeredToday (US-218)", () => {
+  // Datas montadas no fuso do processo: a regra e o dia do aparelho.
+  const now = new Date(2026, 2, 10, 15, 30);
+
+  it("nunca oferecida, ou data invalida, nao conta", () => {
+    expect(offeredToday(null, now)).toBe(false);
+    expect(offeredToday("nao e data", now)).toBe(false);
+  });
+
+  it("oferecida no mesmo dia, em qualquer hora, conta", () => {
+    expect(offeredToday(new Date(2026, 2, 10, 0, 0), now)).toBe(true);
+    expect(offeredToday(new Date(2026, 2, 10, 23, 59), now)).toBe(true);
+    expect(offeredToday(new Date(2026, 2, 10, 9, 0).toISOString(), now)).toBe(true);
+  });
+
+  it("oferecida na vespera ou no dia seguinte nao conta", () => {
+    expect(offeredToday(new Date(2026, 2, 9, 23, 59), now)).toBe(false);
+    expect(offeredToday(new Date(2026, 2, 11, 0, 0), now)).toBe(false);
+  });
+
+  it("mesmo dia do mes em outro mes ou ano nao conta", () => {
+    expect(offeredToday(new Date(2026, 1, 10, 15, 30), now)).toBe(false);
+    expect(offeredToday(new Date(2025, 2, 10, 15, 30), now)).toBe(false);
   });
 });

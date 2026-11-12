@@ -68,6 +68,28 @@ export const SLOWDOWN_BRAKES_PER_WINDOW = 1;
 /** Quanto a sugestao tira da velocidade. */
 export const SLOWDOWN_STEP = 25;
 
+/** Dias sem sugestao depois de o leitor aceitar ou dispensar (US-218). */
+export const SLOWDOWN_QUIET_DAYS = 7;
+
+/**
+ * Sessoes que ainda contam para a sugestao depois de uma resposta (US-218).
+ *
+ * Aceitar ou dispensar responde as sessoes que geraram a sugestao: elas nao
+ * voltam a pesar, e por `SLOWDOWN_QUIET_DAYS` nada e sugerido. Sem isso a
+ * mesma sugestao reaparecia a cada abertura do leitor, e aceitar levava a
+ * outra de -25 ppm em cima das mesmas sessoes.
+ */
+export function slowdownSamples<T extends { createdAt: Date }>(
+  sessions: T[],
+  answeredAt: Date | null,
+  now: Date
+): T[] {
+  if (!answeredAt) return sessions;
+  const quietUntil = answeredAt.getTime() + SLOWDOWN_QUIET_DAYS * 24 * 60 * 60 * 1000;
+  if (now.getTime() < quietUntil) return [];
+  return sessions.filter((session) => session.createdAt.getTime() > answeredAt.getTime());
+}
+
 export interface BrakeSample {
   mode: string;
   wordsRead: number;

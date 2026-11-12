@@ -15,14 +15,14 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { db } from "@/db";
-import { highlights, readingSessions, reviewAnswers, texts } from "@/db/schema";
+import { highlights, readingSessions, reviewAnswers, texts, users } from "@/db/schema";
 import { asTextFormat, parseParagraphs } from "@/lib/reading";
 import { excerptOf } from "@/lib/highlights";
 import { todayIn } from "@/lib/goals";
 import { ACCENTED, escapeLike, UNACCENTED } from "@/lib/text-filter";
 import { currentInterval, retention } from "@/lib/vocabulary";
 import { heaviestWordIndex } from "@/lib/cloze";
-import { suggestSlowdown, type SlowdownSuggestion } from "@/lib/difficulty";
+import { slowdownSamples, suggestSlowdown, type SlowdownSuggestion } from "@/lib/difficulty";
 import { contentMatchFrom, EXCERPT_AFTER } from "@/lib/content-search";
 import { recapTail } from "@/lib/series";
 import { DEFAULT_SETTINGS, loadSettings } from "@/lib/queries";
@@ -289,21 +289,28 @@ const SLOWDOWN_SAMPLE = 20;
 export async function loadSlowdownSuggestion(
   userId: string
 ): Promise<{ suggestion: SlowdownSuggestion | null; baseWpm: number }> {
-  const [settings, rows] = await Promise.all([
+  const [settings, rows, [account]] = await Promise.all([
     loadSettings(userId),
     db
       .select({
         mode: readingSessions.mode,
         wordsRead: readingSessions.wordsRead,
         brakes: readingSessions.brakes,
+        createdAt: readingSessions.createdAt,
       })
       .from(readingSessions)
       .where(eq(readingSessions.userId, userId))
       .orderBy(desc(readingSessions.createdAt))
       .limit(SLOWDOWN_SAMPLE),
+    db
+      .select({ answeredAt: users.slowdownAnsweredAt })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1),
   ]);
   return {
-    suggestion: suggestSlowdown(rows),
+    // Depois de aceitar ou dispensar, so as sessoes mais novas contam (US-218).
+    suggestion: suggestSlowdown(slowdownSamples(rows, account?.answeredAt ?? null, new Date())),
     baseWpm: settings?.baseWpm ?? DEFAULT_SETTINGS.baseWpm,
   };
 }

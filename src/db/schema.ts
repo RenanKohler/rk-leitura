@@ -24,6 +24,9 @@ export const users = pgTable(
     // Versao das sessoes emitidas. Trocar a senha ou "sair de todos os
     // aparelhos" incrementa, e todo token com versao anterior deixa de valer.
     sessionVersion: integer("session_version").notNull().default(0),
+    // Quando o leitor aceitou ou dispensou a sugestao de desacelerar (US-218):
+    // dali a sugestao se cala por um tempo e so olha sessoes mais novas.
+    slowdownAnsweredAt: timestamp("slowdown_answered_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -96,6 +99,9 @@ export const texts = pgTable(
     abandonedWords: integer("abandoned_words"),
     // Maior marco (25, 50, 75) ja respondido em "isso ainda vale?" (US-80).
     checkpointAnswered: integer("checkpoint_answered").notNull().default(0),
+    // Ultima vez que a checagem de compreensao da sessao foi oferecida
+    // (US-218): uma oferta por texto por dia.
+    sessionCheckOfferedAt: timestamp("session_check_offered_at", { withTimezone: true }),
     /** Autor, quando a importacao achou ou o leitor informou (US-152). */
     author: text("author"),
     /**
