@@ -70,6 +70,22 @@ test("sessao com modo e freios, sugestao e ritmo por modo", async ({ page }) => 
   expect(suggestion.suggestion.deltaWpm).toBe(-25);
   expect(suggestion.suggestedWpm).toBe(suggestion.baseWpm - 25);
 
+  // US-218: respondida, a sugestao se cala, mesmo com sessoes novas.
+  expect((await page.request.post("/api/reading-sessions/sugestao")).ok()).toBeTruthy();
+  suggestion = await (await page.request.get("/api/reading-sessions/sugestao")).json();
+  expect(suggestion.suggestion).toBeNull();
+  for (let i = 0; i < 3; i += 1) await post({ mode: "runner", brakes: [3, 20, 40] });
+  suggestion = await (await page.request.get("/api/reading-sessions/sugestao")).json();
+  expect(suggestion.suggestion).toBeNull();
+
+  // Passados os dias de silencio, as sessoes depois da resposta voltam a contar.
+  await runSql(
+    "update users set slowdown_answered_at = now() - interval '8 days' where id = $1",
+    [await userId(page.request)]
+  );
+  suggestion = await (await page.request.get("/api/reading-sessions/sugestao")).json();
+  expect(suggestion.suggestion.deltaWpm).toBe(-25);
+
   await page.goto("/estatisticas");
   const modes = page.getByTestId("ritmo-por-modo");
   await expect(modes).toContainText("Guiada");
