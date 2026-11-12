@@ -8,6 +8,9 @@ export const HIDE_CONTROLS_KEY = "rk-leitura:esconder-controles";
 /** Vibrar ao mudar de secao no Word Runner (US-216). Padrao: desligado. */
 export const SECTION_VIBRATION_KEY = "rk-leitura:vibrar-secao";
 
+/** Ler em rolagem continua em vez de paginas. Padrao: desligado. */
+export const SCROLL_MODE_KEY = "rk-leitura:rolagem";
+
 const EVENT = "rk-leitura:opcao-aparelho";
 
 function subscribe(onChange: () => void): () => void {

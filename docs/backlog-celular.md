@@ -41,7 +41,8 @@ com o leitor, que usa o app sozinho, num aparelho Android. A análise partiu do
 | Controles e gestos | 5 | 14 | 3 | 1 | 1 |
 | Layout e retorno | 3 | 8 | 0 | 2 | 1 |
 | Avisos na leitura | 4 | 9 | 2 | 1 | 1 |
-| **Total** | **12** | **31** | **5 (42%)** | **4 (33%)** | **3 (25%)** |
+| Rolagem contínua | 1 | 5 | 1 | 0 | 0 |
+| **Total** | **13** | **36** | **6 (46%)** | **4 (31%)** | **3 (23%)** |
 
 Must ficou com os três pedidos centrais da sessão: virar página deslizando,
 ajustar a velocidade deslizando e esconder os controles. A US-210 é Should,
@@ -382,9 +383,59 @@ de fechar, para que ela não cubra o fim da página.
 3. Dado a largura de 320 px, quando a sugestão aparece, então não há rolagem
    horizontal nem texto cortado sem reticências.
 
+## Épico: Rolagem contínua
+
+### US-222: Ler em rolagem contínua, arrastando o texto
+
+**Épico:** Rolagem contínua
+**Prioridade:** Must
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** pedido direto do leitor; antes desta story o texto parado só aparecia em páginas (`PageStage`, em `src/app/(app)/leitor/[id]/reader-client.tsx`), e o modo Rolagem antigo (US-16) tinha sido substituído pela US-106
+
+Como leitor, eu quero ler o texto inteiro numa coluna só, arrastando para
+baixo, para ler no celular sem virar página.
+
+**Critérios de aceitação**
+1. Dado os ajustes de leitura, quando ligo "Rolagem contínua", então o texto
+   inteiro aparece numa coluna que rola com o dedo, sem páginas; desligada,
+   tudo volta às páginas. A opção é do aparelho e vem desligada.
+2. Dado a rolagem ligada, quando arrasto o texto e paro, então a posição de
+   leitura passa a ser a primeira palavra à vista, e é ela que fica guardada.
+3. Dado que abro um texto com a rolagem ligada, quando a tela carrega, então a
+   coluna já está na posição guardada.
+4. Dado que rolo para a frente, quando o tempo desde a última parada é
+   plausível para as palavras que passaram, então elas contam como leitura,
+   pela mesma regra da página virada (US-108).
+5. Dado o fim do texto, quando chego ao fundo, então nada conclui sozinho; o
+   botão "Concluir leitura" termina a leitura (ou busca a próxima parte na
+   origem), como a última página.
+6. Dado que pauso o Word Runner, uso o guia na página, a narração, a busca ou
+   os botões de página, quando a posição muda, então a coluna rola até a
+   palavra se ela não estiver à vista; estando à vista, o texto não se mexe.
+7. Dado que toco numa palavra, seguro para o dicionário ou seleciono para
+   destacar, quando a rolagem está ligada, então tudo funciona como nas
+   páginas, e a borda da tela não vira nada.
+8. Dado "Esconder controles" ligado, quando cabeçalho e rodapé saem ou voltam,
+   então o texto fica no mesmo lugar da tela.
+
+**Notas da implementação:** a opção fica em `localStorage`
+(`rk-leitura:rolagem`), como as outras do aparelho; não há migração. O
+`PageStage` desenha todos os parágrafos, cada um memoizado, e o
+`useScrollReading` (`src/hooks/use-scroll-reading.ts`) liga a rolagem à
+posição nos dois sentidos; as contas puras estão em
+`src/lib/scroll-reading.ts`. A paginação continua medida por baixo: os botões
+de página e as teclas andam uma tela, e "voltar para onde parou" usa as mesmas
+páginas. A leitura rolada é gravada como sessão de modo "pagina"; não há modo
+novo no histórico. A linha de estado mostra "Rolagem · N%" no lugar de "Página
+N de M". A posição que vem da rolagem não ganha a marca de palavra atual; a
+que vem de pausa, toque, busca ou retomada ganha. Com o guia ou a narração em
+andamento, arrastar não muda a posição: é preciso pausar. Coberto por
+`tests/scroll-reading.test.ts` e `e2e/rolagem.spec.ts`.
+
 ## Sugestão de entrega
 
-Total: 12 stories, 31 pontos, 2 sprints.
+Total: 13 stories, 36 pontos, 2 sprints (a US-222 entrou depois, a pedido do leitor).
 
 **Sprint 1 (22 pontos)**
 - US-210 Separar barra e gestos do leitor (3)
