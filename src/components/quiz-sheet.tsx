@@ -200,7 +200,7 @@ export function QuizSheet({
         {score !== null && results ? (
           <>
             <div className="text-center">
-              <p className="tabular text-3xl font-semibold">{score}%</p>
+              <p className="tabular text-3xl font-medium">{score}%</p>
               <p className="mt-1 text-sm text-muted">
                 {`${results.filter((item) => item.given === item.answer).length} de ${results.length} corretas`}
               </p>

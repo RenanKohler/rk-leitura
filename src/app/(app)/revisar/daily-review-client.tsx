@@ -47,7 +47,7 @@ export function DailyReviewClient({ initial }: { initial: DailyReview }) {
           <BackIcon className="size-5" />
         </Link>
         <div className="min-w-0 flex-1 pt-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight">Revisão do dia</h1>
+          <h1 className="text-headline-small">Revisão do dia</h1>
           {items.length > 0 ? (
             <p className="tabular mt-1 text-sm text-muted" data-testid="contagem-revisao">
               {countsLabel(initial.counts)}
@@ -137,7 +137,7 @@ function useGrade(path: string, id: string, onNext: (kept: boolean) => void, onE
 }
 
 function Kind({ children }: { children: string }) {
-  return <p className="text-xs font-medium uppercase tracking-wide text-faint">{children}</p>;
+  return <p className="text-xs font-medium uppercase tracking-[0.5px] text-faint">{children}</p>;
 }
 
 function WordItem({
@@ -156,7 +156,7 @@ function WordItem({
     <Card className="space-y-5 p-5">
       <div>
         <Kind>Palavra</Kind>
-        <p className="mt-1 text-2xl font-semibold tracking-tight">{word.word}</p>
+        <p className="mt-1 text-headline-small">{word.word}</p>
         {word.context ? (
           <p className="mt-2 leading-relaxed text-muted">&ldquo;{word.context}&rdquo;</p>
         ) : null}

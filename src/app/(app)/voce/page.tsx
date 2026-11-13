@@ -52,7 +52,7 @@ export default async function YouPage() {
   return (
     <div className="space-y-6">
       <header className="pt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Você</h1>
+        <h1 className="text-headline-small">Você</h1>
         <p className="mt-1 text-sm text-muted">
           {stats.sessions > 0
             ? `${formatNumber(stats.wordsRead)} palavras em ${stats.sessions} ${stats.sessions === 1 ? "sessão" : "sessões"}.`
@@ -169,7 +169,7 @@ function Destination({
             <span className="block text-sm text-muted">{detail}</span>
           </span>
           {badge ? (
-            <span className="tabular rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink">
+            <span className="tabular rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-ink">
               {badge}
             </span>
           ) : null}

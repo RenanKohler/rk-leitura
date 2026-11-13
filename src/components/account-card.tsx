@@ -139,7 +139,7 @@ export function AccountCard() {
         <SectionTitle>Conta</SectionTitle>
 
         <div className="flex items-center gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent-soft font-semibold text-accent">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent-soft font-medium text-accent">
             {user?.name?.charAt(0).toUpperCase() ?? "?"}
           </div>
           <div className="min-w-0">

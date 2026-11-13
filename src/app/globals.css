@@ -1,127 +1,409 @@
 @import "tailwindcss";
 
 /* ==========================================================================
-   Tokens
-   Um unico acento quente que funciona tanto na interface quanto no ponto de
-   fixacao do leitor. Os valores sao redefinidos no tema escuro mais abaixo.
+   Tokens: Material 3
+
+   Design system do "M3 Playground". As cores sao os papeis (color roles) do
+   esquema dinamico gerado de uma cor semente:
+
+     semente #0B6E4F, variante tonalSpot, contraste padrao (claro e escuro) e
+     alto (tema de alto contraste).
+
+   Os tres blocos `--md-sys-color-*` mais abaixo tem os mesmos nomes do
+   "Exportar tokens" do playground: para trocar a semente, gere la e cole
+   aqui. Nada fora deste arquivo usa valor de cor proprio, exceto as cores
+   que o M3 nao tem (positivo, marca-texto), definidas junto dos apelidos.
    ========================================================================== */
 
 @theme {
-  --color-bg: #f6f5f2;
-  --color-surface: #ffffff;
-  --color-surface-2: #edebe6;
-  --color-border: #e0ddd5;
-  --color-border-strong: #cfcbc1;
-  --color-ink: #191817;
-  --color-muted: #6b6862;
-  /* Texto secundario: 4,5:1 sobre o fundo e a superficie (WCAG AA, US-75). */
-  --color-faint: #706c65;
-  /* Acento como texto tambem precisa de 4,5:1, inclusive sobre surface-2. */
-  --color-accent: #bf3d1a;
-  --color-accent-hover: #a8361a;
-  --color-accent-ink: #ffffff;
-  --color-accent-soft: #fbe9e3;
-  --color-positive: #1f7a4d;
+  /* --- Papeis de cor (M3) ------------------------------------------------ */
+  --color-primary: var(--md-sys-color-primary);
+  --color-on-primary: var(--md-sys-color-on-primary);
+  --color-primary-container: var(--md-sys-color-primary-container);
+  --color-on-primary-container: var(--md-sys-color-on-primary-container);
+  --color-secondary: var(--md-sys-color-secondary);
+  --color-on-secondary: var(--md-sys-color-on-secondary);
+  --color-secondary-container: var(--md-sys-color-secondary-container);
+  --color-on-secondary-container: var(--md-sys-color-on-secondary-container);
+  --color-tertiary: var(--md-sys-color-tertiary);
+  --color-on-tertiary: var(--md-sys-color-on-tertiary);
+  --color-tertiary-container: var(--md-sys-color-tertiary-container);
+  --color-on-tertiary-container: var(--md-sys-color-on-tertiary-container);
+  --color-error: var(--md-sys-color-error);
+  --color-on-error: var(--md-sys-color-on-error);
+  --color-error-container: var(--md-sys-color-error-container);
+  --color-on-error-container: var(--md-sys-color-on-error-container);
+  --color-primary-fixed: var(--md-sys-color-primary-fixed);
+  --color-primary-fixed-dim: var(--md-sys-color-primary-fixed-dim);
+  --color-on-primary-fixed: var(--md-sys-color-on-primary-fixed);
+  --color-on-primary-fixed-variant: var(--md-sys-color-on-primary-fixed-variant);
+  --color-secondary-fixed: var(--md-sys-color-secondary-fixed);
+  --color-secondary-fixed-dim: var(--md-sys-color-secondary-fixed-dim);
+  --color-on-secondary-fixed: var(--md-sys-color-on-secondary-fixed);
+  --color-on-secondary-fixed-variant: var(--md-sys-color-on-secondary-fixed-variant);
+  --color-tertiary-fixed: var(--md-sys-color-tertiary-fixed);
+  --color-tertiary-fixed-dim: var(--md-sys-color-tertiary-fixed-dim);
+  --color-on-tertiary-fixed: var(--md-sys-color-on-tertiary-fixed);
+  --color-on-tertiary-fixed-variant: var(--md-sys-color-on-tertiary-fixed-variant);
+  --color-surface-dim: var(--md-sys-color-surface-dim);
+  --color-surface-bright: var(--md-sys-color-surface-bright);
+  --color-surface-container-lowest: var(--md-sys-color-surface-container-lowest);
+  --color-surface-container-low: var(--md-sys-color-surface-container-low);
+  --color-surface-container: var(--md-sys-color-surface-container);
+  --color-surface-container-high: var(--md-sys-color-surface-container-high);
+  --color-surface-container-highest: var(--md-sys-color-surface-container-highest);
+  --color-on-surface: var(--md-sys-color-on-surface);
+  --color-on-surface-variant: var(--md-sys-color-on-surface-variant);
+  --color-surface-variant: var(--md-sys-color-surface-variant);
+  --color-outline: var(--md-sys-color-outline);
+  --color-outline-variant: var(--md-sys-color-outline-variant);
+  --color-inverse-surface: var(--md-sys-color-inverse-surface);
+  --color-inverse-on-surface: var(--md-sys-color-inverse-on-surface);
+  --color-inverse-primary: var(--md-sys-color-inverse-primary);
+  --color-scrim: var(--md-sys-color-scrim);
+  --color-surface-tint: var(--md-sys-color-surface-tint);
+
+  /*
+   * --- Apelidos do app ---------------------------------------------------
+   * Os nomes abaixo ja existiam e estao nas telas todas. Cada um aponta para
+   * o papel M3 equivalente, entao a interface inteira segue o esquema.
+   *   bg         fundo da pagina             surface
+   *   surface    cartoes, folhas, barras     surface-container-low
+   *   surface-2  preenchimentos, trilhos     surface-container-highest
+   *   border     divisores e contornos       outline-variant
+   *   ink / muted / faint                    on-surface / on-surface-variant
+   *   accent     acao principal              primary
+   *   danger     erro                        error
+   */
+  --color-bg: var(--md-sys-color-surface);
+  --color-surface: var(--md-sys-color-surface-container-low);
+  --color-surface-2: var(--md-sys-color-surface-container-highest);
+  --color-border: var(--md-sys-color-outline-variant);
+  --color-border-strong: var(--md-sys-color-outline);
+  --color-ink: var(--md-sys-color-on-surface);
+  --color-muted: var(--md-sys-color-on-surface-variant);
+  --color-faint: var(--md-sys-color-on-surface-variant);
+  --color-accent: var(--md-sys-color-primary);
+  /* Estado "hover" do M3: 8% da cor do conteudo por cima do recipiente. */
+  --color-accent-hover: color-mix(
+    in srgb,
+    var(--md-sys-color-on-primary) 8%,
+    var(--md-sys-color-primary)
+  );
+  --color-accent-ink: var(--md-sys-color-on-primary);
+  --color-accent-soft: var(--md-sys-color-primary-container);
+  --color-danger: var(--md-sys-color-error);
+  --color-danger-soft: var(--md-sys-color-error-container);
+  --color-toast-error: var(--md-sys-color-error);
+  --color-toast-error-ink: var(--md-sys-color-on-error);
+
+  /*
+   * Cores que o M3 nao define. Texto precisa de 4,5:1 sobre o fundo, as
+   * superficies e os preenchimentos (WCAG AA, US-75); no alto contraste, 7:1.
+   */
+  --color-positive: #17683f;
   --color-positive-soft: #e3f3ea;
-  --color-danger: #c0341d;
-  --color-danger-soft: #fbe8e4;
+  --color-toast-success: #17683f;
+  --color-toast-success-ink: #ffffff;
   /*
-   * Marca dos graficos. Separada do acento da interface porque o acento do
-   * tema escuro fica claro demais para uma marca de dado sobre a superficie
-   * do grafico - o validador de paleta reprova na faixa de luminosidade. Este
-   * passo e o vizinho mais proximo que passa.
+   * Marca-texto dos destaques salvos. Amarela de proposito: o primario ja
+   * pinta a posicao atual da leitura, e as duas coisas no mesmo tom seriam
+   * lidas como a mesma coisa.
    */
-  --color-chart: #d4451f;
-  --color-chart-soft: #f6d5cb;
-  /*
-   * Marca-texto dos destaques salvos. Amarela de proposito: o acento ja pinta
-   * a posicao atual da leitura, e as duas coisas no mesmo tom seriam lidas
-   * como a mesma coisa.
-   */
-  --color-mark: #8a6a07;
+  --color-mark: #735800;
   --color-mark-soft: #f7e79d;
   /*
-   * Avisos flutuantes (A11Y-3). Tokens proprios porque `positive` e `danger`
-   * sao cores de TEXTO: no tema escuro elas clareiam para ler sobre fundo
-   * escuro, e usadas como fundo com letra branca davam 1,74:1 e 2,55:1. Cada
-   * par abaixo passa de 4,5:1 no seu tema.
+   * Marca dos graficos: tons 40 e 90 da paleta primaria. No tema escuro o
+   * papel `primary` (tom 80) e claro demais para uma marca de dado; ali
+   * entra o tom 70.
    */
-  --color-toast-success: #1f7a4d;
-  --color-toast-success-ink: #ffffff;
-  --color-toast-error: #b3301b;
-  --color-toast-error-ink: #ffffff;
+  --color-chart: #1e6a4f;
+  --color-chart-soft: #a8f2cf;
+  /* Trilha de slider e de progresso: a parte ainda nao percorrida. */
+  --color-track: var(--md-sys-color-secondary-container);
 
-  --radius-card: 1rem;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* --- Forma (M3 shape scale) -------------------------------------------- */
+  /* extra small 4, small 8, medium 12, large 16, extra large 28, full. */
+  --radius-xs: 0.25rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.75rem;
+  --radius-card: 0.75rem;
 
-  --shadow-card: 0 1px 2px rgb(25 24 23 / 0.04), 0 8px 24px -16px rgb(25 24 23 / 0.25);
-  --shadow-float: 0 4px 12px -2px rgb(25 24 23 / 0.12), 0 16px 40px -20px rgb(25 24 23 / 0.4);
+  /* --- Tipografia (M3 type scale, Roboto Flex) --------------------------- */
+  --font-sans: var(--font-roboto-flex), Roboto, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text-display-large: 3.5625rem;
+  --text-display-large--line-height: 4rem;
+  --text-display-large--letter-spacing: -0.25px;
+  --text-display-large--font-weight: 400;
+  --text-display-medium: 2.8125rem;
+  --text-display-medium--line-height: 3.25rem;
+  --text-display-medium--font-weight: 400;
+  --text-display-small: 2.25rem;
+  --text-display-small--line-height: 2.75rem;
+  --text-display-small--font-weight: 400;
+  --text-headline-large: 2rem;
+  --text-headline-large--line-height: 2.5rem;
+  --text-headline-large--font-weight: 400;
+  --text-headline-medium: 1.75rem;
+  --text-headline-medium--line-height: 2.25rem;
+  --text-headline-medium--font-weight: 400;
+  --text-headline-small: 1.5rem;
+  --text-headline-small--line-height: 2rem;
+  --text-headline-small--font-weight: 400;
+  --text-title-large: 1.375rem;
+  --text-title-large--line-height: 1.75rem;
+  --text-title-large--font-weight: 400;
+  --text-title-medium: 1rem;
+  --text-title-medium--line-height: 1.5rem;
+  --text-title-medium--letter-spacing: 0.15px;
+  --text-title-medium--font-weight: 500;
+  --text-title-small: 0.875rem;
+  --text-title-small--line-height: 1.25rem;
+  --text-title-small--letter-spacing: 0.1px;
+  --text-title-small--font-weight: 500;
+  --text-body-large: 1rem;
+  --text-body-large--line-height: 1.5rem;
+  --text-body-large--letter-spacing: 0.5px;
+  --text-body-large--font-weight: 400;
+  --text-body-medium: 0.875rem;
+  --text-body-medium--line-height: 1.25rem;
+  --text-body-medium--letter-spacing: 0.25px;
+  --text-body-medium--font-weight: 400;
+  --text-body-small: 0.75rem;
+  --text-body-small--line-height: 1rem;
+  --text-body-small--letter-spacing: 0.4px;
+  --text-body-small--font-weight: 400;
+  --text-label-large: 0.875rem;
+  --text-label-large--line-height: 1.25rem;
+  --text-label-large--letter-spacing: 0.1px;
+  --text-label-large--font-weight: 500;
+  --text-label-medium: 0.75rem;
+  --text-label-medium--line-height: 1rem;
+  --text-label-medium--letter-spacing: 0.5px;
+  --text-label-medium--font-weight: 500;
+  --text-label-small: 0.6875rem;
+  --text-label-small--line-height: 1rem;
+  --text-label-small--letter-spacing: 0.5px;
+  --text-label-small--font-weight: 500;
+
+  /* --- Elevacao (M3 levels 1 a 5) ---------------------------------------- */
+  --shadow-elevation-1: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
+  --shadow-elevation-2: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 6px 2px rgb(0 0 0 / 0.15);
+  --shadow-elevation-3: 0 1px 3px rgb(0 0 0 / 0.3), 0 4px 8px 3px rgb(0 0 0 / 0.15);
+  --shadow-elevation-4: 0 2px 3px rgb(0 0 0 / 0.3), 0 6px 10px 4px rgb(0 0 0 / 0.15);
+  --shadow-elevation-5: 0 4px 4px rgb(0 0 0 / 0.3), 0 8px 12px 6px rgb(0 0 0 / 0.15);
+  /* Apelidos: cartao no nivel 1, o que flutua (avisos, FAB, folhas) no 3. */
+  --shadow-card: var(--shadow-elevation-1);
+  --shadow-float: var(--shadow-elevation-3);
+
+  /* --- Movimento (M3 easing e duracao) ----------------------------------- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-standard-decelerate: cubic-bezier(0, 0, 0, 1);
+  --ease-standard-accelerate: cubic-bezier(0.3, 0, 1, 1);
+  --ease-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
 }
 
 @layer theme {
+  /* Claro: contraste padrao. */
+  :root {
+    --md-sys-color-primary: #1e6a4f;
+    --md-sys-color-on-primary: #ffffff;
+    --md-sys-color-primary-container: #a8f2cf;
+    --md-sys-color-on-primary-container: #005139;
+    --md-sys-color-secondary: #4d6358;
+    --md-sys-color-on-secondary: #ffffff;
+    --md-sys-color-secondary-container: #cfe9d9;
+    --md-sys-color-on-secondary-container: #354b40;
+    --md-sys-color-tertiary: #3e6374;
+    --md-sys-color-on-tertiary: #ffffff;
+    --md-sys-color-tertiary-container: #c1e8fc;
+    --md-sys-color-on-tertiary-container: #254b5b;
+    --md-sys-color-error: #ba1a1a;
+    --md-sys-color-on-error: #ffffff;
+    --md-sys-color-error-container: #ffdad6;
+    --md-sys-color-on-error-container: #93000a;
+    --md-sys-color-primary-fixed: #a8f2cf;
+    --md-sys-color-primary-fixed-dim: #8cd5b3;
+    --md-sys-color-on-primary-fixed: #002115;
+    --md-sys-color-on-primary-fixed-variant: #005139;
+    --md-sys-color-secondary-fixed: #cfe9d9;
+    --md-sys-color-secondary-fixed-dim: #b3ccbe;
+    --md-sys-color-on-secondary-fixed: #092016;
+    --md-sys-color-on-secondary-fixed-variant: #354b40;
+    --md-sys-color-tertiary-fixed: #c1e8fc;
+    --md-sys-color-tertiary-fixed-dim: #a5ccdf;
+    --md-sys-color-on-tertiary-fixed: #001f29;
+    --md-sys-color-on-tertiary-fixed-variant: #254b5b;
+    --md-sys-color-surface-dim: #d6dbd6;
+    --md-sys-color-surface: #f5fbf5;
+    --md-sys-color-surface-bright: #f5fbf5;
+    --md-sys-color-surface-container-lowest: #ffffff;
+    --md-sys-color-surface-container-low: #eff5ef;
+    --md-sys-color-surface-container: #eaefea;
+    --md-sys-color-surface-container-high: #e4eae4;
+    --md-sys-color-surface-container-highest: #dee4de;
+    --md-sys-color-on-surface: #171d1a;
+    --md-sys-color-on-surface-variant: #404944;
+    --md-sys-color-surface-variant: #dbe5dd;
+    --md-sys-color-outline: #707973;
+    --md-sys-color-outline-variant: #bfc9c2;
+    --md-sys-color-inverse-surface: #2c322e;
+    --md-sys-color-inverse-on-surface: #edf2ec;
+    --md-sys-color-inverse-primary: #8cd5b3;
+    --md-sys-color-shadow: #000000;
+    --md-sys-color-scrim: #000000;
+    --md-sys-color-surface-tint: #1e6a4f;
+    --md-sys-color-background: #f5fbf5;
+    --md-sys-color-on-background: #171d1a;
+  }
+
+  /* Escuro: contraste padrao. */
   :root[data-theme="dark"] {
-    --color-bg: #0e0f11;
-    --color-surface: #16181b;
-    --color-surface-2: #1e2126;
-    --color-border: #282c32;
-    --color-border-strong: #3a3f47;
-    --color-ink: #e9e7e2;
-    --color-muted: #9a978f;
-    --color-faint: #8f8c85;
-    --color-accent: #ff6b3d;
-    --color-accent-hover: #ff8257;
-    --color-accent-ink: #1a0d07;
-    --color-accent-soft: #2a1a13;
+    --md-sys-color-primary: #8cd5b3;
+    --md-sys-color-on-primary: #003826;
+    --md-sys-color-primary-container: #005139;
+    --md-sys-color-on-primary-container: #a8f2cf;
+    --md-sys-color-secondary: #b3ccbe;
+    --md-sys-color-on-secondary: #1f352b;
+    --md-sys-color-secondary-container: #354b40;
+    --md-sys-color-on-secondary-container: #cfe9d9;
+    --md-sys-color-tertiary: #a5ccdf;
+    --md-sys-color-on-tertiary: #083544;
+    --md-sys-color-tertiary-container: #254b5b;
+    --md-sys-color-on-tertiary-container: #c1e8fc;
+    --md-sys-color-error: #ffb4ab;
+    --md-sys-color-on-error: #690005;
+    --md-sys-color-error-container: #93000a;
+    --md-sys-color-on-error-container: #ffdad6;
+    --md-sys-color-primary-fixed: #a8f2cf;
+    --md-sys-color-primary-fixed-dim: #8cd5b3;
+    --md-sys-color-on-primary-fixed: #002115;
+    --md-sys-color-on-primary-fixed-variant: #005139;
+    --md-sys-color-secondary-fixed: #cfe9d9;
+    --md-sys-color-secondary-fixed-dim: #b3ccbe;
+    --md-sys-color-on-secondary-fixed: #092016;
+    --md-sys-color-on-secondary-fixed-variant: #354b40;
+    --md-sys-color-tertiary-fixed: #c1e8fc;
+    --md-sys-color-tertiary-fixed-dim: #a5ccdf;
+    --md-sys-color-on-tertiary-fixed: #001f29;
+    --md-sys-color-on-tertiary-fixed-variant: #254b5b;
+    --md-sys-color-surface-dim: #0f1512;
+    --md-sys-color-surface: #0f1512;
+    --md-sys-color-surface-bright: #353b37;
+    --md-sys-color-surface-container-lowest: #0a0f0c;
+    --md-sys-color-surface-container-low: #171d1a;
+    --md-sys-color-surface-container: #1b211e;
+    --md-sys-color-surface-container-high: #252b28;
+    --md-sys-color-surface-container-highest: #303632;
+    --md-sys-color-on-surface: #dee4de;
+    --md-sys-color-on-surface-variant: #bfc9c2;
+    --md-sys-color-surface-variant: #404944;
+    --md-sys-color-outline: #8a938d;
+    --md-sys-color-outline-variant: #404944;
+    --md-sys-color-inverse-surface: #dee4de;
+    --md-sys-color-inverse-on-surface: #2c322e;
+    --md-sys-color-inverse-primary: #1e6a4f;
+    --md-sys-color-shadow: #000000;
+    --md-sys-color-scrim: #000000;
+    --md-sys-color-surface-tint: #8cd5b3;
+    --md-sys-color-background: #0f1512;
+    --md-sys-color-on-background: #dee4de;
+
     --color-positive: #4ade80;
     --color-positive-soft: #12271c;
-    --color-danger: #ff7a66;
-    --color-danger-soft: #2a1512;
-    --color-chart: #f05a2c;
-    --color-chart-soft: #4a2418;
-    --color-mark: #e0bb4e;
-    --color-mark-soft: #413616;
     --color-toast-success: #4ade80;
     --color-toast-success-ink: #06240f;
-    --color-toast-error: #ff7a66;
-    --color-toast-error-ink: #2a0a05;
-
-    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -16px rgb(0 0 0 / 0.8);
-    --shadow-float: 0 4px 12px -2px rgb(0 0 0 / 0.5), 0 16px 40px -20px rgb(0 0 0 / 0.9);
+    --color-mark: #e0bb4e;
+    --color-mark-soft: #413616;
+    --color-chart: #71ba99;
+    --color-chart-soft: #005139;
   }
 
   /*
-   * Alto contraste (US-76): texto e controles a 7:1 ou mais sobre qualquer
-   * fundo do tema, inclusive surface-2 e accent-soft. Bordas pretas, para os
-   * limites dos controles nao dependerem de sombra.
+   * Alto contraste (US-76): o esquema claro no nivel de contraste alto do M3.
+   * Texto e controles a 7:1 ou mais sobre qualquer fundo do tema, e contornos
+   * escuros, para os limites nao dependerem de sombra.
+   *
+   * Neste nivel os recipientes do M3 (primary-container, error-container)
+   * ficam escuros, com texto claro. As telas usam os apelidos "soft" como
+   * fundo claro com texto do proprio acento, entao aqui eles ficam com o tom
+   * claro (90) da mesma paleta, e os preenchimentos sobem um degrau.
    */
   :root[data-theme="contrast"] {
-    --color-bg: #ffffff;
-    --color-surface: #ffffff;
-    --color-surface-2: #ebebeb;
-    --color-border: #000000;
-    --color-border-strong: #000000;
-    --color-ink: #000000;
-    --color-muted: #262626;
-    --color-faint: #3d3d3d;
-    --color-accent: #8f2700;
-    --color-accent-hover: #6e1e00;
-    --color-accent-ink: #ffffff;
-    --color-accent-soft: #fde8df;
-    --color-positive: #0a5a2e;
-    --color-positive-soft: #e3f3ea;
-    --color-danger: #8f1400;
-    --color-danger-soft: #fde8df;
-    --color-chart: #8f2700;
-    --color-chart-soft: #f2c9b8;
-    --color-mark: #5a4500;
-    --color-mark-soft: #fff0a8;
-    --color-toast-success: #0a5a2e;
-    --color-toast-success-ink: #ffffff;
-    --color-toast-error: #8f1400;
-    --color-toast-error-ink: #ffffff;
+    --md-sys-color-primary: #003323;
+    --md-sys-color-on-primary: #ffffff;
+    --md-sys-color-primary-container: #00543b;
+    --md-sys-color-on-primary-container: #ffffff;
+    --md-sys-color-secondary: #1b3027;
+    --md-sys-color-on-secondary: #ffffff;
+    --md-sys-color-secondary-container: #384e43;
+    --md-sys-color-on-secondary-container: #ffffff;
+    --md-sys-color-tertiary: #02303f;
+    --md-sys-color-on-tertiary: #ffffff;
+    --md-sys-color-tertiary-container: #274e5e;
+    --md-sys-color-on-tertiary-container: #ffffff;
+    --md-sys-color-error: #600004;
+    --md-sys-color-on-error: #ffffff;
+    --md-sys-color-error-container: #98000a;
+    --md-sys-color-on-error-container: #ffffff;
+    --md-sys-color-primary-fixed: #00543b;
+    --md-sys-color-primary-fixed-dim: #003b28;
+    --md-sys-color-on-primary-fixed: #ffffff;
+    --md-sys-color-on-primary-fixed-variant: #ffffff;
+    --md-sys-color-secondary-fixed: #384e43;
+    --md-sys-color-secondary-fixed-dim: #21372d;
+    --md-sys-color-on-secondary-fixed: #ffffff;
+    --md-sys-color-on-secondary-fixed-variant: #ffffff;
+    --md-sys-color-tertiary-fixed: #274e5e;
+    --md-sys-color-tertiary-fixed-dim: #0b3746;
+    --md-sys-color-on-tertiary-fixed: #ffffff;
+    --md-sys-color-on-tertiary-fixed-variant: #ffffff;
+    --md-sys-color-surface-dim: #b4bab5;
+    --md-sys-color-surface: #f5fbf5;
+    --md-sys-color-surface-bright: #f5fbf5;
+    --md-sys-color-surface-container-lowest: #ffffff;
+    --md-sys-color-surface-container-low: #edf2ec;
+    --md-sys-color-surface-container: #dee4de;
+    --md-sys-color-surface-container-high: #d0d6d0;
+    --md-sys-color-surface-container-highest: #c2c8c3;
+    --md-sys-color-on-surface: #000000;
+    --md-sys-color-on-surface-variant: #000000;
+    --md-sys-color-surface-variant: #dbe5dd;
+    --md-sys-color-outline: #252e29;
+    --md-sys-color-outline-variant: #424b46;
+    --md-sys-color-inverse-surface: #2c322e;
+    --md-sys-color-inverse-on-surface: #ffffff;
+    --md-sys-color-inverse-primary: #8cd5b3;
+    --md-sys-color-shadow: #000000;
+    --md-sys-color-scrim: #000000;
+    --md-sys-color-surface-tint: #1e6a4f;
+    --md-sys-color-background: #f5fbf5;
+    --md-sys-color-on-background: #171d1a;
 
-    --shadow-card: none;
-    --shadow-float: 0 0 0 2px #000000;
+    --color-surface-2: var(--md-sys-color-surface-container);
+    --color-border: var(--md-sys-color-outline);
+    --color-accent-soft: #a8f2cf;
+    --color-danger-soft: #ffdad6;
+    --color-positive: #004d25;
+    --color-positive-soft: #e3f3ea;
+    --color-toast-success: #004d25;
+    --color-toast-success-ink: #ffffff;
+    --color-mark: #4a3900;
+    --color-mark-soft: #fff0a8;
+    --color-chart: #003323;
+    --color-chart-soft: #a8f2cf;
+    /* No contraste alto o secondary-container e escuro como o primario: a
+       trilha usa o tom 60 do neutro, a 3:1 do fundo e bem longe da parte ativa. */
+    --color-track: #8c928d;
+
+    --shadow-elevation-1: none;
+    --shadow-elevation-2: none;
+    --shadow-elevation-3: 0 0 0 2px var(--md-sys-color-outline);
+    --shadow-elevation-4: 0 0 0 2px var(--md-sys-color-outline);
+    --shadow-elevation-5: 0 0 0 2px var(--md-sys-color-outline);
   }
 }
 
@@ -163,15 +445,145 @@ a,
   touch-action: manipulation;
 }
 
+/* Foco do M3: anel de 3px no secundario, afastado 2px do controle. */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 3px solid var(--md-sys-color-secondary);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
 ::selection {
-  background: var(--color-accent);
-  color: var(--color-accent-ink);
+  background: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+/*
+ * Camada de estado (M3 state layer): a cor do proprio conteudo por cima do
+ * controle, a 8% no hover e 10% no foco e no toque. Fica em `components`
+ * para as utilitarias (`absolute`, `overflow-visible`) continuarem valendo.
+ */
+@layer components {
+  .state-layer {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+  .state-layer::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms var(--ease-standard);
+  }
+  /* So onde ha ponteiro: no toque o hover ficaria preso depois do dedo sair. */
+  @media (hover: hover) {
+    .state-layer:hover::before {
+      opacity: 0.08;
+    }
+  }
+  .state-layer:focus-visible::before,
+  .state-layer:active::before {
+    opacity: 0.1;
+  }
+  .state-layer:disabled::before,
+  .state-layer[aria-disabled="true"]::before {
+    opacity: 0;
+  }
+
+  /*
+   * Caixa de selecao do M3: 18px, contorno de 2px em on-surface-variant;
+   * marcada, primario com o visto em on-primary.
+   */
+  input[type="checkbox"] {
+    appearance: none;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    border: 2px solid var(--md-sys-color-on-surface-variant);
+    border-radius: 2px;
+    cursor: pointer;
+    transition:
+      background-color 120ms,
+      border-color 120ms;
+  }
+  input[type="checkbox"]:checked {
+    border-color: var(--md-sys-color-primary);
+    background: var(--md-sys-color-primary);
+  }
+  input[type="checkbox"]:checked::after {
+    content: "";
+    width: 14px;
+    height: 14px;
+    background: var(--md-sys-color-on-primary);
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z'/></svg>")
+      center / contain no-repeat;
+  }
+  input[type="checkbox"]:disabled {
+    cursor: default;
+    opacity: 0.38;
+  }
+
+  /*
+   * Slider do M3: trilha de 4px, parte ativa no primario e o resto em
+   * `track` (secondary-container). `--v` e a posicao, em porcentagem. A altura de 44px
+   * e a area de toque (UX-12).
+   */
+  .m3-slider {
+    appearance: none;
+    width: 100%;
+    height: 2.75rem;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .m3-slider::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      to right,
+      var(--md-sys-color-primary) var(--v, 0%),
+      var(--color-track) var(--v, 0%)
+    );
+  }
+  .m3-slider::-moz-range-track {
+    height: 4px;
+    border-radius: 9999px;
+    background: var(--color-track);
+  }
+  .m3-slider::-moz-range-progress {
+    height: 4px;
+    border-radius: 9999px;
+    background: var(--md-sys-color-primary);
+  }
+  .m3-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    margin-top: -8px;
+    border-radius: 9999px;
+    background: var(--md-sys-color-primary);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
+    transition: box-shadow 150ms var(--ease-standard);
+  }
+  .m3-slider:hover::-webkit-slider-thumb {
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
+  }
+  .m3-slider:active::-webkit-slider-thumb {
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
+  }
+  .m3-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border: 0;
+    border-radius: 9999px;
+    background: var(--md-sys-color-primary);
+  }
 }
 
 ::-webkit-scrollbar {
@@ -229,7 +641,8 @@ a,
 }
 
 body:has([data-tabbar]) {
-  --toast-nav: 4rem;
+  /* Barra de navegacao do M3: 80px. */
+  --toast-nav: 5rem;
 }
 
 @media (min-width: 64rem) {

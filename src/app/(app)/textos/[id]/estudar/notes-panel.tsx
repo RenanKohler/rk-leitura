@@ -84,7 +84,7 @@ export function NotesPanel({ textId, title, progressIndex, wordCount }: StudyPro
         ) : (
           NOTES_SECTIONS.map(({ key, label }) => (
             <section key={key} className="space-y-2" aria-label={label}>
-              <h3 className="text-sm font-semibold">{label}</h3>
+              <h3 className="text-sm font-medium">{label}</h3>
               {notes[key].length === 0 ? (
                 <p className="text-sm text-faint">Nada nesta seção.</p>
               ) : (

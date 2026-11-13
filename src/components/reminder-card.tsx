@@ -181,7 +181,7 @@ export function ReminderCard() {
                 type="button"
                 disabled={busy}
                 onClick={() => void enable(hour)}
-                className="tabular flex min-h-11 items-center rounded-full border border-border px-4 text-sm font-medium transition-colors hover:border-border-strong disabled:opacity-45"
+                className="tabular flex min-h-11 items-center rounded-lg border border-outline-variant px-4 text-sm font-medium transition-colors hover:border-border-strong disabled:opacity-45"
               >
                 {`${String(hour).padStart(2, "0")}:00`}
               </button>

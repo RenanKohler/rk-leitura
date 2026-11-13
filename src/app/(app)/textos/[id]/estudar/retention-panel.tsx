@@ -29,13 +29,13 @@ export async function RetentionPanel(props: StudyProps) {
         {retention.measured ? (
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
-              <p className="tabular text-2xl font-semibold">{retention.percent}%</p>
+              <p className="tabular text-2xl font-medium">{retention.percent}%</p>
               <p className="text-sm text-muted">
                 de acertos nos últimos {CARD_RETENTION_DAYS} dias ({retention.reviews} revisões)
               </p>
             </div>
             <div>
-              <p className="tabular text-2xl font-semibold">{retention.mature}</p>
+              <p className="tabular text-2xl font-medium">{retention.mature}</p>
               <p className="text-sm text-muted">
                 {retention.mature === 1 ? "cartão maduro" : "cartões maduros"} ({MATURE_INTERVAL_DAYS}{" "}
                 dias ou mais)

@@ -2031,7 +2031,7 @@ function Reader({
   if (total === 0) {
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center gap-4 px-6 text-center">
-        <h1 className="text-xl font-semibold tracking-tight">Texto vazio</h1>
+        <h1 className="text-title-large">Texto vazio</h1>
         <p className="text-muted">Não há palavras para ler neste registro.</p>
         <Link href="/textos" className="font-medium text-accent">
           Voltar para a biblioteca
@@ -2157,9 +2157,10 @@ function Reader({
           </button>
           </div>
         </div>
-        <div className="relative h-0.5 bg-surface-2">
+        {/* Indicador linear do M3: 4px, trilha em secondary-container. */}
+        <div className="relative h-1 bg-track">
           <div
-            className="h-full bg-accent transition-[width] duration-200"
+            className="h-full rounded-r-full bg-primary transition-[width] duration-300 ease-standard"
             style={{ width: `${progress}%` }}
           />
           {stopAt !== undefined && !stopReached ? (
@@ -2770,7 +2771,7 @@ function Reader({
           </div>
 
           <section className="space-y-3" aria-labelledby="ajustes-celular">
-            <h3 id="ajustes-celular" className="text-sm font-semibold">
+            <h3 id="ajustes-celular" className="text-sm font-medium">
               Tela
             </h3>
             <label className="flex min-h-11 items-start gap-3 text-sm" data-testid="opcao-esconder-controles">
@@ -2822,7 +2823,7 @@ function Reader({
           </section>
 
           <section className="space-y-4" aria-labelledby="ajustes-aa">
-            <h3 id="ajustes-aa" className="text-sm font-semibold">
+            <h3 id="ajustes-aa" className="text-sm font-medium">
               Texto
             </h3>
             <Slider
@@ -3006,11 +3007,11 @@ function Reader({
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-2 text-center">
               <Card className="p-3">
-                <p className="tabular text-xl font-semibold">{formatClock(plannedMs ?? 0)}</p>
+                <p className="tabular text-xl font-medium">{formatClock(plannedMs ?? 0)}</p>
                 <p className="text-sm text-muted">previsto</p>
               </Card>
               <Card className="p-3">
-                <p className="tabular text-xl font-semibold">{formatClock(stopInfo.realMs)}</p>
+                <p className="tabular text-xl font-medium">{formatClock(stopInfo.realMs)}</p>
                 <p className="text-sm text-muted">real</p>
               </Card>
             </div>
@@ -3020,7 +3021,7 @@ function Reader({
             <div className="grid grid-cols-2 gap-2">
               <Link
                 href="/textos"
-                className="inline-flex min-h-13 items-center justify-center rounded-full border border-border font-medium text-muted"
+                className="inline-flex min-h-13 items-center justify-center state-layer rounded-full border border-outline font-medium tracking-[0.1px] text-primary"
               >
                 Parar aqui
               </Link>
@@ -3130,7 +3131,7 @@ function EyeRestSheet({
     <Sheet open={open} onClose={onClose} title="Descanso da vista">
       <div className="space-y-4 text-center">
         <p className="text-base">Olhe para longe por 20 segundos.</p>
-        <p className="tabular text-4xl font-semibold" aria-live="polite">
+        <p className="tabular text-4xl font-medium" aria-live="polite">
           {left > 0 ? left : "Pronto"}
         </p>
         {left === 0 ? (
@@ -3241,7 +3242,7 @@ function RunnerStage({
       ) : null}
       <div className="flex items-end justify-center pb-2">
         {label ? (
-          <span className="text-xs font-medium uppercase tracking-wide text-faint">{label}</span>
+          <span className="text-xs font-medium uppercase tracking-[0.5px] text-faint">{label}</span>
         ) : null}
       </div>
 
@@ -3267,7 +3268,7 @@ function RunnerStage({
         <p
           data-testid="palavra-runner"
           className={`runner-word reader-word flex min-h-[4.5rem] items-center justify-center py-6 ${
-            style & (STYLE.bold | STYLE.heading) || heading ? "font-extrabold" : "font-semibold"
+            style & (STYLE.bold | STYLE.heading) || heading ? "font-extrabold" : "font-medium"
           } ${block?.kind === "quote" ? "italic" : ""} ${styleClass(style & ~STYLE.bold)}`}
         >
           <OrpWord word={current} />
@@ -3840,7 +3841,7 @@ function Finished({
         <CheckIcon className="size-8" />
       </div>
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Leitura concluída</h2>
+        <h2 className="text-headline-small">Leitura concluída</h2>
         <p className="mt-1 text-muted">
           {`${formatNumber(total)} ${total === 1 ? "palavra" : "palavras"}`}
         </p>
@@ -3855,22 +3856,22 @@ function Finished({
           {measurable ? (
             <>
               <div className="p-3">
-                <p className="tabular text-2xl font-semibold">{realWpm}</p>
+                <p className="tabular text-2xl font-medium">{realWpm}</p>
                 <p className="text-sm text-muted">ppm reais</p>
               </div>
               <div className="p-3">
-                <p className="tabular text-2xl font-semibold">{summary.configuredWpm}</p>
+                <p className="tabular text-2xl font-medium">{summary.configuredWpm}</p>
                 <p className="text-sm text-muted">configurado</p>
               </div>
               <div className="p-3">
-                <p className="tabular text-2xl font-semibold">{formatClock(summary.wallMs)}</p>
+                <p className="tabular text-2xl font-medium">{formatClock(summary.wallMs)}</p>
                 <p className="text-sm text-muted">tempo</p>
               </div>
             </>
           ) : null}
           {comprehension !== null ? (
             <div className="p-3">
-              <p className="tabular text-2xl font-semibold">{comprehension}%</p>
+              <p className="tabular text-2xl font-medium">{comprehension}%</p>
               <p className="text-sm text-muted">acertos</p>
             </div>
           ) : null}
@@ -3926,7 +3927,7 @@ function Finished({
         </Button>
         <Link
           href="/textos"
-          className="inline-flex min-h-12 items-center justify-center rounded-full border border-border font-medium text-muted"
+          className="inline-flex min-h-12 items-center justify-center state-layer rounded-full border border-outline font-medium tracking-[0.1px] text-primary"
         >
           Voltar para a biblioteca
         </Link>
@@ -3986,7 +3987,7 @@ function RecapPlayer({
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 text-center">
-      {title ? <p className="text-sm font-semibold">{title}</p> : null}
+      {title ? <p className="text-sm font-medium">{title}</p> : null}
       <p className="text-sm font-medium text-muted">
         {mark ? "Seus destaques até aqui" : "Onde você parou"}
       </p>
@@ -3996,7 +3997,7 @@ function RecapPlayer({
           {mark.note ? <p className="text-left text-sm text-muted">{mark.note}</p> : null}
         </div>
       ) : (
-        <p className="reader-word flex min-h-[4.5rem] items-center justify-center py-6 text-[clamp(2rem,11vw,4rem)] font-semibold">
+        <p className="reader-word flex min-h-[4.5rem] items-center justify-center py-6 text-[clamp(2rem,11vw,4rem)] font-medium">
           {word ? <OrpWord word={word} /> : null}
         </p>
       )}
@@ -4046,7 +4047,7 @@ function ReaderTips({ overlay, onDone }: { overlay: boolean; onDone: () => void 
         className="reader-float-card w-full max-w-md space-y-3 rounded-2xl border border-border bg-surface p-4 shadow-float"
       >
         <p className="text-xs font-medium text-faint">{`${step + 1} de ${TIPS.length}`}</p>
-        <h2 id="dica-titulo" className="font-semibold">
+        <h2 id="dica-titulo" className="font-medium">
           {tip.title}
         </h2>
         <p className="text-sm text-muted">{tip.body}</p>

@@ -164,7 +164,7 @@ export function VoiceCard() {
       {supported
         ? GROUPS.map((group) => (
             <fieldset key={group.language} className="space-y-2">
-              <legend className="mb-1 text-sm font-semibold">{group.title}</legend>
+              <legend className="mb-1 text-sm font-medium">{group.title}</legend>
 
               <label className="flex min-h-11 items-center gap-3 rounded-lg px-1">
                 <input

@@ -6,6 +6,7 @@ import {
   useId,
   useRef,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type InputHTMLAttributes,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
@@ -23,22 +24,33 @@ import { BackIcon, CloseIcon, ForwardIcon } from "@/components/icons";
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
+/*
+ * Botoes comuns do M3. Os nomes das variantes sao os que as telas ja usam:
+ *   primary    filled    acao principal da tela
+ *   secondary  outlined  acao alternativa
+ *   ghost      text      acao de baixa enfase
+ *   danger     filled no papel de erro
+ * Desabilitado: conteudo a 38% e recipiente a 12% de on-surface.
+ */
+const FILLED_DISABLED = "disabled:bg-on-surface/12 disabled:text-on-surface/38 disabled:shadow-none";
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-accent text-accent-ink hover:bg-accent-hover shadow-card",
-  secondary: "bg-surface text-ink border border-border hover:border-border-strong",
-  ghost: "text-muted hover:bg-surface-2 hover:text-ink",
-  danger: "bg-danger-soft text-danger hover:brightness-95",
+  primary: `bg-primary text-on-primary hover:shadow-elevation-1 ${FILLED_DISABLED}`,
+  secondary:
+    "border border-outline text-primary disabled:border-on-surface/12 disabled:text-on-surface/38",
+  ghost: "text-primary disabled:text-on-surface/38",
+  danger: `bg-error text-on-error hover:shadow-elevation-1 ${FILLED_DISABLED}`,
 };
 
-// Alturas minimas de 44px: abaixo disso o alvo de toque falha no celular.
+// O botao do M3 tem 40px; aqui o medio fica com 44px, o alvo de toque minimo
+// do app no celular (UX-12).
 const SIZES: Record<Size, string> = {
-  sm: "min-h-9 px-3 text-sm gap-1.5",
-  md: "min-h-11 px-4 text-sm gap-2",
-  lg: "min-h-13 px-5 text-base gap-2",
+  sm: "min-h-9 px-4 text-sm gap-2",
+  md: "min-h-11 px-6 text-sm gap-2",
+  lg: "min-h-13 px-6 text-base gap-2",
 };
 
 const BASE =
-  "inline-flex items-center justify-center rounded-full font-medium transition-colors duration-150 disabled:opacity-45 disabled:pointer-events-none select-none";
+  "state-layer inline-flex items-center justify-center rounded-full font-medium tracking-[0.1px] transition-shadow duration-150 ease-standard disabled:pointer-events-none select-none";
 
 /** Classes de botao para elementos que nao sao `<button>`, como um link de download. */
 export function buttonClasses(variant: Variant = "primary", size: Size = "md"): string {
@@ -127,7 +139,8 @@ export function Card({
   return (
     <Tag
       id={id}
-      className={`rounded-card border border-border bg-surface shadow-card ${className}`}
+      // Cartao do M3 (medium, 12px): recipiente tonal com contorno, sem sombra.
+      className={`rounded-card border border-border bg-surface ${className}`}
     >
       {children}
     </Tag>
@@ -137,7 +150,7 @@ export function Card({
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <h2 className="text-base font-semibold tracking-tight">{children}</h2>
+      <h2 className="text-title-medium">{children}</h2>
       {action}
     </div>
   );
@@ -147,8 +160,10 @@ export function SectionTitle({ children, action }: { children: ReactNode; action
 /* Campos                                                                      */
 /* -------------------------------------------------------------------------- */
 
+// Campo "outlined" do M3: canto de 4px, contorno em `outline` e, no foco,
+// 2px no primario (borda mais um traco interno, sem mudar o tamanho).
 const FIELD_BASE =
-  "w-full rounded-2xl border border-border bg-surface px-4 text-base text-ink placeholder:text-faint transition-colors focus:border-accent focus:outline-none disabled:opacity-60";
+  "w-full rounded-xs border border-outline bg-transparent px-4 text-base tracking-[0.5px] text-on-surface placeholder:text-on-surface-variant transition-[border-color,box-shadow] duration-150 hover:border-on-surface focus:border-primary focus:shadow-[inset_0_0_0_1px_var(--md-sys-color-primary)] focus:outline-none disabled:opacity-38";
 
 interface FieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -174,7 +189,7 @@ export const Field = forwardRef<HTMLInputElement, FieldProps>(function Field(
       <input
         ref={ref}
         id={inputId}
-        className={`${FIELD_BASE} min-h-13 ${error ? "border-danger" : ""} ${className}`}
+        className={`${FIELD_BASE} min-h-14 ${error ? "border-error hover:border-error focus:border-error focus:shadow-[inset_0_0_0_1px_var(--md-sys-color-error)]" : ""} ${className}`}
         aria-invalid={error ? true : undefined}
         {...props}
       />
@@ -226,7 +241,7 @@ export function SelectField({ label, hint, options, id, className = "", ...props
       <label htmlFor={inputId} className="block text-sm font-medium text-muted">
         {label}
       </label>
-      <select id={inputId} className={`${FIELD_BASE} min-h-13 ${className}`} {...props}>
+      <select id={inputId} className={`${FIELD_BASE} min-h-14 ${className}`} {...props}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -240,9 +255,11 @@ export function SelectField({ label, hint, options, id, className = "", ...props
 
 export function Alert({ tone = "danger", children }: { tone?: "danger" | "positive"; children: ReactNode }) {
   const styles =
-    tone === "danger" ? "bg-danger-soft text-danger" : "bg-positive-soft text-positive";
+    tone === "danger"
+      ? "bg-error-container text-on-error-container"
+      : "bg-positive-soft text-positive";
   return (
-    <p role="alert" className={`rounded-2xl px-4 py-3 text-sm ${styles}`}>
+    <p role="alert" className={`rounded-xl px-4 py-3 text-sm ${styles}`}>
       {children}
     </p>
   );
@@ -262,9 +279,9 @@ export function Alert({ tone = "danger", children }: { tone?: "danger" | "positi
  *
  * O rotulo aparece como texto acima do grupo; `hideLabel` o deixa so para o
  * leitor de tela, quando a secao ja tem um titulo que diz a mesma coisa.
- * A opcao escolhida tem contorno de 2px no acento: a diferenca so de fundo
- * entre a pilula e o trilho ficava abaixo de 3:1 no tema escuro.
- * As opcoes quebram linha quando nao cabem (reflow em 320px, A11Y-17).
+ * Ate tres opcoes formam o "segmented button" do M3: uma pilula so, com
+ * divisores, e a escolhida em secondary-container. Com mais opcoes elas viram
+ * chips, que quebram linha quando nao cabem (reflow em 320px, A11Y-17).
  */
 export function Segmented<T extends string>({
   value,
@@ -285,6 +302,7 @@ export function Segmented<T extends string>({
   const selected = options.findIndex((option) => option.value === value);
   // Sem opcao escolhida, a primeira recebe a parada de Tab.
   const tabStop = selected === -1 ? 0 : selected;
+  const joined = options.length <= 3;
 
   const onKeyDown = (event: ReactKeyboardEvent, index: number) => {
     const last = options.length - 1;
@@ -316,7 +334,11 @@ export function Segmented<T extends string>({
       <div
         role="radiogroup"
         aria-labelledby={labelId}
-        className="flex flex-wrap gap-1 rounded-3xl bg-surface-2 p-1"
+        className={
+          joined
+            ? "flex min-h-10 overflow-hidden rounded-full border border-outline"
+            : "flex flex-wrap gap-2"
+        }
       >
         {options.map((option, index) => {
           const active = option.value === value;
@@ -332,10 +354,19 @@ export function Segmented<T extends string>({
               tabIndex={index === tabStop ? 0 : -1}
               onClick={() => onChange(option.value)}
               onKeyDown={(event) => onKeyDown(event, index)}
-              className={`flex min-h-10 flex-auto items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-medium transition-colors ${
-                active
-                  ? "bg-surface text-ink shadow-card ring-2 ring-accent ring-inset"
-                  : "text-muted hover:text-ink"
+              className={`state-layer flex min-h-10 items-center justify-center gap-2 text-sm font-medium tracking-[0.1px] transition-colors ${
+                joined
+                  ? // O contorno de foco fica por dentro: a pilula corta o que sai dela.
+                    `min-w-0 flex-1 border-l border-outline px-3 text-center first:border-l-0 focus-visible:-outline-offset-3 ${
+                      active
+                        ? "bg-secondary-container text-on-secondary-container"
+                        : "text-on-surface"
+                    }`
+                  : `flex-auto whitespace-nowrap rounded-lg border px-4 ${
+                      active
+                        ? "border-transparent bg-secondary-container text-on-secondary-container"
+                        : "border-outline-variant text-on-surface-variant"
+                    }`
               }`}
             >
               {option.icon ? (
@@ -381,13 +412,14 @@ export function Slider({
 }) {
   const inputId = useId();
   const hintId = useId();
+  const filled = max > min ? ((value - min) / (max - min)) * 100 : 0;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-4">
         <label htmlFor={inputId} className="text-sm font-medium text-ink">
           {label}
         </label>
-        <span className="tabular text-sm font-semibold text-accent" aria-hidden="true">
+        <span className="tabular text-sm font-medium text-primary" aria-hidden="true">
           {display}
         </span>
       </div>
@@ -403,8 +435,8 @@ export function Slider({
         // "Folgado" - o numero cru nao diz nada (A11Y-16).
         aria-valuetext={display}
         aria-describedby={hint ? hintId : undefined}
-        // h-11: area de toque de 44px sem engordar a trilha visual (UX-12).
-        className="h-11 w-full cursor-pointer accent-accent"
+        className="m3-slider"
+        style={{ "--v": `${Math.min(100, Math.max(0, filled))}%` } as CSSProperties}
       />
       {hint ? (
         <p id={hintId} className="text-sm text-faint">
@@ -436,7 +468,7 @@ export function EmptyState({
       <div className="flex size-14 items-center justify-center rounded-2xl bg-surface-2 text-faint">
         {icon}
       </div>
-      <h3 className="mt-4 text-lg font-semibold tracking-tight">{title}</h3>
+      <h3 className="mt-4 text-title-large">{title}</h3>
       <p className="mt-1.5 max-w-xs text-sm text-muted">{description}</p>
       {action ? <div className="mt-6">{action}</div> : null}
     </div>
@@ -527,7 +559,8 @@ export function Sheet({
         type="button"
         aria-label="Fechar"
         onClick={onClose}
-        className="absolute inset-0 bg-ink/40 backdrop-blur-sm animate-fade"
+        // Scrim do M3: 32%, sem desfoque.
+        className="absolute inset-0 bg-scrim/32 animate-fade"
       />
       <div
         ref={dialogRef}
@@ -535,10 +568,16 @@ export function Sheet({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="animate-rise relative focus:outline-none flex max-h-[92dvh] w-full flex-col rounded-t-3xl border border-border bg-surface shadow-float sm:max-w-lg sm:rounded-3xl"
+        // No celular e a "bottom sheet" do M3 (surface-container-low, canto de
+        // 28px em cima, alca); em tela larga, o "dialog" (surface-container-high).
+        className="animate-rise relative focus:outline-none flex max-h-[92dvh] w-full flex-col rounded-t-3xl bg-surface-container-low text-on-surface shadow-float sm:max-w-lg sm:rounded-3xl sm:bg-surface-container-high"
       >
-        <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <h2 id={titleId} className="text-base font-semibold tracking-tight">
+        <div
+          aria-hidden="true"
+          className="mx-auto mt-3 h-1 w-8 shrink-0 rounded-full bg-on-surface-variant/40 sm:hidden"
+        />
+        <header className="flex items-center justify-between gap-3 px-6 pb-2 pt-3 sm:pt-5">
+          <h2 id={titleId} className="text-title-large">
             {title}
           </h2>
           <button
@@ -546,14 +585,14 @@ export function Sheet({
             onClick={onClose}
             aria-label="Fechar"
             // 44px de alvo de toque (UX-12); o icone continua do mesmo tamanho.
-            className="-mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+            className="state-layer -mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-full text-on-surface-variant"
           >
             <CloseIcon className="size-5" />
           </button>
         </header>
-        <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
         {footer ? (
-          <footer className="pb-safe border-t border-border px-5 py-4">{footer}</footer>
+          <footer className="pb-safe border-t border-outline-variant px-6 py-4">{footer}</footer>
         ) : null}
       </div>
     </div>

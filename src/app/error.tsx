@@ -34,7 +34,7 @@ export default function GlobalError({
 
   return (
     <main className="min-h-dvh flex flex-col items-center justify-center gap-4 px-6 text-center">
-      <h1 className="text-2xl font-semibold tracking-tight">Algo deu errado</h1>
+      <h1 className="text-headline-small">Algo deu errado</h1>
       <p className="max-w-sm text-muted">
         Não foi possível carregar esta tela. Tente de novo em instantes.
       </p>

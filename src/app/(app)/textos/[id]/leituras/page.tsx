@@ -43,7 +43,7 @@ export default async function TextHistoryPage({ params }: { params: Promise<{ id
           <BackIcon className="size-5" />
         </Link>
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">Leituras</h1>
+          <h1 className="text-headline-small">Leituras</h1>
           <p className="truncate text-sm text-muted">{text.title}</p>
         </div>
       </div>
@@ -82,7 +82,7 @@ export default async function TextHistoryPage({ params }: { params: Promise<{ id
           {quiz ? (
             // US-169: a nota refeita fica ao lado da original, fora da media do treino.
             <Card as="section" className="p-4">
-              <h2 className="mb-2 text-base font-semibold">Questionário</h2>
+              <h2 className="mb-2 text-base font-medium">Questionário</h2>
               <ul className="divide-y divide-border text-sm" data-testid="notas-questionario">
                 <li className="flex items-center justify-between gap-3 py-2">
                   <span>Na conclusão</span>
@@ -104,7 +104,7 @@ export default async function TextHistoryPage({ params }: { params: Promise<{ id
           ) : null}
 
           <Card as="section" className="p-4">
-            <h2 className="mb-2 text-base font-semibold">Sessões</h2>
+            <h2 className="mb-2 text-base font-medium">Sessões</h2>
             <ul className="divide-y divide-border">
               {rows.map((row) => (
                 <li key={row.createdAt.toISOString()} className="flex items-center justify-between gap-3 py-2 text-sm">
@@ -126,7 +126,7 @@ export default async function TextHistoryPage({ params }: { params: Promise<{ id
 function Stat({ label, value, small }: { label: string; value: string; small?: boolean }) {
   return (
     <Card className="p-4">
-      <p className={`tabular font-semibold ${small ? "text-sm" : "text-xl"}`}>{value}</p>
+      <p className={`tabular font-medium ${small ? "text-sm" : "text-xl"}`}>{value}</p>
       <p className="text-sm text-muted">{label}</p>
     </Card>
   );

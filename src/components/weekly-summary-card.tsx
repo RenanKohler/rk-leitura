@@ -133,7 +133,7 @@ function Figure({
   return (
     <div>
       <p className="text-sm text-muted">{label}</p>
-      <p className="tabular text-xl font-semibold">{value}</p>
+      <p className="tabular text-xl font-medium">{value}</p>
       {typeof change === "number" ? (
         <p
           className={`tabular text-sm ${change >= 0 ? "text-positive" : "text-muted"}`}

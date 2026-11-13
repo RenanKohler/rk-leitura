@@ -297,7 +297,7 @@ export function TextsClient({
     <div className="space-y-6">
       <header className="flex items-end justify-between gap-3 pt-2">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Meus textos</h1>
+          <h1 className="text-headline-small">Meus textos</h1>
           <p className="mt-1 text-sm text-muted">
             {resource.loading
               ? "Carregando"
@@ -894,7 +894,7 @@ function SeriesCard({
 /** Marca de texto importado sozinho e ainda nao lido (US-70, US-71). */
 function NewBadge() {
   return (
-    <span className="mr-1.5 inline-flex rounded-full bg-accent-soft px-2 py-0.5 align-middle text-xs font-semibold text-accent">
+    <span className="mr-1.5 inline-flex rounded-full bg-accent-soft px-2 py-0.5 align-middle text-xs font-medium text-accent">
       Novo
     </span>
   );
@@ -915,10 +915,11 @@ function Chip({
       type="button"
       aria-pressed={pressed}
       onClick={onClick}
-      className={`flex min-h-11 shrink-0 items-center gap-1 whitespace-nowrap rounded-full border px-2.5 text-sm font-medium transition-colors ${
+      // Filter chip do M3: canto de 8px; escolhido, secondary-container.
+      className={`state-layer flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3 text-sm font-medium tracking-[0.1px] transition-colors ${
         pressed
-          ? "border-accent bg-accent-soft text-ink ring-1 ring-accent ring-inset"
-          : "border-border text-muted hover:text-ink"
+          ? "border-transparent bg-secondary-container text-on-secondary-container"
+          : "border-outline-variant text-on-surface-variant"
       }`}
     >
       {pressed ? <CheckIcon className="size-3.5" /> : null}

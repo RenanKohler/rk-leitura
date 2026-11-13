@@ -73,7 +73,7 @@ export function TextSynopsis({ text }: { text: TextSummary }) {
           onClick={ask}
           disabled={busy}
           aria-busy={busy}
-          className="inline-flex min-h-9 items-center rounded-full border border-border px-3 text-sm font-medium text-muted disabled:opacity-60"
+          className="inline-flex min-h-9 items-center rounded-lg border border-outline-variant px-3 text-sm font-medium text-muted disabled:opacity-60"
         >
           {busy ? "Lendo o começo..." : "Do que se trata?"}
         </button>

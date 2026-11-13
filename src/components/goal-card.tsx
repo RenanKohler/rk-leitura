@@ -120,7 +120,7 @@ export function GoalCard({
         {status.defined ? (
           <>
             <div className="flex items-baseline justify-between gap-3">
-              <p className="tabular text-2xl font-semibold">
+              <p className="tabular text-2xl font-medium">
                 {`${formatNumber(status.progress)} / ${formatNumber(status.target)}`}
                 <span className="ml-1 text-base font-normal text-muted">{status.kind}</span>
               </p>

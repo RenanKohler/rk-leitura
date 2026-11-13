@@ -177,7 +177,7 @@ export function BatchImport() {
       {items.length > 0 ? (
         <Card className="animate-rise space-y-4 p-4">
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="font-semibold tracking-tight">
+            <h2 className="font-medium">
               {`${items.length} ${items.length === 1 ? "link" : "links"}`}
             </h2>
             <span className="truncate text-sm text-muted">{fileName}</span>

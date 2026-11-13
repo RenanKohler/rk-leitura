@@ -34,7 +34,7 @@ export function CardReviewClient({ initial }: { initial: CardReviewSession }) {
           <BackIcon className="size-5" />
         </Link>
         <div className="min-w-0 flex-1 pt-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight">Revisar cartões</h1>
+          <h1 className="text-headline-small">Revisar cartões</h1>
           <p className="truncate text-sm text-muted">
             {cards.length > 0 && !done ? `${position + 1} de ${cards.length} · ` : ""}
             {initial.title}

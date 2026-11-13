@@ -11,8 +11,9 @@ export default function manifest(): MetadataRoute.Manifest {
     // Qualquer orientacao (US-217): deitado, a linha longa, a tabela e o
     // codigo cabem na tela.
     orientation: "any",
-    background_color: "#0e0f11",
-    theme_color: "#0e0f11",
+    // `surface` do esquema M3 escuro (globals.css).
+    background_color: "#0f1512",
+    theme_color: "#0f1512",
     lang: "pt-BR",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

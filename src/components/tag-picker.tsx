@@ -110,7 +110,7 @@ export function TagPicker({
                 onClick={() => add(name)}
                 aria-label={`${name} (sugerida)`}
                 data-testid="etiqueta-sugerida"
-                className="flex min-h-9 items-center gap-1.5 rounded-full border border-accent bg-accent-soft px-3 text-sm font-medium"
+                className="flex min-h-9 items-center gap-1.5 rounded-lg border border-transparent bg-secondary-container px-3 text-sm font-medium text-on-secondary-container"
               >
                 {name}
                 <span className="text-xs font-normal text-accent">Sugerida</span>
@@ -120,7 +120,7 @@ export function TagPicker({
                 key={name}
                 type="button"
                 onClick={() => add(name)}
-                className="flex min-h-9 items-center rounded-full border border-border px-3 text-sm text-muted"
+                className="flex min-h-9 items-center rounded-lg border border-outline-variant px-3 text-sm text-on-surface-variant"
               >
                 {name}
               </button>

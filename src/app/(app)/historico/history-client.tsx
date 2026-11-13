@@ -46,7 +46,7 @@ export function HistoryClient({
   return (
     <div className="space-y-6">
       <header className="pt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Histórico</h1>
+        <h1 className="text-headline-small">Histórico</h1>
         <p className="mt-1 text-sm text-muted">
           {resource.loading
             ? "Carregando"
@@ -75,7 +75,7 @@ export function HistoryClient({
         <div className="space-y-6">
           {grouped.map(([day, items]) => (
             <section key={day} className="space-y-2">
-              <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-faint">
+              <h2 className="px-1 text-xs font-medium uppercase tracking-[0.5px] text-faint">
                 {day}
               </h2>
               <ul className="space-y-2">
@@ -141,7 +141,7 @@ function Metric({
 }) {
   return (
     <div className="rounded-xl bg-surface-2 py-2">
-      <dd className={`tabular text-lg font-semibold ${highlight ? "text-accent" : ""}`}>{value}</dd>
+      <dd className={`tabular text-lg font-medium ${highlight ? "text-accent" : ""}`}>{value}</dd>
       <dt className="text-xs text-muted">{label}</dt>
     </div>
   );

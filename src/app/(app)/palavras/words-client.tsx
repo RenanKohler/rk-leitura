@@ -189,7 +189,7 @@ export function WordsClient({
           <BackIcon className="size-5" />
         </Link>
         <div className="flex-1 pt-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight">Palavras salvas</h1>
+          <h1 className="text-headline-small">Palavras salvas</h1>
           <p className="mt-1 text-sm text-muted">
             {items.length === 0
               ? "Nenhuma ainda"
@@ -307,7 +307,7 @@ export function WordsClient({
                 <Card className="p-4">
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold leading-snug">{item.base}</p>
+                      <p className="font-medium leading-snug">{item.base}</p>
                       {item.kind || item.learned ? (
                         <p className="text-xs text-faint">
                           {[item.kind, item.learned ? "aprendida" : ""].filter(Boolean).join(" · ")}

@@ -81,7 +81,7 @@ export function TrainingClient({
   return (
     <div className="space-y-6">
       <header className="pt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Treino</h1>
+        <h1 className="text-headline-small">Treino</h1>
         <p className="mt-1 text-sm text-muted">
           {measured
             ? `Seu teste mediu ${measured} ppm.`
@@ -120,7 +120,7 @@ export function TrainingClient({
                     onClick={() => void start(length)}
                     className="rounded-2xl border border-border p-4 text-left transition-colors hover:border-border-strong disabled:opacity-45"
                   >
-                    <p className="font-semibold">{`${length} dias`}</p>
+                    <p className="font-medium">{`${length} dias`}</p>
                     <p className="tabular mt-1 text-sm text-muted">
                       {`até ${finalTarget(startWpm, length)} ppm`}
                     </p>
@@ -212,7 +212,7 @@ function ProgramCard({
                 ? "Programa concluído"
                 : `Dia ${program.currentDay} de ${program.length}`}
             </p>
-            <p className="tabular mt-0.5 text-3xl font-semibold">
+            <p className="tabular mt-0.5 text-3xl font-medium">
               {`${program.targetWpm} ppm`}
             </p>
             <p className="text-sm text-muted">

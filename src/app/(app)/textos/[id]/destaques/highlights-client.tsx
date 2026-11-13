@@ -160,7 +160,7 @@ export function HighlightsClient({
           <BackIcon className="size-5" />
         </Link>
         <div className="min-w-0 flex-1 pt-2">
-          <h1 className="text-xl font-semibold leading-tight tracking-tight">{title}</h1>
+          <h1 className="text-title-large">{title}</h1>
           <p className="mt-1 text-sm text-muted">
             {items.length === 1 ? "1 destaque" : `${items.length} destaques`}
           </p>
