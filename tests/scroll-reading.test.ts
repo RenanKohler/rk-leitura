@@ -3,6 +3,8 @@ import type { Paragraph } from "@/lib/reading";
 import {
   marksByParagraph,
   paragraphIndexOf,
+  SCROLL_AWAY_WORDS,
+  scrolledAway,
   scrollStatus,
   wordInView,
   wordSpanInText,
@@ -101,15 +103,28 @@ describe("wordInView", () => {
   });
 });
 
+describe("scrolledAway", () => {
+  it("perto do lugar da leitura, para tras ou para a frente, nao e longe", () => {
+    expect(scrolledAway(1000, 1000)).toBe(false);
+    expect(scrolledAway(1000 - SCROLL_AWAY_WORDS, 1000)).toBe(false);
+    expect(scrolledAway(1000 + SCROLL_AWAY_WORDS, 1000)).toBe(false);
+  });
+
+  it("uma palavra alem do limite ja e longe, nos dois sentidos", () => {
+    expect(scrolledAway(1000 - SCROLL_AWAY_WORDS - 1, 1000)).toBe(true);
+    expect(scrolledAway(1000 + SCROLL_AWAY_WORDS + 1, 1000)).toBe(true);
+  });
+});
+
 describe("scrollStatus", () => {
   it("mostra o quanto do texto ja passou", () => {
-    expect(scrollStatus(0, 1000)).toBe("Rolagem · 0%");
-    expect(scrollStatus(420, 1000)).toBe("Rolagem · 42%");
-    expect(scrollStatus(1000, 1000)).toBe("Rolagem · 100%");
+    expect(scrollStatus(0, 1000)).toBe("0%");
+    expect(scrollStatus(420, 1000)).toBe("42%");
+    expect(scrollStatus(1000, 1000)).toBe("100%");
   });
 
   it("nao passa de 100% nem quebra em texto vazio", () => {
-    expect(scrollStatus(1500, 1000)).toBe("Rolagem · 100%");
-    expect(scrollStatus(0, 0)).toBe("Rolagem");
+    expect(scrollStatus(1500, 1000)).toBe("100%");
+    expect(scrollStatus(0, 0)).toBe("0%");
   });
 });

@@ -107,7 +107,7 @@ import {
   useDeviceOption,
 } from "@/hooks/use-device-option";
 import { useScrollReading } from "@/hooks/use-scroll-reading";
-import { marksByParagraph, scrollStatus } from "@/lib/scroll-reading";
+import { marksByParagraph, scrolledAway, scrollStatus } from "@/lib/scroll-reading";
 import { speedFromDrag } from "@/lib/gestures";
 import { canVibrate, hapticPattern, startsHeading, vibrate } from "@/lib/haptics";
 import {
@@ -464,11 +464,24 @@ function Reader({
   // paginacao continua medida e pausar mostra a pagina certa na hora.
   const emphasis = settings.wordEmphasis;
   const layoutKey = `${settings.fontScale}:${settings.fontFamily}:${settings.lineHeightStep}`;
+  // Na rolagem continua nao ha pagina: nada e medido (num livro, medir trava
+  // a tela por segundos).
   const { frameRef, rulerRef, pages, ready: pagesReady } = usePagedText(
     paragraphs,
     total,
     emphasis,
-    layoutKey
+    layoutKey,
+    !scrollMode
+  );
+  // O quadro tambem fica a mao do leitor: na rolagem, os botoes de pagina
+  // rolam uma tela.
+  const stageFrameRef = useRef<HTMLDivElement | null>(null);
+  const setStageFrame = useCallback(
+    (node: HTMLDivElement | null) => {
+      stageFrameRef.current = node;
+      frameRef(node);
+    },
+    [frameRef]
   );
   const currentPage = pageOfWord(pages, index);
   const pageStart = pages[currentPage] ?? 0;
@@ -1387,6 +1400,14 @@ function Reader({
       if (now - brakeAtRef.current < BRAKE_GUARD_MS) return;
       touchPage();
       setTapped(null);
+      if (scrollMode) {
+        // Sem paginas: anda quase uma tela, deixando uma faixa do que ja
+        // estava a vista. A posicao e a leitura contada saem da propria
+        // rolagem, como no arraste; o fim do texto tem o seu botao.
+        const frame = stageFrameRef.current;
+        frame?.scrollBy({ top: direction * Math.max(80, frame.clientHeight * 0.9) });
+        return;
+      }
       const position = stateRef.current.index;
       const page = pageOfWord(pages, position);
       const target = pages[page + direction];
@@ -1421,7 +1442,19 @@ function Reader({
       if (direction === 1 && Math.abs(pageOfWord(pages, anchor) - page) <= 1) setAnchor(target);
       seek(target);
     },
-    [pages, anchor, seek, touchPage, postRecord, notify, text.sourceUrl, continueFromSource, finish, wpm]
+    [
+      scrollMode,
+      pages,
+      anchor,
+      seek,
+      touchPage,
+      postRecord,
+      notify,
+      text.sourceUrl,
+      continueFromSource,
+      finish,
+      wpm,
+    ]
   );
 
   /*
@@ -1486,6 +1519,13 @@ function Reader({
   // Posicao que veio da rolagem: a palavra do topo nao ganha marca, ao
   // contrario da que veio de uma pausa, de um toque ou de uma busca.
   const [scrolledTo, setScrolledTo] = useState<number | null>(null);
+  // O lugar da leitura, lido na hora: duas paradas da rolagem podem chegar
+  // antes de a tela redesenhar, e a segunda nao pode comparar com o lugar
+  // antigo - ele ficaria para tras e o atalho de volta apareceria a toa.
+  const anchorRef = useRef(anchor);
+  useEffect(() => {
+    anchorRef.current = anchor;
+  }, [anchor]);
 
   /**
    * A rolagem do leitor parou com `position` no topo. Para a frente conta
@@ -1516,14 +1556,16 @@ function Reader({
 
       // Para a frente a partir de onde a leitura estava, o lugar anda junto;
       // voltar ou saltar longe deixa o atalho de volta, como nas paginas.
-      if (target > from && Math.abs(pageOfWord(pages, anchor) - pageOfWord(pages, from)) <= 1) {
+      // "Perto" e medido em palavras: as paginas mudam com a altura do quadro.
+      if (target > from && !scrolledAway(from, anchorRef.current)) {
+        anchorRef.current = target;
         setAnchor(target);
       }
       stateRef.current.index = target;
       setIndex(target);
       setScrolledTo(target);
     },
-    [pages, anchor, touchPage, postRecord]
+    [touchPage, postRecord]
   );
 
   /** "Concluir leitura", no fim do texto rolado: o mesmo fim da ultima pagina. */
@@ -1901,7 +1943,11 @@ function Reader({
   const remainingMs = Math.max(0, timeline[total]! - timeline[Math.min(index, total)]!);
   const anchorPage = pageOfWord(pages, anchor);
   const showReturn =
-    !playing && !narrating && !finished && pagesReady && anchorPage !== currentPage && anchor < total;
+    !playing &&
+    !narrating &&
+    !finished &&
+    anchor < total &&
+    (scrollMode ? scrolledAway(index, anchor) : pagesReady && anchorPage !== currentPage);
   const stopPage = stopAt !== undefined ? pageOfWord(pages, stopAt) + 1 : null;
   const [clockMode, setClockMode] = useState<"restante" | "lido">("restante");
 
@@ -1943,7 +1989,12 @@ function Reader({
    * folha aberta ou aviso na tela; com a opcao desligada, tudo como antes.
    */
   const tipsVisible =
-    !settings.readerTipsSeen && !tipsDismissed && pagesReady && !playing && !narrating && !sheetOpen;
+    !settings.readerTipsSeen &&
+    !tipsDismissed &&
+    (scrollMode || pagesReady) &&
+    !playing &&
+    !narrating &&
+    !sheetOpen;
   const noticeOnScreen =
     (text.abandoned && !resumed) ||
     suggestion !== null ||
@@ -2201,7 +2252,7 @@ function Reader({
         ) : (
           <>
             <PageStage
-              frameRef={frameRef}
+              frameRef={setStageFrame}
               rulerRef={rulerRef}
               paragraphs={paragraphs}
               pageStart={pageStart}
@@ -2436,7 +2487,9 @@ function Reader({
                 onClick={() => seek(anchor)}
                 className="pointer-events-auto min-h-11 rounded-full border border-border bg-surface px-4 text-sm font-medium shadow-float"
               >
-                {`Voltar para onde parou (p. ${anchorPage + 1})`}
+                {scrollMode
+                  ? "Voltar para onde parou"
+                  : `Voltar para onde parou (p. ${anchorPage + 1})`}
               </button>
             ) : null}
 

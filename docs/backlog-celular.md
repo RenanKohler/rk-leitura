@@ -424,14 +424,37 @@ baixo, para ler no celular sem virar página.
 `PageStage` desenha todos os parágrafos, cada um memoizado, e o
 `useScrollReading` (`src/hooks/use-scroll-reading.ts`) liga a rolagem à
 posição nos dois sentidos; as contas puras estão em
-`src/lib/scroll-reading.ts`. A paginação continua medida por baixo: os botões
-de página e as teclas andam uma tela, e "voltar para onde parou" usa as mesmas
-páginas. A leitura rolada é gravada como sessão de modo "pagina"; não há modo
-novo no histórico. A linha de estado mostra "Rolagem · N%" no lugar de "Página
-N de M". A posição que vem da rolagem não ganha a marca de palavra atual; a
+`src/lib/scroll-reading.ts`. Na rolagem a paginação não é medida: os botões de
+página e as teclas rolam 90% da tela, e "voltar para onde parou" aparece a
+mais de 250 palavras do lugar da leitura. A leitura rolada é gravada como
+sessão de modo "pagina"; não há modo novo no histórico. A linha de estado
+mostra "N%" no lugar de "Página N de M". A posição que vem da rolagem não ganha a marca de palavra atual; a
 que vem de pausa, toque, busca ou retomada ganha. Com o guia ou a narração em
 andamento, arrastar não muda a posição: é preciso pausar. Coberto por
 `tests/scroll-reading.test.ts` e `e2e/rolagem.spec.ts`.
+
+**Correções depois do primeiro uso no celular** (o leitor relatou que a
+rolagem não funcionou):
+- Rolar para trás com "Esconder controles" ligado fazia o texto tremer sem
+  parar. O atalho "voltar para onde parou" era decidido pelas páginas, que
+  mudam com a altura do quadro; como o atalho segura os controles na tela e os
+  controles mudam a altura, os dois se alternavam a cada 200 ms. A distância
+  passou a ser medida em palavras (`scrolledAway`).
+- Num texto do tamanho de um livro (60 mil palavras, processador 4 vezes mais
+  lento), medir as páginas travava a tela por cerca de 8 s ao abrir e de novo
+  por 6 s logo depois. A rolagem não usa páginas, então a medição foi
+  desligada nesse modo (`usePagedText`, parâmetro `enabled`): a abertura caiu
+  para cerca de 1,4 s de tarefas longas. O modo páginas continua com esse
+  custo; não foi tratado aqui.
+- A posição que vem da própria rolagem não move mais a coluna, mesmo quando a
+  conta da primeira palavra à vista erra por uma linha.
+- A linha de estado era cortada na barra ("Rolage..."); ficou só o número.
+- O leitor confirmou o sintoma: o texto não rolava com o dedo, ou travava.
+  Além dos itens acima, um arraste em andamento era puxado para trás quando
+  os controles saíam da tela aos 4 s: a coluna mudava de tamanho e a posição
+  era reescrita com o dedo ainda rolando. Com o dedo na coluna, ou com ela
+  ainda em movimento, a posição não é mais escrita pelo leitor
+  (`useScrollReading`, `userScrolling`).
 
 ## Sugestão de entrega
 

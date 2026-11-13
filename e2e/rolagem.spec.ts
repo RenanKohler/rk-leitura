@@ -22,6 +22,8 @@ test.beforeEach(async ({ context }) => {
 
 const frame = (page: Page) => page.getByTestId("quadro-pagina");
 const scrollTop = (page: Page) => frame(page).evaluate((element) => element.scrollTop);
+/** Linha de estado da barra: na rolagem, o quanto do texto ja passou. */
+const status = (page: Page, text: RegExp) => page.locator(".reader-bar-status").filter({ hasText: text });
 
 /** Arrasta o dedo de baixo para cima na coluna: o texto sobe. */
 async function dragUp(page: Page, distance: number) {
@@ -48,9 +50,10 @@ async function wordPoint(page: Page): Promise<{ x: number; y: number }> {
   const point = await frame(page).evaluate((element) => {
     const column = element.getBoundingClientRect();
     const middle = column.top + column.height / 2;
+    let best: { x: number; y: number; distance: number } | null = null;
     for (const block of element.querySelectorAll(".reader-prose > p")) {
       const box = block.getBoundingClientRect();
-      if (box.top > middle - 40 || box.bottom < middle + 40) continue;
+      if (box.bottom < column.top + 40 || box.top > column.bottom - 40) continue;
       const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         for (const match of (node.textContent ?? "").matchAll(/\S{5,}/g)) {
@@ -58,16 +61,36 @@ async function wordPoint(page: Page): Promise<{ x: number; y: number }> {
           range.setStart(node, match.index);
           range.setEnd(node, match.index + match[0].length);
           const word = range.getBoundingClientRect();
-          if (word.top > middle - 30 && word.bottom < middle + 30) {
-            return { x: word.left + word.width / 2, y: word.top + word.height / 2 };
+          // Inteira na tela e numa linha so (palavra partida tem caixa alta).
+          if (word.top < column.top + 40 || word.bottom > column.bottom - 40) continue;
+          if (word.height > 60) continue;
+          const y = word.top + word.height / 2;
+          const distance = Math.abs(y - middle);
+          if (!best || distance < best.distance) {
+            best = { x: word.left + word.width / 2, y, distance };
           }
         }
       }
     }
-    return null;
+    return best ? { x: best.x, y: best.y } : null;
   });
   expect(point).not.toBeNull();
   return point!;
+}
+
+/**
+ * Espera a coluna parar: o impulso do arraste segue por um tempo depois do
+ * dedo. Duas leituras iguais, com 250 ms entre elas.
+ */
+async function settled(page: Page): Promise<number> {
+  let last = -1;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const top = Math.round(await scrollTop(page));
+    if (top === last) return top;
+    last = top;
+    await page.waitForTimeout(250);
+  }
+  throw new Error("A coluna nao parou de rolar.");
 }
 
 async function setup(page: Page, words: number, settings: Record<string, unknown> = {}) {
@@ -95,13 +118,13 @@ test("ligar a rolagem mostra o texto inteiro, e arrastar muda e guarda a posicao
 
   // Sem paginas: a coluna rola e tem todos os paragrafos do texto (900 / 60).
   await expect(frame(page)).toHaveAttribute("data-rolagem", "sim");
-  await expect(page.getByText("Rolagem · 0%")).toBeVisible();
+  await expect(status(page, /^0%$/)).toBeVisible();
   await expect(frame(page).locator(".reader-prose > p")).toHaveCount(15);
   expect(await scrollTop(page)).toBe(0);
 
   await dragUp(page, 300);
   await expect.poll(() => scrollTop(page)).toBeGreaterThan(100);
-  await expect(page.getByText(/^Rolagem · [1-9]\d*%$/)).toBeVisible();
+  await expect(status(page, /^[1-9]\d*%$/)).toBeVisible();
   // A posicao que veio da rolagem nao ganha marca de palavra atual.
   await expect(page.getByTestId("palavra-atual")).toHaveCount(0);
 
@@ -125,7 +148,7 @@ test("tocar numa palavra a vista nao faz o texto pular", async ({ page }) => {
   await dragUp(page, 250);
   await expect.poll(() => scrollTop(page)).toBeGreaterThan(100);
   // A rolagem assenta antes do toque.
-  await expect(page.getByText(/^Rolagem · [1-9]\d*%$/)).toBeVisible();
+  await expect(status(page, /^[1-9]\d*%$/)).toBeVisible();
   const before = await scrollTop(page);
 
   const point = await wordPoint(page);
@@ -158,7 +181,7 @@ test("ler rolando conta como leitura e o fim do texto conclui pelo botao", async
   const text = await setup(page, 300);
   await page.clock.install();
   await openReader(page, text.id);
-  await expect(page.getByText("Rolagem · 0%")).toBeVisible();
+  await expect(status(page, /^0%$/)).toBeVisible();
 
   const posted = page.waitForRequest(
     (request) => request.url().endsWith("/api/reading-sessions") && request.method() === "POST"
@@ -168,7 +191,7 @@ test("ler rolando conta como leitura e o fim do texto conclui pelo botao", async
   await page.clock.fastForward(60_000);
   await frame(page).evaluate((element) => element.scrollTo(0, element.scrollHeight));
   await page.clock.runFor(400);
-  await expect(page.getByText(/^Rolagem · [1-9]\d*%$/)).toBeVisible();
+  await expect(status(page, /^[1-9]\d*%$/)).toBeVisible();
   // Chegar ao fundo nao conclui sozinho.
   await expect(page.getByRole("heading", { name: "Leitura concluída" })).toHaveCount(0);
 
@@ -205,7 +228,7 @@ test("com os controles escondidos, o texto fica no lugar quando eles saem da tel
   const text = await setup(page, 900);
   await openReader(page, text.id);
   await dragUp(page, 300);
-  await expect(page.getByText(/^Rolagem · [1-9]\d*%$/)).toBeVisible();
+  await expect(status(page, /^[1-9]\d*%$/)).toBeVisible();
 
   // Um paragrafo a vista serve de referencia: onde ele esta na tela.
   const reference = async () =>
@@ -237,7 +260,7 @@ test("segurar o dedo numa palavra abre o dicionario, sem rolar nem mudar a posic
   const text = await setup(page, 900);
   await openReader(page, text.id);
   await dragUp(page, 250);
-  await expect(page.getByText(/^Rolagem · [1-9]\d*%$/)).toBeVisible();
+  await expect(status(page, /^[1-9]\d*%$/)).toBeVisible();
   const before = await scrollTop(page);
 
   const point = await wordPoint(page);
@@ -250,4 +273,104 @@ test("segurar o dedo numa palavra abre o dicionario, sem rolar nem mudar a posic
 
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(await scrollTop(page)).toBe(before);
+});
+
+test("rolar para tras, com os controles escondidos, deixa o texto parado e mostra o atalho de volta", async ({
+  page,
+}) => {
+  await scrollModeOn(page);
+  await page.addInitScript(() => localStorage.setItem("rk-leitura:esconder-controles", "1"));
+  const text = await setup(page, 3000);
+  await openReader(page, text.id);
+
+  // Com os controles fora da tela, a leitura avanca bastante e depois volta.
+  await expect(page.locator("footer.reader-footer")).toHaveAttribute("data-hidden", "true", {
+    timeout: 8_000,
+  });
+  // O impulso de cada arraste varia: arrasta ate passar de 3000 px.
+  let far = 0;
+  for (let drag = 0; drag < 20 && far <= 3000; drag += 1) {
+    await dragUp(page, 400);
+    far = await settled(page);
+  }
+  expect(far).toBeGreaterThan(3000);
+  await expect(status(page, /^[1-9]\d*%$/)).toBeVisible();
+  // Bem mais que uma tela para tras: longe do lugar onde a leitura estava.
+  await frame(page).evaluate((element) => element.scrollBy(0, -2800));
+  expect(await settled(page)).toBeLessThan(far - 2000);
+
+  // O atalho aparece e segura os controles na tela.
+  await expect(page.getByRole("button", { name: "Voltar para onde parou" })).toBeVisible();
+  await expect(page.locator("footer.reader-footer")).not.toHaveAttribute("data-hidden");
+
+  // Nada fica se alternando: a coluna para de se mexer.
+  const seen = new Set<number>();
+  for (let sample = 0; sample < 15; sample += 1) {
+    seen.add(Math.round(await scrollTop(page)));
+    await page.waitForTimeout(150);
+  }
+  expect([...seen]).toHaveLength(1);
+
+  await page.getByRole("button", { name: "Voltar para onde parou" }).click();
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(far - 300);
+  await expect(page.getByRole("button", { name: "Voltar para onde parou" })).toHaveCount(0);
+});
+
+test("os botoes de pagina rolam uma tela e nao concluem a leitura", async ({ page }) => {
+  await scrollModeOn(page);
+  const text = await setup(page, 900);
+  await openReader(page, text.id);
+  const height = (await frame(page).boundingBox())!.height;
+
+  await page.getByRole("button", { name: "Próxima página" }).click();
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(height * 0.7);
+  expect(await scrollTop(page)).toBeLessThanOrEqual(height);
+  await expect(status(page, /^[1-9]\d*%$/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Página anterior" }).click();
+  // Volta ao comeco (a conta de 90% da tela pode sobrar um pixel).
+  await expect.poll(() => scrollTop(page)).toBeLessThanOrEqual(2);
+
+  // No fundo do texto, "próxima página" nao tem para onde ir e nao conclui.
+  await frame(page).evaluate((element) => element.scrollTo(0, element.scrollHeight));
+  await expect(page.getByRole("button", { name: "Concluir leitura" })).toBeInViewport();
+  await page.getByRole("button", { name: "Próxima página" }).click();
+  await page.waitForTimeout(500);
+  await expect(page.getByRole("heading", { name: "Leitura concluída" })).toHaveCount(0);
+});
+
+test("arrastar devagar enquanto os controles somem nao faz a posicao voltar", async ({ page }) => {
+  await scrollModeOn(page);
+  await page.addInitScript(() => localStorage.setItem("rk-leitura:esconder-controles", "1"));
+  const text = await setup(page, 3000);
+  await openReader(page, text.id);
+  // Toque na margem, fora das palavras: os controles voltam e a contagem de
+  // 4 s recomeca daqui, qualquer que tenha sido a demora para abrir.
+  const box = (await frame(page).boundingBox())!;
+  await page.touchscreen.tap(6, box.y + box.height / 2);
+  await expect(page.locator("footer.reader-footer")).not.toHaveAttribute("data-hidden");
+
+  // O dedo fica na tela por uns 6 s: os controles saem aos 4 s, no meio do
+  // arraste, e a coluna muda de tamanho com o dedo ainda rolando.
+  const x = box.x + box.width / 2;
+  const from = box.y + box.height * 0.85;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: from }] });
+  const seen: number[] = [];
+  for (let step = 1; step <= 60; step += 1) {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x, y: from - step * 8 }],
+    });
+    await page.waitForTimeout(100);
+    seen.push(Math.round(await scrollTop(page)));
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+
+  await expect(page.locator("footer.reader-footer")).toHaveAttribute("data-hidden", "true");
+  // A rolagem acompanha o dedo o tempo todo: nenhum passo anda para tras.
+  const backward = seen.filter((top, at) => at > 0 && top < seen[at - 1]! - 2);
+  expect(backward).toEqual([]);
+  expect(seen.at(-1)!).toBeGreaterThan(400);
 });
