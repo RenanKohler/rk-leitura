@@ -108,7 +108,7 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
           <BackIcon className="size-5" />
         </Link>
         <div className="flex-1 pt-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight">Revisar palavras</h1>
+          <h1 className="text-headline-small">Revisar palavras</h1>
           {cards.length > 0 && !done ? (
             <p className="tabular mt-1 text-sm text-muted">
               {position + 1} de {cards.length}
@@ -152,7 +152,7 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
       ) : card && choices ? (
         <Card className="space-y-5 p-5">
           <div>
-            <p className="text-2xl font-semibold tracking-tight">{card.word}</p>
+            <p className="text-headline-small">{card.word}</p>
             {card.context ? <MarkedContext card={card} /> : null}
             {card.textTitle ? (
               <p className="mt-2 text-xs text-faint">em {card.textTitle}</p>
@@ -217,7 +217,7 @@ export function ReviewClient({ initial }: { initial: ReviewSession }) {
       ) : card ? (
         <Card className="space-y-5 p-5">
           <div>
-            <p className="text-2xl font-semibold tracking-tight">{card.word}</p>
+            <p className="text-headline-small">{card.word}</p>
             {card.context ? (
               <p className="mt-2 leading-relaxed text-muted">&ldquo;{card.context}&rdquo;</p>
             ) : null}

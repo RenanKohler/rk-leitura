@@ -53,10 +53,12 @@ export function ControlButton({
       onClick={onClick}
       aria-label={label}
       aria-pressed={active}
-      className={`flex size-12 items-center justify-center rounded-full border transition-colors active:scale-95 ${
+      // Botao de icone "outlined" do M3 (aqui com 48px de toque); ligado, o
+      // recipiente inverte para inverse-surface.
+      className={`state-layer flex size-12 items-center justify-center rounded-full border transition-colors ${
         active
-          ? "border-accent bg-accent-soft text-accent"
-          : "border-border text-muted hover:text-ink"
+          ? "border-transparent bg-inverse-surface text-inverse-on-surface"
+          : "border-outline text-on-surface-variant"
       }`}
     >
       {children}
@@ -141,7 +143,8 @@ export function ReaderControlBar({
           type="button"
           onClick={onTogglePlay}
           aria-label={playing ? "Pausar" : "Iniciar leitura"}
-          className="reader-play flex size-16 items-center justify-center rounded-full bg-accent text-accent-ink shadow-float transition-transform active:scale-95"
+          // FAB do M3: canto de 16px, primary-container, elevacao 3.
+          className="reader-play state-layer flex size-16 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container shadow-elevation-3"
         >
           {playing ? <PauseIcon className="size-7" /> : <PlayIcon className="size-7" />}
         </button>
@@ -167,8 +170,11 @@ export function ReaderControlBar({
           onClick={onToggleSpeed}
           aria-expanded={speedOpen}
           aria-label={`Velocidade: ${wpm} ppm`}
-          className={`tabular min-h-12 shrink-0 rounded-full border px-3 font-medium ${
-            speedOpen ? "border-accent text-accent" : "border-border text-muted"
+          // Chip do M3 (canto de 8px), com 48px de toque.
+          className={`state-layer tabular min-h-12 shrink-0 rounded-lg border px-4 font-medium tracking-[0.1px] ${
+            speedOpen
+              ? "border-transparent bg-secondary-container text-on-secondary-container"
+              : "border-outline-variant text-on-surface-variant"
           }`}
         >
           {`${wpm} ppm`}
@@ -184,7 +190,7 @@ export function ReaderControlBar({
           }`}
           data-testid="modo-play"
           data-mode={playMode}
-          className="flex min-h-12 min-w-12 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border px-3 font-medium text-muted hover:text-ink"
+          className="state-layer flex min-h-12 min-w-12 shrink-0 items-center justify-center gap-2 rounded-lg border border-outline-variant px-3 font-medium tracking-[0.1px] text-on-surface-variant"
         >
           {playMode === "runner" ? (
             <SpeedIcon className="size-5" />
@@ -229,7 +235,8 @@ export function MoreActionsSheet({
   onSettings: () => void;
 }) {
   const item =
-    "flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-left font-medium hover:bg-surface-2";
+    // Item de lista do M3: 56px, rotulo em body-large.
+    "state-layer flex min-h-14 w-full items-center gap-4 rounded-full px-4 text-left text-on-surface";
   // Abre a folha seguinte so depois de fechar esta: duas folhas abertas
   // disputariam o foco.
   const then = (action: () => void) => () => {

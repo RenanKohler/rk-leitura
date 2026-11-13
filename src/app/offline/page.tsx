@@ -16,7 +16,7 @@ export const metadata = { title: "Sem conexão" };
 export default function OfflinePage() {
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
-      <h1 className="text-xl font-semibold tracking-tight">Sem conexão</h1>
+      <h1 className="text-title-large">Sem conexão</h1>
       <OfflineMessage />
       <Link
         href="/textos"

@@ -176,7 +176,7 @@ export function QueueClient({ initial, stale = [] }: { initial: TextSummary[]; s
           <BackIcon className="size-5" />
         </Link>
         <div className="flex-1 pt-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight">Fila de leitura</h1>
+          <h1 className="text-headline-small">Fila de leitura</h1>
           <p className="mt-1 text-sm text-muted">
             {items.length === 0
               ? "Vazia"

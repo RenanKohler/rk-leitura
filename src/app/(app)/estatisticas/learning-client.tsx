@@ -34,7 +34,7 @@ export function LearningClient({ stats }: { stats: LearningStats }) {
                 <p className="text-xs text-muted">
                   {isSessionMode(row.mode) ? SESSION_MODE_LABELS[row.mode] : row.mode}
                 </p>
-                <p className="tabular text-xl font-semibold">
+                <p className="tabular text-xl font-medium">
                   {row.wpm}
                   <span className="ml-1 text-xs font-normal text-muted">ppm</span>
                 </p>

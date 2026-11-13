@@ -134,10 +134,11 @@ function DesktopSidebar({
   onLogout: () => void;
 }) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border bg-surface lg:flex">
-      <div className="flex items-center gap-2.5 px-5 py-6">
-        <LogoMark className="size-8 text-accent" />
-        <span className="text-lg font-semibold tracking-tight">Leitura</span>
+    // Gaveta de navegacao do M3: surface-container-low, sem divisor lateral.
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-surface-container-low lg:flex">
+      <div className="flex items-center gap-2.5 px-7 py-6">
+        <LogoMark className="size-8 text-primary" />
+        <span className="text-title-large">Leitura</span>
       </div>
 
       <nav aria-label="Navegação principal" className="flex-1 space-y-1 px-3">
@@ -149,8 +150,10 @@ function DesktopSidebar({
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
-              className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-colors ${
-                active ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface-2 hover:text-ink"
+              className={`state-layer flex min-h-14 items-center gap-3 rounded-full px-4 text-sm font-medium tracking-[0.1px] transition-colors ${
+                active
+                  ? "bg-secondary-container text-on-secondary-container"
+                  : "text-on-surface-variant"
               }`}
             >
               <Icon className="size-5" />
@@ -161,16 +164,17 @@ function DesktopSidebar({
 
         <Link
           href="/textos/novo"
-          className="mt-3 flex min-h-11 items-center gap-3 rounded-xl bg-accent px-3 text-sm font-medium text-accent-ink transition-colors hover:bg-accent-hover"
+          // FAB estendido do M3.
+          className="state-layer mt-3 flex min-h-14 items-center gap-3 rounded-2xl bg-primary-container px-4 text-sm font-medium tracking-[0.1px] text-on-primary-container"
         >
           <PlusIcon className="size-5" />
           Novo texto
         </Link>
       </nav>
 
-      <div className="border-t border-border p-3">
+      <div className="border-t border-outline-variant p-3">
         <div className="flex items-center gap-3 rounded-xl px-2 py-2">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-accent">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-container text-base font-medium text-on-primary-container">
             {name?.charAt(0).toUpperCase() ?? "?"}
           </div>
           <div className="min-w-0 flex-1">
@@ -182,7 +186,7 @@ function DesktopSidebar({
             onClick={onLogout}
             aria-label="Sair"
             title="Sair"
-            className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
+            className="state-layer flex size-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant"
           >
             <LogoutIcon className="size-5" />
           </button>
@@ -200,9 +204,10 @@ function MobileTabBar({ pathname }: { pathname: string }) {
       aria-label="Navegação principal"
       // Marca para os avisos flutuantes subirem acima da barra (globals.css).
       data-tabbar=""
-      className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur-lg lg:hidden"
+      // Barra de navegacao do M3: 80px, surface-container, sem divisor.
+      className="pb-safe fixed inset-x-0 bottom-0 z-40 bg-surface-container lg:hidden"
     >
-      <div className="mx-auto grid max-w-md grid-cols-5 items-center px-1">
+      <div className="mx-auto grid h-20 max-w-md grid-cols-5 items-center px-1">
         <TabLink {...first} active={isActive(pathname, first)} />
         <TabLink {...second} active={isActive(pathname, second)} />
 
@@ -210,7 +215,8 @@ function MobileTabBar({ pathname }: { pathname: string }) {
           <Link
             href="/textos/novo"
             aria-label="Importar novo texto"
-            className="-mt-5 flex size-14 items-center justify-center rounded-full bg-accent text-accent-ink shadow-float transition-transform active:scale-95"
+            // FAB do M3: 56px, canto de 16px, primary-container, elevacao 3.
+            className="state-layer -mt-5 flex size-14 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container shadow-elevation-3"
           >
             <PlusIcon className="size-6" strokeWidth={2.2} />
           </Link>
@@ -238,11 +244,21 @@ function TabLink({
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`flex min-h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors ${
-        active ? "text-accent" : "text-muted"
+      // Destino do M3: icone numa pilula de 64 x 32 (secondary-container no
+      // destino atual) e rotulo em label-medium.
+      className={`group flex h-full flex-col items-center justify-center gap-1 text-xs font-medium ${
+        active ? "text-on-surface" : "text-on-surface-variant"
       }`}
     >
-      <Icon className="size-6" />
+      <span
+        className={`flex h-8 w-16 max-w-full items-center justify-center rounded-full transition-colors duration-200 ease-standard ${
+          active
+            ? "bg-secondary-container text-on-secondary-container"
+            : "group-hover:bg-on-surface/8"
+        }`}
+      >
+        <Icon className="size-6" />
+      </span>
       {label}
     </Link>
   );

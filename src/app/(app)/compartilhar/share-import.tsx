@@ -70,7 +70,7 @@ export function ShareImport({
   return (
     <div className="space-y-6">
       <header className="pt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="text-headline-small">
           {running ? "Importando" : "Link compartilhado"}
         </h1>
         {title ? <p className="mt-1 truncate text-sm text-muted">{title}</p> : null}

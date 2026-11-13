@@ -3,8 +3,8 @@ import Link from "next/link";
 export default function NotFound() {
   return (
     <main className="min-h-dvh flex flex-col items-center justify-center gap-4 px-6 text-center">
-      <p className="text-sm font-semibold tracking-widest text-accent">404</p>
-      <h1 className="text-2xl font-semibold tracking-tight">Página não encontrada</h1>
+      <p className="text-sm font-medium tracking-widest text-accent">404</p>
+      <h1 className="text-headline-small">Página não encontrada</h1>
       <p className="max-w-sm text-muted">O endereço acessado não existe ou foi removido.</p>
       <Link
         href="/dashboard"

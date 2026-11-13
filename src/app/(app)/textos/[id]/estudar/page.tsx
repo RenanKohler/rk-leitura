@@ -40,7 +40,7 @@ export default async function StudyPage({ params }: { params: Promise<{ id: stri
   if (!text) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center">
-        <h1 className="text-xl font-semibold tracking-tight">Texto não encontrado</h1>
+        <h1 className="text-title-large">Texto não encontrado</h1>
         <p className="mt-2 text-muted">Ele pode ter sido removido.</p>
         <Link href="/textos" className="mt-4 inline-block font-medium text-accent">
           Voltar para a biblioteca
@@ -68,7 +68,7 @@ export default async function StudyPage({ params }: { params: Promise<{ id: stri
           <BackIcon className="size-5" />
         </Link>
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">Estudar</h1>
+          <h1 className="text-headline-small">Estudar</h1>
           <p className="truncate text-sm text-muted">{text.title}</p>
         </div>
       </header>

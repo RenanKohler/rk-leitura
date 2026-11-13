@@ -66,7 +66,7 @@ export function DashboardClient({
   return (
     <div className="space-y-6">
       <header className="animate-rise pt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="text-headline-small">
           {firstName ? `Olá, ${firstName}` : "Olá"}
         </h1>
         <p className="mt-1 text-sm text-muted">
@@ -204,7 +204,7 @@ function ContinueCard({ text, wpm }: { text: ContinueReading; wpm: number }) {
             <PlayIcon className="size-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-accent">Continuar</p>
+            <p className="text-xs font-medium uppercase tracking-[0.5px] text-accent">Continuar</p>
             <p className="truncate font-medium">{text.title}</p>
             <p className="text-sm text-muted">
               {`${percent}% lido \u00b7 faltam ~${remaining} min`}
@@ -256,7 +256,7 @@ function Stat({
       {loading ? (
         <Skeleton className="mt-3 h-7 w-16" />
       ) : (
-        <p className="tabular mt-2 text-2xl font-semibold tracking-tight">
+        <p className="tabular mt-2 text-headline-small">
           {value}
           {suffix ? <span className="ml-1 text-sm font-normal text-muted">{suffix}</span> : null}
         </p>

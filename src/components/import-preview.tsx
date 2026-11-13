@@ -62,7 +62,7 @@ export function ImportPreviewContent({
                 type="button"
                 onClick={() => onToggle(index)}
                 aria-pressed={!removed}
-                className="flex min-h-9 items-center rounded-full border border-border px-3 text-xs font-medium text-ink"
+                className="flex min-h-9 items-center rounded-lg border border-outline-variant px-3 text-xs font-medium text-ink"
               >
                 {removed ? "Manter" : "Remover"}
               </button>

@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Inter } from "next/font/google";
+import { Roboto_Flex } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { serverTheme, themeBootstrapScript } from "@/lib/theme";
@@ -8,10 +8,11 @@ import { OfflineProvider } from "@/components/offline-provider";
 import { getSession, publicUser, sessionIsCurrent } from "@/lib/auth";
 import { DEFAULT_SETTINGS, loadAccount } from "@/lib/queries";
 
-const inter = Inter({
+// Fonte do design system (M3): Roboto Flex, nos pesos 400 e 500 da escala.
+const robotoFlex = Roboto_Flex({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-roboto-flex",
 });
 
 export const metadata: Metadata = {
@@ -32,8 +33,9 @@ export const viewport: Viewport = {
   // Cobre a area sob a barra de gestos para que env(safe-area-inset-*) funcione.
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f6f5f2" },
-    { media: "(prefers-color-scheme: dark)", color: "#0e0f11" },
+    // `surface` do esquema M3 claro e escuro (globals.css).
+    { media: "(prefers-color-scheme: light)", color: "#f5fbf5" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f1512" },
   ],
 };
 
@@ -62,7 +64,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html
       lang="pt-BR"
-      className={inter.variable}
+      className={robotoFlex.variable}
       data-theme={serverTheme(accountTheme)}
       suppressHydrationWarning
     >

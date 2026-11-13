@@ -102,7 +102,7 @@ export function PlacementTest({
             <SpeedIcon className="size-5" />
           </div>
           <div>
-            <h2 className="font-semibold tracking-tight">Teste de velocidade</h2>
+            <h2 className="font-medium">Teste de velocidade</h2>
             <p className="mt-1 text-sm text-muted">
               Leia um texto curto no seu ritmo e responda cinco perguntas. Em cerca de três
               minutos o app sugere uma velocidade que você consegue acompanhar.
@@ -131,7 +131,7 @@ export function PlacementTest({
       <Card className="space-y-4 p-5">
         <div>
           <p className="text-sm text-muted">Leia no seu ritmo normal</p>
-          <h2 className="mt-0.5 text-lg font-semibold tracking-tight">{material.title}</h2>
+          <h2 className="mt-0.5 text-title-large">{material.title}</h2>
         </div>
 
         <div className="reader-prose max-h-[60dvh] overflow-y-auto">
@@ -155,7 +155,7 @@ export function PlacementTest({
     return (
       <Card className="space-y-5 p-5">
         <div>
-          <h2 className="font-semibold tracking-tight">Cinco perguntas sobre o texto</h2>
+          <h2 className="font-medium">Cinco perguntas sobre o texto</h2>
           <p className="mt-1 text-sm text-muted">
             {`Tempo de leitura: ${formatClock(durationMs)}`}
           </p>
@@ -218,18 +218,18 @@ export function PlacementTest({
       <Card className="space-y-5 p-5">
         <div className="grid grid-cols-2 divide-x divide-border text-center">
           <div>
-            <p className="tabular text-3xl font-semibold">{result.wpm}</p>
+            <p className="tabular text-3xl font-medium">{result.wpm}</p>
             <p className="text-sm text-muted">ppm medido</p>
           </div>
           <div>
-            <p className="tabular text-3xl font-semibold">{result.comprehension}%</p>
+            <p className="tabular text-3xl font-medium">{result.comprehension}%</p>
             <p className="text-sm text-muted">compreensão</p>
           </div>
         </div>
 
         <div className="rounded-2xl bg-surface-2 p-4 text-center">
           <p className="text-sm text-muted">Velocidade sugerida</p>
-          <p className="tabular mt-1 text-3xl font-semibold text-accent">
+          <p className="tabular mt-1 text-3xl font-medium text-accent">
             {`${result.suggested} ppm`}
           </p>
           <p className="mt-2 text-sm text-muted">{result.reason}</p>

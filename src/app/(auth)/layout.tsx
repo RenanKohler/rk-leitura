@@ -8,7 +8,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         <header className="mb-8 flex flex-col items-center gap-3 text-center">
           <LogoMark className="size-12 text-accent" />
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Leitura</h1>
+            <h1 className="text-headline-small">Leitura</h1>
             <p className="mt-1 text-sm text-muted">Leia mais rápido, sem perder o fio.</p>
           </div>
         </header>

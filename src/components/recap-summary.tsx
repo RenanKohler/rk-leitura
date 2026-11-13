@@ -191,7 +191,7 @@ export function ChapterSummaryGate({
       className="flex flex-1 flex-col items-center justify-center gap-6 px-4 text-center"
       data-testid="resumo-capitulo"
     >
-      <p className="text-sm font-semibold">{`Antes: ${title}`}</p>
+      <p className="text-sm font-medium">{`Antes: ${title}`}</p>
       <div className="w-full max-w-2xl space-y-4">
         {step === "loading" ? (
           <p className="flex items-center justify-center gap-2 text-sm text-muted" role="status">

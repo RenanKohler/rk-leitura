@@ -127,7 +127,7 @@ export function TrendClient({ trend }: { trend: TrendData }) {
 function Header() {
   return (
     <header className="pt-2">
-      <h1 className="text-2xl font-semibold tracking-tight">Estatísticas</h1>
+      <h1 className="text-headline-small">Estatísticas</h1>
       <p className="mt-1 text-sm text-muted">Como o seu ritmo mudou ao longo do tempo.</p>
     </header>
   );

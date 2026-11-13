@@ -68,10 +68,10 @@ export function FreeTimeCard({
               type="button"
               aria-pressed={minutes === option}
               onClick={() => onChoose(option)}
-              className={`min-h-11 rounded-full border text-sm font-medium transition-colors ${
+              className={`state-layer min-h-11 rounded-lg border text-sm font-medium tracking-[0.1px] transition-colors ${
                 minutes === option
-                  ? "border-accent bg-accent-soft text-accent"
-                  : "border-border text-muted hover:text-ink"
+                  ? "border-transparent bg-secondary-container text-on-secondary-container"
+                  : "border-outline-variant text-on-surface-variant"
               }`}
             >
               {option} min

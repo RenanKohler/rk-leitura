@@ -82,7 +82,7 @@ export function StudyCardReview({
     <div data-testid="cartao-estudo">
     <Card className="space-y-5 p-5">
       <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-faint">
+        <p className="text-xs font-medium uppercase tracking-[0.5px] text-faint">
           {isStudyCardKind(card.kind) ? STUDY_CARD_KIND_LABELS[card.kind] : "Cartão"} · {card.textTitle}
         </p>
         <p className="mt-1 text-lg font-medium leading-relaxed" data-testid="cartao-frente">

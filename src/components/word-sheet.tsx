@@ -142,7 +142,7 @@ export function WordSheet({
         ) : entry ? (
           <>
             <div>
-              <p className="text-lg font-semibold tracking-tight">{entry.base}</p>
+              <p className="text-title-large">{entry.base}</p>
               {entry.kind ? <p className="text-sm text-faint">{entry.kind}</p> : null}
             </div>
             {/* Palavra de outro idioma: a traducao vem antes da definicao. */}

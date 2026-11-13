@@ -57,7 +57,7 @@ export default async function SharePage({
     return (
       <div className="space-y-6">
         <header className="pt-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Texto compartilhado</h1>
+          <h1 className="text-headline-small">Texto compartilhado</h1>
           <p className="mt-1 text-sm text-muted">
             A origem mandou o texto, não um link. Confira o título e salve.
           </p>

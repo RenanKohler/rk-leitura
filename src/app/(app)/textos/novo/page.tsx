@@ -41,7 +41,7 @@ export default function NewTextPage() {
         >
           <BackIcon className="size-5" />
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Novo texto</h1>
+        <h1 className="text-headline-small">Novo texto</h1>
       </header>
 
       <Segmented<Source>
@@ -255,7 +255,7 @@ function FromLink() {
       {preview ? (
         <Card className="animate-rise space-y-4 p-4">
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="font-semibold tracking-tight">Conferir e salvar</h2>
+            <h2 className="font-medium">Conferir e salvar</h2>
             <span className="text-sm text-muted">{formatNumber(finalWords)} palavras</span>
           </div>
 

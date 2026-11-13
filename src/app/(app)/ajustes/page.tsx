@@ -131,7 +131,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <header className="pt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Ajustes</h1>
+        <h1 className="text-headline-small">Ajustes</h1>
         <p className="mt-1 text-sm text-muted">
           Preferências salvas na sua conta. Treino, palavras e estatísticas ficam em{" "}
           <Link href="/voce" className="font-medium text-accent underline underline-offset-2">
@@ -147,7 +147,7 @@ export default function SettingsPage() {
             <li key={section.id}>
               <a
                 href={`#${section.id}`}
-                className="flex min-h-11 items-center rounded-full border border-border px-3 text-sm font-medium text-muted hover:border-border-strong hover:text-ink"
+                className="flex min-h-11 items-center rounded-lg border border-outline-variant px-3 text-sm font-medium text-muted hover:border-border-strong hover:text-ink"
               >
                 {section.label}
               </a>
@@ -474,7 +474,7 @@ function Preview({ highlightOpacity, emphasis }: { highlightOpacity: number; emp
           <p className="tabular mt-2 text-xs text-muted">Página 1 de 8</p>
         </div>
         <div className="flex flex-col items-center justify-center rounded-lg border border-border bg-surface px-3 py-3 text-center">
-          <p className="reader-word w-full text-2xl font-semibold">
+          <p className="reader-word w-full text-2xl font-medium">
             <OrpPreview word={SAMPLE[current]!} />
           </p>
           <p className="runner-context mt-2">

@@ -156,12 +156,13 @@ function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`animate-rise flex max-w-sm items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium shadow-float ${
+            // Snackbar do M3: canto de 4px, 48px de altura, elevacao 3.
+            className={`animate-rise flex min-h-12 max-w-sm items-center gap-2 rounded-xs px-4 py-2.5 text-sm tracking-[0.25px] shadow-elevation-3 ${
               toast.tone === "error"
                 ? "bg-toast-error text-toast-error-ink"
                 : toast.tone === "success"
                   ? "bg-toast-success text-toast-success-ink"
-                  : "bg-ink text-bg"
+                  : "bg-inverse-surface text-inverse-on-surface"
             }`}
           >
             {toast.tone === "success" ? <CheckIcon className="size-4 shrink-0" /> : null}

@@ -65,7 +65,7 @@ export function HighlightReviewClient({ initial }: { initial: HighlightReviewSes
           <BackIcon className="size-5" />
         </Link>
         <div className="flex-1 pt-1.5">
-          <h1 className="text-2xl font-semibold tracking-tight">Revisar destaques</h1>
+          <h1 className="text-headline-small">Revisar destaques</h1>
           {cards.length > 0 && !done ? (
             <p className="tabular mt-1 text-sm text-muted">
               {position + 1} de {cards.length}
@@ -120,20 +120,20 @@ export function HighlightReviewClient({ initial }: { initial: HighlightReviewSes
       ) : card?.card ? (
         <Card className="space-y-5 p-5">
           <div data-testid="cartao-pergunta">
-            <p className="text-xs font-medium uppercase tracking-wide text-faint">Pergunta</p>
+            <p className="text-xs font-medium uppercase tracking-[0.5px] text-faint">Pergunta</p>
             <p className="mt-1 text-lg font-medium leading-relaxed">{card.card.prompt}</p>
           </div>
 
           {revealed ? (
             <div className="space-y-4 border-t border-border pt-4" aria-live="polite">
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-faint">Resposta</p>
+                <p className="text-xs font-medium uppercase tracking-[0.5px] text-faint">Resposta</p>
                 <p className="mt-1 leading-relaxed" data-testid="cartao-resposta">
                   {card.card.answer}
                 </p>
               </div>
               <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-faint">
+                <p className="text-xs font-medium uppercase tracking-[0.5px] text-faint">
                   Destaque de origem
                 </p>
                 <Excerpt card={card} hideWord={false} />
