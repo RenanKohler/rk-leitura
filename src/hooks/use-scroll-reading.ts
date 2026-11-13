@@ -59,6 +59,20 @@ export function useScrollReading({
   const layoutSeenRef = useRef<string | null>(null);
   /** Topo da coluna na tela, para segurar o texto quando ela muda de tamanho. */
   const frameTopRef = useRef<number | null>(null);
+  /**
+   * O leitor esta com o dedo na coluna, ou ela ainda corre com o impulso.
+   * Enquanto isso a coluna nao e reposicionada por ter mudado de tamanho:
+   * escrever a posicao no meio do gesto briga com o dedo, e no celular o
+   * arraste trava ou volta. (A posicao que muda por outro caminho - pausa,
+   * busca, retomada - continua valendo: e um pedido, nao um ajuste.)
+   */
+  const gestureRef = useRef({ touching: false, scrolledAt: Number.NEGATIVE_INFINITY });
+  const userScrolling = useCallback(
+    () =>
+      gestureRef.current.touching ||
+      performance.now() - gestureRef.current.scrolledAt < USER_SCROLL_QUIET_MS,
+    []
+  );
   // Fontes carregadas e coluna redimensionada mudam a quebra: confere de novo.
   const [layoutTick, setLayoutTick] = useState(0);
 
@@ -99,6 +113,9 @@ export function useScrollReading({
     const before = frameTopRef.current;
     frameTopRef.current = top;
     if (!enabled || !active || before === null || Math.abs(top - before) < 1) return;
+    // No meio de um arraste o texto ja esta em movimento: o salto dos
+    // controles se perde nele, e escrever a posicao interromperia o gesto.
+    if (userScrolling()) return;
     frame.scrollTop += top - before;
     placedTopRef.current = frame.scrollTop;
   });
@@ -122,14 +139,32 @@ export function useScrollReading({
       settledIndexRef.current = position;
       onSettleRef.current(position);
     };
+    const gesture = gestureRef.current;
     const onScroll = () => {
+      // So a rolagem do leitor conta como gesto; a feita aqui nao.
+      const own =
+        placedTopRef.current !== null && Math.abs(frame.scrollTop - placedTopRef.current) <= 1;
+      if (!own) gesture.scrolledAt = performance.now();
       if (timer) clearTimeout(timer);
       timer = setTimeout(settle, SCROLL_SETTLE_MS);
     };
+    const onTouchStart = () => {
+      gesture.touching = true;
+    };
+    const onTouchEnd = () => {
+      gesture.touching = false;
+    };
 
     frame.addEventListener("scroll", onScroll, { passive: true });
+    frame.addEventListener("touchstart", onTouchStart, { passive: true });
+    frame.addEventListener("touchend", onTouchEnd, { passive: true });
+    frame.addEventListener("touchcancel", onTouchEnd, { passive: true });
     return () => {
       frame.removeEventListener("scroll", onScroll);
+      frame.removeEventListener("touchstart", onTouchStart);
+      frame.removeEventListener("touchend", onTouchEnd);
+      frame.removeEventListener("touchcancel", onTouchEnd);
+      gesture.touching = false;
       if (timer) clearTimeout(timer);
     };
   }, [enabled, frameRef, proseRef]);
@@ -157,6 +192,9 @@ export function useScrollReading({
     };
   }, [enabled, frameRef, recheck]);
 }
+
+/** Tempo sem rolagem do leitor ate a coluna ser dada como solta. */
+const USER_SCROLL_QUIET_MS = 250;
 
 function lineHeightOf(element: HTMLElement): number {
   const value = Number.parseFloat(getComputedStyle(element).lineHeight);

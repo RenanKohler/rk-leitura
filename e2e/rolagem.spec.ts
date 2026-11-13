@@ -78,20 +78,19 @@ async function wordPoint(page: Page): Promise<{ x: number; y: number }> {
   return point!;
 }
 
-/** Espera a coluna parar: o impulso do arraste segue por um tempo depois do dedo. */
+/**
+ * Espera a coluna parar: o impulso do arraste segue por um tempo depois do
+ * dedo. Duas leituras iguais, com 250 ms entre elas.
+ */
 async function settled(page: Page): Promise<number> {
-  let last = await scrollTop(page);
-  await expect
-    .poll(
-      async () => {
-        const before = last;
-        last = await scrollTop(page);
-        return last === before;
-      },
-      { intervals: [250] }
-    )
-    .toBe(true);
-  return last;
+  let last = -1;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const top = Math.round(await scrollTop(page));
+    if (top === last) return top;
+    last = top;
+    await page.waitForTimeout(250);
+  }
+  throw new Error("A coluna nao parou de rolar.");
 }
 
 async function setup(page: Page, words: number, settings: Record<string, unknown> = {}) {
@@ -338,4 +337,40 @@ test("os botoes de pagina rolam uma tela e nao concluem a leitura", async ({ pag
   await page.getByRole("button", { name: "Próxima página" }).click();
   await page.waitForTimeout(500);
   await expect(page.getByRole("heading", { name: "Leitura concluída" })).toHaveCount(0);
+});
+
+test("arrastar devagar enquanto os controles somem nao faz a posicao voltar", async ({ page }) => {
+  await scrollModeOn(page);
+  await page.addInitScript(() => localStorage.setItem("rk-leitura:esconder-controles", "1"));
+  const text = await setup(page, 3000);
+  await openReader(page, text.id);
+  // Toque na margem, fora das palavras: os controles voltam e a contagem de
+  // 4 s recomeca daqui, qualquer que tenha sido a demora para abrir.
+  const box = (await frame(page).boundingBox())!;
+  await page.touchscreen.tap(6, box.y + box.height / 2);
+  await expect(page.locator("footer.reader-footer")).not.toHaveAttribute("data-hidden");
+
+  // O dedo fica na tela por uns 6 s: os controles saem aos 4 s, no meio do
+  // arraste, e a coluna muda de tamanho com o dedo ainda rolando.
+  const x = box.x + box.width / 2;
+  const from = box.y + box.height * 0.85;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: from }] });
+  const seen: number[] = [];
+  for (let step = 1; step <= 60; step += 1) {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x, y: from - step * 8 }],
+    });
+    await page.waitForTimeout(100);
+    seen.push(Math.round(await scrollTop(page)));
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+
+  await expect(page.locator("footer.reader-footer")).toHaveAttribute("data-hidden", "true");
+  // A rolagem acompanha o dedo o tempo todo: nenhum passo anda para tras.
+  const backward = seen.filter((top, at) => at > 0 && top < seen[at - 1]! - 2);
+  expect(backward).toEqual([]);
+  expect(seen.at(-1)!).toBeGreaterThan(400);
 });

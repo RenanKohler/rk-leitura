@@ -449,6 +449,12 @@ rolagem não funcionou):
 - A posição que vem da própria rolagem não move mais a coluna, mesmo quando a
   conta da primeira palavra à vista erra por uma linha.
 - A linha de estado era cortada na barra ("Rolage..."); ficou só o número.
+- O leitor confirmou o sintoma: o texto não rolava com o dedo, ou travava.
+  Além dos itens acima, um arraste em andamento era puxado para trás quando
+  os controles saíam da tela aos 4 s: a coluna mudava de tamanho e a posição
+  era reescrita com o dedo ainda rolando. Com o dedo na coluna, ou com ela
+  ainda em movimento, a posição não é mais escrita pelo leitor
+  (`useScrollReading`, `userScrolling`).
 
 ## Sugestão de entrega
 
