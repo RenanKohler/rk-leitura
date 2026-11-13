@@ -277,6 +277,15 @@ body[data-sheet="aberta"] .toast-region {
   max-width: calc(var(--reader-size, 1.125rem) * 38);
 }
 
+/* Rolagem continua: a coluna rola por dentro. O arraste nao puxa a pagina
+   inteira nem dispara o "puxar para atualizar" do navegador. */
+.reader-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Controles por cima do texto (US-213): saem pela borda sem mudar a altura
    do quadro de leitura, entao a pagina nao e refeita. */
 .reader-chrome {

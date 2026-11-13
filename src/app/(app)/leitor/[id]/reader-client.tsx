@@ -102,9 +102,12 @@ import { useReaderGestures, type ReaderGestureHandlers } from "@/hooks/use-reade
 import { useControlsVisibility } from "@/hooks/use-controls-visibility";
 import {
   HIDE_CONTROLS_KEY,
+  SCROLL_MODE_KEY,
   SECTION_VIBRATION_KEY,
   useDeviceOption,
 } from "@/hooks/use-device-option";
+import { useScrollReading } from "@/hooks/use-scroll-reading";
+import { marksByParagraph, scrollStatus } from "@/lib/scroll-reading";
 import { speedFromDrag } from "@/lib/gestures";
 import { canVibrate, hapticPattern, startsHeading, vibrate } from "@/lib/haptics";
 import {
@@ -411,6 +414,8 @@ function Reader({
   // Preferencias do aparelho para o celular (US-213, US-216).
   const [hideControlsOption, setHideControlsOption] = useDeviceOption(HIDE_CONTROLS_KEY, true);
   const [vibrateOption, setVibrateOption] = useDeviceOption(SECTION_VIBRATION_KEY, false);
+  // Rolagem continua: o texto inteiro numa coluna que o leitor arrasta.
+  const [scrollMode, setScrollMode] = useDeviceOption(SCROLL_MODE_KEY, false);
   const vibrationAvailable = useSyncExternalStore(subscribeNothing, canVibrate, () => false);
   // Fim de capitulo de uma serie: o Word Runner avisa com duas vibracoes.
   const isSeries = Boolean(text.seriesKey) || nextUp?.source === "capitulo";
@@ -1432,7 +1437,8 @@ function Reader({
     return () => clearTimeout(timer);
   }, [bounce]);
   const pageGestures = useReaderGestures({
-    enabled: !runnerVisible && !finished,
+    // Na rolagem o arraste e do navegador: nao ha pagina para virar.
+    enabled: !runnerVisible && !finished && !scrollMode,
     blocked: () =>
       !(window.getSelection()?.isCollapsed ?? true) ||
       word.recentLongPress(1_500) ||
@@ -1475,6 +1481,71 @@ function Reader({
     },
     [turnPage, seek, touchPage, word, recentPageGesture]
   );
+
+  /* --- rolagem continua --------------------------------------------------- */
+  // Posicao que veio da rolagem: a palavra do topo nao ganha marca, ao
+  // contrario da que veio de uma pausa, de um toque ou de uma busca.
+  const [scrolledTo, setScrolledTo] = useState<number | null>(null);
+
+  /**
+   * A rolagem do leitor parou com `position` no topo. Para a frente conta
+   * como leitura, pela mesma regra da pagina virada (PROD-2): o tempo desde a
+   * ultima parada tem de ser plausivel para as palavras que passaram.
+   */
+  const onScrollSettle = useCallback(
+    (position: number) => {
+      // Guia e narracao mandam na posicao enquanto correm.
+      if (stateRef.current.playing || stateRef.current.narrating) return;
+      const target = clamp(position, 0, Math.max(0, stateRef.current.total - 1));
+      const from = stateRef.current.index;
+      if (target === from) return;
+
+      const now = Date.now();
+      touchPage();
+      setTapped(null);
+      if (target > pageEnteredRef.current.from) {
+        const { closed } = addPage(
+          meterRef.current,
+          target - pageEnteredRef.current.from,
+          now - pageEnteredRef.current.at,
+          now
+        );
+        void postRecord(closed, false);
+      }
+      pageEnteredRef.current = { at: now, from: target };
+
+      // Para a frente a partir de onde a leitura estava, o lugar anda junto;
+      // voltar ou saltar longe deixa o atalho de volta, como nas paginas.
+      if (target > from && Math.abs(pageOfWord(pages, anchor) - pageOfWord(pages, from)) <= 1) {
+        setAnchor(target);
+      }
+      stateRef.current.index = target;
+      setIndex(target);
+      setScrolledTo(target);
+    },
+    [pages, anchor, touchPage, postRecord]
+  );
+
+  /** "Concluir leitura", no fim do texto rolado: o mesmo fim da ultima pagina. */
+  const endByHand = useCallback(() => {
+    const now = Date.now();
+    if (!stateRef.current.playing && !stateRef.current.narrating) {
+      const { closed } = addPage(
+        meterRef.current,
+        stateRef.current.total - pageEnteredRef.current.from,
+        now - pageEnteredRef.current.at,
+        now
+      );
+      void postRecord(closed, false);
+    }
+    if (text.sourceUrl) {
+      void continueFromSource().then((appended) => {
+        if (!appended) finish(wpm);
+      });
+    } else {
+      finish(wpm);
+    }
+  }, [postRecord, text.sourceUrl, continueFromSource, finish, wpm]);
 
   /** Volta ao inicio da frase, ou da anterior quando ja esta no inicio (US-91). */
   const backSentence = useCallback(() => {
@@ -1818,9 +1889,15 @@ function Reader({
   // e no guia; e a palavra tocada, mesmo sendo a primeira da pagina.
   const currentOnPage = runnerVisible
     ? null
-    : playing || narrating || index > pageStart || tapped === index
-      ? index
-      : null;
+    : scrollMode
+      ? // Na rolagem a posicao segue o topo da tela: so ganha marca a que
+        // veio de outro lugar (pausa, toque, busca, retomada).
+        playing || narrating || tapped === index || (index > 0 && index !== scrolledTo)
+        ? index
+        : null
+      : playing || narrating || index > pageStart || tapped === index
+        ? index
+        : null;
   const remainingMs = Math.max(0, timeline[total]! - timeline[Math.min(index, total)]!);
   const anchorPage = pageOfWord(pages, anchor);
   const showReturn =
@@ -2140,6 +2217,11 @@ function Reader({
               bounce={bounce?.direction ?? 0}
               overlay={controlsOverlay}
               fullscreen={pageFullscreen}
+              scroll={scrollMode}
+              index={index}
+              layoutKey={layoutKey}
+              onScrollSettle={onScrollSettle}
+              onEnd={endByHand}
               onTap={onPageTap}
               onOpenMark={(id) => (id === REREAD_MARK ? undefined : setOpenMark(id))}
             />
@@ -2396,7 +2478,9 @@ function Reader({
                 ? adaptive
                   ? `~${realWpm} ppm reais`
                   : `${wpm} ppm`
-                : pagesReady
+                : scrollMode
+                  ? scrollStatus(index, total)
+                  : pagesReady
                   ? stopPage !== null && !stopReached
                     ? `Página ${currentPage + 1} de ${pages.length} · trecho até a p. ${stopPage}${
                         plannedMs ? ` (~${formatClock(plannedMs)})` : ""
@@ -2648,6 +2732,21 @@ function Reader({
                 <span className="block text-faint">
                   Cabeçalho e rodapé saem da tela durante a leitura e depois de 4 segundos parado.
                   Toque fora das palavras para trazê-los de volta.
+                </span>
+              </span>
+            </label>
+            <label className="flex min-h-11 items-start gap-3 text-sm" data-testid="opcao-rolagem">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-5 accent-[var(--color-accent)]"
+                checked={scrollMode}
+                onChange={(event) => setScrollMode(event.target.checked)}
+              />
+              <span>
+                Rolagem contínua
+                <span className="block text-faint">
+                  O texto inteiro numa coluna só: arraste para ler, sem virar página. A leitura
+                  continua de onde a tela parou.
                 </span>
               </span>
             </label>
@@ -2923,6 +3022,7 @@ const GESTURES: [string, string][] = [
   ["Tocar no Word Runner", "Freia: volta a página com a palavra atual marcada"],
   ["Tocar numa palavra", "A leitura seguinte começa dela"],
   ["Tocar na borda ou deslizar", "Vira a página"],
+  ["Arrastar o texto (rolagem contínua)", "Rola o texto; a leitura continua de onde a tela parou"],
   ["Deslizar no Word Runner", "Para a direita acelera, para a esquerda desacelera (25 ppm a cada 40 px)"],
   ["Tocar fora das palavras", "Mostra os controles escondidos"],
   ["Tocar e segurar", "Mostra o significado da palavra e explica a frase"],
@@ -3417,6 +3517,33 @@ function MarkedText({
   );
 }
 
+/** Um paragrafo do texto rolado. Memoizado: sao todos os do texto na tela. */
+const ScrollParagraph = memo(function ScrollParagraph({
+  paragraph,
+  marks,
+  emphasis,
+  current,
+  onOpenMark,
+}: {
+  paragraph: Paragraph;
+  marks: StoredHighlight[];
+  emphasis: boolean;
+  current: number | null;
+  onOpenMark: (id: string) => void;
+}) {
+  return (
+    <p {...blockProps(paragraph)}>
+      <MarkedText
+        paragraph={paragraph}
+        marks={marks}
+        emphasis={emphasis}
+        current={current}
+        onOpenMark={onOpenMark}
+      />
+    </p>
+  );
+});
+
 /**
  * Pagina: uma tela cheia de texto por vez, sem rolagem.
  *
@@ -3449,10 +3576,16 @@ const PageStage = memo(function PageStage({
   bounce,
   overlay,
   fullscreen,
+  scroll,
+  index,
+  layoutKey,
+  onScrollSettle,
+  onEnd,
   onTap,
   onOpenMark,
 }: {
-  frameRef: React.Ref<HTMLDivElement>;
+  /** Ref de callback da paginacao, que mede o quadro. */
+  frameRef: (node: HTMLDivElement | null) => void;
   rulerRef: React.RefObject<HTMLDivElement | null>;
   paragraphs: Paragraph[];
   pageStart: number;
@@ -3473,16 +3606,50 @@ const PageStage = memo(function PageStage({
   overlay: boolean;
   /** Controles fora da tela: o texto ocupa a altura toda. */
   fullscreen: boolean;
+  /** Rolagem continua: o texto inteiro na coluna, que rola por dentro. */
+  scroll: boolean;
+  /** Posicao de leitura, que a rolagem acompanha. */
+  index: number;
+  layoutKey: string;
+  /** A rolagem do leitor parou com esta palavra no topo. */
+  onScrollSettle: (position: number) => void;
+  /** "Concluir leitura", no fim do texto rolado. */
+  onEnd: () => void;
   /** Toque na pagina: a palavra tocada (ou null) e a borda (-1, 0, 1). */
   onTap: (position: number | null, edge: -1 | 0 | 1) => void;
   onOpenMark: (id: string) => void;
 }) {
+  // O quadro e medido pela paginacao (ref de quem chama) e rolado aqui.
+  const scrollFrameRef = useRef<HTMLDivElement | null>(null);
+  const proseRef = useRef<HTMLDivElement | null>(null);
+  const setFrame = useCallback(
+    (node: HTMLDivElement | null) => {
+      scrollFrameRef.current = node;
+      frameRef(node);
+    },
+    [frameRef]
+  );
+  useScrollReading({
+    enabled: scroll,
+    active: !hidden,
+    frameRef: scrollFrameRef,
+    proseRef,
+    paragraphs,
+    index,
+    layoutKey,
+    onSettle: onScrollSettle,
+  });
+  const marksOf = useMemo(() => marksByParagraph(paragraphs, marks), [paragraphs, marks]);
+
   const onClick = (event: React.MouseEvent<HTMLDivElement>) => {
     // Arrastar para selecionar nao e toque.
     if (!window.getSelection()?.isCollapsed) return;
+    // O botao do fim do texto rolado e dele mesmo.
+    if ((event.target as Element).closest("button")) return;
     const box = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - box.left) / Math.max(1, box.width);
-    const edge = x < EDGE_FRACTION ? -1 : x > 1 - EDGE_FRACTION ? 1 : 0;
+    // Na rolagem a borda nao vira nada: e texto como o resto.
+    const edge = scroll ? 0 : x < EDGE_FRACTION ? -1 : x > 1 - EDGE_FRACTION ? 1 : 0;
     if (edge !== 0) {
       onTap(null, edge);
       return;
@@ -3507,27 +3674,59 @@ const PageStage = memo(function PageStage({
           por flex-grow e, para porcentagem, conta como indefinida - o frame
           media zero e nenhuma pagina era calculada. */}
       <div
-        ref={frameRef}
+        ref={setFrame}
         data-testid="quadro-pagina"
-        className={`reader-column relative mx-auto min-h-0 w-full flex-1 overflow-hidden${
-          bounce === 1 ? " page-bounce-end" : bounce === -1 ? " page-bounce-start" : ""
-        }`}
+        data-rolagem={scroll ? "sim" : undefined}
+        className={`reader-column relative mx-auto min-h-0 w-full flex-1 ${
+          scroll ? "reader-scroll" : "overflow-hidden"
+        }${bounce === 1 ? " page-bounce-end" : bounce === -1 ? " page-bounce-start" : ""}`}
       >
-        <div className="reader-prose">
-          {ready
-            ? sliceParagraphs(paragraphs, pageStart, pageEnd).map((paragraph) => (
-                <p key={paragraph.start} {...blockProps(paragraph)}>
-                  <MarkedText
+        <div ref={proseRef} className="reader-prose">
+          {scroll
+            ? // Texto inteiro: cada paragrafo so redesenha quando a palavra
+              // atual ou um destaque dele muda.
+              paragraphs.map((paragraph) => {
+                const end = paragraph.start + paragraph.words.length;
+                return (
+                  <ScrollParagraph
+                    key={paragraph.start}
                     paragraph={paragraph}
-                    marks={marks}
+                    marks={marksOf(paragraph)}
                     emphasis={emphasis}
-                    current={current}
+                    current={
+                      current !== null && current >= paragraph.start && current < end
+                        ? current
+                        : null
+                    }
                     onOpenMark={onOpenMark}
                   />
-                </p>
-              ))
-            : null}
+                );
+              })
+            : ready
+              ? sliceParagraphs(paragraphs, pageStart, pageEnd).map((paragraph) => (
+                  <p key={paragraph.start} {...blockProps(paragraph)}>
+                    <MarkedText
+                      paragraph={paragraph}
+                      marks={marks}
+                      emphasis={emphasis}
+                      current={current}
+                      onOpenMark={onOpenMark}
+                    />
+                  </p>
+                ))
+              : null}
         </div>
+
+        {scroll ? (
+          // Fim do texto rolado: chegar ao fundo nao conclui sozinho, porque
+          // um arraste mais forte terminaria a leitura sem o leitor querer.
+          <div className="flex flex-col items-center gap-3 pb-6 pt-10 text-center">
+            <p className="text-sm text-muted">Fim do texto.</p>
+            <Button onClick={onEnd} loading={loadingMore}>
+              Concluir leitura
+            </Button>
+          </div>
+        ) : null}
 
         {/* Regua: fora da arvore visivel, com a mesma largura, tipografia e
             espacamento entre paragrafos da pagina acima. */}
