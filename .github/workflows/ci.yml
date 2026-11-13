@@ -99,6 +99,10 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: CSS do build confere com o codigo
+        # O mesmo passo do deploy: barra CSS de cache antigo.
+        run: node scripts/check-build-css.mjs
+
       - name: Navegador
         run: npx playwright install --with-deps chromium
 
