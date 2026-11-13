@@ -50,6 +50,13 @@ export function useScrollReading({
 }) {
   /** Altura da rolagem depois do ultimo ajuste feito aqui. */
   const placedTopRef = useRef<number | null>(null);
+  /**
+   * Ultima posicao avisada por `onSettle`. Ela veio da propria rolagem: a
+   * coluna ja esta onde o leitor a deixou e nao se mexe por causa dela, nem
+   * quando a conta da primeira palavra a vista erra por uma linha.
+   */
+  const settledIndexRef = useRef<number | null>(null);
+  const layoutSeenRef = useRef<string | null>(null);
   /** Topo da coluna na tela, para segurar o texto quando ela muda de tamanho. */
   const frameTopRef = useRef<number | null>(null);
   // Fontes carregadas e coluna redimensionada mudam a quebra: confere de novo.
@@ -65,6 +72,13 @@ export function useScrollReading({
     const frame = frameRef.current;
     const prose = proseRef.current;
     if (!enabled || !active || !frame || !prose) return;
+    // Tipografia ou largura novas quebram o texto de outro jeito: ai a
+    // posicao volta a ser conferida, mesmo tendo vindo da rolagem.
+    const layout = `${layoutKey}:${layoutTick}`;
+    const reflowed = layoutSeenRef.current !== layout;
+    layoutSeenRef.current = layout;
+    if (!reflowed && index === settledIndexRef.current) return;
+    settledIndexRef.current = null;
 
     const word = wordBox(prose, paragraphs, index);
     if (!word) return;
@@ -104,7 +118,9 @@ export function useScrollReading({
       }
       placedTopRef.current = null;
       const position = firstWordInView(frame, prose);
-      if (position !== null) onSettleRef.current(position);
+      if (position === null) return;
+      settledIndexRef.current = position;
+      onSettleRef.current(position);
     };
     const onScroll = () => {
       if (timer) clearTimeout(timer);

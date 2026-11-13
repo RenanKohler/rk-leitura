@@ -90,9 +90,31 @@ export function wordInView(
   return word.bottom > frame.top && word.bottom <= frame.bottom + 1;
 }
 
-/** Linha de estado da rolagem: nao ha pagina para contar. */
+/**
+ * Palavras de distancia a partir das quais a rolagem deixou para tras o
+ * lugar onde a leitura estava (cerca de uma tela de celular).
+ */
+export const SCROLL_AWAY_WORDS = 250;
+
+/**
+ * A posicao rolada esta longe do lugar onde a leitura parou?
+ *
+ * Medida em palavras, nao em paginas: as paginas mudam com a altura do
+ * quadro, que muda quando os controles saem da tela. Com a conta em paginas,
+ * o atalho "voltar para onde parou" aparecia numa altura e sumia na outra, e
+ * como ele segura os controles na tela, os dois ficavam se alternando e o
+ * texto tremia.
+ */
+export function scrolledAway(index: number, anchor: number): boolean {
+  return Math.abs(index - anchor) > SCROLL_AWAY_WORDS;
+}
+
+/**
+ * Linha de estado da rolagem: nao ha pagina para contar. So o numero, porque
+ * a barra divide a linha com outros botoes e um rotulo maior e cortado.
+ */
 export function scrollStatus(index: number, total: number): string {
-  if (total <= 0) return "Rolagem";
+  if (total <= 0) return "0%";
   const percent = Math.min(100, Math.max(0, Math.round((index / total) * 100)));
-  return `Rolagem · ${percent}%`;
+  return `${percent}%`;
 }

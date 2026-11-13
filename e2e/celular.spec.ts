@@ -446,11 +446,14 @@ test("dicas da primeira leitura ficam acima do rodapé sobreposto", async ({ pag
   const card = page.getByTestId("guia-leitor");
   const footer = page.getByTestId("controles-rodape");
   await expect(card).toBeVisible();
-  const above = async () => {
-    const cardBox = (await card.boundingBox())!;
-    const footerBox = (await footer.boundingBox())!;
-    expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(footerBox.y);
-  };
+  // A altura do rodape e medida depois de cada mudanca de tamanho: por um
+  // quadro, logo apos girar a tela, o cartao ainda usa a medida anterior.
+  const above = () =>
+    expect(async () => {
+      const cardBox = (await card.boundingBox())!;
+      const footerBox = (await footer.boundingBox())!;
+      expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(footerBox.y);
+    }).toPass({ timeout: 2_000 });
   await above();
 
   // Deitado o espaco e menor: o cartao continua inteiro acima da barra.

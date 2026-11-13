@@ -27,7 +27,13 @@ export function usePagedText(
   totalWords: number,
   emphasis = false,
   /** Tipografia (tamanho, fonte, entrelinha): muda a quebra sem mudar o quadro. */
-  layoutKey = ""
+  layoutKey = "",
+  /**
+   * Desligada, nada e medido. A rolagem continua nao usa paginas, e medir o
+   * texto inteiro trava a tela por segundos num livro, ao abrir e de novo
+   * quando o quadro muda de altura.
+   */
+  enabled = true
 ) {
   // Ref de callback em vez de objeto: o modo Paginas so monta depois que as
   // preferencias chegam do servidor, entao ao abrir o leitor direto pela URL o
@@ -47,7 +53,7 @@ export function usePagedText(
 
   const measure = useCallback(() => {
     const ruler = rulerRef.current;
-    if (!frame || !ruler) return;
+    if (!enabled || !frame || !ruler) return;
 
     const height = frame.clientHeight;
     if (height <= 0) return;
@@ -69,7 +75,7 @@ export function usePagedText(
     }
     setPages(computed);
     setReady(true);
-  }, [frame, paragraphs, totalWords, emphasis, layoutKey]);
+  }, [enabled, frame, paragraphs, totalWords, emphasis, layoutKey]);
 
   // Texto, enfase ou tipografia novos invalidam a medida guardada, mesmo com
   // o quadro do mesmo tamanho.
@@ -79,7 +85,7 @@ export function usePagedText(
   }, [paragraphs, totalWords, emphasis, layoutKey]);
 
   useEffect(() => {
-    if (!frame) return;
+    if (!frame || !enabled) return;
 
     // O ResizeObserver dispara na montagem e a cada mudanca de tamanho
     // (rotacao da tela, teclado abrindo). Medir dentro do callback mantem a
@@ -97,7 +103,7 @@ export function usePagedText(
       cancelled = true;
       observer.disconnect();
     };
-  }, [frame, measure]);
+  }, [frame, enabled, measure]);
 
   return { frameRef: setFrame, rulerRef, pages, ready };
 }
