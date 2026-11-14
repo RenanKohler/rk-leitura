@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "vercel-build": "node scripts/migrate-on-deploy.mjs && next build",
+    "vercel-build": "node scripts/migrate-on-deploy.mjs && next build && node scripts/check-build-css.mjs",
     "start": "next start",
     "postinstall": "node scripts/copy-tts-assets.mjs",
     "lint": "eslint .",

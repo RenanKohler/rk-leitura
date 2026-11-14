@@ -25,6 +25,17 @@ const buildId = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || String(Date.n
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   env: { NEXT_PUBLIC_BUILD_ID: buildId },
+  experimental: {
+    /*
+     * Sem cache em disco do Turbopack no build. Ele vem ligado por padrao
+     * desde o Next 16.3, e a Vercel restaura `.next/cache` do deploy anterior.
+     * No deploy do design system M3 o build saiu em 4,7 s com o CSS do deploy
+     * anterior: HTML novo, tema velho, tela quebrada em producao. O build
+     * completo leva uns 15 s a mais e nao depende do que ficou guardado.
+     * `scripts/check-build-css.mjs` confere o resultado depois do build.
+     */
+    turbopackFileSystemCacheForBuild: false,
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
