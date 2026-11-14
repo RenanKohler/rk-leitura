@@ -130,7 +130,9 @@ test("revisar os cartoes de um texto, com analogia depois de errar", async ({ pa
   await expect(page.getByText(/A próxima revisão é em/)).toBeVisible();
 
   // A analogia guardada aparece no verso quando o cartao volta.
-  await runSql("update study_cards set next_review_on = current_date where id = $1", [lido]);
+  // `current_date - 1`: o banco usa UTC e o app, o fuso da pessoa; de madrugada
+  // em UTC "hoje" aqui ainda seria amanhã para ela.
+  await runSql("update study_cards set next_review_on = current_date - 1 where id = $1", [lido]);
   await page.reload();
   await page.getByRole("button", { name: "Mostrar resposta" }).click();
   await expect(page.getByTestId("cartao-analogia")).toContainText("usina");
