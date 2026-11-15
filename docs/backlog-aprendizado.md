@@ -502,13 +502,19 @@ para descobrir lacunas enquanto o texto está fresco.
    a seção recém-terminada, e recebo até 4 apontamentos com o trecho do texto.
 3. Dado que fecho a folha sem enviar, quando a abro de novo na mesma visita,
    então o que escrevi continua lá.
-4. Dado "Sugestões na leitura" desligado, a IA desligada ou sem consentimento,
-   quando termino a seção, então nada é oferecido.
+4. Dado a IA desligada ou sem consentimento, quando termino a seção, então
+   nada é oferecido. (Desligar só as sugestões depende da US-220, ainda
+   proposta.)
 5. Dado um texto sem seções, quando concluo a leitura, então a oferta vale
    para o texto lido.
 
-**Notas técnicas:** reaproveita a rota `/api/texts/[id]/apontamentos`. A
-tarefa "apontamentos" passou para o Opus 5.5, esforço médio.
+**Notas técnicas:** reaproveita a rota `/api/texts/[id]/apontamentos`; o
+formulário foi extraído para `src/components/teach-back-form.tsx` e serve à
+tela Estudar e à folha do leitor. A oferta entra por último na fila de
+sugestões da US-219, só com a leitura parada; a regra de quando nasce está
+em `src/app/(app)/leitor/[id]/explain-offer.ts`. A tela "Leitura concluída"
+oferece a última seção (ou o texto sem seções). A tarefa "apontamentos"
+passou para o Opus 5.5, esforço médio.
 
 ### US-232: Ligações com outros textos da biblioteca
 
