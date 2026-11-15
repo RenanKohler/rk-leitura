@@ -47,7 +47,9 @@ function removeFromReview(item: DailyItem): Promise<unknown> {
     });
   }
   if (item.kind === "cartao") return apiSend(`/api/cartoes/${item.card.id}`, "DELETE");
-  return apiSend(`/api/texts/${item.recall.textId}/recordar`, "DELETE");
+  // A rodada que a tela mostrou: aberta antes da virada do dia 30, ela ja
+  // pode ter sido trocada pela seguinte, que nao e a que a folha descreveu.
+  return apiSend(`/api/texts/${item.recall.textId}/recordar?rodada=${item.recall.round}`, "DELETE");
 }
 
 /**
@@ -80,7 +82,10 @@ export function DailyReviewClient({ initial }: { initial: DailyReview }) {
   }));
   // Posicao do item que ja esta gravando ou gravou a resposta.
   const [lockedAt, setLockedAt] = useState<number | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  // Posicao do item para o qual a folha de "Tirar da revisão" abriu: se a
+  // tela andar com ela aberta, a folha fecha em vez de passar a valer para o
+  // item seguinte.
+  const [confirmingAt, setConfirmingAt] = useState<number | null>(null);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState("");
 
@@ -112,7 +117,7 @@ export function DailyReviewClient({ initial }: { initial: DailyReview }) {
   const fail = (message: string) => notify(message, "error");
 
   const remove = async () => {
-    if (!item || removing) return;
+    if (!item || removing || confirmingAt !== position) return;
     setRemoving(true);
     setRemoveError("");
     try {
@@ -123,7 +128,7 @@ export function DailyReviewClient({ initial }: { initial: DailyReview }) {
         // da revisao, que era o pedido.
         if (!(cause instanceof ApiError && cause.status === 404)) throw cause;
       }
-      setConfirming(false);
+      setConfirmingAt(null);
       finish(position, "tirado");
       announceReviewChange();
     } catch (cause) {
@@ -205,7 +210,7 @@ export function DailyReviewClient({ initial }: { initial: DailyReview }) {
                 className="min-h-12!"
                 onClick={() => {
                   setRemoveError("");
-                  setConfirming(true);
+                  setConfirmingAt(position);
                 }}
               >
                 Tirar da revisão
@@ -216,11 +221,11 @@ export function DailyReviewClient({ initial }: { initial: DailyReview }) {
       ) : null}
 
       <Sheet
-        open={confirming && removal !== null}
+        open={confirmingAt === position && removal !== null}
         title={removal?.title ?? ""}
         onClose={() => {
           // Com o pedido em curso a folha espera a resposta.
-          if (!removing) setConfirming(false);
+          if (!removing) setConfirmingAt(null);
         }}
       >
         <div className="space-y-4">
@@ -251,7 +256,9 @@ function ItemView({ item, onNext, onError, onLock }: { item: DailyItem } & ItemH
       <StudyCardReview
         card={item.card}
         onError={onError}
-        // Depois de "Errei" o cartao fica na tela com a nota ja gravada.
+        // A trava vale desde o toque na nota; depois de "Errei" o cartao fica
+        // na tela com a nota ja gravada.
+        onGrading={onLock}
         onGraded={() => onLock(true)}
         onDone={(grade) => onNext(grade !== "errei")}
       />
