@@ -58,7 +58,8 @@ export function HighlightReviewClient({ initial }: { initial: HighlightReviewSes
     <div className="space-y-5">
       <header className="flex items-start gap-2 pt-2">
         <Link
-          href="/textos"
+          // A entrada desta revisao e a tela "Destaques e notas" (US-224).
+          href="/destaques"
           aria-label="Voltar"
           className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
         >

@@ -336,8 +336,8 @@ Como leitor, eu quero importar um artigo informando o endereço, para que eu lei
 **Épico:** Biblioteca de textos
 **Prioridade:** Should
 **Story points:** 2
-**Status:** Implementada
-**Evidência:** `src/components/import-card.tsx`, `src/app/(app)/dashboard/dashboard-client.tsx`
+**Status:** Substituída pela US-228 (`docs/backlog-celular.md`): o campo saiu do Início, e o botão "+" abre a tela de novo texto com o link como primeira opção
+**Evidência:** `src/components/import-card.tsx` (apagado na US-228), `src/app/(app)/dashboard/dashboard-client.tsx`
 
 Como leitor, eu quero colar um link direto no painel, para que eu adicione um artigo à biblioteca em um passo.
 

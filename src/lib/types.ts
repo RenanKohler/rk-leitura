@@ -151,6 +151,23 @@ export interface SeriesSummary {
 /** Item da biblioteca: um texto solto ou uma serie inteira. */
 export type LibraryItem = { kind: "texto"; text: TextSummary } | SeriesSummary;
 
+/**
+ * Um capitulo da serie do texto aberto, como a folha Navegar do leitor o
+ * lista (US-226). So o que a linha mostra: sem conteudo, etiquetas ou
+ * destaques.
+ */
+export interface SeriesChapter {
+  id: string;
+  title: string;
+  /** Numero do capitulo dentro da serie. */
+  chapter: number | null;
+  wordCount: number;
+  /** Posicao gravada quando o leitor abriu: diz se foi lido e quanto. */
+  progressIndex: number;
+  /** Largado no meio (US-79): entra na lista, como no cartao da serie. */
+  abandoned: boolean;
+}
+
 /** O que a tela de conclusao oferece como proxima leitura. */
 export interface NextUp {
   /** "capitulo" segue a serie; "fila" segue a ordem montada a mao. */
@@ -311,7 +328,66 @@ export interface HighlightItem {
   excerpt: string;
   /** Cartao de revisao salvo (US-150), quando houver. */
   card?: HighlightCard | null;
+  /**
+   * Fora da revisao (US-223): o leitor tirou o destaque da fila. Ausente no
+   * destaque que ainda esta na fila offline, que nunca esta fora.
+   */
+  reviewOff?: boolean;
   createdAt: string;
+}
+
+/**
+ * Um destaque na tela "Destaques e notas" (US-224): o item da tela por texto
+ * mais o texto de onde ele veio. Sem o cartao: editar a nota, remover e gerar
+ * cartoes continuam na tela do texto.
+ */
+export interface LibraryHighlight {
+  id: string;
+  textId: string;
+  /** Primeira palavra do trecho, no indice do texto inteiro. */
+  start: number;
+  /** Primeira palavra depois do trecho. */
+  end: number;
+  /** Trecho citado, derivado do conteudo pelos indices. */
+  excerpt: string;
+  note: string | null;
+  /** Fora da revisao (US-223). */
+  reviewOff: boolean;
+  createdAt: string;
+}
+
+/** Texto que tem destaque, como a tela "Destaques e notas" o nomeia. */
+export interface LibraryHighlightText {
+  id: string;
+  title: string;
+}
+
+/** O que a tela "Destaques e notas" recebe para abrir (US-224). */
+export interface HighlightLibrary {
+  /** Os destaques mais recentes da conta, ate o limite da tela. */
+  items: LibraryHighlight[];
+  /** Os textos desses destaques, arquivados inclusive. */
+  texts: LibraryHighlightText[];
+  /** Quantos destaques a conta tem; maior que `items.length` se o limite cortou. */
+  total: number;
+}
+
+/** Um texto na exportacao de todos os destaques (US-224). */
+export interface HighlightExportText extends LibraryHighlightText {
+  author: string | null;
+  sourceUrl: string | null;
+  /** Etiquetas do texto, em ordem alfabetica. */
+  tags: string[];
+  /** Quando o texto entrou na biblioteca. */
+  createdAt: string;
+}
+
+/** O que a exportacao de todos os destaques carrega (US-224). */
+export interface HighlightExport {
+  items: LibraryHighlight[];
+  texts: HighlightExportText[];
+  /** Quantos destaques a conta tem; maior que `items.length` se o teto cortou. */
+  total: number;
 }
 
 export interface SettingsPayload {

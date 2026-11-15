@@ -84,3 +84,35 @@ export async function POST(request: Request, { params }: Params) {
     return serverError("texts/recordar/respostas", error);
   }
 }
+
+/**
+ * Dispensa a rodada vencida sem responder (US-223).
+ *
+ * Grava a rodada em `quiz_recalls` com a nota nula: ela deixa de ser
+ * oferecida, como uma rodada feita, mas nao entra em nenhuma conta de nota.
+ * So a rodada de hoje e dispensada: quem dispensa a de 7 dias ainda recebe a
+ * de 30. Sem rodada vencida, 404, como no GET e no POST.
+ */
+export async function DELETE(_request: Request, { params }: Params) {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+
+  try {
+    const { id } = await params;
+    if (!UUID_PATTERN.test(id)) return jsonError("Texto não encontrado.", 404);
+
+    // `loadDueRecall` so acha textos da conta: o dono e conferido ali.
+    const recall = await loadDueRecall(session.id, id);
+    if (!recall) return jsonError(NOT_DUE, 404);
+
+    await db
+      .insert(quizRecalls)
+      .values({ userId: session.id, textId: id, round: recall.round, score: null })
+      // Respondida ou dispensada em outra aba no meio do caminho: fica a primeira.
+      .onConflictDoNothing();
+
+    return NextResponse.json({ dismissed: recall.round });
+  } catch (error) {
+    return serverError("texts/recordar/dispensar", error);
+  }
+}

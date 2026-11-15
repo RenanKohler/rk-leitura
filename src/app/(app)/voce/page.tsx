@@ -2,16 +2,15 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { loadOverview, loadReview, loadSettings, loadTraining } from "@/lib/queries";
+import { loadOverview, loadReview, loadTraining } from "@/lib/queries";
 import { formatNumber } from "@/lib/reading";
 import { Card, SectionTitle } from "@/components/ui";
-import { countDailyReview, loadRereadList } from "@/lib/study-review-queries";
-import { countsLabel, itemsLabel } from "@/lib/daily-review";
+import { loadRereadList } from "@/lib/study-review-queries";
 import {
   ChartIcon,
-  CheckIcon,
   ChevronIcon,
   HistoryIcon,
+  MarkIcon,
   SettingsIcon,
   SpeedIcon,
   WordsIcon,
@@ -28,18 +27,20 @@ export const metadata = { title: "Você" };
  * com preferencias. Aqui cada destino traz o numero que convida a abrir -
  * revisoes vencidas, o dia do treino - para a tela nao ser so uma lista de
  * links.
+ *
+ * A Revisao do dia saiu daqui (US-229): virou a aba "Revisar" da barra, com
+ * o contador no selo. No celular, Ajustes so e alcancado por esta tela, e
+ * "Destaques e notas" junta os trechos marcados de todos os textos.
  */
 export default async function YouPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const timezone = (await loadSettings(session.id))?.timezone ?? "UTC";
-  const [review, training, overview, reread, daily] = await Promise.all([
+  const [review, training, overview, reread] = await Promise.all([
     loadReview(session.id),
     loadTraining(session.id),
     loadOverview(session.id),
     loadRereadList(session.id),
-    countDailyReview(session.id, timezone),
   ]);
 
   const stats = overview.stats;
@@ -79,15 +80,10 @@ export default async function YouPage() {
             detail="Todas as sessões de leitura"
           />
           <Destination
-            href="/revisar"
-            icon={<CheckIcon className="size-5" />}
-            title="Revisão do dia"
-            detail={
-              daily.total > 0
-                ? `${itemsLabel(daily.total)}: ${countsLabel(daily.counts)}`
-                : "Palavras, destaques e cartões em dia"
-            }
-            badge={daily.total > 0 ? `${daily.total}` : undefined}
+            href="/destaques"
+            icon={<MarkIcon className="size-5" />}
+            title="Destaques e notas"
+            detail="Trechos marcados e notas de todos os textos"
           />
           <Destination
             href={review.due > 0 ? "/palavras/revisar" : "/palavras"}

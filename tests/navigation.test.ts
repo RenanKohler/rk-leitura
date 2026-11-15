@@ -2,9 +2,15 @@ import { describe, expect, it } from "vitest";
 import { parseParagraphs } from "@/lib/reading";
 import {
   bookmarkLabel,
+  chapterStateLabel,
+  chapterWindow,
+  CHAPTERS_SHOWN_WHOLE,
   CONTEXT_BLOCK,
   currentHeading,
   MAX_SEARCH_RESULTS,
+  percentAt,
+  positionAtPercent,
+  remainingLabel,
   resumeTarget,
   searchWords,
   runnerContext,
@@ -235,5 +241,162 @@ describe("Word Runner: avancar a frase e contexto", () => {
       clippedStart: true,
       clippedEnd: true,
     });
+  });
+});
+
+describe("positionAtPercent (US-227)", () => {
+  // 100 palavras em 10 paragrafos de 10: cada um comeca em 0, 10, 20... 90.
+  const texto = parseParagraphs(
+    Array.from({ length: 10 }, (_, p) =>
+      Array.from({ length: 10 }, (_, w) => `p${p}w${w}`).join(" ")
+    ).join("\n\n")
+  );
+  const total = texto.words.length;
+  const at = (percent: number) => positionAtPercent(texto.paragraphs, total, percent);
+
+  it("0 e o comeco do texto", () => {
+    expect(at(0)).toBe(0);
+  });
+
+  it("vai ao comeco do paragrafo que contem a palavra da porcentagem", () => {
+    expect(at(50)).toBe(50);
+    expect(at(55)).toBe(50);
+    expect(at(49)).toBe(40);
+    expect(at(9)).toBe(0);
+    expect(at(10)).toBe(10);
+  });
+
+  it("100 e o comeco do ultimo paragrafo, nunca alem da ultima palavra", () => {
+    expect(at(100)).toBe(90);
+    expect(at(99)).toBe(90);
+    expect(at(100)).toBeLessThanOrEqual(total - 1);
+  });
+
+  it("valores fora da faixa sao limitados", () => {
+    expect(at(-20)).toBe(0);
+    expect(at(250)).toBe(90);
+    expect(at(Number.NaN)).toBe(0);
+    expect(at(Number.POSITIVE_INFINITY)).toBe(90);
+    expect(at(Number.NEGATIVE_INFINITY)).toBe(0);
+  });
+
+  it("texto vazio da 0", () => {
+    expect(positionAtPercent([], 0, 50)).toBe(0);
+    expect(positionAtPercent([], 0, 100)).toBe(0);
+    expect(positionAtPercent(texto.paragraphs, 0, 50)).toBe(0);
+  });
+
+  it("paragrafos de tamanhos diferentes: vale o que contem a palavra", () => {
+    const desigual = parseParagraphs("Um dois tres.\n\nQuatro cinco seis sete oito nove dez.");
+    // 10 palavras; o segundo paragrafo comeca na 3.
+    const go = (percent: number) =>
+      positionAtPercent(desigual.paragraphs, desigual.words.length, percent);
+    expect(go(29)).toBe(0);
+    expect(go(30)).toBe(3);
+    expect(go(100)).toBe(3);
+  });
+
+  it("titulo conta como paragrafo: a porcentagem pode cair no proprio titulo", () => {
+    const marcado = parseParagraphs("# Inicio\n\nUm dois tres.\n\n## Parte dois\n\nQuatro cinco.", "markdown");
+    // 0 Inicio | 1 Um 2 dois 3 tres. | 4 Parte 5 dois | 6 Quatro 7 cinco.
+    const go = (percent: number) =>
+      positionAtPercent(marcado.paragraphs, marcado.words.length, percent);
+    expect(go(50)).toBe(4);
+    expect(go(70)).toBe(4);
+    expect(go(100)).toBe(6);
+  });
+
+  it("texto de um paragrafo so: todo destino e o comeco dele", () => {
+    const bloco = parseParagraphs(Array.from({ length: 40 }, (_, i) => `p${i}`).join(" "));
+    expect(positionAtPercent(bloco.paragraphs, 40, 75)).toBe(0);
+  });
+
+  it("sem os paragrafos, vale a propria palavra", () => {
+    expect(positionAtPercent([], 200, 50)).toBe(100);
+    expect(positionAtPercent([], 200, 100)).toBe(199);
+  });
+});
+
+describe("percentAt (US-227)", () => {
+  it("da a porcentagem inteira da posicao", () => {
+    expect(percentAt(0, 100)).toBe(0);
+    expect(percentAt(50, 100)).toBe(50);
+    expect(percentAt(1, 3)).toBe(33);
+    expect(percentAt(2, 3)).toBe(67);
+  });
+
+  it("fica entre 0 e 100, e texto vazio da 0", () => {
+    expect(percentAt(100, 100)).toBe(100);
+    expect(percentAt(150, 100)).toBe(100);
+    expect(percentAt(-5, 100)).toBe(0);
+    expect(percentAt(5, 0)).toBe(0);
+    expect(percentAt(Number.NaN, 100)).toBe(0);
+  });
+});
+
+describe("remainingLabel", () => {
+  it("escreve o tempo como o cabecalho do leitor", () => {
+    expect(remainingLabel(0)).toBe("< 1 min");
+    expect(remainingLabel(29_000)).toBe("< 1 min");
+    expect(remainingLabel(30_000)).toBe("~1 min");
+    expect(remainingLabel(12 * 60_000)).toBe("~12 min");
+    expect(remainingLabel(60 * 60_000)).toBe("~1 h 0 min");
+    expect(remainingLabel(65 * 60_000)).toBe("~1 h 5 min");
+  });
+
+  it("tempo negativo nao vira numero negativo", () => {
+    expect(remainingLabel(-90_000)).toBe("< 1 min");
+  });
+});
+
+describe("chapterWindow (US-226)", () => {
+  it("serie curta aparece inteira", () => {
+    expect(chapterWindow(3, 1)).toEqual({ from: 0, to: 3 });
+    expect(chapterWindow(CHAPTERS_SHOWN_WHOLE, 4)).toEqual({ from: 0, to: CHAPTERS_SHOWN_WHOLE });
+    expect(chapterWindow(0, 0)).toEqual({ from: 0, to: 0 });
+  });
+
+  it("serie longa mostra o aberto e os vizinhos", () => {
+    expect(chapterWindow(12, 5)).toEqual({ from: 4, to: 7 });
+    expect(chapterWindow(6, 2)).toEqual({ from: 1, to: 4 });
+  });
+
+  it("no primeiro e no ultimo a janela tem o mesmo tamanho", () => {
+    expect(chapterWindow(12, 0)).toEqual({ from: 0, to: 3 });
+    expect(chapterWindow(12, 11)).toEqual({ from: 9, to: 12 });
+  });
+
+  it("capitulo fora da lista cai no comeco", () => {
+    expect(chapterWindow(12, -1)).toEqual({ from: 0, to: 3 });
+    expect(chapterWindow(12, Number.NaN)).toEqual({ from: 0, to: 3 });
+  });
+
+  it("os limites sao ajustaveis", () => {
+    expect(chapterWindow(10, 5, 4, 2)).toEqual({ from: 3, to: 8 });
+    expect(chapterWindow(10, 5, 10, 2)).toEqual({ from: 0, to: 10 });
+  });
+});
+
+describe("chapterStateLabel (US-226)", () => {
+  it('diz "lido", a porcentagem ou "não lido"', () => {
+    expect(chapterStateLabel({ progressIndex: 0, wordCount: 100 })).toBe("não lido");
+    expect(chapterStateLabel({ progressIndex: 50, wordCount: 100 })).toBe("50%");
+    expect(chapterStateLabel({ progressIndex: 100, wordCount: 100 })).toBe("lido");
+    expect(chapterStateLabel({ progressIndex: 120, wordCount: 100 })).toBe("lido");
+  });
+
+  it("capitulo comecado nunca aparece com 0% nem com 100%", () => {
+    expect(chapterStateLabel({ progressIndex: 1, wordCount: 1_000 })).toBe("1%");
+    expect(chapterStateLabel({ progressIndex: 999, wordCount: 1_000 })).toBe("99%");
+  });
+
+  it("capitulo vazio nao conta como lido", () => {
+    expect(chapterStateLabel({ progressIndex: 0, wordCount: 0 })).toBe("não lido");
+  });
+
+  it("largado nao mostra porcentagem; se chegou ao fim, e lido", () => {
+    expect(chapterStateLabel({ progressIndex: 50, wordCount: 100, abandoned: true })).toBe("largado");
+    expect(chapterStateLabel({ progressIndex: 0, wordCount: 100, abandoned: true })).toBe("largado");
+    expect(chapterStateLabel({ progressIndex: 100, wordCount: 100, abandoned: true })).toBe("lido");
   });
 });

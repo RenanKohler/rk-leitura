@@ -90,11 +90,13 @@ export default async function TextHistoryPage({ params }: { params: Promise<{ id
                 </li>
                 {RECALL_ROUNDS.map((round) => {
                   const recall = quiz.recalls.find((item) => item.round === round);
+                  // Nota nula e a rodada dispensada sem responder (US-223).
+                  const score = recall?.score ?? null;
                   return (
                     <li key={round} className="flex items-center justify-between gap-3 py-2">
                       <span>{`${round} dias depois`}</span>
-                      <span className={`tabular ${recall ? "font-medium" : "text-faint"}`}>
-                        {recall ? `${recall.score}%` : "--"}
+                      <span className={`tabular ${score !== null ? "font-medium" : "text-faint"}`}>
+                        {score !== null ? `${score}%` : recall ? "dispensado" : "--"}
                       </span>
                     </li>
                   );

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { highlights } from "@/db/schema";
 import { jsonError, readJson, requireSession, serverError } from "@/lib/api";
-import { asNote } from "@/lib/highlights";
+import { todayIn } from "@/lib/goals";
+import { asNote, firstHighlightDue } from "@/lib/highlights";
+import { loadSettings } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -21,10 +23,18 @@ function owned(markId: string, textId: string, userId: string) {
 }
 
 /**
- * Escreve ou apaga a nota do destaque.
+ * Escreve ou apaga a nota do destaque, ou tira e devolve o destaque a
+ * revisao (US-223).
  *
  * Nota vazia remove a nota e mantem o destaque: apagar o texto do comentario e
  * desistir do comentario, nao da marcacao.
+ *
+ * `{ review: false }` tira o destaque da revisao: ele continua no texto e
+ * guarda a agenda que tinha. `{ review: true }` devolve; se a data guardada
+ * ja passou (ou nunca houve), ele vence no dia seguinte, e nao na hora -
+ * quem pede para voltar a revisar nao pediu para revisar agora. Os dois
+ * pedidos podem ser repetidos sem efeito novo, o que importa porque este
+ * PATCH entra na fila offline do service worker (`public/sw.js`).
  */
 export async function PATCH(request: Request, { params }: Params) {
   const session = await requireSession();
@@ -36,7 +46,45 @@ export async function PATCH(request: Request, { params }: Params) {
       return jsonError("Destaque não encontrado.", 404);
     }
 
-    const body = await readJson<{ note?: unknown }>(request);
+    const body = await readJson<{ note?: unknown; review?: unknown }>(request);
+
+    // Pedido de revisao: nao toca na nota nem em `updatedAt`, que diz quando
+    // o destaque ou a nota mudaram.
+    if (typeof body?.review === "boolean") {
+      if (!body.review) {
+        const [off] = await db
+          .update(highlights)
+          // Quem ja estava fora fica com a data da primeira vez.
+          .set({ reviewOffAt: sql`coalesce(${highlights.reviewOffAt}, now())` })
+          .where(owned(markId, id, session.id))
+          .returning({ id: highlights.id });
+        if (!off) return jsonError("Destaque não encontrado.", 404);
+        return NextResponse.json({ highlight: { id: off.id, reviewOff: true } });
+      }
+
+      const timezone = (await loadSettings(session.id))?.timezone ?? "UTC";
+      const today = todayIn(timezone);
+      const tomorrow = firstHighlightDue(new Date(), timezone);
+      const [back] = await db
+        .update(highlights)
+        .set({
+          reviewOffAt: null,
+          // Data futura guardada continua valendo; vencida ou ausente vira amanha.
+          // So para quem estava fora: repetir o pedido nao adia quem ja voltou.
+          reviewDueOn: sql`case
+            when ${highlights.reviewOffAt} is not null
+              and (${highlights.reviewDueOn} is null or ${highlights.reviewDueOn} <= ${today})
+            then ${tomorrow}::date
+            else ${highlights.reviewDueOn}
+          end`,
+        })
+        .where(owned(markId, id, session.id))
+        .returning({ id: highlights.id, reviewDueOn: highlights.reviewDueOn });
+      if (!back) return jsonError("Destaque não encontrado.", 404);
+      return NextResponse.json({
+        highlight: { id: back.id, reviewOff: false, reviewDueOn: back.reviewDueOn },
+      });
+    }
 
     const [updated] = await db
       .update(highlights)

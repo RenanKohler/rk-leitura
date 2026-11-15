@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, eq, gt, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, gte, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   comprehensionQuizzes,
@@ -13,7 +13,7 @@ import {
 } from "@/db/schema";
 import { todayIn } from "@/lib/goals";
 import { loadSettings } from "@/lib/queries";
-import { highlightCreatedDay, highlightDue } from "@/lib/learning-queries";
+import { highlightCreatedDay, highlightDue, highlightInReview } from "@/lib/learning-queries";
 import { firstHighlightDue } from "@/lib/highlights";
 import { asTextFormat, parseParagraphs } from "@/lib/reading";
 import { heaviestWordIndex } from "@/lib/cloze";
@@ -344,6 +344,11 @@ async function concludedTexts(userId: string, timezone: string, textId?: string)
   }));
 }
 
+/**
+ * Rodadas encerradas de cada texto: respondidas ou dispensadas (US-223). A
+ * linha dispensada tem a nota nula e vale aqui como qualquer outra, para a
+ * rodada nao voltar; a nota so e lida em `loadRecallHistory`.
+ */
 async function doneRounds(userId: string, textIds: string[]): Promise<Map<string, number[]>> {
   const done = new Map<string, number[]>();
   if (textIds.length === 0) return done;
@@ -455,7 +460,11 @@ export async function loadDueRecall(
   return stored ? { ...recall, quiz: stored.quiz } : null;
 }
 
-/** Nota original e notas refeitas, para o historico do texto. */
+/**
+ * Nota original e notas refeitas, para o historico do texto. Rodada
+ * dispensada (US-223) vem com `score` nulo: aparece como dispensada, sem
+ * nota, e nao entra em nenhuma conta.
+ */
 export async function loadRecallHistory(userId: string, textId: string) {
   const timezone = (await loadSettings(userId))?.timezone ?? "UTC";
   const [concluded] = await concludedTexts(userId, timezone, textId);
@@ -538,6 +547,8 @@ export async function reviewedToday(userId: string, timezone: string, today: str
       .where(
         and(
           eq(quizRecalls.userId, userId),
+          // Dispensar a rodada (nota nula, US-223) nao e responder.
+          isNotNull(quizRecalls.score),
           sql`to_char(${quizRecalls.createdAt} at time zone ${timezone}, 'YYYY-MM-DD') = ${today}`
         )
       ),
@@ -570,6 +581,8 @@ async function countTomorrow(
       .where(
         and(
           eq(highlights.userId, userId),
+          // Fora da revisao nao vence, nem amanha (US-223).
+          highlightInReview(),
           or(
             eq(highlights.reviewDueOn, tomorrow),
             // Nunca revisado vence no dia seguinte ao da criacao, no fuso do

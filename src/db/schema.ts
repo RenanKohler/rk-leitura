@@ -350,6 +350,12 @@ export const highlights = pgTable(
     reviewInterval: integer("review_interval").notNull().default(0),
     lastReviewedAt: timestamp("last_reviewed_at", { withTimezone: true }),
     /**
+     * Fora da revisao (US-223): quando o leitor tirou o destaque da fila.
+     * Nulo = participa. O destaque e a agenda dele ficam como estao; voltar a
+     * revisar so limpa a marca (ver a rota do destaque).
+     */
+    reviewOffAt: timestamp("review_off_at", { withTimezone: true }),
+    /**
      * Cartao de revisao gerado a partir do destaque (US-150). Com os dois
      * preenchidos, a revisao pergunta antes de mostrar o trecho.
      */
@@ -879,8 +885,11 @@ export const quizRecalls = pgTable(
       .references(() => texts.id, { onDelete: "cascade" }),
     /** 7 ou 30: dias depois da conclusao. */
     round: integer("round").notNull(),
-    /** Acertos, em porcentagem. */
-    score: integer("score").notNull(),
+    /**
+     * Acertos, em porcentagem. Nulo = rodada dispensada sem responder
+     * (US-223): a linha existe para a rodada nao voltar, mas nao ha nota.
+     */
+    score: integer("score"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [uniqueIndex("quiz_recalls_text_round_unique").on(table.userId, table.textId, table.round)]

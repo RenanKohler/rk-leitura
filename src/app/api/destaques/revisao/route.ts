@@ -53,6 +53,8 @@ export async function POST(request: Request) {
 
     // So grava se o destaque ainda estiver vencido (US-198): a mesma nota
     // enviada duas vezes conta uma vez, inclusive chegando juntas.
+    // Destaque tirado da revisao (US-223) tambem nao recebe nota: uma tela
+    // aberta antes de ele sair nao o agenda de novo.
     // `updatedAt` fica como esta: ele diz quando o destaque ou a nota
     // mudaram, e revisar nao muda nenhum dos dois.
     const [updated] = await db
@@ -62,7 +64,13 @@ export async function POST(request: Request) {
         reviewDueOn: next.nextReviewOn,
         lastReviewedAt: new Date(),
       })
-      .where(and(owned, or(isNull(highlights.reviewDueOn), lte(highlights.reviewDueOn, today))))
+      .where(
+        and(
+          owned,
+          isNull(highlights.reviewOffAt),
+          or(isNull(highlights.reviewDueOn), lte(highlights.reviewDueOn, today))
+        )
+      )
       .returning({ id: highlights.id });
     if (!updated) {
       return NextResponse.json({ interval: current.interval, nextReviewOn: current.dueOn, repeated: true });

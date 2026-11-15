@@ -18,6 +18,9 @@ const PROTECTED_PREFIXES = [
   "/compartilhar",
   "/estatisticas",
   "/voce",
+  // Aba "Revisar" e a tela "Destaques e notas" (US-229, US-224).
+  "/revisar",
+  "/destaques",
 ];
 const GUEST_ONLY = ["/login", "/cadastro", "/recuperar"];
 
@@ -72,5 +75,7 @@ export const config = {
     "/compartilhar/:path*",
     "/estatisticas/:path*",
     "/voce/:path*",
+    "/revisar/:path*",
+    "/destaques/:path*",
   ],
 };

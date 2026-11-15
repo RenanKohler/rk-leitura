@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { useAuth } from "@/components/providers";
 import {
+  CheckIcon,
   HomeIcon,
   LibraryIcon,
   LogoMark,
@@ -13,29 +14,32 @@ import {
   SettingsIcon,
   UserIcon,
 } from "@/components/icons";
+import { useReviewCount } from "@/hooks/use-review-count";
+import {
+  DESKTOP_NAV,
+  MOBILE_NAV,
+  activeDestination,
+  badgeText,
+  destinationName,
+  matchesRoute,
+  type NavDestination,
+  type NavId,
+} from "@/lib/app-nav";
 
 /**
- * Destinos principais (APP-6).
+ * Icone de cada destino principal (APP-6, US-229).
  *
- * "Voce" entrou no lugar de "Historico": Estatisticas, Palavras e revisao e
- * Treino so eram alcancaveis de dentro de Ajustes, e ninguem procura o
- * proprio progresso na tela de preferencias. O hub junta essas telas e o
- * historico; `also` lista as rotas que acendem a aba mesmo fora do caminho
- * dela.
+ * Os destinos e a regra de qual acende em cada rota estao em
+ * `lib/app-nav.ts`, onde tem teste. "Revisar" ficou com o visto que "Voce"
+ * usava para a Revisao do dia: e o mesmo destino, agora na barra.
  */
-const NAV = [
-  { href: "/dashboard", label: "Início", Icon: HomeIcon, also: [] },
-  { href: "/textos", label: "Textos", Icon: LibraryIcon, also: [] },
-  {
-    href: "/voce",
-    label: "Você",
-    Icon: UserIcon,
-    also: ["/historico", "/estatisticas", "/palavras", "/treino", "/revisar"],
-  },
-  { href: "/ajustes", label: "Ajustes", Icon: SettingsIcon, also: [] },
-] as const;
-
-type NavItem = (typeof NAV)[number];
+const ICONS: Record<NavId, (props: { className?: string }) => ReactNode> = {
+  inicio: HomeIcon,
+  textos: LibraryIcon,
+  revisar: CheckIcon,
+  voce: UserIcon,
+  ajustes: SettingsIcon,
+};
 
 /**
  * Titulo da aba para rotas que ainda nao exportam `metadata` (A11Y-15).
@@ -55,7 +59,7 @@ const FALLBACK_TITLES: [prefix: string, title: string][] = [
 
 function useFallbackTitle(pathname: string) {
   useEffect(() => {
-    const found = FALLBACK_TITLES.find(([prefix]) => matches(pathname, prefix));
+    const found = FALLBACK_TITLES.find(([prefix]) => matchesRoute(pathname, prefix));
     if (!found) return;
     const wanted = `${found[1]} | Leitura`;
     const apply = () => {
@@ -70,26 +74,25 @@ function useFallbackTitle(pathname: string) {
   }, [pathname]);
 }
 
-function matches(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function isActive(pathname: string, item: NavItem) {
-  return matches(pathname, item.href) || item.also.some((href) => matches(pathname, href));
-}
-
 /**
  * Estrutura de navegacao.
  *
  * Celular: barra inferior fixa, ao alcance do polegar, com o botao de importar
  * no centro. Desktop (>=lg): coluna lateral e a barra inferior some.
  * O leitor renderiza sem nenhuma das duas para nao competir com o texto.
+ *
+ * "Revisar" (US-229) e um destino das duas, com o selo dos itens vencidos
+ * hoje. No celular ele ocupa a aba que era de "Ajustes", que continua dentro
+ * de "Voce"; na lateral ha espaco e os dois tem item proprio.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const immersive = pathname.startsWith("/leitor/");
   useFallbackTitle(pathname);
+  // Um pedido por troca de rota, sem segurar a tela. No leitor nao ha barra
+  // para mostrar o selo, entao nao ha pedido.
+  const due = useReviewCount(immersive ? null : pathname);
 
   if (immersive) return <>{children}</>;
 
@@ -104,7 +107,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         Pular para o conteúdo
       </a>
 
-      <DesktopSidebar pathname={pathname} name={user?.name} email={user?.email} onLogout={logout} />
+      <DesktopSidebar
+        pathname={pathname}
+        due={due}
+        name={user?.name}
+        email={user?.email}
+        onLogout={logout}
+      />
 
       <div className="lg:pl-64">
         <main
@@ -117,22 +126,52 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <MobileTabBar pathname={pathname} />
+      <MobileTabBar pathname={pathname} due={due} />
     </div>
   );
 }
 
+/**
+ * Selo do M3 com numero (US-229): 16px de altura, label-small, error sobre
+ * on-error, "99+" acima de 99 e nada com zero.
+ *
+ * E so visual, por isso `aria-hidden`: quem usa leitor de tela ouve a
+ * contagem inteira no nome do destino (`destinationName`).
+ */
+function CountBadge({ total, className = "" }: { total: number; className?: string }) {
+  const text = badgeText(total);
+  if (!text) return null;
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="selo-revisar"
+      className={`tabular flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-label-small text-on-error ${className}`}
+    >
+      {text}
+    </span>
+  );
+}
+
+/** So "Revisar" tem selo: os itens vencidos hoje na Revisao do dia. */
+function dueFor(item: NavDestination, due: number) {
+  return item.id === "revisar" ? due : 0;
+}
+
 function DesktopSidebar({
   pathname,
+  due,
   name,
   email,
   onLogout,
 }: {
   pathname: string;
+  due: number;
   name?: string;
   email?: string;
   onLogout: () => void;
 }) {
+  const active = activeDestination(pathname, DESKTOP_NAV);
+
   return (
     // Gaveta de navegacao do M3: surface-container-low, sem divisor lateral.
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-surface-container-low lg:flex">
@@ -142,22 +181,27 @@ function DesktopSidebar({
       </div>
 
       <nav aria-label="Navegação principal" className="flex-1 space-y-1 px-3">
-        {NAV.map((item) => {
-          const { href, label, Icon } = item;
-          const active = isActive(pathname, item);
+        {DESKTOP_NAV.map((item) => {
+          const { id, href, label } = item;
+          const Icon = ICONS[id];
+          const current = id === active;
+          const count = dueFor(item, due);
           return (
             <Link
-              key={href}
+              key={id}
               href={href}
-              aria-current={active ? "page" : undefined}
+              aria-current={current ? "page" : undefined}
+              aria-label={count > 0 ? destinationName(label, count) : undefined}
               className={`state-layer flex min-h-14 items-center gap-3 rounded-full px-4 text-sm font-medium tracking-[0.1px] transition-colors ${
-                active
+                current
                   ? "bg-secondary-container text-on-secondary-container"
                   : "text-on-surface-variant"
               }`}
             >
               <Icon className="size-5" />
               {label}
+              {/* Na gaveta o selo vai no fim da linha, como o M3 poe a contagem. */}
+              <CountBadge total={count} className="ml-auto" />
             </Link>
           );
         })}
@@ -196,8 +240,9 @@ function DesktopSidebar({
   );
 }
 
-function MobileTabBar({ pathname }: { pathname: string }) {
-  const [first, second, third, fourth] = NAV;
+function MobileTabBar({ pathname, due }: { pathname: string; due: number }) {
+  const [home, texts, review, you] = MOBILE_NAV;
+  const active = activeDestination(pathname, MOBILE_NAV);
 
   return (
     <nav
@@ -208,8 +253,8 @@ function MobileTabBar({ pathname }: { pathname: string }) {
       className="pb-safe fixed inset-x-0 bottom-0 z-40 bg-surface-container lg:hidden"
     >
       <div className="mx-auto grid h-20 max-w-md grid-cols-5 items-center px-1">
-        <TabLink {...first} active={isActive(pathname, first)} />
-        <TabLink {...second} active={isActive(pathname, second)} />
+        <TabLink item={home} active={active === home.id} />
+        <TabLink item={texts} active={active === texts.id} />
 
         <div className="flex justify-center">
           <Link
@@ -222,28 +267,31 @@ function MobileTabBar({ pathname }: { pathname: string }) {
           </Link>
         </div>
 
-        <TabLink {...third} active={isActive(pathname, third)} />
-        <TabLink {...fourth} active={isActive(pathname, fourth)} />
+        <TabLink item={review} active={active === review.id} due={dueFor(review, due)} />
+        <TabLink item={you} active={active === you.id} />
       </div>
     </nav>
   );
 }
 
 function TabLink({
-  href,
-  label,
-  Icon,
+  item,
   active,
+  due = 0,
 }: {
-  href: string;
-  label: string;
-  Icon: (props: { className?: string }) => ReactNode;
+  item: NavDestination;
   active: boolean;
+  /** Itens vencidos, para o selo; zero nos destinos sem selo. */
+  due?: number;
 }) {
+  const { id, href, label } = item;
+  const Icon = ICONS[id];
+
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
+      aria-label={due > 0 ? destinationName(label, due) : undefined}
       // Destino do M3: icone numa pilula de 64 x 32 (secondary-container no
       // destino atual) e rotulo em label-medium.
       className={`group flex h-full flex-col items-center justify-center gap-1 text-xs font-medium ${
@@ -257,7 +305,12 @@ function TabLink({
             : "group-hover:bg-on-surface/8"
         }`}
       >
-        <Icon className="size-6" />
+        {/* O selo se ancora no icone, nao na pilula: canto superior direito,
+            12px para dentro e 2px acima, como o M3 posiciona o selo grande. */}
+        <span className="relative flex">
+          <Icon className="size-6" />
+          <CountBadge total={due} className="absolute -top-0.5 left-3" />
+        </span>
       </span>
       {label}
     </Link>

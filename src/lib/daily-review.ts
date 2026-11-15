@@ -6,6 +6,8 @@
  * atrasados primeiro, intercalando os tipos para a sessao nao virar tres
  * revisoes seguidas. Nao ha estado de sessao guardado: item respondido deixa
  * de estar vencido, entao reabrir a tela no mesmo dia continua do proximo.
+ * Pelo mesmo motivo o item pulado (US-223) volta ao reabrir a tela: pular nao
+ * grava nada, ele so continua vencido.
  */
 
 export const DAILY_REVIEW_KINDS = ["palavra", "destaque", "cartao", "recordar"] as const;
@@ -114,4 +116,149 @@ export function countsLabel(counts: DailyCounts): string {
 /** "1 item", "12 itens". */
 export function itemsLabel(count: number): string {
   return `${count} ${count === 1 ? "item" : "itens"}`;
+}
+
+/* --- pular e tirar da revisao (US-223) -------------------------------------- */
+
+/**
+ * Como um item saiu da tela. So "lembrado" e "errado" sao respostas: o pulado
+ * continua vencido e volta quando a tela for aberta de novo, e o tirado saiu
+ * da revisao de vez (palavra aprendida, destaque fora da revisao, cartao
+ * excluido, questionario dispensado). Nenhum dos dois conta como acerto nem
+ * como erro.
+ */
+export type ReviewOutcome = "lembrado" | "errado" | "pulado" | "tirado";
+
+/** Placar da sessao, para o resumo do fim. */
+export interface SessionTally {
+  /** Respondidos, lembrados ou nao. */
+  answered: number;
+  /** Respondidos com nota diferente de "errei". */
+  remembered: number;
+  /** Pulados: continuam na fila. */
+  skipped: number;
+  /** Tirados da revisao nesta sessao. */
+  removed: number;
+}
+
+export function emptyTally(): SessionTally {
+  return { answered: 0, remembered: 0, skipped: 0, removed: 0 };
+}
+
+export function tallyWith(tally: SessionTally, outcome: ReviewOutcome): SessionTally {
+  if (outcome === "pulado") return { ...tally, skipped: tally.skipped + 1 };
+  if (outcome === "tirado") return { ...tally, removed: tally.removed + 1 };
+  return {
+    ...tally,
+    answered: tally.answered + 1,
+    remembered: tally.remembered + (outcome === "lembrado" ? 1 : 0),
+  };
+}
+
+export interface SessionSummary {
+  title: string;
+  description: string;
+}
+
+/**
+ * O resumo do fim da sessao. A conta de "lembrou X de Y" so olha os
+ * respondidos; pulados e tirados vem em frases proprias. Sem nenhuma
+ * resposta a sessao nao foi "concluida": o titulo diz isso, e o texto diz
+ * quantos itens continuam na fila.
+ */
+export function sessionSummary(tally: SessionTally): SessionSummary {
+  const removed =
+    tally.removed > 0
+      ? `${tally.removed} ${tally.removed === 1 ? "saiu" : "saíram"} da revisão.`
+      : "";
+  const join = (...parts: string[]) => parts.filter(Boolean).join(" ");
+
+  if (tally.answered === 0) {
+    if (tally.skipped === 0) {
+      // Tudo foi tirado: nada respondido, mas tambem nada pendente.
+      return {
+        title: "Nada ficou na fila",
+        description:
+          tally.removed === 0
+            ? "Nenhum item nesta sessão."
+            : tally.removed === 1
+              ? "1 item saiu da revisão."
+              : `${tally.removed} itens saíram da revisão.`,
+      };
+    }
+    return {
+      title: "Nada respondido",
+      description: join(
+        tally.skipped === 1
+          ? "1 item pulado continua na fila."
+          : `${tally.skipped} itens pulados continuam na fila.`,
+        removed
+      ),
+    };
+  }
+
+  return {
+    title: "Revisão concluída",
+    description: join(
+      `Você lembrou ${tally.remembered} de ${tally.answered}.`,
+      tally.remembered < tally.answered ? "O que você errou volta amanhã." : "",
+      tally.skipped > 0
+        ? `${tally.skipped} ${tally.skipped === 1 ? "pulado continua" : "pulados continuam"} na fila.`
+        : "",
+      removed
+    ),
+  };
+}
+
+export interface RemovalCopy {
+  /** Nome da acao: titulo da confirmacao. */
+  title: string;
+  /** O efeito, em uma frase. */
+  effect: string;
+  /** Rotulo do botao que confirma. */
+  confirm: string;
+  /** Apagar de verdade: o botao de confirmar vai no papel de erro. */
+  destructive: boolean;
+}
+
+/**
+ * "Tirar da revisao" quer dizer uma coisa diferente em cada tipo, e a
+ * confirmacao precisa dizer qual. No questionario, o texto depende da
+ * rodada: dispensar a de 7 dias nao dispensa a de 30.
+ */
+export function removalCopy(kind: DailyReviewKind, recallRound?: number): RemovalCopy {
+  if (kind === "palavra") {
+    return {
+      title: "Já sei esta palavra",
+      effect: "A palavra sai da revisão e continua na sua lista de palavras, como aprendida.",
+      confirm: "Já sei esta palavra",
+      destructive: false,
+    };
+  }
+  if (kind === "destaque") {
+    return {
+      title: "Não revisar este destaque",
+      effect:
+        "O destaque sai da revisão e continua no texto; dá para voltar a revisar pela tela de destaques.",
+      confirm: "Não revisar",
+      destructive: false,
+    };
+  }
+  if (kind === "cartao") {
+    return {
+      title: "Excluir cartão",
+      effect: "O cartão é apagado e não dá para desfazer.",
+      confirm: "Excluir cartão",
+      destructive: true,
+    };
+  }
+  return {
+    title: "Dispensar este questionário",
+    effect:
+      recallRound === 7
+        ? "Esta rodada sai da revisão sem nota; a de 30 dias continua valendo."
+        : "Esta rodada sai da revisão sem nota, e o questionário deste texto não volta mais.",
+    confirm: "Dispensar este questionário",
+    destructive: false,
+  };
 }

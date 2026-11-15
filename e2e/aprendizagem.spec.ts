@@ -174,7 +174,11 @@ test("palavra guardada sem definicao e revisao com quatro respostas", async ({ p
   await expect(page.getByText("Consertada com remendos.")).toBeVisible();
 });
 
-/** PROD-4: destaque vencido aparece no painel e na revisao em lacuna. */
+/**
+ * PROD-4: destaque vencido aparece na revisao em lacuna. O Inicio nao tem
+ * mais o cartao "Revisar destaques" (US-228): a Revisao do dia ja conta esses
+ * itens, e a revisao so de destaques continua no endereco dela.
+ */
 test("revisao espacada de destaques", async ({ page }) => {
   await registerByApi(page.request);
   const text = await createText(page.request, "Destaques", PROSE);
@@ -189,7 +193,10 @@ test("revisao espacada de destaques", async ({ page }) => {
   ]);
 
   await page.goto("/dashboard");
-  await page.getByTestId("cartao-revisar-destaques").click();
+  await expect(page.getByRole("heading", { name: /^Olá/ })).toBeVisible();
+  await expect(page.getByTestId("cartao-revisar-destaques")).toHaveCount(0);
+
+  await page.goto("/textos/destaques/revisar");
   await expect(page.getByRole("heading", { name: "Revisar destaques" })).toBeVisible();
   await expect(page.getByTestId("lacuna")).toHaveCount(1);
   await page.getByRole("button", { name: "Mostrar" }).click();

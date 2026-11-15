@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   dueRecallRound,
   nextRecallDueOn,
+  RECALL_EXPIRY_DAYS,
   recallDueOn,
+  recallExpiresOn,
   recallQuestions,
   recallSeed,
   scoreRecall,
@@ -36,6 +38,49 @@ describe("rodadas do questionario refeito", () => {
     expect(nextRecallDueOn(concluded, "2026-09-07", [])).toBe("2026-09-08");
     expect(nextRecallDueOn(concluded, "2026-09-10", [7])).toBe("2026-10-01");
     expect(nextRecallDueOn(concluded, "2026-10-10", [30])).toBeNull();
+  });
+});
+
+/** Prazo e dispensa da rodada (US-223). */
+describe("rodada que expira ou e dispensada", () => {
+  it("a de 30 dias vale 30 dias depois de vencer e some no dia 60", () => {
+    expect(RECALL_EXPIRY_DAYS).toBe(30);
+    // Concluido em 01/09: a rodada vence em 01/10 (dia 30) e expira em 31/10 (dia 60).
+    expect(recallExpiresOn(concluded, 30)).toBe("2026-10-31");
+    expect(dueRecallRound(concluded, "2026-10-01", [])).toBe(30);
+    expect(dueRecallRound(concluded, "2026-10-30", [])).toBe(30);
+    expect(dueRecallRound(concluded, "2026-10-31", [])).toBeNull();
+    expect(dueRecallRound(concluded, "2027-03-01", [])).toBeNull();
+    // Com a de 7 feita, a de 30 expira do mesmo jeito.
+    expect(dueRecallRound(concluded, "2026-10-30", [7])).toBe(30);
+    expect(dueRecallRound(concluded, "2026-10-31", [7])).toBeNull();
+  });
+
+  it("a de 7 dias expira quando a de 30 toma o lugar dela", () => {
+    expect(recallExpiresOn(concluded, 7)).toBe(recallDueOn(concluded, 30));
+    expect(dueRecallRound(concluded, "2026-09-30", [])).toBe(7);
+    expect(dueRecallRound(concluded, "2026-10-01", [])).toBe(30);
+  });
+
+  it("rodada expirada nao volta a contar como proxima", () => {
+    expect(nextRecallDueOn(concluded, "2026-10-31", [])).toBeNull();
+    expect(nextRecallDueOn(concluded, "2026-10-31", [7])).toBeNull();
+    // Na vespera do vencimento ela ainda e a proxima: o prazo so corre depois.
+    expect(nextRecallDueOn(concluded, "2026-09-30", [])).toBe("2026-10-01");
+  });
+
+  it("dispensar a de 7 encerra so ela: a de 30 ainda vence", () => {
+    // A rodada dispensada entra em `done` como a respondida.
+    expect(dueRecallRound(concluded, "2026-09-10", [7])).toBeNull();
+    expect(nextRecallDueOn(concluded, "2026-09-10", [7])).toBe("2026-10-01");
+    expect(dueRecallRound(concluded, "2026-10-01", [7])).toBe(30);
+  });
+
+  it("dispensar a de 30 encerra o questionario do texto", () => {
+    // Dispensada sem a de 7 ter sido feita: a de 7 nao volta depois da de 30.
+    expect(dueRecallRound(concluded, "2026-10-05", [30])).toBeNull();
+    expect(dueRecallRound(concluded, "2026-10-20", [30])).toBeNull();
+    expect(nextRecallDueOn(concluded, "2026-10-05", [30])).toBeNull();
   });
 });
 

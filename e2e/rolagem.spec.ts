@@ -104,6 +104,51 @@ async function scrollModeOn(page: Page) {
   await page.addInitScript(() => localStorage.setItem("rk-leitura:rolagem", "1"));
 }
 
+/** Rolagem ligada e play no modo "guia na pagina": a palavra anda no texto. */
+async function guideOn(page: Page) {
+  await scrollModeOn(page);
+  await page.addInitScript(() => localStorage.setItem("rk-leitura:play-mode", "guia"));
+}
+
+/** Altura de uma linha do texto, em px. */
+const lineHeight = (page: Page) =>
+  frame(page).evaluate((element) =>
+    Number.parseFloat(getComputedStyle(element.querySelector(".reader-prose")!).lineHeight)
+  );
+
+/**
+ * Distancia, em linhas, entre a palavra do guia e a ancora da rolagem
+ * automatica (US-225): um terco do quadro, a partir do topo. Null sem
+ * palavra marcada.
+ */
+async function guideOffset(page: Page): Promise<number | null> {
+  return frame(page).evaluate((element) => {
+    const word = element.querySelector('[data-testid="palavra-atual"]');
+    if (!word) return null;
+    const column = element.getBoundingClientRect();
+    const line = Number.parseFloat(
+      getComputedStyle(element.querySelector(".reader-prose")!).lineHeight
+    );
+    return (word.getBoundingClientRect().top - column.top - column.height / 3) / line;
+  });
+}
+
+/** Palavra em que a leitura esta, lida do contador do cabecalho ("12 / 3.000"). */
+async function position(page: Page): Promise<number> {
+  const label = await page.getByRole("button", { name: /^Mostrar o tempo/ }).innerText();
+  return Number(label.split("/")[0]!.replace(/\D/g, ""));
+}
+
+/** Passos da coluna entre amostras seguidas da altura da rolagem. */
+async function sampleSteps(page: Page, samples: number, everyMs: number): Promise<number[]> {
+  const seen: number[] = [];
+  for (let sample = 0; sample < samples; sample += 1) {
+    seen.push(await scrollTop(page));
+    await page.waitForTimeout(everyMs);
+  }
+  return seen.slice(1).map((top, at) => top - seen[at]!);
+}
+
 test("ligar a rolagem mostra o texto inteiro, e arrastar muda e guarda a posicao", async ({
   page,
 }) => {
@@ -373,4 +418,105 @@ test("arrastar devagar enquanto os controles somem nao faz a posicao voltar", as
   const backward = seen.filter((top, at) => at > 0 && top < seen[at - 1]! - 2);
   expect(backward).toEqual([]);
   expect(seen.at(-1)!).toBeGreaterThan(400);
+});
+
+/*
+ * Rolagem automatica (US-225): com o guia na pagina correndo, a coluna anda
+ * sozinha, no ritmo da leitura. Estes testes usam o relogio de verdade: o
+ * que se confere e o movimento quadro a quadro.
+ */
+
+test("com o guia correndo a coluna rola sozinha, sem saltos, com a palavra a um terco do quadro", async ({
+  page,
+}) => {
+  await guideOn(page);
+  const text = await setup(page, 3000, { baseWpm: 600 });
+  await openReader(page, text.id);
+  const line = await lineHeight(page);
+
+  await page.getByRole("button", { name: "Iniciar leitura" }).click();
+  // No comeco do texto a coluna nao tem para onde subir: o guia desce ate a
+  // ancora, e so entao ela comeca a andar.
+  await expect.poll(() => scrollTop(page), { timeout: 20_000 }).toBeGreaterThan(line);
+
+  // Tres segundos de leitura, olhando a coluna a cada 100 ms.
+  const steps = await sampleSteps(page, 31, 100);
+  // Sempre para a frente e aos poucos: antes a coluna ficava parada e saltava
+  // quase uma tela quando a palavra saia da vista.
+  expect(Math.min(...steps)).toBeGreaterThanOrEqual(-1);
+  expect(Math.max(...steps)).toBeLessThanOrEqual(line * 3);
+  expect(steps.reduce((sum, step) => sum + step, 0)).toBeGreaterThan(line * 1.5);
+
+  // A palavra do guia fica perto da ancora, a um terco do quadro.
+  const offset = await guideOffset(page);
+  expect(offset).not.toBeNull();
+  expect(Math.abs(offset!)).toBeLessThanOrEqual(2.5);
+
+  // Pausar deixa a coluna onde esta, com a palavra do guia marcada.
+  await page.getByRole("button", { name: "Pausar" }).click();
+  await expect(page.getByTestId("palavra-atual")).toBeInViewport();
+  const paused = await scrollTop(page);
+  await page.waitForTimeout(500);
+  expect(Math.abs((await scrollTop(page)) - paused)).toBeLessThanOrEqual(1);
+});
+
+test("arrastar com o guia correndo nao muda a posicao, e a coluna volta sozinha a linha do guia", async ({
+  page,
+}) => {
+  await guideOn(page);
+  const text = await setup(page, 3000, { baseWpm: 300 });
+  await openReader(page, text.id);
+
+  await page.getByRole("button", { name: "Iniciar leitura" }).click();
+  await expect(page.getByTestId("palavra-atual")).toBeVisible();
+  const startedAt = Date.now();
+  const before = await position(page);
+
+  // Dois arrastes longos: a coluna vai com o dedo, para bem longe do guia,
+  // sem ser puxada de volta no meio do gesto.
+  await dragUp(page, 400);
+  await dragUp(page, 400);
+  await expect.poll(() => scrollTop(page)).toBeGreaterThan(500);
+  const far = await scrollTop(page);
+
+  // Solta e quieta, ela volta a linha do guia, que seguiu andando sozinho.
+  await expect.poll(() => scrollTop(page), { timeout: 10_000 }).toBeLessThan(far - 400);
+  await expect(page.getByTestId("palavra-atual")).toBeInViewport();
+
+  // So o guia mexeu na posicao: no maximo as palavras do tempo que passou
+  // (300 ppm sao 5 por segundo). A rolagem do dedo, se contasse, poria a
+  // leitura mais de cem palavras adiante.
+  const after = await position(page);
+  const elapsed = (Date.now() - startedAt) / 1000;
+  expect(after).toBeGreaterThanOrEqual(before);
+  expect(after - before).toBeLessThanOrEqual(Math.ceil(elapsed * 5) + 10);
+
+  // A posicao gravada ao pausar e a palavra do guia.
+  await page.getByRole("button", { name: "Pausar" }).click();
+  const paused = await position(page);
+  expect(paused - before).toBeLessThanOrEqual(Math.ceil(((Date.now() - startedAt) / 1000) * 5) + 10);
+  await expect.poll(() => progressOf(page.request, text.id)).toBe(paused - 1);
+});
+
+test("com movimento reduzido a coluna anda um passo por linha, sem deslizar", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await guideOn(page);
+  const text = await setup(page, 3000, { baseWpm: 600 });
+  await openReader(page, text.id);
+  const line = await lineHeight(page);
+
+  await page.getByRole("button", { name: "Iniciar leitura" }).click();
+  // O primeiro passo, do topo do texto ate a ancora, pode ser de um pedaco
+  // de linha; os seguintes sao de linha inteira.
+  await expect.poll(() => scrollTop(page), { timeout: 20_000 }).toBeGreaterThan(line / 2);
+
+  const steps = (await sampleSteps(page, 41, 75)).filter((step) => Math.abs(step) > 1);
+  // Houve movimento, e sempre em passos de uma linha (ou de linha e espaco
+  // entre paragrafos): nunca o deslize de poucos pixels por amostra.
+  expect(steps.length).toBeGreaterThan(1);
+  for (const step of steps) {
+    expect(step).toBeGreaterThanOrEqual(line * 0.9);
+    expect(step).toBeLessThanOrEqual(line * 4);
+  }
+  await expect(page.getByTestId("palavra-atual")).toBeInViewport();
 });

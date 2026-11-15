@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { loadHighlights, loadKnownWords, loadNextUp } from "@/lib/queries";
 import { loadPreviousChapter } from "@/lib/learning-queries";
+import { loadSeriesChapters } from "@/lib/series-queries";
 import { ReaderClient } from "./reader-client";
 
 export const dynamic = "force-dynamic";
@@ -59,10 +60,13 @@ export default async function ReaderPage({
   // precisa esperar uma consulta para oferecer o proximo capitulo ou a fila.
   // Recapitulacao do capitulo anterior (PROD-12): vai dentro do proprio
   // texto (`TextDetail.previousChapter`), so quando se aplica.
-  const [nextUp, knownWords, previousChapter] = await Promise.all([
+  // Capitulos da serie (US-226): a folha Navegar troca de capitulo sem
+  // passar pela biblioteca. Texto solto recebe lista vazia, sem consulta.
+  const [nextUp, knownWords, previousChapter, chapters] = await Promise.all([
     loadNextUp(session.id, id),
     loadKnownWords(session.id, loaded.text.language),
     loadPreviousChapter(session.id, loaded.text),
+    loadSeriesChapters(session.id, loaded.text.seriesKey),
   ]);
 
   return (
@@ -74,6 +78,7 @@ export default async function ReaderPage({
       stopAt={stopAt}
       plannedMs={plannedMs}
       knownWords={knownWords}
+      chapters={chapters}
     />
   );
 }

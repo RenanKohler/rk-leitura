@@ -10,16 +10,23 @@ import { Skeleton } from "@/components/ui";
  */
 export default function Loading() {
   return (
-    <div className="space-y-6">
-      <header className="pt-2">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="mt-2 h-4 w-32" />
+    // Mesmas alturas do cabecalho curto e dos itens compactos da biblioteca
+    // (US-230): quando a lista chega, nada pula de lugar.
+    <div className="space-y-2">
+      <header className="flex min-h-12 items-center">
+        <Skeleton className="h-8 w-40" />
       </header>
-      <Skeleton className="h-36 w-full rounded-card" />
-      <div className="space-y-2">
-        {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-24 w-full rounded-card" />
-        ))}
+      <Skeleton className="h-10.5 w-full rounded-full" />
+      <Skeleton className="h-12 w-full rounded-full" />
+      <div>
+        <div className="flex min-h-11 items-center">
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <div className="space-y-2">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-18 w-full rounded-card" />
+          ))}
+        </div>
       </div>
     </div>
   );
