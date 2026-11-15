@@ -1365,6 +1365,9 @@ function Reader({
       if (leavingRef.current) return;
       leavingRef.current = true;
       pause("oculta");
+      // A sessao e gravada aqui mesmo: a checagem que a pausa armou nao vale
+      // para quem esta saindo, e oferece-la gastaria a oferta do dia.
+      setSessionCheck(null);
       stopSpeech();
       const meter = meterRef.current;
       const now = Date.now();

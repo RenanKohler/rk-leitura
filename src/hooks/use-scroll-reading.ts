@@ -259,11 +259,26 @@ export function useScrollReading({
       if (timer) clearTimeout(timer);
       timer = setTimeout(settle, SCROLL_SETTLE_MS);
     };
-    const onTouchStart = () => {
-      gesture.touching = true;
-    };
     const onTouchEnd = () => {
       gesture.touching = false;
+    };
+    /**
+     * O fim do toque vai para o elemento onde ele comecou. Se a palavra sob o
+     * dedo for redesenhada no meio do toque (o guia passou por ela), esse
+     * elemento sai do documento e o fim nao chega ate a coluna: sem ouvir no
+     * proprio alvo, `touching` ficaria preso e a rolagem automatica parava.
+     */
+    const onTouchStart = (event: TouchEvent) => {
+      gesture.touching = true;
+      const target = event.target;
+      if (!(target instanceof EventTarget) || target === frame) return;
+      const done = () => {
+        onTouchEnd();
+        target.removeEventListener("touchend", done);
+        target.removeEventListener("touchcancel", done);
+      };
+      target.addEventListener("touchend", done, { passive: true });
+      target.addEventListener("touchcancel", done, { passive: true });
     };
 
     frame.addEventListener("scroll", onScroll, { passive: true });

@@ -215,6 +215,8 @@ export function TextsClient({
       await apiSend(`/api/texts/${text.id}/arquivo`, restoring ? "DELETE" : "POST");
       notify(restoring ? "Texto de volta à biblioteca." : "Texto arquivado.", "success");
       resource.reload();
+      // A faixa esconde etiquetas sem texto ativo: a contagem mudou.
+      void refreshTags();
     } catch {
       notify(restoring ? "Falha ao desarquivar." : "Falha ao arquivar.", "error");
     }
@@ -225,6 +227,7 @@ export function TextsClient({
       await apiSend(`/api/texts/${text.id}/largar`, "DELETE");
       notify("Texto de volta à biblioteca.", "success");
       resource.reload();
+      void refreshTags();
     } catch {
       notify("Falha ao retomar.", "error");
     }
@@ -324,6 +327,7 @@ export function TextsClient({
       // paginas mudaram, e a pagina atual pode ter ficado vazia.
       if (items.length === 1 && page > 1) setPage(page - 1);
       else resource.reload();
+      void refreshTags();
     } catch {
       notify("Falha ao remover.", "error");
     } finally {

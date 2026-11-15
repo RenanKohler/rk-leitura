@@ -508,9 +508,11 @@ function ChapterList({
         {shown.map((chapter) => {
           const isOpen = chapter.id === textId;
           // O aberto mostra a posicao desta leitura; a gravada e de quando a
-          // tela carregou.
+          // tela carregou. Ja lido continua "lido": o leitor abre o texto
+          // concluido na ultima palavra, que nunca chega ao total.
+          const done = chapter.wordCount > 0 && chapter.progressIndex >= chapter.wordCount;
           const state = chapterStateLabel(
-            isOpen ? { ...chapter, progressIndex: index, wordCount: total } : chapter
+            isOpen && !done ? { ...chapter, progressIndex: index, wordCount: total } : chapter
           );
           // Na linha marcada tudo herda a cor do recipiente; nas outras, numero
           // e estado ficam um tom abaixo do titulo.

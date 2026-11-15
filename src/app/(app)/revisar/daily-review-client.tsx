@@ -89,6 +89,18 @@ export function DailyReviewClient({ initial }: { initial: DailyReview }) {
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState("");
 
+  // Tocar na aba "Revisar" ja acesa navega para a mesma pagina: o Next busca
+  // a lista de novo e mantem este estado. Lista nova, sessao nova - senao a
+  // posicao antiga apontaria para outro item, ou para o resumo de novo.
+  const [shownFor, setShownFor] = useState(initial);
+  if (shownFor !== initial) {
+    setShownFor(initial);
+    setSession({ position: 0, tally: emptyTally() });
+    setLockedAt(null);
+    setConfirmingAt(null);
+    setRemoveError("");
+  }
+
   const { position, tally } = session;
   const items = initial.items;
   const item = items[position];
