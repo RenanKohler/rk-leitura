@@ -54,7 +54,8 @@ um texto, uma revisão diária única e ferramentas de estudo sobre o texto
 | Cartões de estudo | 7 | 20 | 4 | 3 | 0 |
 | Revisão e retenção | 4 | 13 | 2 | 1 | 1 |
 | Estudo do texto com IA | 5 | 20 | 1 | 1 | 3 |
-| **Total** | **16** | **53** | **7 (44%)** | **5 (31%)** | **4 (25%)** |
+| IA durante a leitura | 4 | 16 | 1 | 2 | 1 |
+| **Total** | **20** | **69** | **8 (40%)** | **7 (35%)** | **5 (25%)** |
 
 Could fica acima da faixa de 10 a 20% porque três das quatro stories Could são
 formas alternativas de estudar o mesmo texto (perguntas-guia, explicar com as
@@ -476,6 +477,116 @@ um cartão, para que o conceito fique mais fácil de lembrar.
 
 **Notas técnicas:** Haiku, cota `estudo`. Envia só a frente, o verso e o trecho
 de origem do cartão.
+
+## Épico: IA durante a leitura
+
+Pedido do leitor em novembro de 2026, a partir de uma lista de sugestões de
+IA. Todas as funções são a pedido (nenhuma chamada sem toque), guardam o
+resultado em `ai_results` e respeitam o consentimento e as cotas diárias.
+
+### US-231: Explicar a seção com as próprias palavras, no leitor
+
+**Épico:** IA durante a leitura
+**Prioridade:** Should
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** a explicação com apontamentos (US-167) só existia na tela Estudar; no fim de uma seção, que é quando a memória está fresca, o leitor não era convidado a usá-la
+
+Como leitor que estuda, eu quero explicar uma seção logo que termino de lê-la,
+para descobrir lacunas enquanto o texto está fresco.
+
+**Critérios de aceitação**
+1. Dado um texto com seções, quando termino uma seção e a leitura pausa,
+   então vejo um aviso discreto "Explicar esta seção com suas palavras".
+2. Dado o aviso, quando toco, então uma folha abre com o painel da US-167 para
+   a seção recém-terminada, e recebo até 4 apontamentos com o trecho do texto.
+3. Dado que fecho a folha sem enviar, quando a abro de novo na mesma visita,
+   então o que escrevi continua lá.
+4. Dado "Sugestões na leitura" desligado, a IA desligada ou sem consentimento,
+   quando termino a seção, então nada é oferecido.
+5. Dado um texto sem seções, quando concluo a leitura, então a oferta vale
+   para o texto lido.
+
+**Notas técnicas:** reaproveita a rota `/api/texts/[id]/apontamentos`. A
+tarefa "apontamentos" passou para o Opus 5.5, esforço médio.
+
+### US-232: Ligações com outros textos da biblioteca
+
+**Épico:** IA durante a leitura
+**Prioridade:** Should
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** cada texto era estudado isolado; nada mostrava que dois textos da biblioteca tratam do mesmo assunto ou se contradizem
+
+Como leitor que estuda, eu quero ver onde outros textos que já tenho tratam do
+mesmo assunto, para ligar o que leio ao que já li.
+
+**Critérios de aceitação**
+1. Dado a tela Estudar, quando toco "Procurar ligações", então vejo até 5
+   ligações, cada uma com o outro texto, a relação em uma frase e os dois
+   trechos, conferidos literalmente.
+2. Dado uma ligação, quando toco "Ler a partir daqui", então o outro texto
+   abre naquele trecho.
+3. Dado que nenhum outro texto tem termos em comum, quando procuro, então o
+   modelo não é chamado e a tela diz que não há ligações ainda.
+4. Dado que o texto ou a biblioteca mudam, quando volto à tela, então posso
+   procurar de novo; sem mudança, o resultado guardado aparece direto.
+
+**Notas técnicas:** sem busca por significado (Won't Have do backlog
+principal): os candidatos saem de termos característicos e da busca de
+conteúdo; o Sonnet 5.5 só julga a relação entre trechos já escolhidos.
+Cota `estudo`.
+
+### US-233: Prévia antes de ler
+
+**Épico:** IA durante a leitura
+**Prioridade:** Must
+**Story points:** 3
+**Status:** Implementada
+**Evidência:** a sinopse (US-138) diz do que o texto trata, mas não prepara a leitura; ler com perguntas em mente melhora a atenção e a retenção
+
+Como leitor, eu quero uma prévia curta antes de começar, para ler sabendo o que
+procurar.
+
+**Critérios de aceitação**
+1. Dado um texto ainda não começado, quando abro o leitor, então vejo "Ver
+   prévia".
+2. Dado que toco, então recebo do que o texto trata (uma frase), até 3 pontos
+   de atenção e 2 perguntas para ler buscando a resposta, sem revelar o
+   desfecho.
+3. Dado que começo a ler, quando quero rever as perguntas, então elas estão a
+   um toque dentro do leitor.
+4. Dado a prévia já gerada, quando abro de novo, então ela vem guardada, sem
+   nova chamada.
+
+**Notas técnicas:** Haiku 5.5, esforço baixo, só o começo do texto vai ao
+modelo. Cota `resumo`.
+
+### US-234: Perfil de leitura do mês
+
+**Épico:** IA durante a leitura
+**Prioridade:** Could
+**Story points:** 5
+**Status:** Implementada
+**Evidência:** as estatísticas mostram números (ppm, acertos), mas não dizem que tipo de trecho trava a leitura nem o que treinar
+
+Como leitor, eu quero um retrato mensal do que trava minha leitura, para saber
+o que treinar.
+
+**Critérios de aceitação**
+1. Dado um mês com leituras e questionários, quando toco "Gerar perfil do
+   mês" em Estatísticas, então recebo de 2 a 4 padrões, cada um com um exemplo
+   real dos meus dados e uma sugestão do que fazer no app.
+2. Dado pouco dado no período, quando abro o cartão, então ele diz o que falta
+   e o modelo não é chamado.
+3. Dado o perfil do mês já gerado, quando volto, então ele aparece guardado;
+   um novo só no mês seguinte.
+4. Dado o perfil, quando o leio, então não há nota nem rótulo sobre mim, só
+   padrões e sugestões.
+
+**Notas técnicas:** os agregados (erros no questionário e no recordar,
+palavras consultadas, freios no Word Runner, ritmo) são calculados no servidor
+e só um resumo vai ao Sonnet 5.5. Cota `resumo`.
 
 ## Fora do escopo (Won't Have)
 
