@@ -82,12 +82,14 @@ export const AI_MODELS: Record<AiTask, string> = {
   semana: SONNET,
   // Secoes de um documento longo (US-153): entrada longa, saida fechada.
   secoes: SONNET,
-  // Aprendizado assistido (US-155 a US-170). O texto inteiro e a escolha do
-  // que importa pedem o Sonnet; um cartao de um trecho, as perguntas-guia e a
-  // analogia sao curtos e vao no Haiku.
-  estudo: SONNET,
+  // Aprendizado assistido (US-155 a US-170). Cartoes de estudo e fichamento
+  // leem o texto inteiro e decidem o que importa: vao no Opus, com esforco
+  // medio (pedido do leitor, nov/2026). Glossario e apontamentos ficam no
+  // Sonnet; um cartao de um trecho, as perguntas-guia e a analogia sao curtos
+  // e vao no Haiku.
+  estudo: OPUS,
   glossario: SONNET,
-  fichamento: SONNET,
+  fichamento: OPUS,
   apontamentos: SONNET,
   cartao: HAIKU,
   guia: HAIKU,
