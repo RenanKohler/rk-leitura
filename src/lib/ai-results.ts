@@ -22,7 +22,13 @@ export type AiResultKind =
   | "semana"
   | "glossario"
   | "fichamento"
-  | "guia";
+  | "guia"
+  // Previa antes de ler (US-233).
+  | "previa"
+  // Ligacoes entre textos (US-232).
+  | "ligacoes"
+  // Perfil de leitura do mes (US-234): sem texto, chave "AAAA-MM".
+  | "perfil";
 
 export async function loadAiResult<T>(
   userId: string,
