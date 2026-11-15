@@ -88,13 +88,23 @@ export function highlightCreatedDay(timezone: string): SQL {
 }
 
 /**
+ * Destaque que participa da revisao: o leitor nao o tirou da fila (US-223).
+ * Toda consulta que decide vencimento de destaque passa por aqui ou por
+ * `highlightDue`, que ja inclui esta condicao.
+ */
+export function highlightInReview(): SQL {
+  return sql`${highlights.reviewOffAt} is null`;
+}
+
+/**
  * Destaque vencido hoje. Nunca revisado entra no dia seguinte ao da criacao,
  * no fuso do leitor, como palavras e cartoes (US-199): rever no mesmo dia em
- * que marcou seria so reler.
+ * que marcou seria so reler. O que esta fora da revisao nunca vence (US-223).
  */
 export function highlightDue(today: string, timezone: string): SQL {
-  return sql`((${highlights.reviewDueOn} is not null and ${highlights.reviewDueOn} <= ${today})
-    or (${highlights.reviewDueOn} is null and ${highlightCreatedDay(timezone)} < ${today}))`;
+  return sql`(${highlightInReview()}
+    and ((${highlights.reviewDueOn} is not null and ${highlights.reviewDueOn} <= ${today})
+      or (${highlights.reviewDueOn} is null and ${highlightCreatedDay(timezone)} < ${today})))`;
 }
 
 /** Quantos destaques estao vencidos: o cartao do painel so aparece com algum. */

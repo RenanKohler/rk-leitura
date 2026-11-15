@@ -194,9 +194,11 @@ test("teste de conhecimento previo mostra so os nao lidos e resume no fim", asyn
   await insertCard(text.id, "O que vem depois?", "Uma virada.", 200, 210);
   await insertCard(text.id, "Como termina?", "Em paz.", 380, 395);
 
-  // Entrada pela biblioteca: o cartao do texto tem "Estudar".
+  // Entrada pela biblioteca: "Estudar" fica na folha "Mais acoes" do item
+  // (US-230); no item compacto so ha o link do leitor e esse botao.
   await page.goto("/textos");
-  await page.getByRole("link", { name: "Estudar: Previo" }).click();
+  await page.getByRole("button", { name: "Mais ações: Previo" }).click();
+  await page.getByRole("dialog").getByRole("link", { name: "Estudar" }).click();
   await expect(page).toHaveURL(`/textos/${text.id}/estudar`);
   await expect(page.getByRole("heading", { name: "Testar conhecimento prévio" })).toBeVisible();
   await expect(page.getByTestId("previo-disponivel")).toHaveText("2 cartões de trechos ainda não lidos.");
@@ -255,11 +257,18 @@ test("estudar e alcancavel pelo leitor e pela biblioteca", async ({ page }) => {
   await expect(page).toHaveURL(`/textos/${text.id}/estudar#previo`);
   await expect(page.getByRole("heading", { name: "Testar conhecimento prévio" })).toBeInViewport();
 
-  // Revisao do dia: entrada em "Voce", que fica acesa na navegacao.
+  // Revisao do dia: saiu de "Voce" e virou a aba "Revisar" da barra (US-229),
+  // que e a que fica acesa. Com itens vencidos o nome da aba traz a contagem.
   await page.goto("/voce");
-  await page.getByRole("link", { name: /Revisão do dia/ }).click();
+  await expect(page.getByRole("main").getByRole("link", { name: /Revisão do dia/ })).toHaveCount(0);
+  const bar = page.getByRole("navigation", { name: "Navegação principal" });
+  await bar.getByRole("link", { name: /^Revisar/ }).click();
   await expect(page).toHaveURL("/revisar");
-  await expect(page.getByRole("link", { name: "Você", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(bar.getByRole("link", { name: /^Revisar/ })).toHaveAttribute("aria-current", "page");
+  await expect(bar.getByRole("link", { name: "Você", exact: true })).not.toHaveAttribute(
+    "aria-current",
+    "page"
+  );
 });
 
 /** US-170 sem cartoes: o teste previo cria os cartoes e passa a valer. */

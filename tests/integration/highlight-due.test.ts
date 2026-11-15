@@ -47,4 +47,43 @@ describe("vencimento do destaque no banco", () => {
     // Manha seguinte, menos de 24 horas depois: vencido.
     expect(await due("2026-10-24")).toBe(1);
   });
+
+  it("destaque fora da revisao nao vence, com ou sem data (US-223)", async () => {
+    const [user] = await db
+      .insert(users)
+      .values({ email: `integracao-${randomUUID()}@exemplo.com`, passwordHash: "x" })
+      .returning({ id: users.id });
+    created.push(user!.id);
+    const [text] = await db
+      .insert(texts)
+      .values({ userId: user!.id, title: "T", content: "um dois tres quatro", wordCount: 4 })
+      .returning({ id: texts.id });
+    const createdAt = new Date("2026-10-01T12:00:00Z");
+    const [never, dated] = await db
+      .insert(highlights)
+      .values([
+        // Nunca revisado, criado ha semanas.
+        { userId: user!.id, textId: text!.id, startIndex: 0, endIndex: 1, createdAt },
+        // Com data de revisao ja vencida.
+        { userId: user!.id, textId: text!.id, startIndex: 2, endIndex: 3, createdAt, reviewDueOn: "2026-10-10" },
+      ])
+      .returning({ id: highlights.id });
+
+    const due = async () =>
+      (
+        await db
+          .select({ id: highlights.id })
+          .from(highlights)
+          .where(and(eq(highlights.userId, user!.id), highlightDue("2026-10-24", "America/Sao_Paulo")))
+      ).length;
+
+    expect(await due()).toBe(2);
+    await db.update(highlights).set({ reviewOffAt: new Date() }).where(eq(highlights.id, never!.id));
+    expect(await due()).toBe(1);
+    await db.update(highlights).set({ reviewOffAt: new Date() }).where(eq(highlights.id, dated!.id));
+    expect(await due()).toBe(0);
+    // De volta a revisao, vence de novo.
+    await db.update(highlights).set({ reviewOffAt: null }).where(eq(highlights.id, never!.id));
+    expect(await due()).toBe(1);
+  });
 });

@@ -70,7 +70,9 @@ test("largar tira o texto da lista e retomar o devolve", async ({ page }) => {
   await page.getByRole("button", { name: "Largados" }).click();
   await expect(page.getByText("Texto que vai ser largado")).toBeVisible();
 
-  await page.getByRole("button", { name: "Retomar" }).click();
+  // "Retomar" mora na folha "Mais acoes" do item (US-230).
+  await page.getByRole("button", { name: "Mais ações: Texto que vai ser largado" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Retomar" }).click();
   await page.getByRole("button", { name: "Ativos" }).click();
   await expect(page.getByText("Texto que vai ser largado")).toBeVisible();
 });

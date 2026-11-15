@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useAuth, useSettings } from "@/components/providers";
-import { ImportCard } from "@/components/import-card";
 import { useResource } from "@/hooks/use-resource";
 import { Card, EmptyState, LinkButton, SectionTitle, Skeleton } from "@/components/ui";
 import { ForwardIcon, LibraryIcon, PlayIcon, SpeedIcon, SparkIcon, WordsIcon } from "@/components/icons";
@@ -26,6 +25,15 @@ import type {
 export type Overview = { stats: DashboardStats; continueReading: ContinueReading | null };
 export type RecentTexts = { texts: TextSummary[] } & Paginated;
 
+/**
+ * Inicio.
+ *
+ * Mais curto desde a US-228: a tela tinha quase tres alturas de celular e
+ * dois blocos repetiam o que ja estava a um toque. O cartao "Revisar
+ * destaques" contava itens que a Revisao do dia ja conta, e "Importar de um
+ * link" fazia o mesmo que o botao "+" da barra, que abre a tela de novo
+ * texto com o link como primeira opcao.
+ */
 export function DashboardClient({
   initialOverview,
   initialTexts,
@@ -33,7 +41,6 @@ export function DashboardClient({
   weekly,
   offerPlacement,
   pace,
-  dueHighlights = 0,
   dailyReview = 0,
 }: {
   initialOverview: Overview;
@@ -42,8 +49,6 @@ export function DashboardClient({
   weekly: WeeklySummary | null;
   offerPlacement: boolean;
   pace: { wpm: number; fromSettings: boolean };
-  /** Destaques com revisao vencida (PROD-4); o cartao so aparece com algum. */
-  dueHighlights?: number;
   /** Itens da revisao do dia (US-161): palavras, destaques, cartoes e questionarios. */
   dailyReview?: number;
 }) {
@@ -105,8 +110,6 @@ export function DashboardClient({
 
       {dailyReview > 0 ? <DailyReviewCard due={dailyReview} /> : null}
 
-      {dueHighlights > 0 ? <HighlightReviewCard due={dueHighlights} /> : null}
-
       <SectionTitle
         action={
           <Link href="/estatisticas" className="min-h-11 text-sm font-medium text-accent">
@@ -145,13 +148,6 @@ export function DashboardClient({
         />
       </section>
 
-      <ImportCard
-        onImported={() => {
-          texts.reload();
-          overview.reload();
-        }}
-      />
-
       <section className="space-y-3">
         <SectionTitle
           action={
@@ -176,7 +172,9 @@ export function DashboardClient({
             <EmptyState
               icon={<LibraryIcon className="size-7" />}
               title="Biblioteca vazia"
-              description="Cole o link de um artigo acima ou escreva seu próprio texto."
+              // O campo de link saiu daqui (US-228): quem importa e o botao
+              // "+", na barra de baixo no celular e na lateral no desktop.
+              description="Use o botão + para importar um artigo por link ou escrever seu próprio texto."
               action={<LinkButton href="/textos/novo">Adicionar texto</LinkButton>}
             />
           </Card>
@@ -266,27 +264,10 @@ function Stat({
   );
 }
 
-/** Convite para a revisao de destaques vencida (PROD-4). */
-function HighlightReviewCard({ due }: { due: number }) {
-  return (
-    <Link href="/textos/destaques/revisar" className="block" data-testid="cartao-revisar-destaques">
-      <Card className="flex items-center gap-3 p-4 transition-colors hover:border-border-strong">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
-          <SparkIcon className="size-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="font-medium">Revisar destaques</p>
-          <p className="text-sm text-muted">
-            {due === 1 ? "1 trecho marcado para rever hoje" : `${due} trechos marcados para rever hoje`}
-          </p>
-        </div>
-        <ForwardIcon className="size-5 text-faint" />
-      </Card>
-    </Link>
-  );
-}
-
-/** Atalho para a revisao do dia (US-161). */
+/**
+ * Atalho para a revisao do dia (US-161). E o unico cartao de revisao do
+ * Inicio (US-228): os destaques vencidos ja entram na conta dele.
+ */
 function DailyReviewCard({ due }: { due: number }) {
   return (
     <Link href="/revisar" className="block" data-testid="cartao-revisao-do-dia">

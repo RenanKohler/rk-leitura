@@ -12,7 +12,6 @@ export default function Loading() {
           <Skeleton key={i} className="h-28 w-full rounded-card" />
         ))}
       </section>
-      <Skeleton className="h-36 w-full rounded-card" />
       <div className="space-y-2">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-20 w-full rounded-card" />

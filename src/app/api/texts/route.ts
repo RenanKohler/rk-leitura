@@ -5,6 +5,7 @@ import { texts } from "@/db/schema";
 import { asString, jsonError, readJson, readPageParams, requireSession, serverError } from "@/lib/api";
 import { asLanguage } from "@/lib/language";
 import { loadLibrary } from "@/lib/queries";
+import { asLibraryOrder } from "@/lib/library";
 import { asTextScope, asTextStatus, normalizeQuery } from "@/lib/text-filter";
 import { asTextFormat, countWords } from "@/lib/reading";
 import { normalizeSourceUrl, pageFromUrl } from "@/lib/source-url";
@@ -49,6 +50,8 @@ export async function GET(request: Request) {
       status: asTextStatus(search.get("status")),
       scope: asTextScope(search.get("scope")),
       tagId: search.get("etiqueta"),
+      // `ordem=leitura|importacao` (US-230); ausente ou desconhecido, leitura.
+      order: asLibraryOrder(search.get("ordem")),
     });
 
     return NextResponse.json({ items, texts: count, ...page });

@@ -10,7 +10,8 @@ export const metadata = { title: "Revisar" };
 /**
  * Revisao do dia num so lugar (US-161): palavras, destaques, cartoes de
  * estudo e questionarios a recordar (US-169). As revisoes separadas de
- * palavras e destaques continuam existindo.
+ * palavras e destaques continuam existindo. E uma aba da barra de navegacao
+ * (US-229), e cada item pode ser pulado ou tirado da revisao (US-223).
  */
 export default async function DailyReviewPage() {
   const session = await getSession();

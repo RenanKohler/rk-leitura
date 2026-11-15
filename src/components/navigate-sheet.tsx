@@ -3,18 +3,25 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiSend } from "@/lib/client";
-import { Alert, Button, Sheet } from "@/components/ui";
+import { Alert, Button, Sheet, Slider } from "@/components/ui";
 import { BookmarkIcon, TrashIcon } from "@/components/icons";
 import { NamesPanel } from "@/components/names-panel";
 import {
   bookmarkLabel,
+  chapterStateLabel,
+  chapterWindow,
   currentHeading,
   MAX_BOOKMARK_LABEL,
   MAX_SEARCH_RESULTS,
+  percentAt,
+  positionAtPercent,
+  remainingLabel,
   searchWords,
+  type Heading,
 } from "@/lib/navigation";
 import type { Paragraph } from "@/lib/reading";
 import { canSuggestSections, navigationHeadings, type Section } from "@/lib/sections";
+import type { SeriesChapter } from "@/lib/types";
 import { SectionsReview } from "@/components/sections-review";
 import { useAiConsent } from "@/components/ai-consent";
 import { GuideOption } from "@/components/guide-questions";
@@ -25,9 +32,13 @@ interface Bookmark {
   label: string;
 }
 
+/** Texto solto: a mesma lista vazia a cada render. */
+const NO_CHAPTERS: SeriesChapter[] = [];
+
 /**
- * Navegar dentro do texto aberto: buscar (US-90), ir por titulo (US-89) e
- * marcar posicoes para voltar (US-92).
+ * Navegar dentro do texto aberto: buscar (US-90), ir para uma porcentagem
+ * (US-227), ir por titulo (US-89) e marcar posicoes para voltar (US-92). Em
+ * texto de serie, tambem trocar de capitulo (US-226).
  *
  * Toda ida a uma posicao passa por `onGo`, que pausa a leitura: pular com o
  * texto andando faria o leitor perder o ponto que acabou de escolher.
@@ -40,6 +51,8 @@ export function NavigateSheet({
   paragraphs,
   index,
   onGo,
+  chapters = NO_CHAPTERS,
+  timeline,
 }: {
   open: boolean;
   onClose: () => void;
@@ -48,6 +61,14 @@ export function NavigateSheet({
   paragraphs: Paragraph[];
   index: number;
   onGo: (position: number) => void;
+  /** Capitulos da serie do texto, em ordem; vazio em texto solto (US-226). */
+  chapters?: SeriesChapter[];
+  /**
+   * Tempo acumulado ate cada palavra no ritmo atual, com `words.length + 1`
+   * entradas: o mesmo relogio do "faltam" do cabecalho. Sem ele, "Ir para"
+   * nao diz quanto falta a partir do destino.
+   */
+  timeline?: Float64Array;
 }) {
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -222,6 +243,24 @@ export function NavigateSheet({
           ) : null}
         </section>
 
+        <PercentJump
+          paragraphs={paragraphs}
+          total={words.length}
+          index={index}
+          headings={headings}
+          timeline={timeline}
+          onGo={(position) => {
+            onGo(position);
+            onClose();
+          }}
+        />
+
+        {/* Um capitulo so nao tem para onde trocar: a lista diria o que o
+            titulo do leitor ja diz. */}
+        {chapters.length > 1 ? (
+          <ChapterList chapters={chapters} textId={textId} index={index} total={words.length} />
+        ) : null}
+
         {headings.length > 0 || offerSections ? (
           <section className="space-y-2" aria-label="Sumário">
             <h3 className="text-sm font-medium text-muted">Sumário</h3>
@@ -347,5 +386,190 @@ export function NavigateSheet({
         </Link>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * "Ir para" uma porcentagem do texto (US-227): o caminho para uma posicao
+ * livre, que em texto sem titulos so existia por busca ou marcador.
+ *
+ * Componente proprio, e nao estado da folha: o conteudo da folha so monta
+ * quando ela abre, entao o controle nasce de novo a cada abertura, ja no
+ * progresso atual, sem efeito para acertar o valor.
+ */
+function PercentJump({
+  paragraphs,
+  total,
+  index,
+  headings,
+  timeline,
+  onGo,
+}: {
+  paragraphs: Paragraph[];
+  total: number;
+  index: number;
+  headings: Heading[];
+  timeline?: Float64Array;
+  onGo: (position: number) => void;
+}) {
+  // Nulo ate o leitor mexer no controle: ate la ele mostra onde a leitura
+  // esta, inclusive quando a busca muda a posicao com a folha aberta.
+  const [chosen, setChosen] = useState<number | null>(null);
+  const percent = chosen ?? percentAt(index, total);
+  // O destino e o comeco de um paragrafo: o titulo e o tempo sao os dele, e
+  // nao os da porcentagem exata.
+  const target = positionAtPercent(paragraphs, total, percent);
+  const heading = headings[currentHeading(headings, target)];
+  const leftMs =
+    timeline && timeline.length > total ? timeline[total]! - timeline[target]! : null;
+
+  return (
+    <section className="space-y-2" aria-label="Ir para uma porcentagem">
+      <Slider
+        label="Ir para"
+        value={percent}
+        display={`${percent}%`}
+        min={0}
+        max={100}
+        step={1}
+        onChange={setChosen}
+      >
+        {/* Uma linha so, sempre presente: o botao de baixo nao sobe nem desce
+            enquanto o dedo arrasta. O tempo fica inteiro; o titulo e que corta. */}
+        <p
+          className="flex min-h-5 items-baseline justify-between gap-3 text-sm text-on-surface-variant"
+          aria-live="polite"
+          data-testid="ir-para-destino"
+        >
+          {heading ? <span className="min-w-0 truncate">{heading.title}</span> : null}
+          {leftMs !== null ? (
+            <span className="tabular shrink-0">{`faltam ${remainingLabel(leftMs)}`}</span>
+          ) : null}
+        </p>
+      </Slider>
+      {/* 48px: e a acao do controle, tocada com o polegar logo depois do arraste. */}
+      <Button full className="min-h-12!" onClick={() => onGo(target)}>
+        {`Ir para ${percent}%`}
+      </Button>
+    </section>
+  );
+}
+
+/**
+ * Capitulos da serie (US-226): trocar de capitulo sem voltar a biblioteca.
+ *
+ * O aberto vem marcado e nao e link; os outros levam ao leitor do capitulo,
+ * e o leitor grava a posicao deste ao desmontar. Serie longa mostra so a
+ * vizinhanca do capitulo aberto; "Mostrar todos" abre a lista inteira numa
+ * caixa com rolagem propria, para o sumario e os marcadores continuarem
+ * perto.
+ */
+function ChapterList({
+  chapters,
+  textId,
+  index,
+  total,
+}: {
+  chapters: SeriesChapter[];
+  textId: string;
+  /** Posicao e tamanho do capitulo aberto, como o leitor os tem agora. */
+  index: number;
+  total: number;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const listRef = useRef<HTMLUListElement>(null);
+  const openRef = useRef<HTMLDivElement>(null);
+  const visible = chapterWindow(
+    chapters.length,
+    chapters.findIndex((chapter) => chapter.id === textId)
+  );
+  const collapsible = visible.to - visible.from < chapters.length;
+  const shown = showAll ? chapters : chapters.slice(visible.from, visible.to);
+
+  // A lista inteira abre com o capitulo aberto no meio da caixa: num livro
+  // de quarenta, comecar no capitulo 1 obrigaria a rolar ate achar o lugar.
+  useEffect(() => {
+    if (!showAll) return;
+    const list = listRef.current;
+    const row = openRef.current;
+    if (!list || !row) return;
+    const top = row.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+    list.scrollTop = top - (list.clientHeight - row.offsetHeight) / 2;
+  }, [showAll]);
+
+  return (
+    <section className="space-y-2" aria-label="Capítulos">
+      <h3 className="text-sm font-medium text-muted">Capítulos</h3>
+      <ul
+        ref={listRef}
+        className={`space-y-1 ${showAll ? "max-h-80 overflow-y-auto" : ""}`}
+        data-testid="capitulos"
+      >
+        {shown.map((chapter) => {
+          const isOpen = chapter.id === textId;
+          // O aberto mostra a posicao desta leitura; a gravada e de quando a
+          // tela carregou. Ja lido continua "lido": o leitor abre o texto
+          // concluido na ultima palavra, que nunca chega ao total.
+          const done = chapter.wordCount > 0 && chapter.progressIndex >= chapter.wordCount;
+          const state = chapterStateLabel(
+            isOpen && !done ? { ...chapter, progressIndex: index, wordCount: total } : chapter
+          );
+          // Na linha marcada tudo herda a cor do recipiente; nas outras, numero
+          // e estado ficam um tom abaixo do titulo.
+          const quiet = isOpen ? "" : "text-on-surface-variant";
+          const row = (
+            <>
+              {chapter.chapter !== null ? (
+                <span className={`tabular min-w-5 shrink-0 text-right text-sm ${quiet}`}>
+                  <span className="sr-only">Capítulo </span>
+                  {chapter.chapter}
+                </span>
+              ) : null}
+              <span className="line-clamp-2 min-w-0 flex-1 text-sm leading-snug">
+                {chapter.title}
+                {isOpen ? <span className="sr-only"> (aberto)</span> : null}
+              </span>
+              <span className={`tabular shrink-0 text-xs ${quiet}`} data-testid="estado-do-capitulo">
+                {state}
+              </span>
+            </>
+          );
+          return (
+            // 48px por linha: cada uma e um alvo de toque no celular.
+            <li key={chapter.id}>
+              {isOpen ? (
+                <div
+                  ref={openRef}
+                  aria-current="page"
+                  className="flex min-h-12 items-center gap-3 rounded-lg bg-secondary-container px-3 py-1.5 font-medium text-on-secondary-container"
+                >
+                  {row}
+                </div>
+              ) : (
+                // Sem busca antecipada: sao tantos enderecos quantos capitulos,
+                // e cada um e um texto inteiro.
+                <Link
+                  href={`/leitor/${chapter.id}`}
+                  prefetch={false}
+                  className="state-layer flex min-h-12 items-center gap-3 rounded-lg px-3 py-1.5"
+                >
+                  {row}
+                </Link>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {collapsible ? (
+        <button
+          type="button"
+          aria-expanded={showAll}
+          onClick={() => setShowAll((value) => !value)}
+          className="state-layer flex min-h-12 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-primary"
+        >
+          {showAll ? "Mostrar menos" : `Mostrar todos os ${chapters.length} capítulos`}
+        </button>
+      ) : null}
+    </section>
   );
 }

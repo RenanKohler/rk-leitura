@@ -1,6 +1,7 @@
 /**
  * Navegacao dentro do texto aberto: frase, busca, sumario, marcadores e as
- * pausas que o leitor faz sozinho (US-89 a US-95, US-104).
+ * pausas que o leitor faz sozinho (US-89 a US-95, US-104); ir para uma
+ * porcentagem e a janela dos capitulos da serie (US-226, US-227).
  *
  * Tudo trabalha sobre a lista corrida de palavras, que e o que da indice de
  * posicao no leitor. Funcoes puras, testaveis sem navegador.
@@ -10,7 +11,8 @@
  * recuo ao retomar, no destaque e no ritmo.
  */
 
-import { paragraphRange, type Paragraph } from "@/lib/reading";
+import { readingState } from "@/lib/library";
+import { clamp, paragraphRange, type Paragraph } from "@/lib/reading";
 import { isSentenceEnd, sentenceStartOf } from "@/lib/sentences";
 
 /* --- frase ---------------------------------------------------------------- */
@@ -242,6 +244,95 @@ export function currentHeading(headings: Heading[], index: number): number {
     else break;
   }
   return current;
+}
+
+/* --- ir para uma porcentagem ------------------------------------------------ */
+
+/**
+ * Onde a leitura esta, em porcentagem inteira do texto: o valor com que o
+ * controle "Ir para" abre (US-227). Texto vazio da 0.
+ */
+export function percentAt(index: number, total: number): number {
+  if (!(total > 0)) return 0;
+  return Math.round(clamp((index / total) * 100, 0, 100));
+}
+
+/**
+ * Destino de "Ir para N%" (US-227): o comeco do paragrafo que contem a
+ * palavra de numero floor(total * N / 100).
+ *
+ * O comeco do paragrafo, e nao a palavra exata: a conta cai quase sempre no
+ * meio de uma frase, e quem pulou para la teria de voltar para entender onde
+ * esta. A porcentagem fora de 0 a 100 e limitada, e 100 aponta para a ultima
+ * palavra (`total - 1`), nao para depois do fim: o destino e sempre um lugar
+ * de onde ainda ha o que ler. Texto vazio da 0.
+ */
+export function positionAtPercent(paragraphs: Paragraph[], total: number, percent: number): number {
+  const count = Math.max(0, Math.trunc(total) || 0);
+  if (count === 0) return 0;
+  const word = Math.min(count - 1, Math.floor((count * clamp(percent, 0, 100)) / 100));
+  // Sem os paragrafos nao ha comeco a procurar: vale a propria palavra.
+  if (paragraphs.length === 0) return word;
+  return paragraphRange(paragraphs, word, count).start;
+}
+
+/**
+ * Tempo que falta, como o cabecalho do leitor o escreve: "~12 min",
+ * "~1 h 5 min" ou "< 1 min".
+ */
+export function remainingLabel(ms: number): string {
+  const minutes = Math.round(Math.max(0, ms) / 60_000);
+  if (minutes < 1) return "< 1 min";
+  if (minutes < 60) return `~${minutes} min`;
+  return `~${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
+
+/* --- capitulos da serie ------------------------------------------------------ */
+
+/** Ate este tamanho a serie aparece inteira na folha Navegar (US-226). */
+export const CHAPTERS_SHOWN_WHOLE = 5;
+/** Capitulos de cada lado do aberto enquanto a lista esta recolhida. */
+export const CHAPTER_NEIGHBORS = 1;
+
+/**
+ * Trecho [from, to) da lista de capitulos mostrado antes de "Mostrar todos".
+ *
+ * Um livro tem dezenas de capitulos, e a lista inteira empurraria o sumario
+ * e os marcadores para longe. O que se procura no meio da leitura e quase
+ * sempre o capitulo seguinte ou o anterior, entao a janela e o aberto e os
+ * vizinhos - sempre do mesmo tamanho, mesmo no primeiro e no ultimo, para a
+ * folha nao mudar de altura de um capitulo para o outro.
+ */
+export function chapterWindow(
+  count: number,
+  current: number,
+  whole: number = CHAPTERS_SHOWN_WHOLE,
+  neighbors: number = CHAPTER_NEIGHBORS
+): { from: number; to: number } {
+  const total = Math.max(0, Math.trunc(count) || 0);
+  if (total <= whole) return { from: 0, to: total };
+  const size = Math.min(total, 2 * Math.max(0, neighbors) + 1);
+  const from = clamp(Math.trunc(current) - Math.max(0, neighbors), 0, total - size);
+  return { from, to: from + size };
+}
+
+/**
+ * Estado do capitulo na linha da lista: "lido", "37%" ou "não lido", pelos
+ * mesmos cortes da biblioteca (`readingState`).
+ *
+ * O largado (US-79) entra na lista, como no cartao da serie, mas sem a
+ * porcentagem: pela posicao ele seria leitura em andamento, e e isso que
+ * largar quer deixar de dizer.
+ */
+export function chapterStateLabel(chapter: {
+  progressIndex: number;
+  wordCount: number;
+  abandoned?: boolean;
+}): string {
+  const state = readingState(chapter);
+  if (state.kind === "lido") return "lido";
+  if (chapter.abandoned) return "largado";
+  return state.kind === "lendo" ? `${state.percent}%` : "não lido";
 }
 
 /* --- marcadores ------------------------------------------------------------- */

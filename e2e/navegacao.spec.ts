@@ -1,5 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
-import { openReader, randomIp, registerByApi, updateSettings, readerAction } from "./helpers";
+import {
+  openReader,
+  randomIp,
+  registerByApi,
+  updateSettings,
+  readerAction,
+  sampleText,
+} from "./helpers";
 
 test.beforeEach(async ({ context, page }) => {
   await context.setExtraHTTPHeaders({ "x-forwarded-for": randomIp() });
@@ -158,4 +165,172 @@ test("retomar depois de pausa longa volta ao inicio da frase", async ({ page }) 
   await page.getByRole("button", { name: "Iniciar leitura" }).click();
   const sentenceStart = Math.floor((paused - 1) / 10) * 10 + 1;
   expect(await position(page)).toBe(sentenceStart);
+});
+
+/** US-227: "Ir para" leva ao comeco do paragrafo da porcentagem escolhida. */
+test("Ir para: o slider pelo teclado leva a leitura a 50% do texto", async ({ page }) => {
+  await registerByApi(page.request);
+  // 600 palavras em paragrafos de 60: a palavra 300 abre o sexto paragrafo.
+  const text = await createText(page, sampleText(600));
+
+  await openReader(page, text.id);
+  await readerAction(page, "Navegar no texto");
+  const sheet = page.getByRole("dialog", { name: "Navegar no texto" });
+  const slider = sheet.getByRole("slider", { name: "Ir para" });
+  // Abre no progresso atual: a leitura esta no comeco.
+  await expect(slider).toHaveValue("0");
+  // Texto solto nao tem capitulos para trocar.
+  await expect(sheet.getByRole("region", { name: "Capítulos" })).toHaveCount(0);
+
+  await slider.focus();
+  for (let step = 0; step < 50; step += 1) await page.keyboard.press("ArrowRight");
+  await expect(slider).toHaveValue("50");
+  await expect(slider).toHaveAttribute("aria-valuetext", "50%");
+  // O destino aparece antes de ir: quanto falta dali ate o fim.
+  await expect(sheet.getByTestId("ir-para-destino")).toContainText("faltam");
+
+  await sheet.getByRole("button", { name: "Ir para 50%" }).click();
+  await expect(sheet).toHaveCount(0);
+  // O cabecalho conta a partir de 1: a palavra 300 e a 301a de 600.
+  expect(await position(page)).toBe(301);
+
+  // De volta a folha, o controle abre onde a leitura esta agora.
+  await readerAction(page, "Navegar no texto");
+  await expect(slider).toHaveValue("50");
+  // 100% e o comeco do ultimo paragrafo, nao o fim do texto.
+  await slider.focus();
+  await page.keyboard.press("End");
+  await expect(slider).toHaveValue("100");
+  await sheet.getByRole("button", { name: "Ir para 100%" }).click();
+  await expect(sheet).toHaveCount(0);
+  expect(await position(page)).toBe(541);
+});
+
+/** US-227: com titulos no texto, o destino diz em que secao cai. */
+test("Ir para mostra a secao do destino", async ({ page }) => {
+  await registerByApi(page.request);
+  // 243 palavras: "Abertura" (0), 120 de texto, "Segunda parte" (121 e 122) e
+  // mais 120. O ultimo paragrafo comeca na 183.
+  const text = await createText(
+    page,
+    `# Abertura\n\n${sampleText(120)}\n\n## Segunda parte\n\n${sampleText(120)}`,
+    "markdown"
+  );
+
+  await openReader(page, text.id);
+  await readerAction(page, "Navegar no texto");
+  const sheet = page.getByRole("dialog", { name: "Navegar no texto" });
+  const slider = sheet.getByRole("slider", { name: "Ir para" });
+  const destination = sheet.getByTestId("ir-para-destino");
+  await expect(destination).toContainText("Abertura");
+
+  await slider.focus();
+  await page.keyboard.press("End");
+  await expect(destination).toContainText("Segunda parte");
+  await sheet.getByRole("button", { name: "Ir para 100%" }).click();
+  await expect(sheet).toHaveCount(0);
+  expect(await position(page)).toBe(184);
+});
+
+/** Capitulo de uma serie declarada, como a importacao de EPUB a cria. */
+async function createChapter(page: Page, title: string, chapter: number) {
+  const response = await page.request.post("/api/texts", {
+    data: { title, content: sampleText(120), series: { title: "A travessia", chapter } },
+  });
+  expect(response.ok()).toBeTruthy();
+  return (await response.json()).text as { id: string; wordCount: number };
+}
+
+async function setProgress(page: Page, id: string, progressIndex: number) {
+  const response = await page.request.patch(`/api/texts/${id}`, {
+    data: { progressIndex, at: new Date().toISOString() },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+/** US-226: a folha Navegar lista os capitulos da serie e troca de capitulo. */
+test("capitulos da serie: o aberto vem marcado e tocar em outro abre o leitor dele", async ({
+  page,
+}) => {
+  await registerByApi(page.request);
+  // Importados fora de ordem: a lista segue o numero do capitulo.
+  const third = await createChapter(page, "A volta", 3);
+  const first = await createChapter(page, "A partida", 1);
+  const second = await createChapter(page, "O mar aberto", 2);
+  // O primeiro lido ate o fim (o que o arquiva); o segundo pela metade.
+  await setProgress(page, first.id, first.wordCount);
+  await setProgress(page, second.id, 60);
+
+  await openReader(page, second.id);
+  await readerAction(page, "Navegar no texto");
+  const sheet = page.getByRole("dialog", { name: "Navegar no texto" });
+  const chapters = sheet.getByRole("region", { name: "Capítulos" });
+  const rows = chapters.getByRole("listitem");
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("A partida");
+  await expect(rows.nth(0).getByTestId("estado-do-capitulo")).toHaveText("lido");
+  await expect(rows.nth(1)).toContainText("O mar aberto");
+  await expect(rows.nth(1).getByTestId("estado-do-capitulo")).toHaveText(/^\d{1,2}%$/);
+  await expect(rows.nth(2)).toContainText("A volta");
+  await expect(rows.nth(2).getByTestId("estado-do-capitulo")).toHaveText("não lido");
+
+  // O aberto e marcado e nao e link; os outros dois sao.
+  const current = chapters.locator('[aria-current="page"]');
+  await expect(current).toHaveCount(1);
+  await expect(current).toContainText("O mar aberto");
+  await expect(rows.nth(1).getByRole("link")).toHaveCount(0);
+  await expect(chapters.getByRole("link")).toHaveCount(2);
+  // Poucos capitulos: a lista aparece inteira, sem "Mostrar todos".
+  await expect(chapters.getByRole("button")).toHaveCount(0);
+
+  await chapters.getByRole("link", { name: /A volta/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/leitor/${third.id}$`));
+  await expect(page.getByRole("heading", { level: 1, name: "A volta" })).toBeVisible();
+  await expect(sheet).toHaveCount(0);
+
+  // No capitulo novo a lista e a mesma, com a marca no terceiro.
+  await expect(page.getByRole("button", { name: "Iniciar leitura" })).toBeVisible();
+  await readerAction(page, "Navegar no texto");
+  await expect(rows).toHaveCount(3);
+  await expect(current).toContainText("A volta");
+  await expect(chapters.getByRole("link", { name: /O mar aberto/ })).toBeVisible();
+});
+
+/** US-226: serie longa abre so na vizinhanca do capitulo aberto. */
+test("serie longa mostra os vizinhos do capitulo aberto e, a pedido, todos", async ({ page }) => {
+  await registerByApi(page.request);
+  // Dois digitos no titulo: "Parte 01" nao e prefixo de "Parte 10".
+  const ids: string[] = [];
+  for (let chapter = 1; chapter <= 12; chapter += 1) {
+    const title = `Parte ${String(chapter).padStart(2, "0")}`;
+    ids.push((await createChapter(page, title, chapter)).id);
+  }
+
+  await openReader(page, ids[9]!);
+  await readerAction(page, "Navegar no texto");
+  const sheet = page.getByRole("dialog", { name: "Navegar no texto" });
+  const chapters = sheet.getByRole("region", { name: "Capítulos" });
+  const rows = chapters.getByRole("listitem");
+  const current = chapters.locator('[aria-current="page"]');
+  // O aberto (10) com o anterior e o seguinte.
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText("Parte 09");
+  await expect(current).toContainText("Parte 10");
+  await expect(rows.nth(2)).toContainText("Parte 11");
+
+  const toggle = chapters.getByRole("button", { name: "Mostrar todos os 12 capítulos" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await toggle.click();
+  await expect(rows).toHaveCount(12);
+  await expect(rows.nth(0)).toContainText("Parte 01");
+  await expect(current).toContainText("Parte 10");
+  // A lista inteira tem rolagem propria e abre no capitulo aberto: sem isso
+  // a caixa mostraria do 1 ao 6, e o 10 ficaria fora da vista.
+  await expect(current).toBeInViewport();
+  await expect(rows.nth(0)).not.toBeInViewport();
+
+  const less = chapters.getByRole("button", { name: "Mostrar menos" });
+  await expect(less).toHaveAttribute("aria-expanded", "true");
+  await less.click();
+  await expect(rows).toHaveCount(3);
 });

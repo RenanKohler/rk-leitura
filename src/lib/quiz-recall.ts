@@ -12,6 +12,12 @@
  * O questionario volta 7 e 30 dias depois. Quem so aparece depois dos 30 dias
  * sem ter feito a rodada de 7 faz so a de 30: e a ultima, e a de 7 ja nao
  * mediria o que se propoe.
+ *
+ * A rodada tem prazo (US-223): a de 7 e trocada pela de 30 no dia 30, e a de
+ * 30 deixa de ser oferecida `RECALL_EXPIRY_DAYS` depois de vencer. Sem isso
+ * o questionario de um texto antigo ficava para sempre na frente da revisao
+ * do dia, por ser o item mais atrasado. A rodada tambem pode ser dispensada:
+ * ai ela conta como encerrada, sem nota, e a seguinte continua valendo.
  */
 
 import { addDays } from "@/lib/vocabulary";
@@ -30,8 +36,32 @@ export function recallDueOn(concludedOn: string, round: RecallRound): string {
 }
 
 /**
+ * Dias em que a ultima rodada continua sendo oferecida depois de vencer
+ * (US-223). Com 30, a rodada de 30 dias vale do dia 30 ao 59 e some no dia 60
+ * da conclusao: o mesmo folego que a de 7 tem ate ser trocada pela de 30.
+ */
+export const RECALL_EXPIRY_DAYS = 30;
+
+const LAST_ROUND: RecallRound = RECALL_ROUNDS[RECALL_ROUNDS.length - 1]!;
+
+/**
+ * Primeiro dia em que a rodada ja nao e oferecida: o vencimento da rodada
+ * seguinte, que toma o lugar dela, ou o fim do prazo quando e a ultima.
+ */
+export function recallExpiresOn(concludedOn: string, round: RecallRound): string {
+  const following: RecallRound | undefined = RECALL_ROUNDS[RECALL_ROUNDS.indexOf(round) + 1];
+  return following
+    ? recallDueOn(concludedOn, following)
+    : addDays(recallDueOn(concludedOn, round), RECALL_EXPIRY_DAYS);
+}
+
+/**
  * Rodada vencida hoje, ou null. A mais tardia ja alcancada vale; se ela ja foi
- * feita, nao ha nada (a de 7 nao volta depois da de 30).
+ * encerrada, nao ha nada (a de 7 nao volta depois da de 30), e passado o
+ * prazo dela tambem nao (US-223).
+ *
+ * `done` sao as rodadas encerradas: respondidas ou dispensadas. Dispensar a
+ * de 7 nao encerra a de 30.
  */
 export function dueRecallRound(
   concludedOn: string,
@@ -40,19 +70,25 @@ export function dueRecallRound(
 ): RecallRound | null {
   for (const round of [...RECALL_ROUNDS].reverse()) {
     if (recallDueOn(concludedOn, round) <= today) {
-      return done.includes(round) ? null : round;
+      if (done.includes(round)) return null;
+      return today < recallExpiresOn(concludedOn, round) ? round : null;
     }
   }
   return null;
 }
 
-/** Proxima rodada que ainda vai vencer depois de hoje, para contar "amanha". */
+/**
+ * Proxima rodada que ainda vai vencer depois de hoje, para contar "amanha".
+ * Rodada que ainda nao venceu tambem nao expirou (o prazo so corre depois do
+ * vencimento); o que tira uma rodada futura daqui e ela, ou a ultima, ja
+ * estar encerrada.
+ */
 export function nextRecallDueOn(
   concludedOn: string,
   today: string,
   done: readonly number[]
 ): string | null {
-  if (done.includes(30)) return null;
+  if (done.includes(LAST_ROUND)) return null;
   for (const round of RECALL_ROUNDS) {
     const day = recallDueOn(concludedOn, round);
     if (day > today && !done.includes(round)) return day;

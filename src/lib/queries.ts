@@ -68,6 +68,7 @@ import {
   type TextScope,
   type TextStatus,
 } from "@/lib/text-filter";
+import { DEFAULT_LIBRARY_ORDER, type LibraryOrder } from "@/lib/library";
 import type {
   ContinueReading,
   DashboardStats,
@@ -233,6 +234,11 @@ export interface TextFilters {
   scope?: TextScope;
   /** Id da etiqueta escolhida no filtro, ou null para nao filtrar. */
   tagId?: string | null;
+  /**
+   * Ordem da biblioteca agrupada (US-230). Nao filtra nada: vem aqui para
+   * andar junto com o resto do que a tela escolheu. So `loadLibrary` a usa.
+   */
+  order?: LibraryOrder;
 }
 
 /**
@@ -833,6 +839,8 @@ export async function loadHighlights(
         row.cardPrompt && row.cardAnswer
           ? { prompt: row.cardPrompt, answer: row.cardAnswer }
           : null,
+      // Tirado da revisao pelo leitor (US-223).
+      reviewOff: row.reviewOffAt !== null,
       createdAt: isoDate(row.createdAt),
     })),
   };
@@ -945,6 +953,50 @@ export async function countLibrary(
 }
 
 /**
+ * Quando o texto foi lido pela ultima vez: o fim da sessao de leitura mais
+ * recente dele, ou nulo se nunca foi lido (US-230).
+ *
+ * `texts.updated_at` nao serve para isto, e a razao e a mesma de `loadText`
+ * (US-77). Ele anda a cada posicao gravada, mas tambem ao editar titulo,
+ * etiquetas ou autor, ao arquivar e desarquivar, ao largar e retomar, ao
+ * trazer a proxima pagina da origem e ao reprocessar o conteudo - o
+ * reprocessamento em lote carimbaria a biblioteca inteira com a mesma hora e
+ * a ordem deixaria de dizer qualquer coisa. Os resultados de IA (sinopse e
+ * secoes sugeridas) nao mexem nele, mas as edicoes bastam para
+ * desqualifica-lo.
+ *
+ * A sessao so e gravada quando houve leitura de fato (dez palavras, um
+ * segundo), e a hora dela e a da leitura mesmo quando chega depois, pela
+ * fila offline. Abrir um texto e sair sem ler nao o leva ao topo. O preco: a
+ * sessao e gravada ao sair do leitor, entao a lista aberta logo em seguida
+ * pode ainda nao enxerga-la; na visita seguinte ja enxerga.
+ *
+ * Subconsulta com nomes qualificados, usada so no ORDER BY: na lista de
+ * colunas de um select de uma tabela so o Drizzle tira o nome da tabela das
+ * colunas, e `"text_id" = "id"` passaria a comparar a sessao com ela mesma.
+ * O indice `reading_sessions_text_idx` atende a busca por texto.
+ */
+const lastReadAt = sql`(select max(${readingSessions.createdAt}) from ${readingSessions} where ${readingSessions.textId} = ${texts.id})`;
+
+/**
+ * Ordem dos grupos da biblioteca (US-230).
+ *
+ * "leitura" usa o mais recente entre a ultima leitura e a importacao: o
+ * texto nunca lido entra pela data em que chegou, e assim o recem-importado
+ * continua no topo. `greatest` ignora nulo, entao o nunca lido vale so pela
+ * importacao. Num grupo de serie vale o maximo entre os capitulos: ler o
+ * capitulo 3 leva a serie inteira para cima.
+ *
+ * A data de importacao desempata e, em "importacao", e a ordem inteira - a
+ * que a biblioteca tinha antes.
+ */
+function libraryOrderBy(order: LibraryOrder): SQL[] {
+  const imported = desc(sql`max(${texts.createdAt})`);
+  if (order === "importacao") return [imported];
+  return [desc(sql`max(greatest(${texts.createdAt}, ${lastReadAt}))`), imported];
+}
+
+/**
  * A biblioteca como ela e mostrada: um item por texto solto e um por serie.
  *
  * A pagina conta grupos, nao linhas. Paginar por texto e agrupar depois faria
@@ -967,7 +1019,7 @@ export async function loadLibrary(
       .where(where)
       .groupBy(groupKey)
       .having(scopeHaving)
-      .orderBy(desc(sql`max(${texts.createdAt})`))
+      .orderBy(...libraryOrderBy(filters.order ?? DEFAULT_LIBRARY_ORDER))
       .limit(perPage)
       .offset((page - 1) * perPage),
     countLibrary(userId, filters),

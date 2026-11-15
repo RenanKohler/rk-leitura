@@ -149,6 +149,27 @@ export function HighlightsClient({
     }
   };
 
+  /**
+   * Tira o destaque da revisao ou devolve (US-223). O destaque continua no
+   * texto nos dois casos; devolvido, vence no dia seguinte se a data dele ja
+   * tinha passado. Sem conexao o pedido fica na fila do service worker, e a
+   * tela ja mostra o estado pedido.
+   */
+  const setReview = async (id: string, review: boolean) => {
+    setBusy(true);
+    try {
+      await apiSend(`/api/texts/${textId}/destaques/${id}`, "PATCH", { review });
+      setItems((current) =>
+        current.map((item) => (item.id === id ? { ...item, reviewOff: !review } : item))
+      );
+      notify(review ? "De volta à revisão." : "Fora da revisão.", "success");
+    } catch (cause) {
+      notify(cause instanceof Error ? cause.message : "Não consegui mudar a revisão.", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6">
       <div className="flex items-start gap-2">
@@ -321,6 +342,29 @@ export function HighlightsClient({
                     >
                       <TrashIcon className="size-4" />
                       Remover
+                    </Button>
+                  </div>
+
+                  {/* Revisao (US-223): todo destaque entra sozinho na revisao
+                      do dia; aqui da para tirar e devolver, sem apagar. */}
+                  <div
+                    className="mt-1 flex items-center justify-between gap-2"
+                    data-testid="destaque-revisao"
+                    data-fora={item.reviewOff ? "sim" : "nao"}
+                  >
+                    {item.reviewOff ? (
+                      <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-medium text-muted">
+                        Fora da revisão
+                      </span>
+                    ) : (
+                      <span className="text-xs text-faint">Na revisão</span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      disabled={busy}
+                      onClick={() => void setReview(item.id, Boolean(item.reviewOff))}
+                    >
+                      {item.reviewOff ? "Voltar a revisar" : "Não revisar"}
                     </Button>
                   </div>
                 </Card>

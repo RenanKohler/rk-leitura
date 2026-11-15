@@ -165,6 +165,9 @@ export interface ExportItem {
   note: string | null;
 }
 
+/** O que a exportacao escreve no lugar dos trechos quando nao ha nenhum. */
+export const NO_HIGHLIGHTS_LINE = "_Nenhum destaque._";
+
 /**
  * Markdown dos destaques, na ordem do texto.
  *
@@ -178,20 +181,38 @@ export function toMarkdown(
   const lines: string[] = [`# ${text.title}`, ""];
 
   if (text.sourceUrl) {
-    lines.push(`Origem: <${text.sourceUrl}>`, "");
+    lines.push(originLine(text.sourceUrl), "");
   }
 
   if (items.length === 0) {
-    lines.push("_Nenhum destaque._", "");
+    lines.push(NO_HIGHLIGHTS_LINE, "");
     return lines.join("\n");
   }
 
+  lines.push(...excerptLines(items));
+
+  return lines.join("\n");
+}
+
+/** Linha do endereco de origem, a mesma na exportacao de um texto e na de todos. */
+export function originLine(sourceUrl: string): string {
+  return `Origem: <${sourceUrl}>`;
+}
+
+/**
+ * Trechos e notas em Markdown, na ordem do texto: citacao, linha em branco,
+ * nota, linha em branco.
+ *
+ * E o miolo da exportacao de um texto e da de todos os textos (US-224). As
+ * duas passam por aqui para o mesmo destaque sair igual nos dois arquivos.
+ */
+export function excerptLines(items: ExportItem[]): string[] {
+  const lines: string[] = [];
   for (const item of [...items].sort((a, b) => a.start - b.start)) {
     lines.push(...quote(item.excerpt), "");
     if (item.note) lines.push(...item.note.split("\n"), "");
   }
-
-  return lines.join("\n");
+  return lines;
 }
 
 /** Cada linha do trecho vira uma linha de citacao, senao a citacao quebra. */

@@ -121,7 +121,7 @@ test("extracao exata e conta sem etiquetas nao chamam a analise", async ({ page 
   await expect(page.getByTestId("etiqueta-sugerida")).toHaveCount(0);
 });
 
-test("sinopse: pedida no cartao, guardada e descartada quando o conteudo muda", async ({
+test("sinopse: pedida na folha do item, guardada e descartada quando o conteudo muda", async ({
   page,
 }) => {
   await registerByApi(page.request);
@@ -133,14 +133,26 @@ test("sinopse: pedida no cartao, guardada e descartada quando o conteudo muda", 
     route.fulfill({ json: { synopsis: "Uma leitura sobre ritmo e atenção." } })
   );
 
-  await page.goto("/textos");
-  const cartaoLongo = page.locator("li").filter({ hasText: "Texto longo" });
-  const cartaoCurto = page.locator("li").filter({ hasText: "Texto curto" });
-  // Menos de 200 palavras: a opcao nao aparece.
-  await expect(cartaoCurto.getByRole("button", { name: "Do que se trata?" })).toHaveCount(0);
+  // A sinopse e o pedido dela ficam na folha "Mais acoes" do item (US-230).
+  const folha = page.getByRole("dialog");
+  const abrir = async (titulo: string) => {
+    await page.getByRole("button", { name: `Mais ações: ${titulo}` }).click();
+    await expect(folha.getByRole("link", { name: "Estudar" })).toBeVisible();
+  };
+  const fechar = async () => {
+    await page.keyboard.press("Escape");
+    await expect(folha).toHaveCount(0);
+  };
 
-  await cartaoLongo.getByRole("button", { name: "Do que se trata?" }).click();
-  await expect(cartaoLongo.getByTestId("sinopse")).toContainText("ritmo e atenção");
+  await page.goto("/textos");
+  // Menos de 200 palavras: a opcao nao aparece.
+  await abrir("Texto curto");
+  await expect(folha.getByRole("button", { name: "Do que se trata?" })).toHaveCount(0);
+  await fechar();
+
+  await abrir("Texto longo");
+  await folha.getByRole("button", { name: "Do que se trata?" }).click();
+  await expect(folha.getByTestId("sinopse")).toContainText("ritmo e atenção");
 
   // Guardada no banco para o conteudo atual, ela vem com a lista.
   await page.unroute(`**/api/texts/${longo.id}/sinopse`);
@@ -152,7 +164,8 @@ test("sinopse: pedida no cartao, guardada e descartada quando o conteudo muda", 
     [longo.id]
   );
   await page.reload();
-  await expect(cartaoLongo.getByTestId("sinopse")).toContainText("Sinopse guardada do texto.");
+  await abrir("Texto longo");
+  await expect(folha.getByTestId("sinopse")).toContainText("Sinopse guardada do texto.");
 
   // Conteudo editado: a sinopse antiga deixa de valer e a opcao volta.
   const editado = await page.request.put(`/api/texts/${longo.id}`, {
@@ -160,6 +173,7 @@ test("sinopse: pedida no cartao, guardada e descartada quando o conteudo muda", 
   });
   expect(editado.ok()).toBeTruthy();
   await page.reload();
-  await expect(cartaoLongo.getByTestId("sinopse")).toHaveCount(0);
-  await expect(cartaoLongo.getByRole("button", { name: "Do que se trata?" })).toBeVisible();
+  await abrir("Texto longo");
+  await expect(folha.getByTestId("sinopse")).toHaveCount(0);
+  await expect(folha.getByRole("button", { name: "Do que se trata?" })).toBeVisible();
 });

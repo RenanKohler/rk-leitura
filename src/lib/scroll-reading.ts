@@ -91,6 +91,99 @@ export function wordInView(
 }
 
 /**
+ * Rolagem automatica (US-225): fracao da altura do quadro, contada do topo,
+ * em que a linha do guia ou da narracao fica enquanto a coluna anda sozinha.
+ * Um terco: sobra texto ja lido em cima e o dobro, ainda por ler, embaixo.
+ */
+export const FOLLOW_ANCHOR_FRACTION = 1 / 3;
+
+/**
+ * Altura da rolagem que poe a linha da leitura na ancora do quadro (US-225).
+ *
+ * As medidas da linha e do texto sao em px do conteudo da coluna, contados
+ * do topo do texto. Assim a conta nao depende de onde a coluna esta rolada
+ * nem de onde o quadro esta na tela: os controles que somem e voltam
+ * (US-213) mudam o topo e a altura dele, e a ancora e uma fracao dessa altura.
+ *
+ * `progress` e o quanto da linha ja foi lido (0 no comeco, 1 no fim). A
+ * coluna sobe a altura de uma linha enquanto o guia a atravessa, em vez de
+ * ficar parada e saltar na troca de linha: o alvo no fim de uma linha e o
+ * mesmo do comeco da seguinte. Com 0 a conta e por linha inteira, que e o
+ * passo de quem pediu movimento reduzido.
+ *
+ * O resultado fica entre o topo e o fundo do texto. No comeco o guia desce
+ * ate a ancora antes de a coluna andar; no fim ela para no fundo, com o bloco
+ * "Concluir leitura" a vista.
+ */
+export function followScrollTop({
+  lineTop,
+  lineHeight,
+  progress,
+  frameHeight,
+  contentHeight,
+  fraction = FOLLOW_ANCHOR_FRACTION,
+}: {
+  /** Topo da linha da palavra atual. */
+  lineTop: number;
+  lineHeight: number;
+  /** Quanto da linha ja foi lido, de 0 a 1. */
+  progress: number;
+  /** Altura visivel do quadro. */
+  frameHeight: number;
+  /** Altura de tudo o que a coluna rola (texto e bloco do fim). */
+  contentHeight: number;
+  /** Altura da ancora, em fracao do quadro a partir do topo. */
+  fraction?: number;
+}): number {
+  const along = Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : 0;
+  const wanted = lineTop + lineHeight * along - frameHeight * fraction;
+  const bottom = Math.max(0, contentHeight - frameHeight);
+  return Math.min(bottom, Math.max(0, wanted));
+}
+
+/**
+ * Tempo em que a coluna vence cerca de dois tercos da distancia ate o alvo.
+ * Curto o bastante para a linha nao escapar da ancora numa leitura rapida,
+ * longo o bastante para o passo de cada palavra se dissolver num movimento so.
+ */
+export const FOLLOW_EASE_MS = 400;
+
+/**
+ * Distancia, em alturas do quadro, alem da qual a coluna nao desliza o
+ * caminho todo: um salto da narracao para outro capitulo faria o livro
+ * inteiro passar pela tela. Ela encosta a essa distancia do alvo e desliza
+ * so o trecho final.
+ */
+export const FOLLOW_GLIDE_SCREENS = 1.5;
+
+/** Distancia do alvo, em px, abaixo da qual a coluna e dada como chegada. */
+const FOLLOW_REST_PX = 0.05;
+
+/**
+ * Proxima altura da rolagem a caminho do alvo, `elapsedMs` depois da
+ * anterior (US-225).
+ *
+ * Aproximacao exponencial: a cada instante a coluna anda uma fracao do que
+ * falta. Nunca passa do alvo, nao depende de quantos quadros a tela desenha
+ * por segundo e, com o alvo andando no ritmo da leitura, vira um movimento
+ * constante logo atras dele. Partindo de longe (inicio do play, volta depois
+ * de um arraste) e um deslize que desacelera ao chegar, sem salto.
+ */
+export function followStep(
+  top: number,
+  target: number,
+  elapsedMs: number,
+  frameHeight: number
+): number {
+  const distance = target - top;
+  if (Math.abs(distance) < FOLLOW_REST_PX) return target;
+  const reach = Math.max(1, frameHeight) * FOLLOW_GLIDE_SCREENS;
+  const from = Math.abs(distance) > reach ? target - Math.sign(distance) * reach : top;
+  const eased = 1 - Math.exp(-Math.max(0, elapsedMs) / FOLLOW_EASE_MS);
+  return from + (target - from) * eased;
+}
+
+/**
  * Palavras de distancia a partir das quais a rolagem deixou para tras o
  * lugar onde a leitura estava (cerca de uma tela de celular).
  */

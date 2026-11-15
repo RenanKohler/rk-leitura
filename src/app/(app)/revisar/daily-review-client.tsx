@@ -2,16 +2,63 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { apiGet, apiSend } from "@/lib/client";
+import { ApiError, apiGet, apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
-import { Alert, Button, Card, EmptyState, LinkButton } from "@/components/ui";
-import { BackIcon, CheckIcon, CloseIcon } from "@/components/icons";
+import { Alert, Button, Card, EmptyState, LinkButton, Sheet } from "@/components/ui";
+import { CheckIcon, CloseIcon, QueueIcon } from "@/components/icons";
 import { GradeButtons } from "@/components/grade-buttons";
 import { StudyCardReview } from "@/components/study-card-review";
-import { countsLabel, itemsLabel } from "@/lib/daily-review";
+import {
+  countsLabel,
+  emptyTally,
+  itemsLabel,
+  removalCopy,
+  sessionSummary,
+  tallyWith,
+  type ReviewOutcome,
+  type SessionTally,
+} from "@/lib/daily-review";
+import { REVIEW_CHANGED_EVENT } from "@/lib/app-nav";
 import type { ReviewGrade } from "@/lib/vocabulary";
 import type { DailyItem, DailyReview, DueRecall } from "@/lib/study-review-queries";
 import type { HighlightReviewCard, ReviewCard } from "@/lib/types";
+
+/** O que cada item recebe da sessao. */
+interface ItemHandlers {
+  /** Nota gravada: segue para o proximo. */
+  onNext: (kept: boolean) => void;
+  onError: (message: string) => void;
+  /**
+   * O item esta gravando ou ja gravou a resposta e continua na tela (US-223):
+   * enquanto isso "Pular" e "Tirar da revisão" nao aparecem, porque o item ja
+   * nao esta sem resposta.
+   */
+  onLock: (locked: boolean) => void;
+}
+
+/** Tirar da revisao, pela rota de cada tipo (US-223). */
+function removeFromReview(item: DailyItem): Promise<unknown> {
+  if (item.kind === "palavra") {
+    return apiSend(`/api/palavras/${item.word.id}`, "PATCH", { learned: true });
+  }
+  if (item.kind === "destaque") {
+    return apiSend(`/api/texts/${item.highlight.textId}/destaques/${item.highlight.id}`, "PATCH", {
+      review: false,
+    });
+  }
+  if (item.kind === "cartao") return apiSend(`/api/cartoes/${item.card.id}`, "DELETE");
+  // A rodada que a tela mostrou: aberta antes da virada do dia 30, ela ja
+  // pode ter sido trocada pela seguinte, que nao e a que a folha descreveu.
+  return apiSend(`/api/texts/${item.recall.textId}/recordar?rodada=${item.recall.round}`, "DELETE");
+}
+
+/**
+ * Avisa a barra de navegacao que um item saiu da conta de vencidos (US-229):
+ * o selo da aba "Revisar" cai junto, sem esperar a troca de rota.
+ */
+function announceReviewChange() {
+  window.dispatchEvent(new Event(REVIEW_CHANGED_EVENT));
+}
 
 /**
  * Revisao do dia (US-161).
@@ -20,46 +67,105 @@ import type { HighlightReviewCard, ReviewCard } from "@/lib/types";
  * atrasados primeiro, intercalados). Cada nota vai para a rota do proprio
  * tipo, as mesmas das revisoes separadas: o item respondido deixa de estar
  * vencido, entao reabrir a tela no mesmo dia continua do proximo.
+ *
+ * Abaixo do item ficam duas saidas sem nota (US-223): "Pular", que so passa
+ * adiante (o item continua vencido e volta ao reabrir a tela), e "Tirar da
+ * revisão", que persiste e por isso pede confirmacao. Sem elas um item
+ * indesejado travava todos os que vinham depois.
  */
 export function DailyReviewClient({ initial }: { initial: DailyReview }) {
   const notify = useToast();
-  const [position, setPosition] = useState(0);
-  const [remembered, setRemembered] = useState(0);
+  // Posicao e placar andam juntos: cada item sai da tela uma vez, com um desfecho.
+  const [session, setSession] = useState<{ position: number; tally: SessionTally }>(() => ({
+    position: 0,
+    tally: emptyTally(),
+  }));
+  // Posicao do item que ja esta gravando ou gravou a resposta.
+  const [lockedAt, setLockedAt] = useState<number | null>(null);
+  // Posicao do item para o qual a folha de "Tirar da revisão" abriu: se a
+  // tela andar com ela aberta, a folha fecha em vez de passar a valer para o
+  // item seguinte.
+  const [confirmingAt, setConfirmingAt] = useState<number | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState("");
 
+  // Tocar na aba "Revisar" ja acesa navega para a mesma pagina: o Next busca
+  // a lista de novo e mantem este estado. Lista nova, sessao nova - senao a
+  // posicao antiga apontaria para outro item, ou para o resumo de novo.
+  const [shownFor, setShownFor] = useState(initial);
+  if (shownFor !== initial) {
+    setShownFor(initial);
+    setSession({ position: 0, tally: emptyTally() });
+    setLockedAt(null);
+    setConfirmingAt(null);
+    setRemoveError("");
+  }
+
+  const { position, tally } = session;
   const items = initial.items;
   const item = items[position];
   const done = items.length > 0 && position >= items.length;
+  const locked = lockedAt === position;
+  const summary = sessionSummary(tally);
+  const removal = item
+    ? removalCopy(item.kind, item.kind === "recordar" ? item.recall.round : undefined)
+    : null;
 
-  const next = (kept: boolean) => {
-    if (kept) setRemembered((count) => count + 1);
-    setPosition((current) => current + 1);
-  };
+  /**
+   * Fecha o item da posicao `at`. So vale se ele ainda e o da tela: a nota que
+   * chega depois de um "Pular" nao pode pular tambem o item seguinte.
+   */
+  const finish = (at: number, outcome: ReviewOutcome) =>
+    setSession((current) =>
+      current.position === at
+        ? { position: at + 1, tally: tallyWith(current.tally, outcome) }
+        : current
+    );
+  const lock = (at: number, on: boolean) =>
+    setLockedAt((current) => {
+      if (on) return current !== null && current > at ? current : at;
+      return current === at ? null : current;
+    });
   const fail = (message: string) => notify(message, "error");
+
+  const remove = async () => {
+    if (!item || removing || confirmingAt !== position) return;
+    setRemoving(true);
+    setRemoveError("");
+    try {
+      try {
+        await removeFromReview(item);
+      } catch (cause) {
+        // 404: o item ja foi apagado ou encerrado em outra aba. Ja esta fora
+        // da revisao, que era o pedido.
+        if (!(cause instanceof ApiError && cause.status === 404)) throw cause;
+      }
+      setConfirmingAt(null);
+      finish(position, "tirado");
+      announceReviewChange();
+    } catch (cause) {
+      setRemoveError(cause instanceof Error ? cause.message : "Não consegui tirar da revisão.");
+    } finally {
+      setRemoving(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
-      <header className="flex items-start gap-2 pt-2">
-        <Link
-          href="/dashboard"
-          aria-label="Voltar"
-          className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
-        >
-          <BackIcon className="size-5" />
-        </Link>
-        <div className="min-w-0 flex-1 pt-1.5">
-          <h1 className="text-headline-small">Revisão do dia</h1>
-          {items.length > 0 ? (
-            <p className="tabular mt-1 text-sm text-muted" data-testid="contagem-revisao">
-              {countsLabel(initial.counts)}
-            </p>
-          ) : null}
-          {items.length > 0 && !done ? (
-            <p className="tabular text-sm text-faint">
-              {position + 1} de {items.length}
-              {initial.total > items.length ? ` · ${initial.total} vencidos no total` : ""}
-            </p>
-          ) : null}
-        </div>
+      {/* Sem seta de voltar: a revisao e uma aba da barra de navegacao (US-229). */}
+      <header className="pt-2">
+        <h1 className="text-headline-small">Revisão do dia</h1>
+        {items.length > 0 ? (
+          <p className="tabular mt-1 text-sm text-muted" data-testid="contagem-revisao">
+            {countsLabel(initial.counts)}
+          </p>
+        ) : null}
+        {items.length > 0 && !done ? (
+          <p className="tabular text-sm text-faint">
+            {position + 1} de {items.length}
+            {initial.total > items.length ? ` · ${initial.total} vencidos no total` : ""}
+          </p>
+        ) : null}
       </header>
 
       {items.length === 0 ? (
@@ -77,57 +183,121 @@ export function DailyReviewClient({ initial }: { initial: DailyReview }) {
         </Card>
       ) : done ? (
         <Card>
-          <EmptyState
-            icon={<CheckIcon className="size-7" />}
-            title="Revisão concluída"
-            description={`Você lembrou ${remembered} de ${items.length}. O que você errou volta amanhã.`}
-            action={<LinkButton href="/dashboard">Voltar ao início</LinkButton>}
-          />
+          <div data-testid="resumo-revisao">
+            <EmptyState
+              // So pulados: nada foi concluido, os itens estao na fila.
+              icon={
+                tally.answered === 0 && tally.skipped > 0 ? (
+                  <QueueIcon className="size-7" />
+                ) : (
+                  <CheckIcon className="size-7" />
+                )
+              }
+              title={summary.title}
+              description={summary.description}
+              action={<LinkButton href="/dashboard">Voltar ao início</LinkButton>}
+            />
+          </div>
         </Card>
       ) : item ? (
         <div data-testid="item-revisao" data-kind={item.kind}>
-          <ItemView key={item.id} item={item} onNext={next} onError={fail} />
+          <ItemView
+            key={item.id}
+            item={item}
+            onNext={(kept) => {
+              finish(position, kept ? "lembrado" : "errado");
+              announceReviewChange();
+            }}
+            onError={fail}
+            onLock={(on) => lock(position, on)}
+          />
+          {locked ? null : (
+            // Saidas sem nota, discretas: a acao principal continua no cartao.
+            <div className="mt-1 flex items-center justify-between gap-2" data-testid="acoes-revisao">
+              <Button variant="ghost" className="min-h-12!" onClick={() => finish(position, "pulado")}>
+                Pular
+              </Button>
+              <Button
+                variant="ghost"
+                className="min-h-12!"
+                onClick={() => {
+                  setRemoveError("");
+                  setConfirmingAt(position);
+                }}
+              >
+                Tirar da revisão
+              </Button>
+            </div>
+          )}
         </div>
       ) : null}
+
+      <Sheet
+        open={confirmingAt === position && removal !== null}
+        title={removal?.title ?? ""}
+        onClose={() => {
+          // Com o pedido em curso a folha espera a resposta.
+          if (!removing) setConfirmingAt(null);
+        }}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted" data-testid="efeito-tirar">
+            {removal?.effect}
+          </p>
+
+          {removeError ? <Alert>{removeError}</Alert> : null}
+
+          <Button
+            variant={removal?.destructive ? "danger" : "primary"}
+            size="lg"
+            full
+            loading={removing}
+            onClick={() => void remove()}
+          >
+            {removal?.confirm}
+          </Button>
+        </div>
+      </Sheet>
     </div>
   );
 }
 
-function ItemView({
-  item,
-  onNext,
-  onError,
-}: {
-  item: DailyItem;
-  onNext: (kept: boolean) => void;
-  onError: (message: string) => void;
-}) {
+function ItemView({ item, onNext, onError, onLock }: { item: DailyItem } & ItemHandlers) {
   if (item.kind === "cartao") {
     return (
       <StudyCardReview
         card={item.card}
         onError={onError}
+        // A trava vale desde o toque na nota; depois de "Errei" o cartao fica
+        // na tela com a nota ja gravada.
+        onGrading={onLock}
+        onGraded={() => onLock(true)}
         onDone={(grade) => onNext(grade !== "errei")}
       />
     );
   }
-  if (item.kind === "palavra") return <WordItem word={item.word} onNext={onNext} onError={onError} />;
-  if (item.kind === "destaque") {
-    return <HighlightItem highlight={item.highlight} onNext={onNext} onError={onError} />;
+  if (item.kind === "palavra") {
+    return <WordItem word={item.word} onNext={onNext} onError={onError} onLock={onLock} />;
   }
-  return <RecallItem recall={item.recall} onNext={onNext} />;
+  if (item.kind === "destaque") {
+    return <HighlightItem highlight={item.highlight} onNext={onNext} onError={onError} onLock={onLock} />;
+  }
+  return <RecallItem recall={item.recall} onNext={onNext} onLock={onLock} />;
 }
 
 /** Nota numa das rotas de revisao ja existentes. */
-function useGrade(path: string, id: string, onNext: (kept: boolean) => void, onError: (message: string) => void) {
+function useGrade(path: string, id: string, { onNext, onError, onLock }: ItemHandlers) {
   const [busy, setBusy] = useState(false);
   const grade = async (value: ReviewGrade) => {
     if (busy) return;
     setBusy(true);
+    onLock(true);
     try {
       await apiSend(path, "POST", { id, grade: value });
       onNext(value !== "errei");
     } catch (cause) {
+      // A nota nao entrou: o item volta a poder ser pulado ou tirado.
+      onLock(false);
       onError(cause instanceof Error ? cause.message : "Não consegui registrar.");
     } finally {
       setBusy(false);
@@ -140,17 +310,9 @@ function Kind({ children }: { children: string }) {
   return <p className="text-xs font-medium uppercase tracking-[0.5px] text-faint">{children}</p>;
 }
 
-function WordItem({
-  word,
-  onNext,
-  onError,
-}: {
-  word: ReviewCard;
-  onNext: (kept: boolean) => void;
-  onError: (message: string) => void;
-}) {
+function WordItem({ word, ...handlers }: { word: ReviewCard } & ItemHandlers) {
   const [revealed, setRevealed] = useState(false);
-  const { busy, grade } = useGrade("/api/palavras/revisao", word.id, onNext, onError);
+  const { busy, grade } = useGrade("/api/palavras/revisao", word.id, handlers);
 
   return (
     <Card className="space-y-5 p-5">
@@ -187,17 +349,9 @@ function WordItem({
   );
 }
 
-function HighlightItem({
-  highlight,
-  onNext,
-  onError,
-}: {
-  highlight: HighlightReviewCard;
-  onNext: (kept: boolean) => void;
-  onError: (message: string) => void;
-}) {
+function HighlightItem({ highlight, ...handlers }: { highlight: HighlightReviewCard } & ItemHandlers) {
   const [revealed, setRevealed] = useState(false);
-  const { busy, grade } = useGrade("/api/destaques/revisao", highlight.id, onNext, onError);
+  const { busy, grade } = useGrade("/api/destaques/revisao", highlight.id, handlers);
   // Sem cartao, o modo lacuna da revisao de destaques: a palavra de maior peso some.
   const blank = !highlight.card && !revealed ? highlight.blank : null;
 
@@ -267,8 +421,16 @@ interface RecallResult {
 /**
  * Questionario a recordar (US-169): as perguntas guardadas, com as
  * alternativas reembaralhadas no servidor, e a nota ao lado da original.
+ *
+ * Pular vale tambem com o questionario aberto (US-223): nada foi enviado, e
+ * as respostas marcadas se perdem com o item. Depois de "Corrigir" a nota ja
+ * esta gravada, e so resta continuar.
  */
-function RecallItem({ recall, onNext }: { recall: DueRecall; onNext: (kept: boolean) => void }) {
+function RecallItem({
+  recall,
+  onNext,
+  onLock,
+}: { recall: DueRecall } & Pick<ItemHandlers, "onNext" | "onLock">) {
   const [questions, setQuestions] = useState<RecallQuestionView[] | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
   const [result, setResult] = useState<RecallResult | null>(null);
@@ -292,9 +454,12 @@ function RecallItem({ recall, onNext }: { recall: DueRecall; onNext: (kept: bool
   const submit = async () => {
     setLoading(true);
     setError("");
+    onLock(true);
     try {
       setResult(await apiSend<RecallResult>(`/api/texts/${recall.textId}/recordar`, "POST", { answers }));
     } catch (cause) {
+      // Nada foi gravado: o questionario volta a poder ser pulado ou dispensado.
+      onLock(false);
       setError(cause instanceof Error ? cause.message : "Não consegui corrigir.");
     } finally {
       setLoading(false);

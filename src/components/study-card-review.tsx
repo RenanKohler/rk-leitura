@@ -22,11 +22,25 @@ import type { StudyReviewCard } from "@/lib/study-review-queries";
 export function StudyCardReview({
   card,
   onDone,
+  onGrading,
+  onGraded,
   onError,
 }: {
   card: StudyReviewCard;
   /** Nota gravada e o leitor pronto para o proximo item. */
   onDone: (grade: ReviewGrade) => void;
+  /**
+   * Nota gravada, antes de o leitor seguir (US-223): depois de "Errei" o
+   * cartao fica na tela, e a revisao do dia precisa saber que ele ja foi
+   * respondido para nao oferecer "Pular".
+   */
+  onGraded?: () => void;
+  /**
+   * Nota em envio (true) ou recusada (false), antes da resposta (US-223): a
+   * revisao do dia esconde "Pular" e "Tirar da revisão" ja no toque, como faz
+   * com palavras e destaques.
+   */
+  onGrading?: (sending: boolean) => void;
   onError: (message: string) => void;
 }) {
   const [revealed, setRevealed] = useState(false);
@@ -40,11 +54,14 @@ export function StudyCardReview({
   const grade = async (value: ReviewGrade) => {
     if (busy) return;
     setBusy(true);
+    onGrading?.(true);
     try {
       await apiSend(`/api/cartoes/${card.id}/revisao`, "POST", { grade: value });
+      onGraded?.();
       if (value === "errei") setMissed(true);
       else onDone(value);
     } catch (cause) {
+      onGrading?.(false);
       onError(cause instanceof Error ? cause.message : "Não consegui registrar.");
     } finally {
       setBusy(false);
