@@ -48,7 +48,10 @@ export type AiTask =
   | "fichamento"
   | "guia"
   | "apontamentos"
-  | "analogia";
+  | "analogia"
+  | "previa"
+  | "ligacoes"
+  | "perfil";
 
 /**
  * Modelo de cada tarefa (decidido sobre a recomendacao da familia 5.5):
@@ -90,10 +93,18 @@ export const AI_MODELS: Record<AiTask, string> = {
   estudo: OPUS,
   glossario: SONNET,
   fichamento: OPUS,
-  apontamentos: SONNET,
+  // Explicar com as proprias palavras (US-167, e no leitor a US-231): achar o
+  // que faltou ou divergiu pede leitura fina; Opus, esforco medio.
+  apontamentos: OPUS,
   cartao: HAIKU,
   guia: HAIKU,
   analogia: HAIKU,
+  // Previa antes de ler (US-233): saida curta, pedida ao abrir o texto.
+  previa: HAIKU,
+  // Ligacoes entre textos (US-232): compara trechos de textos diferentes.
+  ligacoes: SONNET,
+  // Perfil de leitura do mes (US-234): junta erros, palavras e ritmo.
+  perfil: SONNET,
 };
 
 /**

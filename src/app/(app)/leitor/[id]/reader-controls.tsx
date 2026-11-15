@@ -225,6 +225,7 @@ export function MoreActionsSheet({
   onAsk,
   onNavigate,
   onSettings,
+  onPreviewQuestions,
 }: {
   open: boolean;
   onClose: () => void;
@@ -233,6 +234,8 @@ export function MoreActionsSheet({
   onAsk: () => void;
   onNavigate: () => void;
   onSettings: () => void;
+  /** As perguntas da previa ja vista (US-233); sem previa, o item nao aparece. */
+  onPreviewQuestions?: () => void;
 }) {
   const item =
     // Item de lista do M3: 56px, rotulo em body-large.
@@ -256,6 +259,12 @@ export function MoreActionsSheet({
           <SparkIcon className="size-5 text-muted" />
           Perguntar ao texto
         </button>
+        {onPreviewQuestions ? (
+          <button type="button" className={item} onClick={then(onPreviewQuestions)}>
+            <SparkIcon className="size-5 text-muted" />
+            Perguntas da prévia
+          </button>
+        ) : null}
         <Link href={`/textos/${textId}/estudar`} className={item}>
           <StudyIcon className="size-5 text-muted" />
           Estudar
