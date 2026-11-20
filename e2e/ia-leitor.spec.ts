@@ -98,6 +98,11 @@ test("explicar sem secoes: so na conclusao, para o texto lido; sem IA, nada", as
   // Com a IA desligada, a conclusao nao oferece.
   await updateSettings(page.request, { aiEnabled: false });
   await page.reload();
+  // Texto concluido reabre na ultima pagina; a conclusao vem ao virar.
+  for (let turn = 0; turn < 10; turn += 1) {
+    if (await page.getByRole("heading", { name: "Leitura concluída" }).isVisible()) break;
+    await page.getByRole("button", { name: "Próxima página" }).click();
+  }
   await expect(page.getByRole("heading", { name: "Leitura concluída" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Explicar o texto com suas palavras" })).toHaveCount(0);
 });

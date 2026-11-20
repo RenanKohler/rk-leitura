@@ -41,6 +41,14 @@ test("sem outro texto sobre o assunto: avisa sem chamar o modelo, e outra conta 
 
   await registerByApi(page.request);
   await updateSettings(page.request, { readerTipsSeen: true, aiEnabled: true });
+  // A conta nasce com o texto de boas-vindas, que fala de leitura: ele seria
+  // candidato. Sem ele, a biblioteca so tem o texto em estudo.
+  const { texts } = (await (await page.request.get("/api/texts/recentes?perPage=5")).json()) as {
+    texts: { id: string }[];
+  };
+  for (const welcome of texts) {
+    expect((await page.request.delete(`/api/texts/${welcome.id}`)).ok()).toBeTruthy();
+  }
   const text = await createText(page.request, "Único texto", 600);
 
   await page.goto(`/textos/${text.id}/estudar`);
