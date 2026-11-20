@@ -30,6 +30,10 @@ async function listed(page: Page): Promise<string[]> {
   return titles.filter((title) => [FIRST, MIDDLE, LAST].includes(title));
 }
 
+
+// Sem o service worker no meio: `page.route` precisa ver o pedido da sinopse.
+test.use({ serviceWorkers: "block" });
+
 test("abre na ordem da ultima leitura; a ordem de importacao e uma escolha guardada no aparelho", async ({
   page,
 }) => {
@@ -152,10 +156,14 @@ test("Estudar e Do que se trata? ficam na folha Mais acoes do item", async ({ pa
   await expect(item.getByTestId("sinopse")).toHaveCount(0);
 
   const more = page.getByRole("button", { name: "Mais ações: Texto das acoes" });
-  // Alvo de toque de acao principal: 48px.
-  const target = (await more.boundingBox())!;
-  expect(target.width).toBeGreaterThanOrEqual(48);
-  expect(target.height).toBeGreaterThanOrEqual(48);
+  // Alvo de toque de acao principal: 48px. Medido depois de a tela assentar:
+  // logo apos a navegacao a fonte e a lista ainda podem estar se ajustando.
+  await expect
+    .poll(async () => {
+      const box = await more.boundingBox();
+      return box ? Math.min(box.width, box.height) : 0;
+    })
+    .toBeGreaterThanOrEqual(48);
 
   await more.click();
   const sheet = page.getByRole("dialog");

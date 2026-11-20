@@ -280,6 +280,8 @@ test("dispensar o questionario tira so a rodada, e a rodada expira sozinha", asy
     questions: [
       { prompt: "Pergunta um", choices: ["alfa", "beta", "gama", "delta"], answer: 0, evidence: "" },
       { prompt: "Pergunta dois", choices: ["um", "dois", "tres", "quatro"], answer: 2, evidence: "" },
+      // Questionario guardado precisa do minimo de perguntas (MIN_QUESTIONS).
+      { prompt: "Pergunta tres", choices: ["sol", "lua", "mar", "rio"], answer: 3, evidence: "" },
     ],
   };
   await runSql(
