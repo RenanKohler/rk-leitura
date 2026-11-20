@@ -36,6 +36,9 @@ export const FEATURE_LABELS: Record<AiTask, string> = {
   guia: "Perguntas-guia",
   apontamentos: "Explicar com as próprias palavras",
   analogia: "Analogia de cartão",
+  previa: "Prévia de leitura",
+  ligacoes: "Ligações entre textos",
+  perfil: "Perfil de leitura",
 };
 
 /**
@@ -48,6 +51,7 @@ const WITHOUT_TEXT: Record<string, string> = {
   limpeza: "Importação",
   etiquetas: "Importação",
   semana: "Leituras da semana",
+  perfil: "Perfil de leitura do mês",
 };
 
 export const DELETED_TEXT = "Texto excluído";

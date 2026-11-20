@@ -12,6 +12,7 @@ import {
   HistoryIcon,
   MarkIcon,
   SettingsIcon,
+  SparkIcon,
   SpeedIcon,
   WordsIcon,
 } from "@/components/icons";
@@ -72,6 +73,13 @@ export default async function YouPage() {
                 ? `Média de ${stats.avgWpm} ppm · calendário do ano`
                 : "Evolução da velocidade e calendário do ano"
             }
+          />
+          {/* Perfil de leitura do mes (US-234), no fim das estatisticas. */}
+          <Destination
+            href="/estatisticas#perfil-leitura"
+            icon={<SparkIcon className="size-5" />}
+            title="Perfil de leitura"
+            detail="Uma vez por mês: o que trava a sua leitura e o que treinar"
           />
           <Destination
             href="/historico"

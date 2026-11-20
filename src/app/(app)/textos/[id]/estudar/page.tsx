@@ -8,6 +8,7 @@ import { RetentionPanel } from "./retention-panel";
 import { GlossaryPanel } from "./glossary-panel";
 import { NotesPanel } from "./notes-panel";
 import { TeachBackPanel } from "./teach-back-panel";
+import { LinksPanel } from "./links-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ const SECTIONS: [anchor: string, label: string][] = [
   ["glossario", "Glossário"],
   ["fichamento", "Fichamento"],
   ["explicar", "Explicar"],
+  ["ligacoes", "Ligações"],
 ];
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -95,6 +97,8 @@ export default async function StudyPage({ params }: { params: Promise<{ id: stri
       <GlossaryPanel {...study} />
       <NotesPanel {...study} />
       <TeachBackPanel {...study} />
+      {/* US-232 */}
+      <LinksPanel {...study} />
     </div>
   );
 }

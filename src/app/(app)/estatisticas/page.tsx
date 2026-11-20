@@ -7,6 +7,7 @@ import { todayIn } from "@/lib/goals";
 import { loadLearningStats } from "@/lib/learning-queries";
 import { TrendClient } from "./trend-client";
 import { LearningClient } from "./learning-client";
+import { ReadingProfileCard } from "@/components/reading-profile-card";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,8 @@ export default async function StatsPage() {
       <TrendClient trend={trend} />
       <LearningClient stats={learning} />
       <YearCalendar days={year.map(({ day, minutes }) => ({ day, minutes }))} today={today} />
+      {/* Perfil de leitura do mes (US-234): no fim, sem mexer no resto. */}
+      <ReadingProfileCard />
     </div>
   );
 }

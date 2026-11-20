@@ -163,6 +163,13 @@ import {
 } from "@/lib/reader-session";
 import { offeredToday, sessionCheckRange, type SessionRange } from "@/lib/session-check";
 import { visibleSuggestion } from "@/lib/reader-notices";
+import { useAiConsent } from "@/components/ai-consent";
+import { TeachBackForm, teachBackDraftKey } from "@/components/teach-back-form";
+import { navigationHeadings, type Section } from "@/lib/sections";
+import { sectionRanges } from "@/lib/text-sections";
+import { canAskPreview } from "@/lib/preview";
+import { crossedSection, finishedPart } from "./explain-offer";
+import { PreviewCard, PreviewQuestionsSheet, usePreview } from "./preview-card";
 
 /*
  * Uma tela so. Parado, o texto aparece em paginas, como num e-reader; ao
@@ -416,6 +423,14 @@ function Reader({
   );
   const [playing, setPlaying] = useState(false);
   const [finished, setFinished] = useState(false);
+  // Previa antes de ler (US-233): some ao dispensar ou ao comecar a ler.
+  const [previewClosed, setPreviewClosed] = useState(false);
+  // Explicar a secao (US-231): a secao recem-terminada esperando a pausa.
+  // Cada secao e oferecida uma vez por visita; a marca vale so nesta tela.
+  const [explainOffer, setExplainOffer] = useState<{ start: number; title: string | null } | null>(
+    null
+  );
+  const explainOfferedRef = useRef(new Set<number>());
   // Preferencia do aparelho, lida como loja externa: o HTML do servidor e o
   // primeiro render do cliente saem iguais ("runner"), e a troca vale na hora.
   const playMode = useSyncExternalStore(subscribePlayMode, readPlayMode, () => "runner" as PlayMode);
@@ -1074,6 +1089,9 @@ function Reader({
     }
     setSessionCheck(null);
     setSuggestionSettled(false);
+    setPreviewClosed(true);
+    // A oferta de explicar ja vista sai ao recomecar (US-231).
+    setExplainOffer((offer) => (offer && explainOfferedRef.current.has(offer.start) ? null : offer));
     void postRecord(startClock(meterRef.current, "runner", now), false);
     wordStartRef.current = performance.now();
     stateRef.current.playing = true;
@@ -1713,6 +1731,66 @@ function Reader({
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
 
+  /* --- explicar a secao com as proprias palavras (US-231) ----------------- */
+  // So com a IA ligada e o consentimento dado, como as outras ofertas.
+  const { state: aiState } = useAiConsent();
+  const aiOn = aiState === "on";
+  const hasHeadings = useMemo(() => navigationHeadings(paragraphs, []).length > 0, [paragraphs]);
+  // Secoes aplicadas (US-153), so quando o texto nao tem titulos.
+  const [appliedSections, setAppliedSections] = useState<Section[]>([]);
+  useEffect(() => {
+    if (!aiOn || hasHeadings) return;
+    let active = true;
+    void apiGet<{ sections: Section[] }>(`/api/texts/${text.id}/secoes`)
+      .then((data) => {
+        if (active) setAppliedSections(data.sections);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [aiOn, hasHeadings, text.id]);
+  const explainSections = useMemo(
+    () => sectionRanges(navigationHeadings(paragraphs, appliedSections), total),
+    [paragraphs, appliedSections, total]
+  );
+  const explainPreviousRef = useRef(index);
+  useEffect(() => {
+    const previous = explainPreviousRef.current;
+    explainPreviousRef.current = index;
+    if (!aiOn || explainSections.length === 0) return;
+    const section = crossedSection(explainSections, previous, index, total);
+    if (!section || explainOfferedRef.current.has(section.start)) return;
+    setExplainOffer({ start: section.start, title: section.title });
+  }, [index, aiOn, explainSections, total]);
+  // Folha aberta com o formulario da parte escolhida.
+  const [explainTarget, setExplainTarget] = useState<{ start: number; title: string | null } | null>(
+    null
+  );
+  // Partes ja conferidas nesta visita: fechar a folha sem conferir devolve a
+  // oferta em uma linha, para voltar ao rascunho (guardado na aba).
+  const explainCheckedRef = useRef(new Set<number>());
+  const closeExplain = useCallback(() => {
+    // Na conclusao o botao da tela continua la; a linha nao volta.
+    if (explainTarget && !finished && !explainCheckedRef.current.has(explainTarget.start)) {
+      setExplainOffer(explainTarget);
+    }
+    setExplainTarget(null);
+  }, [explainTarget, finished]);
+
+  /* --- previa antes de ler (US-233) --------------------------------------- */
+  // Texto nao comecado: posicao 0, nunca lido, aberto do inicio.
+  const previewEligible =
+    startAt === undefined &&
+    canAskPreview({
+      wordCount: text.wordCount,
+      progressIndex: text.progressIndex,
+      lastReadAt: text.lastReadAt,
+    });
+  // A consulta tambem traz a previa ja vista: as perguntas seguem a mao.
+  const previewCtl = usePreview(text.id, aiState !== "off");
+  const [previewQuestionsOpen, setPreviewQuestionsOpen] = useState(false);
+
   // Consultar uma palavra pausa a leitura, e fechar o painel nao a retoma
   // sozinha: quem parou para entender uma palavra decide quando voltar.
   const wordOpen = touchedWord !== null;
@@ -1807,7 +1885,9 @@ function Reader({
     quizOpen ||
     checkOpen ||
     carding !== null ||
-    guiding;
+    guiding ||
+    explainTarget !== null ||
+    previewQuestionsOpen;
   useEffect(() => {
     if (sheetOpen && stateRef.current.playing) pause("folha");
   }, [sheetOpen, pause]);
@@ -2049,6 +2129,14 @@ function Reader({
   // selecao e controle de velocidade tem a vez antes dela.
   const returnVisible =
     !selection && (showReturn || (Boolean(reread) && !playing && !narrating && !finished));
+  const suggestionBlocked =
+    (text.abandoned && !resumed) ||
+    saveFailing ||
+    remoteJump !== null ||
+    Boolean(speechError) ||
+    returnVisible ||
+    Boolean(selection) ||
+    speedOpen;
   const suggestion = visibleSuggestion({
     pending: {
       recapitular: Boolean(recap) && !playing,
@@ -2056,16 +2144,46 @@ function Reader({
       checagem: Boolean(sessionCheck) && !playing && !narrating && !finished,
       velocidade: Boolean(slowdown) && !playing && !narrating,
     },
-    blocked:
-      (text.abandoned && !resumed) ||
-      saveFailing ||
-      remoteJump !== null ||
-      Boolean(speechError) ||
-      returnVisible ||
-      Boolean(selection) ||
-      speedOpen,
+    blocked: suggestionBlocked,
     settled: suggestionSettled,
   });
+
+  // Explicar a secao (US-231): a ultima da fila de sugestoes, so com a
+  // leitura parada - nunca interrompe o Word Runner, o guia nem a narracao.
+  // Quando houver o ajuste de desligar sugestoes (US-220), ele entra aqui.
+  const explainVisible =
+    aiOn &&
+    explainOffer !== null &&
+    suggestion === null &&
+    !suggestionBlocked &&
+    !suggestionSettled &&
+    !playing &&
+    !narrating &&
+    !finished;
+  // Conta como oferecida quando aparece de fato; recomecar a leitura a tira.
+  useEffect(() => {
+    if (explainVisible && explainOffer) explainOfferedRef.current.add(explainOffer.start);
+  }, [explainVisible, explainOffer]);
+  const openExplain = useCallback((part: { start: number; title: string | null }) => {
+    explainOfferedRef.current.add(part.start);
+    setExplainOffer(null);
+    setExplainTarget(part);
+  }, []);
+  // Conclusao: a ultima secao, ou o texto inteiro quando nao ha secoes.
+  const finishedExplain = aiOn ? finishedPart(explainSections, total) : null;
+
+  // Previa (US-233): antes de iniciar, so quando nenhuma outra sugestao esta
+  // na tela (a recapitulacao do capitulo anterior vem antes).
+  const previewVisible =
+    previewEligible &&
+    !previewClosed &&
+    (previewCtl.available || previewCtl.preview !== null) &&
+    suggestion === null &&
+    !suggestionBlocked &&
+    !playing &&
+    !narrating &&
+    !finished &&
+    index === 0;
 
   // A checagem conta como oferecida quando aparece de fato, nao quando a
   // pausa a calcula: escondida atras de outro aviso, ela ainda nao foi vista.
@@ -2090,6 +2208,8 @@ function Reader({
   const noticeOnScreen =
     (text.abandoned && !resumed) ||
     suggestion !== null ||
+    explainVisible ||
+    previewVisible ||
     Boolean(speechError) ||
     selection !== null ||
     (reread !== null && !playing && !narrating) ||
@@ -2342,6 +2462,16 @@ function Reader({
             nextUp={nextUp}
             loadingNext={loadingNext}
             onNext={() => void openNext()}
+            explainLabel={
+              finishedExplain
+                ? finishedExplain.title === null
+                  ? "Explicar o texto com suas palavras"
+                  : "Explicar esta seção com suas palavras"
+                : null
+            }
+            onExplain={() => {
+              if (finishedExplain) openExplain(finishedExplain);
+            }}
           />
         ) : (
           <>
@@ -2517,6 +2647,44 @@ function Reader({
                   <CloseIcon className="size-5" />
                 </button>
               </div>
+            ) : null}
+
+            {/* Explicar a secao recem-terminada (US-231), em uma linha. */}
+            {explainVisible && explainOffer ? (
+              <div
+                className="pointer-events-auto flex w-full max-w-3xl items-center gap-2 rounded-2xl border border-border bg-surface p-2 pl-3 text-sm shadow-float"
+                data-testid="oferta-explicar"
+              >
+                <button
+                  type="button"
+                  onClick={() => openExplain(explainOffer)}
+                  className="state-layer flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-full px-2 text-left font-medium text-primary"
+                >
+                  <StudyIcon className="size-5 shrink-0" />
+                  <span className="truncate">Explicar esta seção com suas palavras</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Dispensar a oferta de explicar"
+                  // Ultima da fila: dispensar nao segura outra sugestao.
+                  onClick={() => setExplainOffer(null)}
+                  className="flex size-12 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2"
+                >
+                  <CloseIcon className="size-5" />
+                </button>
+              </div>
+            ) : null}
+
+            {/* Previa antes de ler (US-233). */}
+            {previewVisible ? (
+              <PreviewCard
+                controller={previewCtl}
+                onDismiss={() => setPreviewClosed(true)}
+                onStart={() => {
+                  setPreviewClosed(true);
+                  start();
+                }}
+              />
             ) : null}
 
             {speechError ? (
@@ -2824,7 +2992,49 @@ function Reader({
         onAsk={() => setAsking(true)}
         onNavigate={() => setNavigating(true)}
         onSettings={() => setShowSettings(true)}
+        onPreviewQuestions={previewCtl.preview ? () => setPreviewQuestionsOpen(true) : undefined}
       />
+
+      {/* As perguntas da previa durante a leitura (US-233). */}
+      <PreviewQuestionsSheet
+        open={previewQuestionsOpen}
+        onClose={() => setPreviewQuestionsOpen(false)}
+        preview={previewCtl.preview}
+      />
+
+      {/* Explicar com as proprias palavras no leitor (US-231): a mesma rota e
+          o mesmo formulario da tela Estudar, para a parte recem-terminada. O
+          rascunho fica na aba: fechar sem enviar nao o perde. */}
+      <Sheet
+        open={explainTarget !== null}
+        onClose={closeExplain}
+        title="Explicar com suas palavras"
+      >
+        {explainTarget ? (
+          <TeachBackForm
+            key={`explicar-secao-${explainTarget.start}`}
+            textId={text.id}
+            fixedStart={explainTarget.start}
+            prepare={savePositionNow}
+            draftKey={teachBackDraftKey(text.id, explainTarget.start)}
+            onChecked={() => explainCheckedRef.current.add(explainTarget.start)}
+            renderQuote={(point) => (
+              <button
+                type="button"
+                onClick={() => {
+                  setExplainTarget(null);
+                  goTo(point.start);
+                  setTapped(point.start);
+                }}
+                className="block min-h-12 w-full border-l-2 border-border pl-3 text-left text-sm text-muted hover:border-accent hover:text-ink"
+                aria-label={`Ver no texto: ${point.quote}`}
+              >
+                “{point.quote}”
+              </button>
+            )}
+          />
+        ) : null}
+      </Sheet>
 
       <Sheet open={showSettings} onClose={() => setShowSettings(false)} title="Ajustes de leitura">
         <div className="space-y-6">
@@ -3920,6 +4130,8 @@ function Finished({
   nextUp,
   loadingNext,
   onNext,
+  explainLabel,
+  onExplain,
 }: {
   total: number;
   summary: Summary | null;
@@ -3933,6 +4145,9 @@ function Finished({
   nextUp: NextUp | null;
   loadingNext: boolean;
   onNext: () => void;
+  /** Explicar com as proprias palavras (US-231); nulo sem IA ou sem o que explicar. */
+  explainLabel: string | null;
+  onExplain: () => void;
 }) {
   // Sessao curta demais (um toque, a ultima pagina) nao da numero que preste:
   // "1 palavras a 3000 ppm" confundia mais do que informava.
@@ -4011,6 +4226,13 @@ function Finished({
           <Button variant="secondary" size="lg" full onClick={onQuiz}>
             <SparkIcon className="size-5" />
             {comprehension === null ? "Testar compreensão" : "Ver o questionário"}
+          </Button>
+        ) : null}
+
+        {explainLabel ? (
+          <Button variant="secondary" size="lg" full onClick={onExplain}>
+            <StudyIcon className="size-5" />
+            {explainLabel}
           </Button>
         ) : null}
 

@@ -48,7 +48,10 @@ export type AiTask =
   | "fichamento"
   | "guia"
   | "apontamentos"
-  | "analogia";
+  | "analogia"
+  | "previa"
+  | "ligacoes"
+  | "perfil";
 
 /**
  * Modelo de cada tarefa (decidido sobre a recomendacao da familia 5.5):
@@ -82,16 +85,26 @@ export const AI_MODELS: Record<AiTask, string> = {
   semana: SONNET,
   // Secoes de um documento longo (US-153): entrada longa, saida fechada.
   secoes: SONNET,
-  // Aprendizado assistido (US-155 a US-170). O texto inteiro e a escolha do
-  // que importa pedem o Sonnet; um cartao de um trecho, as perguntas-guia e a
-  // analogia sao curtos e vao no Haiku.
-  estudo: SONNET,
+  // Aprendizado assistido (US-155 a US-170). Cartoes de estudo e fichamento
+  // leem o texto inteiro e decidem o que importa: vao no Opus, com esforco
+  // medio (pedido do leitor, nov/2026). Glossario e apontamentos ficam no
+  // Sonnet; um cartao de um trecho, as perguntas-guia e a analogia sao curtos
+  // e vao no Haiku.
+  estudo: OPUS,
   glossario: SONNET,
-  fichamento: SONNET,
-  apontamentos: SONNET,
+  fichamento: OPUS,
+  // Explicar com as proprias palavras (US-167, e no leitor a US-231): achar o
+  // que faltou ou divergiu pede leitura fina; Opus, esforco medio.
+  apontamentos: OPUS,
   cartao: HAIKU,
   guia: HAIKU,
   analogia: HAIKU,
+  // Previa antes de ler (US-233): saida curta, pedida ao abrir o texto.
+  previa: HAIKU,
+  // Ligacoes entre textos (US-232): compara trechos de textos diferentes.
+  ligacoes: SONNET,
+  // Perfil de leitura do mes (US-234): junta erros, palavras e ritmo.
+  perfil: SONNET,
 };
 
 /**
