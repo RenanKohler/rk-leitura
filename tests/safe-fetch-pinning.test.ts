@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   BLOCKED_ADDRESS,
+  BLOCKED_BY_SITE,
   fetchPublic,
   pinnedRequest,
   type FetchDeps,
@@ -91,5 +92,28 @@ describe("conexao no endereco validado (US-184)", () => {
         AbortSignal.timeout(2_000)
       )
     ).rejects.toThrow(BLOCKED_ADDRESS);
+  });
+});
+
+describe("site que recusa o app (403)", () => {
+  const resolve: FetchDeps["resolve"] = async () => [{ address: "93.184.216.34", family: 4 }];
+
+  it("repete uma vez com cabecalhos de navegador e importa", async () => {
+    const request = vi.fn<FetchDeps["request"]>(async (_url, _target, headers) =>
+      headers["User-Agent"]?.startsWith("Mozilla/") ? page(200, {}, "<p>ok</p>") : page(403)
+    );
+    const result = await fetchPublic("https://bloqueia.test/artigo", HTML, { resolve, request });
+    expect(result.html).toContain("ok");
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[0]![2]["User-Agent"]).toMatch(/^rk-leitura/);
+    expect(request.mock.calls[1]![2]["Accept-Language"]).toMatch(/pt-BR/);
+  });
+
+  it("403 de novo vira mensagem clara, sem terceira tentativa", async () => {
+    const request = vi.fn<FetchDeps["request"]>(async () => page(403));
+    await expect(fetchPublic("https://bloqueia.test/", HTML, { resolve, request })).rejects.toThrow(
+      BLOCKED_BY_SITE
+    );
+    expect(request).toHaveBeenCalledTimes(2);
   });
 });
