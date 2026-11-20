@@ -347,6 +347,19 @@ export async function fetchPublicFeed(rawUrl: string): Promise<{ html: string; f
   });
 }
 
+const APP_AGENT = "rk-leitura/1.0 (+leitor de artigos)";
+
+/** Cabecalhos de um Chrome de Android, para o site que recusa o app. */
+const BROWSER_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+  "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+};
+
+/** Mensagem quando o site recusa a importacao mesmo como navegador. */
+export const BLOCKED_BY_SITE =
+  "O site bloqueou a importação automática. Copie o texto da página e use a aba \"Colar\" em Novo texto.";
+
 /** Exportada para os testes, com `deps` simulados. */
 export async function fetchPublic(
   rawUrl: string,
@@ -362,6 +375,10 @@ export async function fetchPublic(
 
   // Um prazo so para a busca inteira, redirecionamentos incluidos.
   const signal = AbortSignal.timeout(TIMEOUT_MS);
+  // Muitos sites recusam (403) quem nao se apresenta como navegador. A
+  // primeira tentativa vai com a identificacao do app; o 403 e repetido uma
+  // vez com os cabecalhos de um navegador comum.
+  let asBrowser = false;
 
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
     const target = await resolvePublicTarget(url, deps);
@@ -369,12 +386,16 @@ export async function fetchPublic(
     const response = await deps.request(
       url,
       target,
-      {
-        "User-Agent": "rk-leitura/1.0 (+leitor de artigos)",
-        Accept: accept,
-      },
+      asBrowser ? { ...BROWSER_HEADERS, Accept: accept } : { "User-Agent": APP_AGENT, Accept: accept },
       signal
     );
+
+    if (response.status === 403 && !asBrowser) {
+      response.cancel();
+      asBrowser = true;
+      redirects -= 1;
+      continue;
+    }
 
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
@@ -386,7 +407,12 @@ export async function fetchPublic(
 
     if (response.status < 200 || response.status >= 300) {
       response.cancel();
-      throw new SafeFetchError(`A página respondeu com status ${response.status}.`, response.status);
+      throw new SafeFetchError(
+        response.status === 403 || response.status === 401
+          ? BLOCKED_BY_SITE
+          : `A página respondeu com status ${response.status}.`,
+        response.status
+      );
     }
 
     const contentType = response.headers.get("content-type") ?? "";
