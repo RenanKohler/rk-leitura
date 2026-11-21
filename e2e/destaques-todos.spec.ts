@@ -296,12 +296,15 @@ test("acima do limite a tela avisa, desenha por partes e a exportacao leva tudo"
   );
 
   await page.goto("/destaques");
+  // Pagina grande: o HTML chega em partes, e por um instante a copia escondida
+  // do streaming coexiste com a da tela. As conferencias ficam no conteudo.
+  const main = page.locator("#conteudo");
   // O corte e dito, com os dois numeros.
-  await expect(page.getByTestId("destaques-limite")).toContainText(
+  await expect(main.getByTestId("destaques-limite")).toContainText(
     "Mostrando os 2.000 mais recentes de 2.001."
   );
-  await expect(page.getByTestId("destaques-contagem")).toHaveText("2.000 destaques em 1 texto");
-  await expect(page.getByTestId("grupo-contagem")).toHaveText("2.000 destaques");
+  await expect(main.getByTestId("destaques-contagem")).toHaveText("2.000 destaques em 1 texto");
+  await expect(main.getByTestId("grupo-contagem")).toHaveText("2.000 destaques");
 
   // A lista vem por partes; a contagem e a busca valem para todos os carregados.
   await expect(cards(page)).toHaveCount(60);

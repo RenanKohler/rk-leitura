@@ -37,6 +37,14 @@ export async function fetchNextPart(
     return endOrUnavailable(error, page);
   }
 
+  return partFromHtml(html, page, existing);
+}
+
+/**
+ * Decide se o HTML de uma parte traz texto novo. Serve a parte buscada pelo
+ * servidor e a enviada pelo navegador ("Enviar para o Leitura").
+ */
+export function partFromHtml(html: string, page: number, existing: string): NextPart {
   let parsed;
   try {
     parsed = extractTextFromHtml(html);
