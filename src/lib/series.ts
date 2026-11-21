@@ -201,3 +201,42 @@ export function recapTail(paragraphs: string[][]): string[] {
   }
   return tail;
 }
+
+/** Serie da conta, como a folha "Adicionar a uma serie" a lista. */
+export interface SeriesOption {
+  key: string;
+  title: string;
+  /** Maior capitulo ja usado: a folha sugere o seguinte. */
+  lastChapter: number;
+  chapters: number;
+}
+
+/** Pedido de vinculo manual: serie existente (`key`) ou nova (`title`). */
+export type SeriesAssignment =
+  | { kind: "existente"; key: string; chapter: number }
+  | { kind: "nova"; title: string; chapter: number };
+
+/**
+ * Le o corpo de POST /api/series. A serie nova vira chave pelo titulo, a
+ * mesma regra da deteccao: um nome que ja existe cai na serie que existe.
+ */
+export function parseSeriesAssignment(body: unknown): SeriesAssignment | string {
+  if (!body || typeof body !== "object") return "Pedido inválido.";
+  const raw = body as { serie?: unknown; titulo?: unknown; capitulo?: unknown };
+
+  const chapter = Number(raw.capitulo);
+  if (!Number.isInteger(chapter) || !validChapter(chapter)) {
+    return `O capítulo precisa ser um número de 1 a ${MAX_CHAPTER}.`;
+  }
+
+  if (typeof raw.serie === "string" && raw.serie.trim()) {
+    const key = raw.serie.trim();
+    if (key.length > 300) return "Série inválida.";
+    return { kind: "existente", key, chapter };
+  }
+
+  const title = typeof raw.titulo === "string" ? raw.titulo.trim().replace(/\s+/g, " ") : "";
+  if (!title) return "Escolha uma série ou dê um nome para a nova.";
+  if (!/[\p{L}\p{N}]/u.test(title)) return "O nome da série precisa ter letras ou números.";
+  return { kind: "nova", title: title.slice(0, 200), chapter };
+}

@@ -10,6 +10,7 @@ import { TagPicker } from "@/components/tag-picker";
 import { TextSynopsis } from "@/components/text-synopsis";
 import { TagManagerSheet } from "@/components/tag-manager-sheet";
 import { ContentSearchResults } from "@/components/content-search-results";
+import { SeriesAssignSheet } from "@/components/series-assign-sheet";
 import {
   Alert,
   Button,
@@ -158,6 +159,9 @@ export function TextsClient({
       // na tela, a lista de textos ja foi salva.
     }
   };
+
+  // Texto da folha "Adicionar a uma serie"; nulo com ela fechada.
+  const [assigning, setAssigning] = useState<TextSummary | null>(null);
 
   const unlinkSeries = async (key: string) => {
     try {
@@ -581,6 +585,16 @@ export function TextsClient({
         onQueue={(text) => void toggleQueue(text)}
         onResume={(text) => void resumeText(text)}
         onSynopsis={rememberSynopsis}
+        onSeries={setAssigning}
+      />
+
+      <SeriesAssignSheet
+        text={assigning}
+        onClose={() => setAssigning(null)}
+        onDone={() => {
+          setAssigning(null);
+          resource.reload();
+        }}
       />
 
       <TagManagerSheet
@@ -723,6 +737,7 @@ function TextActionsSheet({
   onQueue,
   onResume,
   onSynopsis,
+  onSeries,
 }: {
   text: TextSummary | null;
   onClose: () => void;
@@ -732,6 +747,7 @@ function TextActionsSheet({
   onQueue: (text: TextSummary) => void;
   onResume: (text: TextSummary) => void;
   onSynopsis: (id: string, synopsis: string) => void;
+  onSeries: (text: TextSummary) => void;
 }) {
   const archived = text?.archivedAt != null;
 
@@ -796,6 +812,10 @@ function TextActionsSheet({
               onClick={act(onToggleArchive)}
             >
               {archived ? "Voltar à biblioteca" : "Arquivar"}
+            </MenuAction>
+            {/* Vinculo manual: a deteccao so le o endereco e o titulo. */}
+            <MenuAction icon={<SeriesIcon className="size-5" />} onClick={act(onSeries)}>
+              Adicionar a uma série
             </MenuAction>
             <MenuAction icon={<EditIcon className="size-5" />} onClick={act(onEdit)}>
               Editar
