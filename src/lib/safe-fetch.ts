@@ -358,7 +358,7 @@ const BROWSER_HEADERS = {
 
 /** Mensagem quando o site recusa a importacao mesmo como navegador. */
 export const BLOCKED_BY_SITE =
-  "O site bloqueou a importação automática. Copie o texto da página e use a aba \"Colar\" em Novo texto.";
+  "O site recusou a importação pelo servidor. Abra o texto no navegador e use o favorito \"Enviar para o Leitura\" (em Ajustes, Importar), ou copie o texto e use a aba \"Colar\".";
 
 /** Exportada para os testes, com `deps` simulados. */
 export async function fetchPublic(

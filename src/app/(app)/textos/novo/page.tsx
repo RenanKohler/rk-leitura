@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet, apiSend } from "@/lib/client";
 import { useToast } from "@/components/providers";
@@ -19,6 +19,7 @@ import { useAiConsent } from "@/components/ai-consent";
 import { applyRemovals, UNTITLED, type Leftover } from "@/lib/import-analysis";
 import { SuggestedField, type SuggestedMeta } from "@/components/suggested-field";
 import { MAX_IMPORT_PAGES } from "@/lib/continuation";
+import { RECEIVED_KEY } from "@/lib/bookmarklet";
 
 /** Resposta de POST /api/import-url/analise (US-136, US-137 e US-152). */
 interface ImportAnalysis extends Partial<SuggestedMeta> {
@@ -151,6 +152,29 @@ function FromLink() {
     }
   };
 
+  // Texto enviado pelo favorito "Enviar para o Leitura" (`/api/receber`): a
+  // previa abre como a de um link importado, com a mesma analise. A passagem
+  // vive no sessionStorage, que nao existe no servidor: ler na renderizacao
+  // faria o HTML divergir da hidratacao, e ler e tambem apagar.
+  useEffect(() => {
+    const received = takeReceived();
+    if (!received) return;
+    const imported = received.imported;
+    if (!imported) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- passagem lida uma vez, depois da hidratacao
+      setError(received.error ?? "O texto enviado não chegou. Tente enviar de novo.");
+      return;
+    }
+    const id = ++attempt.current;
+    setUrl(imported.sourceUrl);
+    setPreview(imported);
+    setTitle(imported.title);
+    setAuthor(imported.author ?? "");
+    void enrich(imported, id);
+    // So na montagem: a passagem e lida uma vez e apagada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleImport = async (event: React.FormEvent) => {
     event.preventDefault();
     const trimmed = url.trim();
@@ -250,6 +274,13 @@ function FromLink() {
               : "Importar"}
           </Button>
         </form>
+        <p className="mt-3 text-sm text-muted">
+          O site recusa a importação?{" "}
+          <Link href="/ajustes#importar" className="font-medium text-accent underline underline-offset-2">
+            Use o botão Enviar para o Leitura
+          </Link>
+          , que lê a página no seu navegador.
+        </p>
       </Card>
 
       {preview ? (
@@ -351,4 +382,21 @@ function PagesNote({ pages }: { pages: NonNullable<ImportedText["pages"]> }) {
       O restante pode ser buscado com Continuar, no leitor.
     </p>
   );
+}
+
+/**
+ * Le e apaga o que `/api/receber` deixou na aba. So vale com `?recebido=1`
+ * no endereco, que sai dele em seguida: recarregar nao reabre a previa.
+ */
+function takeReceived(): { imported?: ImportedText; error?: string } | null {
+  if (new URLSearchParams(window.location.search).get("recebido") !== "1") return null;
+  window.history.replaceState(null, "", window.location.pathname);
+  try {
+    const raw = window.sessionStorage.getItem(RECEIVED_KEY);
+    window.sessionStorage.removeItem(RECEIVED_KEY);
+    if (!raw) return { error: "O texto enviado não chegou. Tente enviar de novo." };
+    return JSON.parse(raw) as { imported?: ImportedText; error?: string };
+  } catch {
+    return { error: "O texto enviado não chegou. Tente enviar de novo." };
+  }
 }
