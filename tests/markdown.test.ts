@@ -138,3 +138,74 @@ describe("reading com formato markdown", () => {
     expect(parseParagraphs(source).paragraphs[0]).toEqual({ start: 0, words: ["#", "Titulo"] });
   });
 });
+
+describe("parseMarkdown: marcas que nao podem aparecer no texto", () => {
+  it("decodifica entidades HTML fora do codigo", () => {
+    expect(words("Tom &amp; Jerry &mdash; fim &#233; &#x41; &desconhecida;")).toEqual([
+      "Tom",
+      "&",
+      "Jerry",
+      "—",
+      "fim",
+      "é",
+      "A",
+      "&desconhecida;",
+    ]);
+    expect(words("`&amp;`")).toEqual(["&amp;"]);
+  });
+
+  it("some com comentarios HTML, de uma ou varias linhas", () => {
+    expect(words("antes <!-- oculto --> depois\n\n<!--\nvarias\nlinhas\n-->\nfim")).toEqual([
+      "antes",
+      "depois",
+      "fim",
+    ]);
+  });
+
+  it("lista de tarefas leva a caixa para o marcador", () => {
+    const blocks = parseMarkdown("- [ ] aberta\n- [x] feita\n* [X] tambem");
+    expect(blocks.map((block) => [block.marker, block.words])).toEqual([
+      ["☐", ["aberta"]],
+      ["☑", ["feita"]],
+      ["☑", ["tambem"]],
+    ]);
+  });
+
+  it("citacao aninhada e lista dentro de citacao ficam sem simbolos", () => {
+    const blocks = parseMarkdown("> nivel um\n> > nivel dois\n> - item\n> ## Titulo");
+    expect(blocks.map((block) => block.kind)).toEqual(["quote", "quote", "quote"]);
+    expect(blocks.map((block) => block.words.join(" "))).toEqual(["nivel um nivel dois", "item", "Titulo"]);
+  });
+
+  it("notas de rodape: chamada vira [n] e a definicao vira bloco numerado", () => {
+    const blocks = parseMarkdown("Frase com nota[^1].\n\n[^1]: Texto da nota.");
+    expect(blocks[0]!.words).toEqual(["Frase", "com", "nota[1]."]);
+    expect(blocks[1]).toMatchObject({ kind: "oli", marker: "[1]", words: ["Texto", "da", "nota."] });
+  });
+
+  it("definicao de link de referencia nao e texto", () => {
+    expect(words("Veja [o site][s].\n\n[s]: https://exemplo.com \"Titulo\"")).toEqual(["Veja", "o", "site."]);
+  });
+
+  it("==marcado== vira estilo, sem os sinais de igual", () => {
+    const [block] = parseMarkdown("um ==dois tres== quatro e a == b");
+    expect(block!.words).toEqual(["um", "dois", "tres", "quatro", "e", "a", "==", "b"]);
+    expect(block!.styles.slice(0, 4)).toEqual([0, STYLE.mark, STYLE.mark, 0]);
+  });
+
+  it("codigo indentado depois de linha vazia, mas nao continuacao de lista", () => {
+    const blocks = parseMarkdown("texto\n\n    const a = 1;\n    return a;\n\nfim\n\n- item\n\n    continua o item");
+    expect(blocks.map((block) => block.kind)).toEqual(["p", "code", "code", "p", "li", "p"]);
+    expect(blocks[1]!.words).toEqual(["const", "a", "=", "1;"]);
+  });
+
+  it("cabecalho da tabela fica em negrito", () => {
+    const blocks = parseMarkdown("| Nome | Idade |\n|---|---|\n| Ana | 30 |");
+    expect(blocks[0]!.styles.every((style) => style & STYLE.bold)).toBe(true);
+    expect(blocks[1]!.styles.every((style) => style === 0)).toBe(true);
+  });
+
+  it("barra invertida de quebra de linha nao vira palavra", () => {
+    expect(words("linha um\\\nlinha dois")).toEqual(["linha", "um", "linha", "dois"]);
+  });
+});

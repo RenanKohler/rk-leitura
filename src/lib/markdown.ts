@@ -8,9 +8,11 @@
  * formatacao (`#`, `**`, `>`, `-`...) nunca entram na contagem.
  *
  * Cobre o que aparece em anotacoes e artigos: titulos (ATX e setext),
- * citacoes, listas com e sem numero, blocos de codigo, tabelas simples,
- * negrito, italico, codigo, riscado e links. HTML embutido perde as tags e
- * fica o texto.
+ * citacoes (inclusive aninhadas), listas com e sem numero, listas de tarefas,
+ * blocos de codigo (cercados ou indentados), tabelas simples, notas de
+ * rodape, negrito, italico, codigo, riscado, marcado (`==`) e links. HTML
+ * embutido perde as tags e os comentarios e fica o texto; entidades
+ * (`&amp;`, `&mdash;`) viram o caractere.
  */
 
 /** Estilo de uma palavra, em bits: uma palavra pode ser negrito e italico. */
@@ -22,6 +24,8 @@ export const STYLE = {
   link: 16,
   /** Palavra de titulo: o Word Runner a mostra em negrito. */
   heading: 32,
+  /** Trecho marcado com `==`. */
+  mark: 64,
 } as const;
 
 /**
@@ -35,6 +39,7 @@ export function styleClass(style: number): string {
   if (style & STYLE.code) classes.push("md-code");
   if (style & STYLE.strike) classes.push("md-strike");
   if (style & STYLE.link) classes.push("md-link");
+  if (style & STYLE.mark) classes.push("md-mark");
   return classes.join(" ");
 }
 
@@ -42,7 +47,10 @@ export type BlockKind = "p" | "h1" | "h2" | "h3" | "quote" | "li" | "oli" | "cod
 
 export interface MarkdownBlock {
   kind: BlockKind;
-  /** Numero do item em lista numerada ("3."). */
+  /**
+   * Marcador desenhado antes do bloco: numero do item em lista numerada
+   * ("3."), caixa de tarefa ("☐", "☑") ou numero da nota de rodape ("[1]").
+   */
   marker?: string;
   words: string[];
   /** Estilo de cada palavra, na mesma ordem de `words`. */
@@ -55,21 +63,40 @@ interface RawBlock {
   kind: BlockKind;
   marker?: string;
   text: string;
+  /** Estilo de todas as palavras do bloco (cabecalho de tabela em negrito). */
+  base?: number;
 }
 
 const HEADING = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/;
 const RULE = /^\s{0,3}([-*_])(\s*\1){2,}\s*$/;
 const FENCE = /^\s{0,3}(`{3,}|~{3,})/;
 const QUOTE = /^\s{0,3}>\s?(.*)$/;
+/** Todos os niveis de `>` do comeco da linha: citacao aninhada vira uma so. */
+const QUOTE_LEVELS = /^\s{0,3}(?:>\s?)+/;
 const BULLET = /^\s*[-*+]\s+(.*)$/;
 const ORDERED = /^\s*(\d{1,9})[.)]\s+(.*)$/;
 const TABLE_ROW = /^\s*\|.*\|\s*$/;
 const TABLE_RULE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 const SETEXT_1 = /^\s{0,3}=+\s*$/;
 const SETEXT_2 = /^\s{0,3}-+\s*$/;
+/** Caixa de lista de tarefas logo depois do marcador do item. */
+const TASK = /^\[([ xX])\]\s+(.*)$/;
+/** Definicao de nota de rodape: `[^1]: texto`. */
+const FOOTNOTE_DEF = /^\s{0,3}\[\^([^\]\s]+)\]:\s*(.*)$/;
+/** Definicao de link de referencia: `[nome]: https://...`. Nao e texto. */
+const LINK_DEF = /^\s{0,3}\[[^\]^][^\]]*\]:\s*\S+(\s+(".*"|'.*'|\(.*\)))?\s*$/;
+/** Codigo indentado: quatro espacos ou um tab. */
+const INDENTED = /^(?: {4}|\t)(.*)$/;
 
 function headingKind(level: number): BlockKind {
   return level === 1 ? "h1" : level === 2 ? "h2" : "h3";
+}
+
+/** Item de lista: a caixa de tarefa, quando ha, vira o marcador do bloco. */
+function listItem(text: string): { marker?: string; text: string } {
+  const task = TASK.exec(text);
+  if (!task) return { text };
+  return { marker: task[1] === " " ? "\u2610" : "\u2611", text: task[2]! };
 }
 
 /** Separa o documento em blocos, cada um com o texto ainda com marcas inline. */
@@ -97,8 +124,31 @@ function splitBlocks(source: string): RawBlock[] {
     if (end > 0) index = end + 1;
   }
 
+  // Linha anterior vazia (ou inicio): so ai o recuo de quatro espacos abre
+  // um bloco de codigo; no meio do paragrafo, e continuacao.
+  let afterBlank = true;
+  // Ultima linha foi linha de tabela: o separador `|---|` faz dela o cabecalho.
+  let tableRow = -1;
+
   for (; index < lines.length; index += 1) {
-    const line = lines[index]!;
+    const line = lines[index]!.replace(/\\$/, "");
+    const wasBlank = afterBlank;
+    afterBlank = !line.trim();
+    const lastRow = tableRow;
+    tableRow = -1;
+
+    // Comentario HTML em linhas proprias, possivelmente varias: nao e texto.
+    if (line.trimStart().startsWith("<!--")) {
+      const close = lines.findIndex((inner, position) => position >= index && inner.includes("-->"));
+      const end = close < 0 ? lines.length - 1 : close;
+      const after = lines[end]!.slice(lines[end]!.indexOf("-->") + 3);
+      if (close < 0 || !after.trim()) {
+        flush();
+        index = end;
+        afterBlank = true;
+        continue;
+      }
+    }
 
     const fence = FENCE.exec(line);
     if (fence) {
@@ -109,6 +159,41 @@ function splitBlocks(source: string): RawBlock[] {
         if (inner.trimStart().startsWith(closer)) break;
         if (inner.trim()) blocks.push({ kind: "code", text: inner.trim() });
       }
+      continue;
+    }
+
+    // Codigo indentado depois de linha vazia, fora de lista (em lista, o
+    // recuo continua o item).
+    const lastBlock = blocks[blocks.length - 1];
+    if (
+      wasBlank &&
+      buffer.length === 0 &&
+      INDENTED.test(line) &&
+      line.trim() &&
+      lastBlock?.kind !== "li" &&
+      lastBlock?.kind !== "oli"
+    ) {
+      for (; index < lines.length; index += 1) {
+        const inner = lines[index]!;
+        if (inner.trim() && !INDENTED.test(inner)) break;
+        if (inner.trim()) blocks.push({ kind: "code", text: inner.trim() });
+      }
+      index -= 1;
+      afterBlank = false;
+      continue;
+    }
+
+    if (LINK_DEF.test(line)) {
+      flush();
+      continue;
+    }
+
+    const footnote = FOOTNOTE_DEF.exec(line);
+    if (footnote) {
+      flush();
+      bufferKind = "oli";
+      bufferMarker = `[${footnote[1]}]`;
+      buffer.push(footnote[2]!);
       continue;
     }
 
@@ -136,21 +221,30 @@ function splitBlocks(source: string): RawBlock[] {
       continue;
     }
 
-    const quote = QUOTE.exec(line);
-    if (quote) {
+    if (QUOTE.test(line)) {
+      // `> >` aninhado e `> - item` ficam como citacao, sem os simbolos.
+      const inner = line.replace(QUOTE_LEVELS, "");
       if (bufferKind !== "quote") flush();
-      bufferKind = "quote";
       // Linha vazia dentro da citacao separa paragrafos da citacao.
-      if (!quote[1]!.trim()) flush();
-      else buffer.push(quote[1]!);
+      if (!inner.trim()) {
+        flush();
+        continue;
+      }
+      const item = BULLET.exec(inner) ?? ORDERED.exec(inner);
+      const heading = HEADING.exec(inner);
+      if (item || heading) flush();
+      bufferKind = "quote";
+      buffer.push(heading ? heading[2]! : item ? item[item.length - 1]! : inner);
       continue;
     }
 
     const bullet = BULLET.exec(line);
     if (bullet) {
       flush();
+      const item = listItem(bullet[1]!);
       bufferKind = "li";
-      buffer.push(bullet[1]!);
+      bufferMarker = item.marker;
+      buffer.push(item.text);
       continue;
     }
 
@@ -165,14 +259,21 @@ function splitBlocks(source: string): RawBlock[] {
 
     if (TABLE_ROW.test(line) || (TABLE_RULE.test(line) && line.includes("|"))) {
       flush();
-      if (TABLE_RULE.test(line)) continue;
+      if (TABLE_RULE.test(line)) {
+        // A linha de cima era o cabecalho da tabela.
+        if (lastRow >= 0) blocks[lastRow]!.base = STYLE.bold;
+        continue;
+      }
       const cells = line
         .trim()
         .replace(/^\||\|$/g, "")
         .split("|")
         .map((cell) => cell.trim())
         .filter(Boolean);
-      if (cells.length > 0) blocks.push({ kind: "p", text: cells.join(" · ") });
+      if (cells.length > 0) {
+        blocks.push({ kind: "p", text: cells.join(" · ") });
+        tableRow = blocks.length - 1;
+      }
       continue;
     }
 
@@ -220,10 +321,31 @@ function parseInline(text: string, base: number): Piece[] {
   while (i < text.length) {
     const char = text[i]!;
 
-    if (char === "\\" && i + 1 < text.length && /[\\`*_{}[\]()#+\-.!~<>|]/.test(text[i + 1]!)) {
+    if (char === "\\" && i + 1 < text.length && /[\\`*_{}[\]()#+\-.!~<>|=^&]/.test(text[i + 1]!)) {
       pushText(text[i + 1]!);
       i += 2;
       continue;
+    }
+
+    // Entidade HTML: vira o caractere que ela representa.
+    if (char === "&") {
+      const entity = /^&(#\d{1,7}|#[xX][0-9a-fA-F]{1,6}|[a-zA-Z][a-zA-Z0-9]{1,31});/.exec(text.slice(i));
+      const decoded = entity ? decodeEntity(entity[1]!) : null;
+      if (decoded !== null) {
+        pushText(decoded);
+        i += entity![0].length;
+        continue;
+      }
+    }
+
+    // Chamada de nota de rodape: `[^1]` vira "[1]", como as citacoes.
+    if (char === "[" && text[i + 1] === "^") {
+      const note = /^\[\^([^\]\s]+)\]/.exec(text.slice(i));
+      if (note) {
+        pushText(`[${note[1]}]`);
+        i += note[0].length;
+        continue;
+      }
     }
 
     if (char === "`") {
@@ -270,6 +392,12 @@ function parseInline(text: string, base: number): Piece[] {
         i += auto[0].length;
         continue;
       }
+      const comment = /^<!--[\s\S]*?-->/.exec(text.slice(i));
+      if (comment) {
+        pushText(" ");
+        i += comment[0].length;
+        continue;
+      }
       const tag = /^<\/?[a-zA-Z][^>]*>/.exec(text.slice(i));
       if (tag) {
         pushText(" ");
@@ -278,8 +406,13 @@ function parseInline(text: string, base: number): Piece[] {
       }
     }
 
-    if (char === "*" || char === "_" || (char === "~" && text[i + 1] === "~")) {
-      const run = char === "~" ? "~~" : /^(\*+|_+)/.exec(text.slice(i))![0];
+    if (
+      char === "*" ||
+      char === "_" ||
+      (char === "~" && text[i + 1] === "~") ||
+      (char === "=" && text[i + 1] === "=" && text[i + 2] !== "=")
+    ) {
+      const run = char === "~" ? "~~" : char === "=" ? "==" : /^(\*+|_+)/.exec(text.slice(i))![0];
       const before = text[i - 1] ?? " ";
       const after = text[i + run.length] ?? " ";
       const canOpen = !/\s/.test(after);
@@ -312,6 +445,55 @@ interface Delimiter {
   canOpen: boolean;
   canClose: boolean;
   used: boolean;
+}
+
+/** Entidades nomeadas comuns em Markdown exportado de editores e da web. */
+const ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: "\u00A0",
+  ndash: "\u2013",
+  mdash: "\u2014",
+  hellip: "\u2026",
+  laquo: "\u00AB",
+  raquo: "\u00BB",
+  lsquo: "\u2018",
+  rsquo: "\u2019",
+  ldquo: "\u201C",
+  rdquo: "\u201D",
+  bull: "\u2022",
+  middot: "\u00B7",
+  copy: "\u00A9",
+  reg: "\u00AE",
+  trade: "\u2122",
+  deg: "\u00B0",
+  times: "\u00D7",
+  divide: "\u00F7",
+  rarr: "\u2192",
+  larr: "\u2190",
+  harr: "\u2194",
+  shy: "",
+  zwj: "",
+  zwnj: "",
+  ordm: "\u00BA",
+  ordf: "\u00AA",
+  sect: "\u00A7",
+  para: "\u00B6",
+  euro: "\u20AC",
+  pound: "\u00A3",
+};
+
+/** Caractere de uma entidade; null quando ela nao e conhecida (fica o texto). */
+function decodeEntity(name: string): string | null {
+  if (name[0] === "#") {
+    const code = name[1] === "x" || name[1] === "X" ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+    if (!Number.isFinite(code) || code <= 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return null;
+    return String.fromCodePoint(code);
+  }
+  return ENTITIES[name] ?? ENTITIES[name.toLowerCase()] ?? null;
 }
 
 function readLink(text: string, open: number): { label: string; end: number } | null {
@@ -369,6 +551,7 @@ function resolveDelimiters(
 
   const styleOf = (delimiter: Delimiter): number => {
     if (delimiter.char === "~") return STYLE.strike;
+    if (delimiter.char === "=") return STYLE.mark;
     if (delimiter.length >= 3) return STYLE.bold | STYLE.italic;
     return delimiter.length === 2 ? STYLE.bold : STYLE.italic;
   };
@@ -443,7 +626,7 @@ export function parseMarkdown(source: string): MarkdownBlock[] {
         ? STYLE.code
         : block.kind === "h1" || block.kind === "h2" || block.kind === "h3"
           ? STYLE.heading
-          : 0;
+          : (block.base ?? 0);
     const { words, styles } =
       block.kind === "code"
         ? {

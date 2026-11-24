@@ -1013,6 +1013,11 @@ body[data-sheet="aberta"] .toast-region {
   content: "\2022";
 }
 
+/* Lista de tarefas: a caixa (aberta ou marcada) no lugar do ponto. */
+.reader-prose p[data-kind="li"][data-marker]::before {
+  content: attr(data-marker);
+}
+
 .reader-prose p[data-kind="oli"]::before {
   content: attr(data-marker);
   font-variant-numeric: tabular-nums;
@@ -1052,6 +1057,17 @@ body[data-sheet="aberta"] .toast-region {
 
 .md-strike {
   text-decoration: line-through;
+}
+
+/*
+ * `==marcado==`: faixa na metade de baixo da linha, como caneta marca-texto,
+ * para nao confundir com os destaques do leitor, que pintam a palavra toda.
+ */
+.md-mark {
+  background-image: linear-gradient(
+    transparent 62%,
+    color-mix(in srgb, var(--color-tertiary) 30%, transparent) 62%
+  );
 }
 
 .md-link {

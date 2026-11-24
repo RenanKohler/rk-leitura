@@ -66,3 +66,21 @@ describe("annotatedMarkdown com sintese (US-140)", () => {
     expect(annotatedMarkdown(plain, [], { text: "  " })).not.toContain("Síntese");
   });
 });
+
+describe("annotatedMarkdown: marcadores de bloco", () => {
+  it("lista numerada, tarefas e notas voltam a sintaxe original", () => {
+    const md = annotatedMarkdown(
+      {
+        ...plain,
+        content: "1. primeiro\n\n- [ ] aberta\n- [x] feita\n\nTexto[^1].\n\n[^1]: A nota.",
+        format: "markdown",
+      },
+      []
+    );
+    expect(md).toContain("1. primeiro");
+    expect(md).not.toContain("1.. ");
+    expect(md).toContain("- [ ] aberta");
+    expect(md).toContain("- [x] feita");
+    expect(md).toContain("[^1]: A nota.");
+  });
+});
