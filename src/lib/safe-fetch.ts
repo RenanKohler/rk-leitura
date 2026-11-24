@@ -329,10 +329,11 @@ async function readCapped(response: RawResponse, signal: AbortSignal): Promise<B
   return Buffer.concat(chunks);
 }
 
-export async function fetchPublicHtml(rawUrl: string): Promise<{ html: string; finalUrl: string }> {
+export async function fetchPublicHtml(rawUrl: string): Promise<FetchedPage> {
   return fetchPublic(rawUrl, {
-    accept: "text/html,application/xhtml+xml",
-    types: /text\/html|application\/xhtml|text\/plain/i,
+    // Markdown entra para o link direto de um arquivo .md (README, notas).
+    accept: "text/html,application/xhtml+xml,text/markdown;q=0.9,text/plain;q=0.8",
+    types: /text\/html|application\/xhtml|text\/plain|text\/(x-)?markdown/i,
   });
 }
 
@@ -340,7 +341,7 @@ export async function fetchPublicHtml(rawUrl: string): Promise<{ html: string; f
  * Feed RSS ou Atom (US-71), com as mesmas protecoes da pagina: rede interna
  * recusada a cada redirecionamento, tamanho e tempo limitados.
  */
-export async function fetchPublicFeed(rawUrl: string): Promise<{ html: string; finalUrl: string }> {
+export async function fetchPublicFeed(rawUrl: string): Promise<FetchedPage> {
   return fetchPublic(rawUrl, {
     accept: "application/rss+xml,application/atom+xml,application/xml,text/xml",
     types: /xml|rss|atom|text\/plain|text\/html/i,
@@ -360,12 +361,20 @@ const BROWSER_HEADERS = {
 export const BLOCKED_BY_SITE =
   "O site recusou a importação pelo servidor. Abra o texto no navegador e use o favorito \"Enviar para o Leitura\" (em Ajustes, Importar), ou copie o texto e use a aba \"Colar\".";
 
+/** Corpo da resposta, endereco final e o `Content-Type` declarado. */
+export interface FetchedPage {
+  html: string;
+  finalUrl: string;
+  /** Vazio quando a origem nao declara. */
+  contentType: string;
+}
+
 /** Exportada para os testes, com `deps` simulados. */
 export async function fetchPublic(
   rawUrl: string,
   { accept, types }: { accept: string; types: RegExp },
   deps: FetchDeps = NODE_DEPS
-): Promise<{ html: string; finalUrl: string }> {
+): Promise<FetchedPage> {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -423,7 +432,7 @@ export async function fetchPublic(
 
     const bytes = await readCapped(response, signal);
     // Codificacao do cabecalho ou do documento, nao sempre UTF-8 (US-178).
-    return { html: decodeBody(bytes, contentType), finalUrl: url.toString() };
+    return { html: decodeBody(bytes, contentType), finalUrl: url.toString(), contentType };
   }
 
   throw new SafeFetchError("Redirecionamentos demais.");

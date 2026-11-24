@@ -5,8 +5,17 @@ import { extractTextFromHtml, type Extraction } from "@/lib/parser";
 import { fetchPublicHtml, SafeFetchError } from "@/lib/safe-fetch";
 import { collectPages } from "@/lib/continuation";
 import { fetchNextPart, partFromHtml } from "@/lib/next-part";
-import { countWords } from "@/lib/reading";
+import { countWords, type TextFormat } from "@/lib/reading";
 import { pageFromUrl } from "@/lib/source-url";
+import { markdownTitle } from "@/lib/markdown";
+import {
+  frontMatterField,
+  isMarkdownResponse,
+  markdownFromBrowserView,
+  normalizeMarkdown,
+  titleFromMarkdownPath,
+} from "@/lib/markdown-link";
+import { UNTITLED } from "@/lib/import-analysis";
 
 /**
  * Busca e extracao de um texto a partir de uma URL.
@@ -29,6 +38,8 @@ export interface ImportedDocument {
   extraction: Extraction;
   /** Autor declarado pela pagina; null quando ela nao declara (US-152). */
   author: string | null;
+  /** "markdown" quando o link aponta para um arquivo .md. */
+  format: TextFormat;
 }
 
 /** Falha esperada da importacao, com o status que a rota deve devolver. */
@@ -49,6 +60,10 @@ export class ImportError extends Error {
  * pelo navegador ("Enviar para o Leitura"), quando o site recusa o servidor.
  */
 export function documentFromHtml(html: string, sourceUrl: string): ImportedDocument {
+  // Arquivo .md aberto no navegador: a pagina e so um <pre> com o arquivo.
+  const viewed = markdownFromBrowserView(html, sourceUrl);
+  if (viewed !== null) return documentFromMarkdown(viewed, sourceUrl);
+
   const parsed = extractTextFromHtml(html);
 
   if (parsed.wordCount < MIN_WORDS) {
@@ -63,12 +78,46 @@ export function documentFromHtml(html: string, sourceUrl: string): ImportedDocum
     language: parsed.language,
     extraction: parsed.extraction,
     author: parsed.author,
+    format: "plain",
+  };
+}
+
+/**
+ * Arquivo Markdown vindo de um link: o texto e guardado com as marcas, como
+ * na importacao de um arquivo .md, e o leitor as interpreta. Titulo pelo
+ * front matter, pelo primeiro titulo do documento ou pelo nome do arquivo.
+ */
+export function documentFromMarkdown(source: string, sourceUrl: string): ImportedDocument {
+  const content = normalizeMarkdown(source);
+  const wordCount = countWords(content, "markdown");
+
+  if (wordCount < MIN_WORDS) {
+    throw new ImportError("Não encontrei texto suficiente nesse arquivo.", 422);
+  }
+
+  const title =
+    frontMatterField(content, "title") ??
+    markdownTitle(content) ??
+    titleFromMarkdownPath(sourceUrl) ??
+    UNTITLED;
+
+  return {
+    title: title.slice(0, 200),
+    content,
+    wordCount,
+    sourceUrl,
+    language: null,
+    // O arquivo e o texto inteiro: nao ha menu nem rodape a limpar.
+    extraction: "exata",
+    author: frontMatterField(content, "author"),
+    format: "markdown",
   };
 }
 
 export async function importFromUrl(url: string): Promise<ImportedDocument> {
   try {
-    const { html, finalUrl } = await fetchPublicHtml(url);
+    const { html, finalUrl, contentType } = await fetchPublicHtml(url);
+    if (isMarkdownResponse(contentType, finalUrl)) return documentFromMarkdown(html, finalUrl);
     return documentFromHtml(html, finalUrl);
   } catch (error) {
     if (error instanceof ImportError) throw error;
@@ -103,8 +152,10 @@ export interface ImportedAllPages extends ImportedDocument {
  * erro: o que veio e devolvido com o motivo da parada, e o resto pode ser
  * buscado depois com "Continuar".
  */
-export async function importAllPages(url: string): Promise<ImportedAllPages> {
+export async function importAllPages(url: string): Promise<ImportedDocument | ImportedAllPages> {
   const first = await importFromUrl(url);
+  // Arquivo .md nao tem `?page=`: o arquivo ja e o texto inteiro.
+  if (first.format === "markdown") return first;
   const collected = await collectPages(
     { content: first.content, page: pageFromUrl(first.sourceUrl) },
     async (page, existing) => fetchNextPart(first.sourceUrl, page, existing)
@@ -144,7 +195,7 @@ export async function importReceivedPages(
   if (firstHtml === undefined) throw new ImportError("Nenhuma página recebida.", 400);
 
   const first = documentFromHtml(firstHtml, url);
-  if (rest.length === 0) return first;
+  if (rest.length === 0 || first.format === "markdown") return first;
 
   const firstPage = pageFromUrl(url);
   const collected = await collectPages(

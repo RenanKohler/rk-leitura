@@ -79,7 +79,8 @@ export async function importNextChapter(
         title: imported.title.slice(0, 200),
         sourceUrl: finalUrl,
         content,
-        wordCount: countWords(content),
+        format: imported.format,
+        wordCount: countWords(content, imported.format),
         sourcePage: pageFromUrl(finalUrl),
         // Quando o capitulo novo nao casa com o padrao, herda a serie do
         // anterior: foi ela que levou ate ele.

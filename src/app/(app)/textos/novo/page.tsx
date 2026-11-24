@@ -101,7 +101,8 @@ function FromLink() {
   const leftovers = analysis?.leftovers ?? [];
   const removed = leftovers.map((item) => item.index).filter((index) => !kept.has(index));
   const finalContent = preview ? applyRemovals(preview.content, removed) : "";
-  const finalWords = preview && removed.length > 0 ? countWords(finalContent) : preview?.wordCount ?? 0;
+  const finalWords =
+    preview && removed.length > 0 ? countWords(finalContent, preview.format) : preview?.wordCount ?? 0;
 
   /**
    * Etiquetas da conta para o seletor e, com a IA permitida, a analise da
@@ -219,6 +220,8 @@ function FromLink() {
         sourceUrl: preview.sourceUrl,
         // O texto extraido sem os restos removidos; o resto, intacto.
         content: finalContent,
+        // Link de arquivo .md: as marcas ficam no texto e o leitor as interpreta.
+        format: preview.format ?? "plain",
         language: preview.language,
         keepCitations,
         tags: chosenTags,
@@ -333,6 +336,7 @@ function FromLink() {
             </div>
             <ImportPreviewContent
               content={preview.content}
+              format={preview.format}
               leftovers={leftovers}
               kept={kept}
               onToggle={(index) =>

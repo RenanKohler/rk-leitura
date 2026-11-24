@@ -105,6 +105,7 @@ export function BatchImport() {
           title: (imported.data.title || link.title || link.url).slice(0, 200),
           sourceUrl: imported.data.sourceUrl,
           content: imported.data.content,
+          format: imported.data.format ?? "plain",
           language: imported.data.language,
         });
         if (!created.ok) return { state: "falhou", message: created.error };

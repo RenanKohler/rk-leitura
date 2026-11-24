@@ -1,6 +1,8 @@
 "use client";
 
+import { useMemo } from "react";
 import { splitParagraphs, type Leftover } from "@/lib/import-analysis";
+import { parseParagraphs, type TextFormat } from "@/lib/reading";
 
 /** Trecho mostrado na previa quando nao ha marcacao: o comeco basta. */
 const PREVIEW_CHARS = 2000;
@@ -15,11 +17,14 @@ const PREVIEW_CHARS = 2000;
  */
 export function ImportPreviewContent({
   content,
+  format = "plain",
   leftovers,
   kept,
   onToggle,
 }: {
   content: string;
+  /** Markdown: a previa mostra o texto como sera lido, sem as marcas. */
+  format?: TextFormat;
   leftovers: Leftover[];
   /** Indices de paragrafos marcados que a pessoa decidiu manter. */
   kept: ReadonlySet<number>;
@@ -28,11 +33,21 @@ export function ImportPreviewContent({
   const box =
     "max-h-64 overflow-y-auto rounded-2xl border border-border bg-bg p-4 text-sm leading-relaxed text-muted";
 
+  const shown = useMemo(
+    () =>
+      format === "markdown"
+        ? parseParagraphs(content.slice(0, PREVIEW_CHARS * 2), format)
+            .paragraphs.map((paragraph) => paragraph.words.join(" "))
+            .join("\n\n")
+        : content,
+    [content, format]
+  );
+
   if (leftovers.length === 0) {
     return (
-      <div className={box}>
-        {content.slice(0, PREVIEW_CHARS)}
-        {content.length > PREVIEW_CHARS ? "..." : ""}
+      <div className={`${box} ${format === "markdown" ? "whitespace-pre-line" : ""}`}>
+        {shown.slice(0, PREVIEW_CHARS)}
+        {shown.length > PREVIEW_CHARS || content.length > PREVIEW_CHARS * 2 ? "..." : ""}
       </div>
     );
   }

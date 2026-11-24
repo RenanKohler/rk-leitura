@@ -297,6 +297,8 @@ export interface ImportedText {
   extraction?: "exata" | "palpite";
   /** Autor declarado pela pagina, quando ela declara (US-152). */
   author?: string | null;
+  /** "markdown" quando o link aponta para um arquivo .md. */
+  format?: TextFormat;
   /** Presente quando a importacao juntou todas as paginas (`?page=`). */
   pages?: {
     first: number;
