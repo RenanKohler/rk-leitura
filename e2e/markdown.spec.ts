@@ -73,3 +73,54 @@ test("arquivo .md e importado com a formatacao", async ({ page }) => {
   await expect(prose.locator('p[data-kind="h1"]')).toHaveText(/Guia de leitura/);
   await expect(prose.locator('p[data-kind="li"]')).toHaveCount(2);
 });
+
+/**
+ * Arquivo .md com o que costuma vir de editores de notas: tarefas, notas de
+ * rodape, entidades, comentarios, citacao aninhada e `==marcado==`. Nenhum
+ * desses simbolos pode chegar ao texto lido.
+ */
+test("arquivo .md nao mostra simbolos de tarefas, notas, entidades e comentarios", async ({ page }) => {
+  await registerByApi(page.request);
+
+  const source = [
+    "# Notas da semana",
+    "",
+    "<!-- rascunho interno -->",
+    "Texto com nota[^1] e Tom &amp; Jerry &mdash; e um ==trecho marcado== aqui.",
+    "",
+    "- [ ] tarefa aberta",
+    "- [x] tarefa feita",
+    "",
+    "> citacao",
+    "> > aninhada",
+    "",
+    "| Coluna | Valor |",
+    "|---|---|",
+    "| a | 1 |",
+    "",
+    "[^1]: Explicacao da nota.",
+    "[site]: https://exemplo.com",
+  ].join("\n");
+
+  await page.goto("/textos/novo");
+  await page.getByRole("radio", { name: "Arquivo" }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "notas.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(source, "utf8"),
+  });
+  await expect(page.getByRole("textbox", { name: "Título" })).toHaveValue("Notas da semana");
+  await page.getByRole("button", { name: "Salvar na biblioteca" }).click();
+
+  await expect(page).toHaveURL(/\/leitor\//);
+  const prose = page.locator(".reader-prose").first();
+  await expect(prose.locator('p[data-kind="li"]')).toHaveCount(2);
+  await expect(prose.locator('p[data-kind="li"]').first()).toHaveAttribute("data-marker", "☐");
+  await expect(prose.locator('p[data-kind="li"]').nth(1)).toHaveAttribute("data-marker", "☑");
+  await expect(prose.locator('p[data-kind="oli"]')).toHaveAttribute("data-marker", "[1]");
+  await expect(prose.locator(".md-mark")).toHaveText(["trecho", "marcado"]);
+
+  const shown = (await prose.textContent()) ?? "";
+  expect(shown).toContain("Tom & Jerry —");
+  expect(shown).not.toMatch(/&amp;|&mdash;|<!--|rascunho|\[\^|==|\[[ x]\]|>|https:\/\/exemplo\.com/);
+});

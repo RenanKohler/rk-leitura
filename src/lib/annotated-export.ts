@@ -27,6 +27,7 @@ function styled(word: string, style: number): string {
   if (style & STYLE.bold && !(style & STYLE.heading)) out = `**${out}**`;
   if (style & STYLE.italic) out = `*${out}*`;
   if (style & STYLE.strike) out = `~~${out}~~`;
+  // `==marcado==` do original sai sem marca: aqui `==` e destaque do leitor.
   return core ? `${out}${tail}` : out;
 }
 
@@ -41,9 +42,15 @@ function prefix(paragraph: Paragraph): string {
     case "quote":
       return "> ";
     case "li":
-      return "- ";
-    case "oli":
-      return `${paragraph.marker ?? "1"}. `;
+      // Caixa de tarefa volta a ser a sintaxe de lista de tarefas.
+      return paragraph.marker === "\u2611" ? "- [x] " : paragraph.marker === "\u2610" ? "- [ ] " : "- ";
+    case "oli": {
+      const marker = paragraph.marker ?? "1.";
+      // Nota de rodape ("[1]") volta a ser a definicao `[^1]:`.
+      const note = /^\[(.+)\]$/.exec(marker);
+      if (note) return `[^${note[1]}]: `;
+      return `${marker.endsWith(".") ? marker : `${marker}.`} `;
+    }
     default:
       return "";
   }

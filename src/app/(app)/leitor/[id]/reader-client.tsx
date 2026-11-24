@@ -3459,8 +3459,13 @@ function blockLabel(block: Paragraph | undefined): string | null {
     case "h3":
       return "Título";
     case "li":
-      return "Item de lista";
+      return block.marker === "\u2611"
+        ? "Tarefa concluída"
+        : block.marker === "\u2610"
+          ? "Tarefa"
+          : "Item de lista";
     case "oli":
+      if (block.marker?.startsWith("[")) return `Nota ${block.marker.slice(1, -1)}`;
       return block.marker ? `Item ${block.marker}` : "Item de lista";
     case "quote":
       return "Citação";
